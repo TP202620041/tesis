@@ -172,6 +172,23 @@ public class ReporteController {
     }
 
     /**
+     * US-26: la calificacion que el propio ciudadano dejo en este reporte.
+     *
+     * <p>404 si todavia no califico — es la senal que usa el frontend para
+     * decidir entre mostrar el formulario o la calificacion ya emitida. Va
+     * como endpoint propio y no como un campo del resumen del reporte:
+     * "ya califique" depende de QUIEN pregunta, y {@code ReporteResumenResponse}
+     * lo comparten el mapa publico (anonimo) y la bandeja municipal. Ver
+     * {@link CalificacionService#miCalificacion}.</p>
+     */
+    @GetMapping("/{id}/calificacion")
+    @PreAuthorize("hasRole('CIUDADANO')")
+    public ResponseEntity<CalificacionResponse> miCalificacion(
+            @PathVariable("id") Long id, Principal principal) {
+        return ResponseEntity.ok(calificacionService.miCalificacion(principal.getName(), id));
+    }
+
+    /**
      * US-26 (Esc.2): reportes propios resueltos hace 3+ dias aun sin calificar.
      * Consulta bajo demanda para el aviso no intrusivo de calificacion pendiente.
      */

@@ -85,6 +85,44 @@ public class CalificacionService {
     }
 
     /**
+     * US-26: la calificacion que el propio ciudadano dejo en un reporte.
+     *
+     * <p>Existe como endpoint aparte y no como un campo {@code yaCalificado}
+     * en {@code ReporteResumenResponse} a proposito. Ese DTO lo comparten el
+     * mapa publico (donde el visitante puede ser anonimo y no hay un "yo"),
+     * la bandeja municipal y "mis reportes", y se construye con un mapper
+     * estatico sin contexto de quien pregunta. "Ya calificado" es un dato
+     * <em>relativo al espectador</em>: ponerlo ahi obligaria a que el campo
+     * mintiera con {@code false} en los contextos publicos, o a arrastrar el
+     * usuario por todos los puntos de mapeo. Un dato relativo al espectador
+     * va en un endpoint relativo al espectador.</p>
+     *
+     * <p>Devuelve la calificacion completa y no un booleano porque cuesta lo
+     * mismo y vale mas: mostrarle al ciudadano que puso 4 estrellas y que
+     * escribio es respetar el aporte que el sistema le pidio.</p>
+     *
+     * @throws AccessDeniedException   si no es el creador (mismo criterio que
+     *                                 {@link #calificar})
+     * @throws ResourceNotFoundException si todavia no califico
+     */
+    @Transactional(readOnly = true)
+    public CalificacionResponse miCalificacion(String emailCiudadano, Long reporteId) {
+        Usuario ciudadano = usuarioRepository.findByEmail(emailCiudadano)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+        Reporte reporte = reporteRepository.findById(reporteId)
+                .orElseThrow(() -> new ResourceNotFoundException("Reporte no encontrado: " + reporteId));
+
+        if (reporte.getCreador() == null || !reporte.getCreador().getId().equals(ciudadano.getId())) {
+            throw new AccessDeniedException("Solo el creador del reporte puede ver su calificacion");
+        }
+
+        return calificacionRepository.findByReporteIdAndUsuarioId(reporteId, ciudadano.getId())
+                .map(CalificacionResponse::from)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Todavia no calificaste la atencion de este reporte"));
+    }
+
+    /**
      * US-26 Esc.2: reportes del ciudadano resueltos hace mas de 3 dias que
      * aun no califico. Consulta bajo demanda para un aviso no intrusivo.
      */

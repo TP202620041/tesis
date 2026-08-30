@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AlertaError, Boton } from '@/components/ui/form';
 import { ApiError, NetworkError } from '@/lib/api/client';
-import { calificar } from '@/features/reportes/api';
+import { calificar, miCalificacion, type Calificacion } from '@/features/reportes/api';
 
 /**
  * US-26: el ciudadano califica la atencion recibida tras la resolucion.
@@ -13,28 +13,45 @@ import { calificar } from '@/features/reportes/api';
  * sola vez, y solo sobre un reporte RESUELTO. El backend responde 403/409
  * ante cada caso; aqui la pantalla solo se muestra cuando corresponde.
  *
- * <b>Limitacion conocida:</b> el API no expone la calificacion ya emitida
- * (solo existe el POST), asi que al volver a esta pantalla no se puede
- * mostrar "ya calificaste con N estrellas". Si el ciudadano lo intenta de
- * nuevo, el 409 del backend se traduce en un mensaje claro.
+ * Al montarse consulta si el ciudadano ya califico: si lo hizo, muestra lo
+ * que dijo en vez del formulario. Un 404 en esa consulta no es un fallo,
+ * es la senal de "todavia no calificaste".
  */
 export function Calificar({ reporteId }: { reporteId: number }) {
+  const [existente, setExistente] = useState<Calificacion | null>(null);
+  const [cargando, setCargando] = useState(true);
   const [estrellas, setEstrellas] = useState(0);
   const [comentario, setComentario] = useState('');
   const [enviando, setEnviando] = useState(false);
-  const [listo, setListo] = useState(false);
   const [error, setError] = useState<{ mensaje: string; detalles: string[] } | null>(null);
 
-  if (listo) {
-    return (
-      <p
-        aria-live="polite"
-        className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100"
-      >
-        ¡Gracias! Tu calificación quedó registrada y alimenta el índice público de desempeño de
-        tu municipalidad.
-      </p>
-    );
+  useEffect(() => {
+    let cancelado = false;
+    const cargar = async () => {
+      setCargando(true);
+      try {
+        const previa = await miCalificacion(reporteId);
+        if (!cancelado) setExistente(previa);
+      } catch {
+        // Un fallo al consultarla no debe impedir calificar: si ya lo hizo,
+        // el 409 del POST lo dira.
+        if (!cancelado) setExistente(null);
+      } finally {
+        if (!cancelado) setCargando(false);
+      }
+    };
+    void cargar();
+    return () => {
+      cancelado = true;
+    };
+  }, [reporteId]);
+
+  if (cargando) {
+    return <p className="text-sm text-slate-500">Cargando…</p>;
+  }
+
+  if (existente) {
+    return <CalificacionEmitida calificacion={existente} />;
   }
 
   async function enviar(evento: React.FormEvent) {
@@ -46,8 +63,10 @@ export function Calificar({ reporteId }: { reporteId: number }) {
     }
     setEnviando(true);
     try {
-      await calificar(reporteId, estrellas, comentario);
-      setListo(true);
+      const emitida = await calificar(reporteId, estrellas, comentario);
+      // Se adopta la respuesta del servidor, no lo escrito localmente: asi
+      // lo que se muestra es exactamente lo que quedo guardado.
+      setExistente(emitida);
     } catch (e) {
       if (e instanceof NetworkError) {
         setError({ mensaje: 'Sin conexión con el servidor.', detalles: [] });
@@ -119,5 +138,47 @@ export function Calificar({ reporteId }: { reporteId: number }) {
         Enviar calificación
       </Boton>
     </form>
+  );
+}
+
+/**
+ * Lo que el ciudadano ya calificó.
+ *
+ * Se le devuelve su aporte, no solo un "ya calificaste": el sistema le pidió
+ * una opinión y mostrarla cerrada es parte de que esa opinión cuente.
+ */
+function CalificacionEmitida({ calificacion }: { calificacion: Calificacion }) {
+  const estrellas = calificacion.estrellas ?? 0;
+  return (
+    <div className="flex flex-col gap-2" aria-live="polite">
+      <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Tu calificación</h2>
+      <p className="flex items-center gap-2">
+        <span aria-hidden="true" className="text-2xl leading-none">
+          {[1, 2, 3, 4, 5].map((v) => (
+            <span
+              key={v}
+              className={v <= estrellas ? 'text-amber-500' : 'text-slate-300 dark:text-slate-600'}
+            >
+              ★
+            </span>
+          ))}
+        </span>
+        <span className="text-sm text-slate-700 dark:text-slate-300">
+          {estrellas} de 5
+          {calificacion.createdAt
+            ? ` · ${new Date(calificacion.createdAt).toLocaleDateString('es-PE')}`
+            : ''}
+        </span>
+      </p>
+      {calificacion.comentario && (
+        <p className="text-sm text-slate-600 dark:text-slate-400">
+          «{calificacion.comentario}»
+        </p>
+      )}
+      <p className="text-xs text-slate-500 dark:text-slate-400">
+        Ya calificaste este reporte. Tu opinión alimenta el índice público de desempeño de tu
+        municipalidad.
+      </p>
+    </div>
   );
 }

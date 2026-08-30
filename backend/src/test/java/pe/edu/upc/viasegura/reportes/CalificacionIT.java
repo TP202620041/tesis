@@ -187,4 +187,70 @@ class CalificacionIT extends AbstractPostgisIT {
                 .andExpect(jsonPath("$", hasSize(1)))
                 .andExpect(jsonPath("$[0].id", is(pendiente.getId().intValue())));
     }
+
+    // --- Consultar la calificacion propia ---------------------------------
+    // El frontend la usa para decidir entre mostrar el formulario o lo que el
+    // ciudadano ya calificó. El 404 ES la señal de "todavía no calificaste",
+    // no un error a reportar.
+
+    @Test
+    void devuelveLaCalificacionQueElCiudadanoYaDejo() throws Exception {
+        Usuario creador = ciudadano();
+        Reporte r = reporte(EstadoReporte.RESUELTO, creador, Instant.now());
+
+        mockMvc.perform(post("/api/reportes/{id}/calificacion", r.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(cuerpo(4, "Tardaron pero quedó bien"))
+                        .header("Authorization", "Bearer " + token(creador)))
+                .andExpect(status().isCreated());
+
+        // No basta con saber QUE calificó: se le devuelve lo que dijo.
+        mockMvc.perform(get("/api/reportes/{id}/calificacion", r.getId())
+                        .header("Authorization", "Bearer " + token(creador)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estrellas", is(4)))
+                .andExpect(jsonPath("$.comentario", is("Tardaron pero quedó bien")))
+                .andExpect(jsonPath("$.reporteId", is(r.getId().intValue())));
+    }
+
+    @Test
+    void sinCalificar_404() throws Exception {
+        Usuario creador = ciudadano();
+        Reporte r = reporte(EstadoReporte.RESUELTO, creador, Instant.now());
+
+        mockMvc.perform(get("/api/reportes/{id}/calificacion", r.getId())
+                        .header("Authorization", "Bearer " + token(creador)))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void otroCiudadanoNoVeLaCalificacionAjena_403() throws Exception {
+        // Mismo criterio que calificar: solo el creador. Un adherido tampoco,
+        // aunque sí pueda ver el historial (US-22).
+        Usuario creador = ciudadano();
+        Usuario otro = ciudadano();
+        Reporte r = reporte(EstadoReporte.RESUELTO, creador, Instant.now());
+        calificacionRepository.save(Calificacion.builder()
+                .reporte(r).usuario(creador).estrellas(5).build());
+
+        mockMvc.perform(get("/api/reportes/{id}/calificacion", r.getId())
+                        .header("Authorization", "Bearer " + token(otro)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void sinToken_401() throws Exception {
+        Usuario creador = ciudadano();
+        Reporte r = reporte(EstadoReporte.RESUELTO, creador, Instant.now());
+
+        mockMvc.perform(get("/api/reportes/{id}/calificacion", r.getId()))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void reporteInexistente_404() throws Exception {
+        mockMvc.perform(get("/api/reportes/{id}/calificacion", 999_999)
+                        .header("Authorization", "Bearer " + token(ciudadano())))
+                .andExpect(status().isNotFound());
+    }
 }

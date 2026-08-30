@@ -1,4 +1,5 @@
 import { apiFetch, api } from '@/lib/api/client';
+import { ApiError } from '@/lib/api/errors';
 import type { CategoriaDano } from '@/lib/types/domain';
 import type { components } from '@/lib/api/generated/schema';
 
@@ -102,6 +103,26 @@ export function editarReporte(
  */
 export function cancelarReporte(reporteId: number): Promise<ReporteResumen> {
   return api.delete<ReporteResumen>(`/api/reportes/${reporteId}`);
+}
+
+export type Calificacion = components['schemas']['CalificacionResponse'];
+
+/**
+ * US-26: la calificacion que el propio ciudadano dejo, o `null` si todavia
+ * no califico.
+ *
+ * El 404 del backend NO es un error: es la senal de "aun no calificaste", y
+ * es lo que decide si la pantalla muestra el formulario o lo ya emitido. Va
+ * en un endpoint propio porque "ya calificado" depende de QUIEN pregunta, y
+ * el resumen del reporte lo comparten el mapa publico y la bandeja.
+ */
+export async function miCalificacion(reporteId: number): Promise<Calificacion | null> {
+  try {
+    return await api.get<Calificacion>(`/api/reportes/${reporteId}/calificacion`);
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) return null;
+    throw e;
+  }
 }
 
 /** US-26: califica la atencion recibida. Solo el creador y una sola vez. */
