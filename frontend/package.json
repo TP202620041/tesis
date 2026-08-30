@@ -1,0 +1,46 @@
+{
+  "name": "frontend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build && npm run pwa:build",
+    "start": "next start",
+    "lint": "eslint",
+    "api:types": "openapi-typescript src/lib/api/openapi.json -o src/lib/api/generated/schema.ts",
+    "api:spec": "curl -s http://localhost:8080/v3/api-docs -o src/lib/api/openapi.json",
+    "typecheck": "tsc --noEmit",
+    "api:sync": "npm run api:spec && npm run api:types",
+    "pwa:build": "serwist build serwist.config.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "leaflet": "^1.9.4",
+    "next": "16.3.3",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "react-leaflet": "^5.0.0",
+    "serwist": "^9.5.12"
+  },
+  "devDependencies": {
+    "@serwist/cli": "^9.5.12",
+    "@serwist/next": "^9.5.12",
+    "@tailwindcss/postcss": "^4",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.6",
+    "@types/leaflet": "^1.9.22",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^6.1.1",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.3",
+    "jsdom": "^30.0.1",
+    "openapi-typescript": "^7.13.0",
+    "tailwindcss": "^4",
+    "typescript": "^5",
+    "vitest": "^4.1.11"
+  }
+}

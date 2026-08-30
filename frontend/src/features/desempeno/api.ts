@@ -1,0 +1,19 @@
+import { api } from '@/lib/api/client';
+import type { DesempenoDistrital } from '@/features/desempeno/formato';
+
+/**
+ * US-18/US-20: indice publico de desempeno distrital.
+ *
+ * PUBLICO — sin token (`conAuth: false`): es informacion de transparencia
+ * ciudadana y cualquiera debe poder consultarla.
+ *
+ * Sin `categoriaId` devuelve el agregado general: **los 43 distritos**,
+ * incluidos los que no tienen reportes (con metricas en `null`). Con
+ * `categoriaId` devuelve el desglose de esa categoria y **solo aparecen los
+ * distritos que tienen reportes de ese tipo** — la lista se acorta, no es un
+ * error.
+ */
+export function rankingDistrital(categoriaId?: number | null): Promise<DesempenoDistrital[]> {
+  const query = categoriaId != null ? `?categoriaId=${categoriaId}` : '';
+  return api.get<DesempenoDistrital[]>(`/api/desempeno/distritos${query}`, { conAuth: false });
+}

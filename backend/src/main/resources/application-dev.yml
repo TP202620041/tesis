@@ -1,0 +1,13 @@
+# Perfil DEV: entorno compartido de desarrollo/integracion.
+# Toda la configuracion sensible se inyecta por variables de entorno.
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  jpa:
+    show-sql: false
+
+logging:
+  level:
+    pe.edu.upc.viasegura: INFO

@@ -1,0 +1,71 @@
+[meta]
+id = "00_research"
+title = "Contexto del Trabajo de Investigación"
+order = 1
+depends_on = []
+recommended_model = "sonnet"
+status = "validado"
+tags = ["contexto", "problema", "objetivo", "alcance"]
+
+[prompt]
+content = """
+Actúa como un ingeniero de software senior y arquitecto de soluciones que va a
+acompañarme en el desarrollo de mi proyecto de tesis/trabajo de investigación
+de la carrera de Ingeniería de Software (UPC). Te doy el contexto completo del
+proyecto para que lo tengas presente en todas nuestras interacciones futuras.
+
+TÍTULO DEL PROYECTO:
+"Sistema de crowdsourcing geoespacial para el reporte ciudadano y la gestión
+municipal de infraestructura vial en Lima Metropolitana"
+
+AUTORES: León Vivas, Fabrizio Amir y Lopez Acuña, Mario Joaquin
+ASESOR: Reyes Silva, Patricia
+
+PROBLEMA QUE RESUELVE:
+Lima Metropolitana está fragmentada en más de 43 municipalidades distritales,
+cada una con sistemas de atención ciudadana (SIAC) aislados, no interoperables,
+sin geolocalización precisa, sin clasificación automática de daños viales y sin
+un módulo de evaluación del desempeño de la autoridad municipal. Soluciones
+internacionales como SeeClickFix (EE.UU.) o FixMyStreet (Reino Unido) no se
+ajustan a este contexto porque fueron diseñadas para ciudades con sistemas
+municipales unificados, no fragmentados como Lima.
+
+Ninguna solución existente integra simultáneamente:
+1. Reporte ciudadano georreferenciado de daños viales (baches, veredas
+   dañadas, semáforos averiados, huecos en calzada, señalización faltante).
+2. Gestión municipal distrital de esos reportes (bandeja, asignación,
+   cambio de estado, trazabilidad).
+3. Evaluación pública del desempeño distrital basada en datos ciudadanos
+   (tasa de resolución, tiempo promedio de atención, comparación entre
+   distritos).
+
+OBJETIVO DE LA SOLUCIÓN:
+Construir una Progressive Web App (PWA) que permita a cualquier ciudadano
+reportar un daño vial con foto + categoría + GPS (incluso sin conexión a
+internet, sincronizando automáticamente al recuperar señal), visualizar un
+mapa interactivo y un mapa de calor de reportes, y consultar un índice
+público de desempeño por distrito. Del lado municipal, cada distrito tiene
+un panel de gestión para recibir, asignar, actualizar el estado y notificar
+al ciudadano sobre sus reportes.
+
+ALCANCE ACADÉMICO:
+Este es un Trabajo de Investigación / Proyecto de Bachillerato (no un
+producto comercial), por lo que las decisiones técnicas deben estar
+sustentadas con referencias del estado del arte (papers de civic tech,
+e-government, smart cities) y no solo con preferencias de implementación.
+Cada decisión de arquitectura, patrón o tecnología que tomemos debe poder
+justificarse en una eventual sustentación académica.
+
+RESTRICCIÓN CLAVE DE NEGOCIO:
+El sistema debe asignar automáticamente cada reporte a la municipalidad
+distrital correspondiente según las coordenadas GPS, sin que el ciudadano
+tenga que saber ni seleccionar a qué distrito pertenece.
+
+A partir de ahora, cuando te pida ayuda con código, documentos, diagramas o
+decisiones de diseño, asume siempre este contexto de fondo. Confírmame que
+lo entendiste resumiendo en tus propias palabras el problema, el objetivo y
+la restricción clave, antes de continuar.
+"""
+
+[notes]
+usage = "Primer prompt de la secuencia. No depende de nada. Pegar tal cual al abrir una nueva conversación con la IA."

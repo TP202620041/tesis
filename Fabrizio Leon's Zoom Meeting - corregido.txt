@@ -1,0 +1,262 @@
+TRANSCRIPCIÓN CORREGIDA DE LA REUNIÓN DE ZOOM
+
+Nota: Se corrigieron errores ortográficos, de puntuación, codificación y reconocimiento de voz. Se conservaron los tiempos aproximados y el sentido de la conversación. Las palabras que no pudieron reconstruirse con seguridad aparecen entre corchetes.
+
+01:15:42 --> 01:15:47
+Fabrizio Leon: Hola.
+
+Andrea Aponte: Hola.
+
+01:15:50 --> 01:16:03
+Andrea Aponte: I… [fragmento en inglés poco claro]. Bueno, parece que el sistema falló.
+
+Fabrizio Leon: ¿Qué es eso? ¡Qué feo!
+
+01:16:14 --> 01:16:22
+Fabrizio Leon: ¿Cómo estás?
+
+Andrea Aponte: Cansada.
+
+Fabrizio Leon: Un poquito cansada.
+
+01:16:23 --> 01:16:41
+Andrea Aponte: ¿Qué tal? El día que hiciste [inaudible] de nuevo…
+
+Fabrizio Leon: ¿Y qué tal? ¿Ya están haciendo la producción?
+
+Andrea Aponte: Sí. Por ejemplo, si no me equivoco, ya llevamos unas dos semanas, más o menos.
+
+Fabrizio Leon: ¿Y todo está yendo bien?
+
+Andrea Aponte: Sí, todo bien.
+
+01:16:55 --> 01:17:15
+Fabrizio Leon: Bueno, déjame decirte más o menos qué vamos a hacer. Yo te voy a hacer preguntas y tú vas a responder. Son preguntas sencillas sobre cómo te desplazas día a día y qué problemas has tenido.
+
+Andrea Aponte: ¿Con las piernas y los pies?
+
+Fabrizio Leon: Sí. ¿Qué problemas tienes? ¿Cuáles son tus dolores?
+
+Andrea Aponte: De espalda.
+
+01:17:29 --> 01:17:47
+Fabrizio Leon: Después te voy a mostrar un canvas que hemos hecho para explicarte el prototipo del video, es decir, el prototipo como tal. Está un poco desordenado, pero lo vamos a revisar.
+
+01:17:50 --> 01:18:33
+Andrea Aponte: Ahí está feo, muy feo, horroroso. Todo es muy horroroso. Hasta el perro es feo, literalmente. También había una ardilla muy fea. La voy a extrañar, porque ya nos vamos a mudar a la oficina de abajo y no habrá vista al exterior.
+
+Andrea Aponte: Hay una terraza, pero no se puede mirar hacia afuera porque estamos en el segundo piso. Es como el patio de una casa: solo se ve el cielo. No me gusta mucho esa oficina, pero bueno.
+
+01:18:35 --> 01:18:59
+Fabrizio Leon: Entonces voy a comenzar con las preguntas. Voy a grabar la sesión.
+
+Andrea Aponte: No… Bueno, está bien.
+
+Fabrizio Leon: Si algo sale mal, podemos volver a grabar. Déjame abrir [la aplicación].
+
+01:19:00 --> 01:19:27
+Fabrizio Leon: Estas preguntas son las mismas del formulario, ¿verdad?
+
+Andrea Aponte: Sí.
+
+Fabrizio Leon: En realidad, el formulario sirve para recopilar datos, mientras que la entrevista sirve para obtener más información y profundizar en las respuestas. La entrevista es más completa.
+
+01:19:28 --> 01:19:58
+Fabrizio Leon: Luego Ariana se encargará de revisarlo. Yo principalmente hago las entrevistas porque, en teoría, tengo que desarrollar el aplicativo, el primer MVP. No debería dedicarme únicamente a hacer entrevistas. Sí tengo que hacerlas, pero no es mi fuerte.
+
+01:19:59 --> 01:20:09
+Fabrizio Leon: Compartamos la pantalla y empecemos. No sé muy bien cómo se graba aquí.
+
+01:20:10 --> 01:20:30
+Fabrizio Leon: Hola. Estamos aquí con Andrea Aponte y vamos a hacerle una entrevista sobre nuestro aplicativo; mejor dicho, para una encuesta de validación que hemos preparado para nuestra startup, Mobi Lima.
+
+01:20:30 --> 01:20:41
+Fabrizio Leon: Andrea, primero, ¿podrías contarnos un poco acerca de ti: tu edad, tu ocupación, la zona donde vives y con qué frecuencia te movilizas por Lima?
+
+01:20:41 --> 01:21:04
+Andrea Aponte: Hola, Fabrizio. Buenas noches. Mi nombre es Andrea Aponte. Soy estudiante, pero también trabajo; estoy haciendo prácticas.
+
+Andrea Aponte: Desde hace casi seis meses he comenzado a movilizarme con frecuencia por ciertos puntos y rutas.
+
+01:21:04 --> 01:21:23
+Andrea Aponte: Me movilizo todos los días, al menos de lunes a viernes. A veces también los sábados, si tengo clases en la universidad. Si no, los fines de semana me movilizo principalmente para salir o realizar actividades recreativas.
+
+01:21:23 --> 01:21:48
+Andrea Aponte: Tengo una rutina establecida de lunes a viernes. Por ejemplo, vivo en Jesús María, pero tengo que ir hasta Miraflores. Paso aproximadamente dos horas al día en el tráfico, como mínimo.
+
+01:21:48 --> 01:22:08
+Fabrizio Leon: Ahora que estás de vacaciones, ¿tus desplazamientos diarios suelen ser entre tu casa y el trabajo, para hacer compras, realizar algún trámite o visitar amigos? ¿Cómo es actualmente tu día a día?
+
+Andrea Aponte: Actualmente, como recién esta semana estamos de vacaciones, básicamente me desplazo del departamento al trabajo. Los fines de semana sí he ido a algunos lugares diferentes.
+
+01:22:22 --> 01:22:53
+Fabrizio Leon: Cuando tienes que ir a algún lugar, ¿cómo decides tu ruta? ¿Revisas alguna aplicación, como Google Maps, o te basas en tu experiencia previa y eliges una ruta óptima que te lleve más rápido? ¿Cómo suele ser tu proceso de búsqueda o decisión?
+
+01:22:54 --> 01:23:22
+Andrea Aponte: Depende del lugar, de la hora y de la fecha. Cuando sé que voy a tardar mucho, siempre tomo un taxi, sea cual sea la ruta, porque sé que será lo más rápido.
+
+Andrea Aponte: Desde que empecé la universidad, comencé a consultar Google Maps. Lo uso para revisar el tráfico y para movilizarme en taxi o en transporte público. Sé que existen Waze y otras aplicaciones, pero las uso más cuando tomo taxi o cuando reviso la pantalla del conductor para saber cuánto falta para llegar. En mi día a día utilizo principalmente Google Maps.
+
+01:23:44 --> 01:24:21
+Fabrizio Leon: Piensa en tu último viaje complicado. ¿Qué ocurrió? Puede haber sido por el tráfico de Lima, por pasar por una zona insegura, porque el transporte estaba lleno o por problemas de accesibilidad. También puede ser que hayas tardado demasiado en llegar a tu destino. ¿Cuál fue ese último viaje complicado? ¿Podrías contarme un poco?
+
+01:24:25 --> 01:24:49
+Andrea Aponte: Siento que todos los viajes en Lima son complicados, o la mayoría. Sin embargo, hay algunos que terminan colmando la paciencia. Probablemente, el más complicado fue uno de los viajes que me duró aproximadamente dos horas y media en el tráfico. Fue horrible.
+
+01:24:49 --> 01:25:09
+Andrea Aponte: Por ejemplo, desde la universidad, en Pueblo Libre, hasta Jesús María hay diferentes rutas. Sé que hay una que no tomo porque es muy peligrosa: pasa por la Panamericana Sur y luego por el centro de Lima. Esa ruta es terrible.
+
+01:25:09 --> 01:25:39
+Andrea Aponte: La ruta óptima que suelo tomar combina diferentes medios de transporte público. No es solamente un micro; también puede incluir el corredor o algo similar. A veces me demoro mucho por ciertas situaciones. Por ejemplo, en hora punta, la avenida del Ejército es horrible. También depende del día, de la fecha y de si hay eventos en algún lugar cercano.
+
+01:25:39 --> 01:26:06
+Andrea Aponte: El tráfico puede aumentar demasiado, especialmente los fines de semana. También ocurren accidentes que no siempre están registrados en las aplicaciones. En Google Maps pienso que el viaje será normal, pero al final termino demorando más de lo esperado.
+
+01:26:06 --> 01:26:33
+Andrea Aponte: A veces hay accidentes que no aparecen en las aplicaciones o que ocurren en el momento. Además, las aplicaciones no siempre consideran a las personas que dirigen el tráfico en lugar de los semáforos. En la avenida del Ejército, por ejemplo, suelen aparecer personas que dirigen el tráfico, y eso termina causando más demora.
+
+01:26:34 --> 01:26:52
+Fabrizio Leon: Eso es interesante: lo de las personas que dirigen el tránsito. No lo sabía. Antes de salir de casa, ¿qué criterios te gustaría conocer para tomar una mejor decisión sobre cómo llegar a tu destino?
+
+01:26:56 --> 01:27:04
+Andrea Aponte: ¿A qué te refieres exactamente con criterios?
+
+Fabrizio Leon: ¿Qué información te ayudaría a elegir una ruta?
+
+01:27:04 --> 01:27:37
+Andrea Aponte: Como te decía, depende del tiempo. Si estoy muy tarde, sí o sí tomo un taxi. En ese caso comparo diferentes aplicaciones: por ejemplo, InDrive puede ser más barato que Cabify, o Uber puede estar más barato que InDrive. También considero cuánto demora el conductor en llegar.
+
+Andrea Aponte: En cuanto al transporte público, trato de escoger la ruta que demore menos tiempo. Así no tengo que quedarme esperando demasiado en el tráfico, aunque eso sea algo normal en Lima.
+
+01:27:50 --> 01:28:33
+Andrea Aponte: Prefiero escoger rutas más cortas porque no quiero soportar el tráfico. Además, el tráfico puede oler muy mal. Algunas rutas tienen micros antiguos que siempre huelen mal; en cambio, hay otras rutas más abiertas. Quizá demoren un poco más, pero siento que son más limpias.
+
+Andrea Aponte: También considero otros factores, como el clima. Por ejemplo, para ir de Monterrico a Jesús María existen varias rutas. Una pasa por la Panamericana y es peligrosa; otra pasa por la avenida del Ejército y es más larga, pero suele ser la más óptima; y otra cruza distritos como Lince y San Isidro.
+
+01:28:33 --> 01:29:28
+Andrea Aponte: A veces la ruta que cruza otros distritos termina siendo la mejor. En invierno, el recorrido por la avenida del Ejército puede ser más difícil debido a la neblina y a otras condiciones climáticas. Por eso prefiero tomar otra ruta.
+
+Andrea Aponte: Para mí no solo importa cuál ruta demora menos, sino también cuál tiene mejores condiciones climáticas y cuál me permite respirar un aire más limpio.
+
+01:29:29 --> 01:29:53
+Fabrizio Leon: Si tuviéramos que ordenar tus criterios en una lista, ¿la rapidez estaría en primer lugar? Es decir, ¿elegirías la ruta más rápida? También mencionaste el CO₂ y la calidad del ambiente. ¿Cómo describirías ese criterio?
+
+01:29:52 --> 01:30:11
+Andrea Aponte: Yo diría que es la calidad del transporte. Siempre se dice que el tráfico de Lima reduce años de vida por todo lo que terminamos respirando, y eso es terrible. Para mí, viajar en transporte público puede ser muy desagradable.
+
+01:30:11 --> 01:30:34
+Andrea Aponte: Siempre estoy entre elegir rapidez y la calidad del viaje. Es complicado movilizarse en transporte público, así que también considero la limpieza.
+
+Andrea Aponte: Mi lista sería: primero, rapidez; luego, calidad del transporte; y después, el clima.
+
+01:30:35 --> 01:30:58
+Fabrizio Leon: De acuerdo. Pasemos ahora a tu entorno familiar. ¿Tienes familiares o personas cercanas que tengan alguna dificultad para movilizarse? Pueden ser adultos mayores, personas con movilidad reducida o personas con alguna discapacidad.
+
+Andrea Aponte: En realidad, no tengo familiares en esa situación.
+
+01:31:07 --> 01:31:23
+Fabrizio Leon: De acuerdo, no hay problema. Si tuvieras que ayudar a una persona con esas dificultades, ¿cómo harías para que se movilizara mejor?
+
+01:31:25 --> 01:31:55
+Andrea Aponte: Creo que tiene que ver con la infraestructura del transporte público de Lima. Puede haber espacios para personas en silla de ruedas en el tren, pero en los medios más comunes, como los micros, no siempre existen unidades adaptadas para que puedan subir.
+
+01:31:55 --> 01:32:25
+Andrea Aponte: Incluso cuando suben personas cerca de hospitales o clínicas, muchas veces tienen que pedir el asiento de adelante porque pueden movilizarse con muletas. Si una ruta pasa por clínicas, suelen subir personas con dificultades de movilidad.
+
+01:32:25 --> 01:32:48
+Andrea Aponte: Si yo fuera conductora o estuviera a cargo de un vehículo, dejaría un asiento reservado exclusivamente para ese tipo de personas. Creo que el transporte debe adecuarse a sus necesidades.
+
+Andrea Aponte: A veces esto no está suficientemente respaldado por las leyes, pero también es responsabilidad del Gobierno y de las empresas privadas equipar sus unidades para atender a estas personas.
+
+01:32:49 --> 01:33:08
+Fabrizio Leon: De acuerdo. Hablemos ahora de las aplicaciones que utilizas. Me mencionaste Waze y Google Maps. Además de esas, ¿sueles utilizar alguna otra aplicación, quizá una red social?
+
+01:33:09 --> 01:33:40
+Andrea Aponte: No utilizo redes sociales para ubicarme. Solo podría usarlas si voy a algún lugar y mis amigos me comparten la ubicación por Instagram o algo similar. Para movilizarme, uso Google Maps.
+
+Andrea Aponte: Creo que hay que descubrir el potencial de cada aplicación. Google Maps integra información sobre las rutas de los buses y permite usarla tanto para llegar en taxi como en transporte público.
+
+01:33:40 --> 01:33:59
+Andrea Aponte: Utilizo principalmente Google Maps. Como no manejo, Waze no me sirve tanto; lo uso más para tener una idea de dónde hay accidentes. Para eso sí tiene una buena funcionalidad, pero fuera de eso no lo utilizo mucho.
+
+01:33:59 --> 01:34:50
+Fabrizio Leon: ¿Qué es lo que más valoras de estas herramientas? También quería preguntarte por las aplicaciones de taxi, ya que cuentan con sus propios mapas y llevan al conductor por una ruta sugerida. ¿Qué valores rescatas de Uber, por ejemplo, y de Google Maps? ¿Qué hace que sigas utilizando estas aplicaciones?
+
+01:34:51 --> 01:35:35
+Andrea Aponte: En Google Maps valoro que reúne todo lo que necesito. No me gusta descargar muchas aplicaciones. Solo necesito consultar las rutas de los micros, cuánto demora el viaje y dónde está un lugar.
+
+Andrea Aponte: No necesito mucho más. Por eso valoro que Google Maps integre esas funciones. Como no manejo, no necesito utilizar Waze constantemente.
+
+01:35:35 --> 01:35:58
+Andrea Aponte: En el caso de las aplicaciones de taxi, sí puedo instalar varias, porque a veces depende de la hora, la fecha o el día. A veces un taxi no llega rápido y tengo que probar con otra aplicación.
+
+01:35:58 --> 01:36:38
+Andrea Aponte: Principalmente uso InDrive y Uber. Como no soy de Lima, en la ciudad de donde soy no están disponibles todas las aplicaciones, así que me acostumbré a usar las que sí funcionan allí. En Lima también funcionan bien.
+
+Andrea Aponte: En esas aplicaciones valoro no solo la funcionalidad, sino también el desempeño del conductor. En el último mes me ha pasado varias veces que estaba saliendo tarde del trabajo y el conductor no siguió exactamente la ruta indicada por la aplicación, sino que eligió otra.
+
+01:36:38 --> 01:36:53
+Andrea Aponte: Al final, la aplicación se adapta a la ruta que elige el conductor. A veces llego un poco después o un poco antes de lo indicado. Valoro la relación entre precio y calidad: si el precio es alto, espero que el conductor sea rápido y eficiente.
+
+01:37:02 --> 01:37:34
+Fabrizio Leon: Hablemos ahora de las dificultades. ¿Qué crees que les falta a las aplicaciones que utilizas? ¿Qué podría ayudar a que el usuario se movilice mejor y las utilice con mayor frecuencia?
+
+01:37:34 --> 01:38:11
+Andrea Aponte: En aplicaciones como Google Maps, no sé si Waze tiene esta función, pero creo que falta considerar la accesibilidad. Si una persona está en silla de ruedas, ¿de qué sirve mostrarle una ruta de micro si al final no podrá subir?
+
+Andrea Aponte: La aplicación debería preguntar si la persona tiene alguna discapacidad y, a partir de esa información, ofrecer rutas adecuadas. Por ejemplo, podría recomendar el tren, taxis accesibles u otras alternativas.
+
+01:38:11 --> 01:38:37
+Andrea Aponte: En el caso de los taxis, debería aparecer si el vehículo puede ayudar a subir una silla de ruedas y si el conductor puede ayudar a la persona a sentarse. Creo que falta adaptar las aplicaciones de transporte a las necesidades de las personas con movilidad reducida.
+
+01:38:41 --> 01:39:14
+Fabrizio Leon: De acuerdo. Ahora voy a mostrarte el prototipo de la idea que tenemos para nuestra startup, que utilizaremos en una hackathon en Boston.
+
+Fabrizio Leon: Estamos explorando una idea que permita a personas de diferentes edades, etnias y condiciones de movilidad tomar mejores decisiones antes y durante sus desplazamientos. La aplicación integraría información como el tiempo estimado de viaje, las incidencias, el clima, la seguridad y la accesibilidad.
+
+01:39:14 --> 01:39:56
+Fabrizio Leon: También mostraría incidencias, como accidentes o vehículos que hayan bloqueado la vía. Además, incluiría información sobre zonas peligrosas de Lima, algo que aplicaciones como Google Maps no suelen considerar.
+
+Fabrizio Leon: Una ruta puede ser óptima en tiempo, pero llevarte por lugares donde podrías sufrir un accidente o un robo. También queremos considerar la accesibilidad, que es importante para las personas mayores y para quienes tienen familiares con dificultades de movilidad.
+
+01:40:07 --> 01:40:27
+Fabrizio Leon: Voy a compartirte este pequeño prototipo. Te mostraré la pantalla. ¿Puedes visualizar el canvas?
+
+Andrea Aponte: Sí, sí lo veo.
+
+01:40:29 --> 01:41:24
+Fabrizio Leon: Este es el videoprototipo de Mobi Lima. Las personas de los diferentes segmentos que estamos considerando podrán buscar las rutas más óptimas según los criterios que elijan: clima, seguridad, accesibilidad y otros.
+
+Fabrizio Leon: También permitirá elegir diferentes medios de desplazamiento, como buses, taxis, caminar o bicicleta. Además, integraremos inteligencia artificial para que el usuario pueda consultar cuál es la mejor ruta, cuánto demorará y cuáles son los detalles del viaje.
+
+Fabrizio Leon: La inteligencia artificial estará limitada a preguntas relacionadas con el aplicativo, por razones de seguridad.
+
+01:41:37 --> 01:42:29
+Fabrizio Leon: Hay otra función importante. Muchas personas no tienen el celular cargado al cien por ciento y, durante el desplazamiento, pueden necesitar un cargador o un enchufe.
+
+Fabrizio Leon: La aplicación mostraría lugares donde se pueda cargar el celular o conectarse a una red wifi. En el mapa interactivo aparecerían zonas públicas con wifi, enchufes o puertos USB, como los que suelen encontrarse en centros comerciales. Así, las personas podrían mantenerse conectadas y afrontar una emergencia.
+
+01:42:29 --> 01:43:40
+Fabrizio Leon: Este segundo video muestra, a grandes rasgos, cómo navegaría el usuario. Es solo un prototipo; todavía no es el MVP final.
+
+Fabrizio Leon: Aquí puedes observar los diferentes distritos y elegir hacia dónde quieres desplazarte. También puedes indicar cómo quieres priorizar tu ruta. El prototipo muestra una comparación entre las diferentes opciones de desplazamiento.
+
+Fabrizio Leon: Los puntos calientes representan el nivel de peligrosidad o inseguridad de las distintas zonas. Además, se evalúan los precios: desde dónde te desplazas, cuánto costaría aproximadamente y qué precio tendría cada medio de transporte.
+
+01:43:40 --> 01:44:10
+Fabrizio Leon: Eso es, básicamente, Mobi Lima. Ahora quisiera preguntarte, en una escala del uno al diez, ¿qué te parece algo así? Puede que algunas opciones te parezcan innecesarias o que el prototipo esté muy cargado. Eso nos ayudará a reducir el alcance y a tener algo más concreto que les guste a los usuarios.
+
+01:44:11 --> 01:44:37
+Andrea Aponte: Probablemente te voy a decir solamente lo que rescato del producto que me has mostrado, porque es lo que recuerdo. Si no menciono algo, puede ser porque considero que no debería incluirse, porque no lo recuerdo o porque no me parece importante.
+
+Andrea Aponte: Creo que la función de sugerir precios o indicar cuánto gastarías para ir a un lugar es importante.
+
+01:44:37 --> 01:45:20
+Andrea Aponte: Por ejemplo, saber cuánto costaría un taxi hasta un lugar sería un plus que sí usaría. A veces pienso si realmente debería ir a determinado sitio. Si me sugieren un precio y me dicen cuánto gastaría aproximadamente en ir y volver, podría pensarlo dos veces.
+
+Andrea Aponte: Eso me ayudaría a ahorrar, porque quizá al final no sea necesario ir a ese lugar. Por eso sí dejaría esa función.
+
+01:45:20 --> 01:45:55
+Andrea Aponte: En cambio, los puntos calientes me parecen más problemáticos. Me gustaría que una aplicación tuviera esa información, pero entiendo por qué Google Maps no la incluye. Si no hay puntos calientes en ninguna aplicación, quizá sea porque no quieren perjudicar la imagen de un distrito.
+
+Andrea Aponte: Hay que encontrar un equilibrio: distinguir los distritos tranquilos para pasear y elegir una ruta segura, pero sin caer en la discriminación de un distrito, aunque sus niveles de delincuencia sean altos. Quizá por eso existe algún vacío legal.

@@ -1,0 +1,85 @@
+import type { ApiErrorBody } from '@/lib/types/domain';
+
+/**
+ * Error de una llamada al API, con el `status` HTTP y el mensaje que el
+ * backend ya devuelve traducido en `ApiError.message`.
+ *
+ * El backend usa los codigos de forma consistente y el frontend depende de
+ * esa semantica, asi que conviene tenerla escrita:
+ *
+ * - `400` validacion de entrada (`@Valid`, coordenadas fuera de rango).
+ * - `401` sin token o token invalido/vencido.
+ * - `403` autenticado pero sin permiso (otro rol, otro distrito, no es el
+ *   creador del reporte).
+ * - `404` recurso inexistente.
+ * - `409` precondicion de negocio incumplida: transicion de estado invalida
+ *   (US-14), reporte duplicado del mismo ciudadano (US-09), ya calificado
+ *   (US-26), token de recuperacion usado o vencido (US-03).
+ */
+export class ApiError extends Error {
+  readonly status: number;
+  readonly path: string;
+  readonly details: string[];
+
+  constructor(status: number, message: string, path = '', details: string[] = []) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.path = path;
+    this.details = details;
+  }
+
+  /** `true` si el fallo es de negocio y tiene sentido mostrarlo al usuario. */
+  get esDeNegocio(): boolean {
+    return this.status === 400 || this.status === 409;
+  }
+
+  get esNoAutenticado(): boolean {
+    return this.status === 401;
+  }
+
+  get esSinPermiso(): boolean {
+    return this.status === 403;
+  }
+}
+
+/**
+ * Error de red: el request nunca llego al backend (sin conexion, DNS, CORS).
+ * Se distingue de {@link ApiError} porque es el caso que la cola de
+ * sincronizacion offline (US-06) debe reintentar, no reportar como fallo.
+ */
+export class NetworkError extends Error {
+  constructor(message = 'No se pudo conectar con el servidor') {
+    super(message);
+    this.name = 'NetworkError';
+  }
+}
+
+/** Construye un {@link ApiError} desde la respuesta, tolerando cuerpos no-JSON. */
+export async function desdeRespuesta(respuesta: Response): Promise<ApiError> {
+  let cuerpo: Partial<ApiErrorBody> = {};
+  try {
+    cuerpo = (await respuesta.json()) as Partial<ApiErrorBody>;
+  } catch {
+    // 401 del entry point y algunos errores de Spring vienen sin cuerpo JSON.
+  }
+  return new ApiError(
+    respuesta.status,
+    cuerpo.message ?? mensajePorDefecto(respuesta.status),
+    cuerpo.path ?? '',
+    cuerpo.details ?? [],
+  );
+}
+
+function mensajePorDefecto(status: number): string {
+  switch (status) {
+    case 401:
+      return 'Tu sesión expiró o no iniciaste sesión.';
+    case 403:
+      return 'No tienes permiso para realizar esta acción.';
+    case 404:
+      return 'No se encontró el recurso solicitado.';
+    default:
+      return 'Ocurrió un error inesperado. Intenta nuevamente.';
+  }
+}

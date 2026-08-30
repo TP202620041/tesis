@@ -1,0 +1,38 @@
+# Infraestructura de desarrollo local: PostgreSQL + PostGIS
+# Uso:  docker compose up -d
+# La imagen postgis/postgis ya trae la extension PostGIS lista para
+# `CREATE EXTENSION postgis;` (la habilita la migracion Flyway V1).
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: viasegura-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-viasegura}
+      POSTGRES_USER: ${POSTGRES_USER:-viasegura}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-viasegura}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - viasegura_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-viasegura} -d ${POSTGRES_DB:-viasegura}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Servidor SMTP de pruebas para desarrollo: captura los correos que envia
+  # la app (notificaciones US-16/US-21) sin entregarlos a un buzon real.
+  # UI web en http://localhost:8025 ; SMTP en localhost:1025 (coincide con
+  # los defaults de spring.mail en application.yml). Los tests NO lo usan
+  # (usan GreenMail embebido); esto es solo para la demo manual del fallback.
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    container_name: viasegura-mailhog
+    restart: unless-stopped
+    ports:
+      - "${MAILHOG_SMTP_PORT:-1025}:1025"
+      - "${MAILHOG_UI_PORT:-8025}:8025"
+
+volumes:
+  viasegura_pgdata:

@@ -1,0 +1,21 @@
+# Raiz del monorepo. Cada proyecto tiene ademas su propio .gitignore:
+#   backend/.gitignore   -> target/, uploads/, .env
+#   frontend/.gitignore  -> node_modules/, .next/, .env*
+
+### Sistema operativo ###
+.DS_Store
+Thumbs.db
+desktop.ini
+
+### Editores / IDE ###
+.idea/
+.vscode/
+*.iml
+*.swp
+
+### Herramientas de agentes ###
+# Se versiona el contenido del proyecto, no el estado local de las sesiones.
+.agents/
+
+### Logs sueltos ###
+*.log

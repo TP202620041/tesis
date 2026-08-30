@@ -1,0 +1,13 @@
+# Perfil LOCAL: apunta al Postgres+PostGIS de docker-compose.yml
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:${POSTGRES_PORT:5432}/${POSTGRES_DB:viasegura}
+    username: ${POSTGRES_USER:viasegura}
+    password: ${POSTGRES_PASSWORD:viasegura}
+  jpa:
+    show-sql: true
+
+logging:
+  level:
+    pe.edu.upc.viasegura: DEBUG
+    org.hibernate.spatial: INFO

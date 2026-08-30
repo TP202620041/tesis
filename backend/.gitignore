@@ -1,0 +1,25 @@
+target/
+!.mvn/wrapper/maven-wrapper.jar
+.mvn/timing.properties
+
+### Entorno ###
+.env
+
+### IDE ###
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+bin/
+
+### OS ###
+.DS_Store
+Thumbs.db
+
+### Logs ###
+*.log
+
+### Uploads (fotos de reportes en dev) ###
+uploads/

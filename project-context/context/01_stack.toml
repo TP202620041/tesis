@@ -1,0 +1,70 @@
+[meta]
+id = "01_stack"
+title = "Stack Tecnológico a Utilizar"
+order = 2
+depends_on = ["00_research"]
+recommended_model = "sonnet"
+status = "validado"
+tags = ["stack", "backend", "frontend", "base-de-datos", "benchmarking"]
+
+[prompt]
+content = """
+Este prompt continúa el contexto del proyecto de tesis "Sistema de
+crowdsourcing geoespacial para reporte ciudadano vial en Lima Metropolitana"
+que ya te expliqué. Ahora te doy el stack tecnológico DEFINITIVO, elegido
+mediante un benchmarking formal con matriz de criterios ponderados, para que
+lo respetes en cualquier código, arquitectura o recomendación que generes.
+
+STACK SELECCIONADO (con puntaje de benchmarking sobre 5):
+
+1. BACKEND → Spring Boot (Java) — puntaje 4.40
+   Razón de selección: mejor balance en seguridad (OAuth2/JWT nativo),
+   rendimiento bajo alta concurrencia y robustez para datos ciudadanos
+   sensibles de 43 municipalidades operando simultáneamente.
+   Alternativas descartadas: Node.js+Express (mejor en tiempo real pero
+   menor seguridad nativa), Django (buen admin panel pero rendimiento
+   síncrono limitado), FastAPI (mejor para integrar visión computacional
+   pero menos maduro en seguridad enterprise).
+
+2. FRONTEND / PWA → Next.js (React) — puntaje 4.70
+   Razón de selección: mejor soporte PWA offline-first con Service Worker
+   robusto (crítico porque el ciudadano debe poder reportar sin conexión y
+   sincronizar luego), SSR/SSG para mejor rendimiento y SEO del índice
+   público de desempeño distrital.
+   Alternativas descartadas: React puro (sin SSR nativo), Angular (curva de
+   aprendizaje alta para el equipo), Vue+Nuxt (ecosistema de mapas más
+   limitado).
+
+3. BASE DE DATOS → PostgreSQL + PostGIS — puntaje 4.85 (la más alta del
+   benchmarking completo)
+   Razón de selección: es la ÚNICA opción con soporte geoespacial completo
+   nativo (índices espaciales, consultas de proximidad por radio, cálculo
+   de mapas de calor), garantías ACID para auditoría de gestión municipal,
+   e integración madura con Spring Data JPA.
+   Alternativas descartadas: MySQL (sin geoespacial avanzado nativo),
+   MongoDB (consistencia eventual inadecuada para auditoría), Firebase
+   Firestore (capacidades analíticas/geoespaciales limitadas).
+
+COMPONENTES TÉCNICOS ADICIONALES QUE EL STACK DEBE SOPORTAR:
+- Notificaciones push al ciudadano (vía WebSockets o servicio push web) y
+  fallback por correo electrónico.
+- Sincronización offline-first mediante Service Worker (cache de reportes
+  pendientes de envío).
+- Integración con API de mapas (Google Maps API o Leaflet + react-leaflet).
+- Exportación de datos a Excel/CSV desde el panel municipal.
+- Espacio para un futuro módulo de clasificación automática de daños con
+  visión computacional (mencionado en el estado del arte, aunque no es
+  parte del MVP actual) — por eso mantener el backend desacoplado en
+  servicios/microservicios facilita anexar esto después.
+
+REGLA DE ORO: cualquier librería, patrón o servicio externo que sugieras
+debe ser compatible y coherente con Spring Boot + Next.js + PostgreSQL/PostGIS.
+Si sugieres algo fuera de este stack, explícitamente indícamelo como
+"alternativa fuera del stack aprobado" y justifica por qué valdría la pena
+romper la decisión del benchmarking.
+
+Confírmame que entendiste el stack y sus justificaciones antes de continuar.
+"""
+
+[notes]
+usage = "Requiere que el prompt 00_research ya haya sido enviado en la misma conversación (o pegado justo antes)."

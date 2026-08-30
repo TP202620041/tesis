@@ -1,0 +1,86 @@
+[meta]
+id = "03_scaffolding"
+title = "Generación del Proyecto - Estructura de Carpetas y Patrones de Diseño"
+order = 4
+depends_on = ["00_research", "01_stack", "02_eda"]
+recommended_model = "opus"
+status = "validado"
+tags = ["scaffolding", "arquitectura", "patrones-de-diseno", "estructura-de-carpetas"]
+
+[prompt]
+content = """
+Continuando con el proyecto de tesis "Sistema de crowdsourcing geoespacial
+para reporte ciudadano vial en Lima Metropolitana" — stack Spring Boot +
+Next.js + PostgreSQL/PostGIS, con el modelo de datos que ya definimos —
+ahora necesito que generemos la estructura base del proyecto (scaffolding),
+respetando patrones de diseño limpios y coherentes con un trabajo académico
+que será evaluado también por su calidad arquitectónica.
+
+REQUISITOS ARQUITECTÓNICOS GENERALES:
+- Separación clara entre backend (API REST) y frontend (PWA), como dos
+  proyectos independientes dentro de un monorepo o repos separados
+  (indícame pros/contras de cada enfoque para un proyecto académico de
+  2 personas).
+- El backend debe seguir arquitectura en capas / hexagonal ligera:
+  Controller → Service → Repository, con DTOs separados de las entidades
+  JPA, y manejo centralizado de excepciones.
+- Debe quedar preparado para features específicas del dominio:
+  * Cálculo geoespacial (asignación automática de distrito por punto,
+    búsqueda de reportes duplicados en radio, mapa de calor) como un
+    servicio de dominio independiente (ej. GeoAssignmentService).
+  * Notificaciones (push + email) como un servicio desacoplado con
+    interfaz, para poder cambiar de proveedor sin tocar la lógica de
+    negocio (patrón Strategy o Adapter).
+  * Módulo de auditoría de cambios de estado de reporte, reutilizable.
+  * Seguridad basada en roles (CIUDADANO / FUNCIONARIO_MUNICIPAL /
+    ADMIN) con Spring Security + JWT.
+- El frontend (Next.js) debe organizarse por features/dominio (no solo por
+  tipo de archivo), con separación de:
+  * Vistas públicas (mapa, índice de desempeño, guía de uso) — accesibles
+    sin login.
+  * Vistas de ciudadano autenticado (mis reportes, perfil, calificaciones).
+  * Vistas de funcionario municipal (bandeja, dashboard de distrito).
+  * Lógica de Service Worker / PWA offline-first en un módulo aislado.
+  * Cliente de mapas (Leaflet/Google Maps) encapsulado en componentes
+    reutilizables.
+
+LO QUE NECESITO QUE GENERES:
+
+1. ESTRUCTURA DE CARPETAS completa para:
+   a) El backend Spring Boot (paquetes por capa y por dominio/módulo:
+      auth, reportes, distritos, notificaciones, desempeño, soporte, etc.)
+   b) El frontend Next.js (app router, carpetas por feature, componentes
+      compartidos, hooks, servicios de API, tipos TypeScript, configuración
+      PWA/Service Worker).
+   c) Carpeta de infraestructura si aplica (docker-compose para
+      Postgres+PostGIS, backend y frontend en desarrollo local).
+
+2. Para cada carpeta/paquete principal, una breve descripción de su
+   responsabilidad (qué va ahí y qué NO va ahí), para que el equipo no
+   mezcle capas.
+
+3. PATRONES DE DISEÑO a aplicar explícitamente, con justificación ligada a
+   una historia de usuario concreta del backlog (no patrones "porque sí"):
+   - Patrón para la asignación automática de distrito (Strategy/Service).
+   - Patrón para el envío de notificaciones multi-canal (push/email).
+   - Patrón Repository para acceso a datos (Spring Data JPA).
+   - Patrón para el manejo de estados del reporte (¿State pattern o
+     simplemente un enum + validación de transiciones? justifica cuál
+     conviene más para un proyecto de este tamaño).
+   - Patrón para la sincronización offline en el frontend (cola de
+     sincronización con Service Worker).
+   - Cualquier otro patrón que consideres relevante (ej. Observer para
+     notificar cambios en tiempo real al panel municipal).
+
+4. Un archivo README.md inicial (o su contenido) que explique el propósito
+   del proyecto, cómo levantarlo localmente (docker-compose), y la
+   estructura general, para que cualquier nuevo integrante del equipo (o
+   el jurado revisando el repositorio) entienda rápidamente la arquitectura.
+
+Antes de crear archivos reales, muéstrame primero el árbol de carpetas
+propuesto en texto para que lo valide, y luego procede a generar el
+scaffolding.
+"""
+
+[notes]
+usage = "Requiere que 02_eda ya haya sido validado en la misma conversación, ya que el scaffolding referencia el modelo de datos."

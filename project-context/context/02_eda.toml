@@ -1,0 +1,98 @@
+[meta]
+id = "02_eda"
+title = "EDA - Modelo de Datos / Entidades"
+order = 3
+depends_on = ["00_research", "01_stack"]
+recommended_model = "opus"
+status = "validado"
+tags = ["eda", "modelo-de-datos", "postgis", "entidades"]
+
+[prompt]
+content = """
+Continuando con el proyecto de tesis "Sistema de crowdsourcing geoespacial
+para reporte ciudadano vial en Lima Metropolitana" (stack: Spring Boot +
+Next.js + PostgreSQL/PostGIS), ahora quiero que trabajemos el EDA
+(Esquema/Entidad-Relación de Datos) del sistema.
+
+CONTEXTO FUNCIONAL PARA DERIVAR ENTIDADES (basado en el Product Backlog):
+
+Épicas y funcionalidades clave:
+1. Gestión de acceso y autenticación: registro, login diferenciado por rol
+   (ciudadano / funcionario municipal), recuperación de contraseña.
+2. Reporte ciudadano de daño vial: creación de reporte con foto, categoría,
+   coordenadas GPS, descripción opcional, soporte offline con sincronización
+   posterior, edición/cancelación mientras esté "Pendiente", y ACUMULACIÓN
+   de reportes duplicados sobre el mismo punto (mismo tipo de daño dentro de
+   un radio de 20 metros) — esto implica que un "reporte" puede tener varios
+   ciudadanos asociados a él (relación muchos-a-muchos o tabla de adhesiones).
+3. Visualización geoespacial: mapa interactivo con filtros (distrito,
+   categoría, estado), mapa de calor por densidad de reportes.
+4. Panel de gestión municipal: bandeja de reportes asignados automáticamente
+   al distrito según coordenadas, actualización de estado (Recibido / En
+   proceso / Resuelto / Rechazado) con comentario y trazabilidad completa de
+   cambios (historial de estados con fecha/hora/autor/comentario), asignación
+   de responsable interno (cuadrilla/funcionario).
+5. Notificaciones: push al ciudadano en cada cambio de estado, con fallback
+   a email si no hay push habilitado.
+6. Índice de desempeño distrital: cálculo público de tasa de resolución,
+   tiempo promedio de atención por categoría y distrito, comparación entre
+   los 43 distritos — esto requiere datos agregados/derivados, posiblemente
+   materializados o recalculados periódicamente.
+7. Evaluación ciudadana: calificación por estrellas (1-5) tras resolución,
+   comentarios públicos sobre reportes resueltos, con detección de palabras
+   clave de "reincidencia" que etiquetan el reporte.
+8. Administración avanzada: exportación a Excel/CSV con filtros, categorías
+   de daño personalizadas por distrito (esto implica que las categorías NO
+   deben ser un enum fijo sino una entidad configurable por distrito, con un
+   set base de categorías estándar).
+9. Perfil ciudadano: datos personales, distrito de residencia, preferencias
+   de notificación (push/email/ambas).
+
+ENTIDADES CANDIDATAS QUE DEBES ANALIZAR Y REFINAR (no son definitivas,
+quiero que las valides, completes atributos, definas relaciones y tipos de
+datos, incluyendo el tipo geoespacial de PostGIS donde corresponda):
+- Usuario (rol: CIUDADANO / FUNCIONARIO_MUNICIPAL, con datos de perfil y
+  preferencias)
+- Distrito (los 43 distritos de Lima Metropolitana, con polígono geoespacial
+  de límites distritales para el cálculo automático de asignación)
+- Reporte (coordenadas tipo Point/geography, foto, categoría, descripción,
+  estado, distrito asignado, fecha de creación)
+- CategoriaDano (categorías estándar + categorías personalizadas por
+  distrito)
+- AdhesionReporte (relación N:M entre Usuario y Reporte cuando se acumulan
+  reportes duplicados del mismo punto)
+- HistorialEstadoReporte (auditoría de cada cambio de estado con
+  responsable, comentario, fecha)
+- AsignacionResponsable (responsable interno/cuadrilla asignada a un
+  reporte)
+- Notificacion (push/email, estado leído/no leído, tipo de evento)
+- Calificacion (estrellas + comentario del ciudadano tras resolución)
+- ComentarioPublico (comentarios sobre reportes resueltos, con flag de
+  posible reincidencia)
+- IndiceDesempenoDistrital (tabla derivada/calculada: tasa de resolución,
+  tiempo promedio de atención, total de reportes — puede ser vista
+  materializada en PostgreSQL)
+- TicketSoporte (consultas de soporte técnico)
+
+LO QUE NECESITO QUE HAGAS:
+1. Valida y ajusta estas entidades contra las historias de usuario del
+   Product Backlog (te las puedo pasar si las necesitas completas).
+2. Define para cada entidad: atributos, tipos de datos (usando tipos
+   geoespaciales de PostGIS como GEOGRAPHY(Point,4326) o GEOGRAPHY(Polygon,4326)
+   donde corresponda), claves primarias/foráneas y restricciones de
+   integridad relevantes para auditoría municipal (ACID).
+3. Identifica relaciones (1:1, 1:N, N:M) y justifica cada una con la
+   historia de usuario que la origina.
+4. Señala qué tablas requieren índices espaciales (GiST) y por qué
+   (ej. búsqueda de reportes duplicados en radio de 20m, mapa de calor,
+   asignación automática de distrito por punto dentro de polígono).
+5. Propón el diagrama entidad-relación (puedes usar notación Mermaid ER o
+   describírmelo en texto estructurado) y una primera versión del DDL en
+   PostgreSQL con PostGIS.
+
+Antes de generar el DDL final, muéstrame primero el modelo conceptual y
+espera mi validación.
+"""
+
+[notes]
+usage = "Adjuntar backlog/product_backlog.md completo al enviar este prompt para que la IA valide entidades contra las historias de usuario reales."
