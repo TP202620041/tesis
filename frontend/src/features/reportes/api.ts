@@ -3,6 +3,7 @@ import type { CategoriaDano } from '@/lib/types/domain';
 import type { components } from '@/lib/api/generated/schema';
 
 type ReporteResponse = components['schemas']['ReporteResponse'];
+export type HistorialEntrada = components['schemas']['HistorialEntradaResponse'];
 
 /** Reporte recien creado (o al que el ciudadano se adhirio). */
 export interface ReporteCreado {
@@ -53,6 +54,66 @@ export async function buscarReportes(query: string): Promise<PaginaReportes> {
     contenido: pagina.content ?? [],
     total: pagina.totalElements ?? 0,
   };
+}
+
+/* -------------------------------------------------------------------------
+ * Ciclo del ciudadano sobre sus propios reportes
+ * ---------------------------------------------------------------------- */
+
+/**
+ * US-07: reportes que el ciudadano autenticado ENVIO.
+ *
+ * Solo los que creo, no aquellos a los que se adhirio (US-09) — decision
+ * tomada en el backend: "mis reportes" es mas estrecho que la matriz de
+ * acceso de US-22, donde el adherido si puede ver el historial.
+ */
+export function misReportes(): Promise<ReporteResumen[]> {
+  return api.get<ReporteResumen[]>('/api/reportes/mis-reportes');
+}
+
+/**
+ * US-26 (Escenario 2): reportes propios resueltos hace 3+ dias que siguen
+ * sin calificar. El backend lo resuelve como consulta bajo demanda, no como
+ * un job de recordatorios.
+ */
+export function pendientesDeCalificacion(): Promise<ReporteResumen[]> {
+  return api.get<ReporteResumen[]>('/api/reportes/mis-reportes/pendientes-calificacion');
+}
+
+/** US-22: linea de tiempo del reporte. Al ciudadano le llega REDACTADA. */
+export function historialDeReporte(reporteId: number): Promise<HistorialEntrada[]> {
+  return api.get<HistorialEntrada[]>(`/api/reportes/${reporteId}/historial`);
+}
+
+/** US-08: edita categoria y/o descripcion. Campos ausentes no se modifican. */
+export function editarReporte(
+  reporteId: number,
+  cambios: { categoriaId?: number; descripcion?: string },
+): Promise<ReporteResumen> {
+  return api.patch<ReporteResumen>(`/api/reportes/${reporteId}`, cambios);
+}
+
+/**
+ * US-08: el creador retira su reporte.
+ *
+ * No borra la fila: lo pasa a CANCELADO. Afecta tambien a los vecinos
+ * adheridos (US-09), porque es un unico dano fisico modelado en una sola
+ * fila; aceptable porque solo aplica en PENDIENTE.
+ */
+export function cancelarReporte(reporteId: number): Promise<ReporteResumen> {
+  return api.delete<ReporteResumen>(`/api/reportes/${reporteId}`);
+}
+
+/** US-26: califica la atencion recibida. Solo el creador y una sola vez. */
+export function calificar(
+  reporteId: number,
+  estrellas: number,
+  comentario?: string,
+): Promise<components['schemas']['CalificacionResponse']> {
+  return api.post(`/api/reportes/${reporteId}/calificacion`, {
+    estrellas,
+    comentario: comentario?.trim() || undefined,
+  });
 }
 
 export interface NuevoReporte {

@@ -7,8 +7,10 @@ describe('rutaInicialDe', () => {
     expect(rutaInicialDe('FUNCIONARIO_MUNICIPAL')).toBe('/bandeja');
   });
 
-  it('lleva al ciudadano al mapa', () => {
-    expect(rutaInicialDe('CIUDADANO')).toBe('/mapa');
+  it('lleva al ciudadano a sus propios reportes', () => {
+    // No al mapa público: quien inicia sesión lo hace para reportar o para
+    // ver cómo van los suyos.
+    expect(rutaInicialDe('CIUDADANO')).toBe('/mis-reportes');
   });
 
   it('da una ruta a todos los roles del backend', () => {

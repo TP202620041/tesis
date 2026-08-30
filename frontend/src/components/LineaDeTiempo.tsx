@@ -1,19 +1,24 @@
 'use client';
 
 import { estiloDeEstado } from '@/features/reportes/mapa/estados';
-import type { HistorialEntrada } from '@/features/gestion/api';
+import type { components } from '@/lib/api/generated/schema';
+
+type HistorialEntrada = components['schemas']['HistorialEntradaResponse'];
 
 /**
- * US-22: linea de tiempo unificada de la gestion del reporte.
+ * US-22: linea de tiempo unificada de la gestion de un reporte.
  *
  * Mezcla cambios de estado y asignaciones de responsable en un solo hilo
  * cronologico — asi lo modela el backend desde la migracion V4, con
  * `tipo_evento` como discriminador.
  *
- * Al funcionario del distrito el backend le entrega el detalle SIN redactar:
- * ve el nombre del responsable asignado y el autor de cada cambio. Al
- * ciudadano le muestra esas mismas filas como un hito generico ("Se asignó un
- * responsable"). Este componente es la vista municipal.
+ * <b>Sirve a los dos publicos sin ramificar aqui.</b> El backend entrega al
+ * funcionario del distrito el detalle sin redactar (nombre del responsable,
+ * autor de cada cambio) y al ciudadano las mismas filas como un hito
+ * generico ("Se asigno un responsable"). La redaccion es una decision de
+ * autorizacion y vive donde corresponde: en el servidor. Este componente
+ * solo pinta lo que recibe, por eso esta en `components/` compartidos y no
+ * dentro de la feature de gestion.
  */
 export function LineaDeTiempo({ entradas }: { entradas: HistorialEntrada[] }) {
   if (entradas.length === 0) {

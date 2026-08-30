@@ -17,7 +17,10 @@ export function rutaInicialDe(rol: Rol): string {
       // que tenga vista propia, entra por la pantalla de sesion.
       return '/sesion';
     case 'CIUDADANO':
-      return '/mapa';
+      // Sus propios reportes, no el mapa publico: quien inicia sesion lo
+      // hace para reportar o para ver como van los suyos. El mapa sigue
+      // siendo la puerta publica, sin cuenta.
+      return '/mis-reportes';
   }
 }
 

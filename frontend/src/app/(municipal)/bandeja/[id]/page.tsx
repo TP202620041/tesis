@@ -11,7 +11,7 @@ import {
   type HistorialEntrada,
 } from '@/features/gestion/api';
 import { CambiarEstado } from '@/features/gestion/components/CambiarEstado';
-import { LineaDeTiempo } from '@/features/gestion/components/LineaDeTiempo';
+import { LineaDeTiempo } from '@/components/LineaDeTiempo';
 import { Responsable } from '@/features/gestion/components/Responsable';
 import { estiloDeEstado } from '@/features/reportes/mapa/estados';
 import { urlDeFoto } from '@/lib/api/client';
