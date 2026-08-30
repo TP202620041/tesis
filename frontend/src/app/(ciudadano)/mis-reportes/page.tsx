@@ -58,6 +58,12 @@ function MisReportes() {
         </div>
         <nav className="flex gap-2">
           <Link
+            href="/perfil"
+            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm dark:border-slate-600 dark:text-slate-200"
+          >
+            Mi perfil
+          </Link>
+          <Link
             href="/mapa"
             className="rounded-md border border-slate-300 px-3 py-1.5 text-sm dark:border-slate-600 dark:text-slate-200"
           >

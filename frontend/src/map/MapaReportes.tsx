@@ -198,6 +198,16 @@ function PopupReporte({ reporte }: { reporte: ReporteResumen }) {
           {reporte.totalAdhesiones} vecinos reportaron este daño
         </p>
       )}
+      {/* El popup es deliberadamente breve: el detalle completo (y los
+          comentarios de US-27) viven en su propia pagina, que ademas se
+          puede enlazar y compartir. */}
+      <a
+        href={`/reportes/${reporte.id}`}
+        style={{ display: 'inline-block', marginTop: '.5rem', fontWeight: 600 }}
+      >
+        Ver detalle
+        {reporte.estado === 'RESUELTO' ? ' y comentarios' : ''}
+      </a>
     </div>
   );
 }

@@ -12,8 +12,9 @@
     "typecheck": "tsc --noEmit",
     "api:sync": "npm run api:spec && npm run api:types",
     "pwa:build": "serwist build serwist.config.mjs",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "vitest run --reporter=default --reporter=json --outputFile=.vitest-resultado.json && node scripts/verificar-tests.mjs",
+    "test:watch": "vitest",
+    "test:rapido": "vitest run"
   },
   "dependencies": {
     "leaflet": "^1.9.4",

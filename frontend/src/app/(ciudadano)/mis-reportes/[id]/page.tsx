@@ -16,6 +16,7 @@ import {
   puedeEditar,
 } from '@/features/reportes/acciones';
 import { Calificar } from '@/features/reportes/components/Calificar';
+import { Comentarios } from '@/features/reportes/components/Comentarios';
 import { EditarReporte } from '@/features/reportes/components/EditarReporte';
 import { estiloDeEstado } from '@/features/reportes/mapa/estados';
 import { urlDeFoto } from '@/lib/api/client';
@@ -161,6 +162,21 @@ function Detalle({ reporteId }: { reporteId: number }) {
         </h2>
         <LineaDeTiempo entradas={entradas} />
       </section>
+
+      {/* US-27: lo que opinaron los vecinos sobre la reparacion de MI
+          reporte. El creador tambien puede comentar, como cualquier otro. */}
+      {estado === 'RESUELTO' && (
+        <section className="rounded-md border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
+          <Comentarios reporteId={reporteId} puedeComentar />
+        </section>
+      )}
+
+      <Link
+        href={`/reportes/${reporteId}`}
+        className="text-sm text-sky-700 hover:underline dark:text-sky-400"
+      >
+        Ver cómo lo ven los demás (vista pública)
+      </Link>
     </main>
   );
 }

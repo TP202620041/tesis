@@ -43,3 +43,6 @@ next-env.d.ts
 # Service Worker generado por `npm run build` (serwist), no se edita a mano
 /public/sw.js
 /public/sw.js.map
+
+# Resultado temporal de la guarda de tests
+.vitest-resultado.json

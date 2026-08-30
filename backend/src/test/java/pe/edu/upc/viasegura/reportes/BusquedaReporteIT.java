@@ -161,6 +161,58 @@ class BusquedaReporteIT extends AbstractPostgisIT {
                 .andExpect(jsonPath("$.totalPages", is(2)));
     }
 
+    // --- Detalle publico de un reporte --------------------------------------
+
+    @Test
+    void detallePorId_esPublicoSinToken() throws Exception {
+        Distrito miraflores = distrito("Miraflores");
+        Reporte r = reporte(LAT_MIRAFLORES, LON_MIRAFLORES, miraflores, EstadoReporte.RESUELTO);
+
+        mockMvc.perform(get("/api/reportes/{id}", r.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id", is(r.getId().intValue())))
+                .andExpect(jsonPath("$.estado", is("RESUELTO")))
+                .andExpect(jsonPath("$.distritoNombre", is("Miraflores")));
+    }
+
+    @Test
+    void detallePorId_noExpone_identidadDelCreador() throws Exception {
+        // Mismo DTO que la busqueda publica: nada de correo ni nombre.
+        Distrito miraflores = distrito("Miraflores");
+        Reporte r = reporte(LAT_MIRAFLORES, LON_MIRAFLORES, miraflores, EstadoReporte.RESUELTO);
+
+        mockMvc.perform(get("/api/reportes/{id}", r.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.creador").doesNotExist())
+                .andExpect(jsonPath("$.creadorId").doesNotExist())
+                .andExpect(jsonPath("$.email").doesNotExist());
+    }
+
+    @Test
+    void detalleDeUnReporteInexistente_404() throws Exception {
+        mockMvc.perform(get("/api/reportes/{id}", 999_999)).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void detalleDeUnCancelado_404() throws Exception {
+        // El ciudadano lo retiro: no es informacion publica, igual que en la
+        // busqueda. Su creador lo sigue viendo en "mis reportes".
+        Distrito miraflores = distrito("Miraflores");
+        Reporte r = reporte(LAT_MIRAFLORES, LON_MIRAFLORES, miraflores, EstadoReporte.CANCELADO);
+
+        mockMvc.perform(get("/api/reportes/{id}", r.getId())).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void laRutaPublicaDeDetalleNoAbreLasRutasPrivadasHermanas() throws Exception {
+        // REGRESION: un matcher `/api/reportes/*` habria hecho publicas
+        // tambien /mis-reportes, /bandeja y /exportar. El id se acota a
+        // digitos justamente para evitarlo.
+        mockMvc.perform(get("/api/reportes/mis-reportes")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/reportes/bandeja")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/reportes/exportar")).andExpect(status().isUnauthorized());
+    }
+
     // --- Reportes cancelados (US-08) fuera del mapa publico -----------------
     // Un CANCELADO lo retiro el propio ciudadano estando PENDIENTE: nunca
     // entro al flujo municipal y el dano puede ni existir, asi que en el mapa

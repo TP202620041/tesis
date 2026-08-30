@@ -80,6 +80,21 @@ public class ReporteController {
     }
 
     /**
+     * Un reporte por id. <b>PUBLICO</b>: es la misma informacion que ya
+     * devuelve la busqueda publica, solo que de a uno, y sin ella no se puede
+     * enlazar ni compartir un reporte concreto — algo que US-27 necesita para
+     * poder comentar un reporte ajeno.
+     *
+     * <p>El id se restringe a digitos ({@code [0-9]+}) para no colisionar con
+     * las rutas literales hermanas ({@code /mis-reportes}, {@code /bandeja},
+     * {@code /exportar}), que NO son publicas.</p>
+     */
+    @GetMapping("/{id:[0-9]+}")
+    public ResponseEntity<ReporteResumenResponse> porId(@PathVariable("id") Long id) {
+        return ResponseEntity.ok(reporteBusquedaService.porId(id));
+    }
+
+    /**
      * US-05: crear un reporte con foto (opcional), categoria, descripcion y
      * coordenadas GPS. El distrito se asigna automaticamente.
      *

@@ -9,7 +9,9 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import pe.edu.upc.viasegura.common.exception.ResourceNotFoundException;
 import pe.edu.upc.viasegura.reportes.domain.EstadoReporte;
+import pe.edu.upc.viasegura.reportes.domain.Reporte;
 import pe.edu.upc.viasegura.reportes.dto.ReporteResumenResponse;
 import pe.edu.upc.viasegura.reportes.repository.ReporteRepository;
 
@@ -29,6 +31,30 @@ import pe.edu.upc.viasegura.reportes.repository.ReporteRepository;
 public class ReporteBusquedaService {
 
     private final ReporteRepository reporteRepository;
+
+    /**
+     * Un reporte por id, para la vista publica de detalle (US-10/US-27).
+     *
+     * <p>PUBLICO, por coherencia: es exactamente la misma informacion que ya
+     * devuelve la busqueda publica en {@link #buscar} —{@code
+     * ReporteResumenResponse} no expone la identidad del creador— solo que
+     * de a uno. Sin esto no se puede enlazar ni compartir un reporte
+     * concreto, y comentar un reporte ajeno (US-27) exige poder abrirlo.</p>
+     *
+     * <p>Los CANCELADO tampoco se devuelven aqui: el ciudadano los retiro y
+     * no forman parte de la informacion publica (mismo criterio que la
+     * busqueda desde la Fase 22). Quien sea su creador los sigue viendo en
+     * "mis reportes".</p>
+     */
+    @Transactional(readOnly = true)
+    public ReporteResumenResponse porId(Long id) {
+        Reporte reporte = reporteRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Reporte no encontrado: " + id));
+        if (reporte.getEstado() == EstadoReporte.CANCELADO) {
+            throw new ResourceNotFoundException("Reporte no encontrado: " + id);
+        }
+        return ReporteResumenResponse.from(reporte);
+    }
 
     @Transactional(readOnly = true)
     public Page<ReporteResumenResponse> buscar(

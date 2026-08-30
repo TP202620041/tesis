@@ -118,6 +118,11 @@ public class SecurityConfig {
                         // que ya es publica en el mapa/desempeno. Solo la raiz exacta
                         // (no /api/reportes/mis-reportes ni /{id}/*, que siguen protegidas).
                         .requestMatchers(HttpMethod.GET, "/api/reportes").permitAll()
+                        // Detalle publico de UN reporte. El id se acota a digitos a
+                        // proposito: un `/api/reportes/*` abriria tambien las rutas
+                        // literales hermanas /mis-reportes, /bandeja y /exportar,
+                        // que son privadas.
+                        .requestMatchers(HttpMethod.GET, "/api/reportes/{id:[0-9]+}").permitAll()
                         // Catalogos de referencia para poblar selectores y filtros
                         // (crear reporte US-05, mapa US-10, busqueda US-12). Publicos
                         // por el mismo criterio que la busqueda: un filtro publico cuyo

@@ -28,6 +28,14 @@ export interface OpcionesPeticion extends Omit<RequestInit, 'body'> {
   conAuth?: boolean;
   /** Clave de idempotencia de US-06 (reintentos de sincronizacion offline). */
   idempotencyKey?: string;
+  /**
+   * `true` para respuestas binarias (la foto de perfil de US-30).
+   *
+   * Sin esto el cliente intentaria interpretar la imagen como texto y
+   * devolveria una cadena corrupta: el parseo por defecto solo distingue
+   * JSON de texto plano.
+   */
+  comoBlob?: boolean;
 }
 
 /**
@@ -53,7 +61,7 @@ function manejarNoAutenticado(): void {
 }
 
 export async function apiFetch<T>(ruta: string, opciones: OpcionesPeticion = {}): Promise<T> {
-  const { json, conAuth = true, idempotencyKey, headers, ...resto } = opciones;
+  const { json, conAuth = true, idempotencyKey, comoBlob, headers, ...resto } = opciones;
 
   const cabeceras = new Headers(headers);
   if (json !== undefined) {
@@ -91,6 +99,10 @@ export async function apiFetch<T>(ruta: string, opciones: OpcionesPeticion = {})
   // 204 (restablecer-password) y 202 sin cuerpo no traen JSON que parsear.
   if (respuesta.status === 204 || respuesta.headers.get('content-length') === '0') {
     return undefined as T;
+  }
+
+  if (comoBlob) {
+    return (await respuesta.blob()) as T;
   }
 
   const tipo = respuesta.headers.get('content-type') ?? '';

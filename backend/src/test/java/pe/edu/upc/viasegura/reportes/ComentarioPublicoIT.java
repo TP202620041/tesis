@@ -94,15 +94,16 @@ class ComentarioPublicoIT extends AbstractPostgisIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(cuerpo("Quedo muy bien reparado, gracias"))
                         .header("Authorization", "Bearer " + token(creador)))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.posibleReincidencia", is(false)));
+                .andExpect(status().isCreated());
 
         // Lectura publica: sin token.
         mockMvc.perform(get("/api/reportes/{id}/comentarios", reporte.getId()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)))
                 .andExpect(jsonPath("$[0].contenido", is("Quedo muy bien reparado, gracias")))
-                .andExpect(jsonPath("$[0].autor", is("Ana")));
+                .andExpect(jsonPath("$[0].autor", is("Ana")))
+                // Solo el nombre del autor: ni correo ni apellido.
+                .andExpect(jsonPath("$[0].email").doesNotExist());
     }
 
     @Test
@@ -115,8 +116,7 @@ class ComentarioPublicoIT extends AbstractPostgisIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(cuerpo("El bache reaparecio, volvio a salir igual que antes"))
                         .header("Authorization", "Bearer " + token(ciudadano)))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.posibleReincidencia", is(true)));
+                .andExpect(status().isCreated());
 
         // El funcionario ve el reporte marcado en su bandeja (US-13).
         mockMvc.perform(get("/api/reportes/bandeja")
@@ -136,8 +136,7 @@ class ComentarioPublicoIT extends AbstractPostgisIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(cuerpo("Excelente, quedo impecable"))
                         .header("Authorization", "Bearer " + token(ciudadano)))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.posibleReincidencia", is(false)));
+                .andExpect(status().isCreated());
 
         mockMvc.perform(get("/api/reportes/bandeja")
                         .header("Authorization", "Bearer " + token(func)))
@@ -171,5 +170,35 @@ class ComentarioPublicoIT extends AbstractPostgisIT {
                         .content(cuerpo("Se puede comentar?"))
                         .header("Authorization", "Bearer " + token(ciudadano)))
                 .andExpect(status().isConflict());
+    }
+
+    @Test
+    void elFlagDeReincidenciaNoSeExponeEnLaApiPublica() throws Exception {
+        // El flag dirige la atención de la municipalidad (resalta el reporte
+        // en la bandeja): publicarlo dejaría sondear qué redacciones lo
+        // disparan y, con eso, manipular en qué se fija el municipio.
+        Usuario ciudadano = ciudadano();
+        Usuario func = funcionario(distrito("Miraflores"));
+        Reporte reporte = reporte(distrito("Miraflores"), EstadoReporte.RESUELTO, ciudadano);
+
+        mockMvc.perform(post("/api/reportes/{id}/comentarios", reporte.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(cuerpo("El bache reaparecio, volvio a salir igual que antes"))
+                        .header("Authorization", "Bearer " + token(ciudadano)))
+                .andExpect(status().isCreated())
+                // Ni siquiera a quien lo escribio.
+                .andExpect(jsonPath("$.posibleReincidencia").doesNotExist());
+
+        mockMvc.perform(get("/api/reportes/{id}/comentarios", reporte.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].posibleReincidencia").doesNotExist());
+
+        // Pero el municipio SI lo ve: el flag vive en el reporte, no en el
+        // comentario, y llega a la bandeja por ReporteResumenResponse.
+        mockMvc.perform(get("/api/reportes/bandeja")
+                        .header("Authorization", "Bearer " + token(func)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id == %d)].posibleReincidencia".formatted(reporte.getId()),
+                        org.hamcrest.Matchers.contains(true)));
     }
 }

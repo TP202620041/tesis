@@ -105,6 +105,45 @@ export function cancelarReporte(reporteId: number): Promise<ReporteResumen> {
   return api.delete<ReporteResumen>(`/api/reportes/${reporteId}`);
 }
 
+/**
+ * Un reporte por id. **Publico** — sin token: la misma informacion que ya
+ * devuelve la busqueda, solo que de a uno. Devuelve `null` si no existe o
+ * si fue retirado por su creador (el backend responde 404 en ambos casos:
+ * un CANCELADO no es informacion publica).
+ */
+export async function reportePorId(reporteId: number): Promise<ReporteResumen | null> {
+  try {
+    return await api.get<ReporteResumen>(`/api/reportes/${reporteId}`, { conAuth: false });
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) return null;
+    throw e;
+  }
+}
+
+export type ComentarioPublico = components['schemas']['ComentarioPublicoResponse'];
+
+/**
+ * US-27: comentarios de un reporte. **Lectura publica** — sin token: es
+ * informacion que cualquiera debe poder consultar, igual que el mapa.
+ */
+export function listarComentarios(reporteId: number): Promise<ComentarioPublico[]> {
+  return api.get<ComentarioPublico[]>(`/api/reportes/${reporteId}/comentarios`, {
+    conAuth: false,
+  });
+}
+
+/**
+ * US-27: publica un comentario. Exige sesion, pero la puede escribir
+ * CUALQUIER ciudadano autenticado, no solo el creador — asimetria
+ * deliberada frente a calificar (US-26): comentar es opinion publica
+ * verificable, calificar es el juicio de quien reporto.
+ */
+export function comentar(reporteId: number, contenido: string): Promise<ComentarioPublico> {
+  return api.post<ComentarioPublico>(`/api/reportes/${reporteId}/comentarios`, {
+    contenido: contenido.trim(),
+  });
+}
+
 export type Calificacion = components['schemas']['CalificacionResponse'];
 
 /**
