@@ -1,6 +1,9 @@
 import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
+// Reglas de capas (ARCHITECTURE.md, seccion 5.4). Van al final: en flat
+// config, el ultimo bloque que configura una regla para un archivo gana.
+import { reglasDeCapas } from "./eslint.capas.mjs";
 
 const eslintConfig = defineConfig([
   ...nextVitals,
@@ -18,6 +21,7 @@ const eslintConfig = defineConfig([
     "public/sw.js",
     "src/lib/api/generated/**",
   ]),
+  ...reglasDeCapas,
 ]);
 
 export default eslintConfig;

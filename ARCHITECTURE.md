@@ -1,0 +1,249 @@
+# Arquitectura de software — ViaSegura
+
+> **Documento normativo.** Define las capas, qué va en cada una y qué puede depender de qué, igual para `backend/`, `frontend/` y el futuro `inferencia/`. Los agentes de cada carpeta lo siguen; no lo modifican salvo pedido explícito (ver §10).
+> Versión 1.0 · 2026-10-03 · Plan de migración: `project-context/decisions/plan-migracion-capas.md`.
+
+## 1. Principios
+
+1. **Mismas cuatro capas en todos los contenedores**: presentación, aplicación, dominio e infraestructura. Cambia el nombre de la carpeta según la tecnología; no cambia la responsabilidad.
+2. **Capas dentro de cada módulo.** Primero se divide por módulo funcional (`reportes`, `auth`…) y dentro de cada módulo por capa. Así un módulo se entiende, se prueba y se mueve completo.
+3. **Las dependencias apuntan hacia el dominio.** El dominio no conoce HTTP, la base de datos, React ni proveedores externos.
+4. **La infraestructura externa entra por un puerto.** SMTP, almacenamiento de fotos, servicio de IA y cálculo geoespacial se definen como interfaz (puerto) y se implementan en un adaptador intercambiable.
+5. **Toda regla de este documento tiene una guarda automática** (ArchUnit en el backend, ESLint en el frontend). Una regla sin guarda se degrada cuando varios agentes escriben código.
+
+## 2. Las cuatro capas
+
+| Capa | Responsabilidad | Backend (`<modulo>/…`) | Frontend (`src/…`) | Inferencia (`app/…`) |
+|---|---|---|---|---|
+| **Presentación** | Traducir HTTP o UI a casos de uso. Validar forma, no negocio. | `controller/` | `app/**` (rutas), `features/<f>/components/`, `components/` | `api/` (routers) |
+| **Contratos** | Formas de datos que cruzan el borde HTTP. | `dto/` (`*Request`, `*Response`) | tipos de `features/<f>/model/` sobre `lib/api/generated` | `api/esquemas.py` (Pydantic) |
+| **Aplicación** | Casos de uso: orquestar, transacción, autorización por instancia, publicar eventos. | `service/`, `listener/` | `features/<f>/hooks/` | `application/` |
+| **Dominio** | Entidades, invariantes, máquinas de estado, reglas puras, eventos, puertos. | `domain/`, `event/`, `port/` | `features/<f>/model/`, `lib/types/` | `domain/` |
+| **Infraestructura** | I/O: base de datos, SMTP, archivos, HTTP a otros servicios, librerías de terceros. | `repository/`, `infra/` | `features/<f>/api.ts`, `lib/api/`, `lib/auth/`, `map/`, `pwa/` | `infrastructure/` |
+
+## 3. Regla de dependencia
+
+```
+          Presentación ──► Contratos ◄── Aplicación
+                │                          │   │
+                └─────────► Aplicación ◄───┘   │
+                                │              ▼
+                                ├────────► Persistencia (repository)
+                                ▼
+                             Dominio ◄──────── Adaptadores (infra)
+                       (domain · event · port)   implementan port/
+```
+
+- Presentación → Aplicación → Dominio. Nunca al revés.
+- La aplicación usa los repositorios directamente (D-04) y la infraestructura externa **solo a través de un `port/`**.
+- Nadie referencia una clase de `infra/`: Spring (o el hook, en el frontend) recibe la implementación por la interfaz.
+
+## 4. Backend (`backend/`)
+
+### 4.1 Estructura estándar de un módulo
+
+```
+pe.edu.upc.viasegura.<modulo>/
+├── controller/   PRESENTACIÓN  @RestController. Delgado: valida @Valid, llama a UN servicio, devuelve su respuesta.
+├── dto/          CONTRATOS     records *Request / *Response (+ enums de parámetros). Factoría estática desde la entidad.
+├── service/      APLICACIÓN    @Service @Transactional. Casos de uso, autorización por instancia, publica eventos. *Command de entrada.
+├── listener/     APLICACIÓN    @TransactionalEventListener(AFTER_COMMIT). Reacciones a eventos de este u otro módulo.
+├── domain/       DOMINIO       @Entity, enums, máquinas de estado, reglas puras (sin I/O).
+├── event/        DOMINIO       records de eventos que el módulo publica (*Event).
+├── port/         DOMINIO       interfaces hacia afuera (Strategy): FotoStorage, ClasificadorDano, CorreoSaliente…
+├── repository/   PERSISTENCIA  interfaces Spring Data (*Repository).
+└── infra/        ADAPTADORES   implementaciones de port/ y arranque (seeders, clientes HTTP, SMTP, POI).
+```
+
+Un subpaquete que el módulo no necesita no se crea. **No se crean otros subpaquetes** (`geo/`, `storage/`, `adapter/`, `util/`, `helper/`): lo que no encaja en esta lista es una señal de diseño que se discute antes (§10).
+
+### 4.2 Qué hace y qué no hace cada capa
+
+| Subpaquete | Hace | No hace |
+|---|---|---|
+| `controller` | Mapear ruta, `@PreAuthorize` por rol, `@Valid`, leer el usuario autenticado y delegar. | Reglas de negocio, `if` sobre estados, acceso a repositorios, armar DTO desde entidades. |
+| `dto` | Declarar la forma del JSON. `static XResponse desde(Entidad)`. | Lógica, acceso a servicios, señales internas en DTO públicos (regla del proyecto). |
+| `service` | `@Transactional`, cargar agregados, aplicar reglas del dominio, comprobar dueño o jurisdicción, publicar eventos, devolver DTO. | HTTP (`HttpServletRequest`, `ResponseEntity`), SQL, SMTP o archivos directos (eso va por `port/`). |
+| `listener` | Reaccionar `AFTER_COMMIT` (refrescar la vista materializada, notificar, enviar correo). | Lógica que debería estar en la transacción original. |
+| `domain` | Invariantes (`EstadoReporte.puedeTransicionarA`), cálculos puros, `BusinessException` ante precondiciones. | Inyección de servicios o repositorios, I/O. |
+| `port` | Interfaces mínimas con tipos del dominio. | Tipos de Spring Web, DTO HTTP. |
+| `repository` | Consultas JPQL o nativas (con las trampas de `backend/CLAUDE.md`). | Lógica de negocio. |
+| `infra` | Implementar un puerto, manejar timeouts y reintentos del proveedor, traducir sus errores. | Decidir reglas de negocio. |
+
+### 4.3 Módulos y dependencias permitidas
+
+De otro módulo solo se usa su **API pública**: `service`, `domain`, `event`, `port` y `dto`. Nunca su `controller`, `listener`, `repository` ni `infra`. `common` es transversal y no depende de ningún módulo.
+
+| Módulo | Responsabilidad | Entidades (OB2 §5) | Usa a | Estado |
+|---|---|---|---|---|
+| `common` | Seguridad JWT, errores, configuración web, utilitarios geo. | — | — | existe |
+| `distritos` | 43 distritos y sus polígonos; resolución por coordenadas. | (geometría de MUNICIPALIDAD) | common | existe |
+| `municipalidades` | Canal oficial, periodos de gestión y requisitos de recepción. | MUNICIPALIDAD, GESTION_MUNICIPAL, PERIODO_GESTION, REQUISITO_RECEPCION | distritos | **nuevo** |
+| `auth` | Cuentas, credenciales, perfil y consentimiento. | USUARIO, CONSENTIMIENTO | distritos, municipalidades | existe + CONSENTIMIENTO |
+| `clasificacion` | Sugerir la categoría de una foto: puerto al servicio de inferencia, umbral y clase dominante. | (escribe `categoria_sugerida_id` y `confianza_sugerencia` vía reportes) | — | **nuevo** |
+| `reportes` | Ciclo del reporte: creación, adhesión, gestión, historial, categorías, fotos, idempotencia, confirmación. | REPORTE, CIUDADANO_AFECTADO, HISTORIAL_ESTADO, CATEGORIA_DANO | auth, distritos, municipalidades, clasificacion | existe |
+| `notificaciones` | Avisos al ciudadano (push o email) y **correo formal a la municipalidad**. | SUSCRIPCION_PUSH, ENVIO_CORREO | auth, municipalidades, reportes (event) | existe + 2 entidades |
+| `desempeno` | KPIs por municipalidad y periodo de gestión (dashboard RF-09). | (vista materializada) | municipalidades, reportes (event) | existe; se rehace por periodo |
+| `soporte` | Tickets de soporte. | — | auth | existe |
+
+Grafo, sin ciclos: `common ← distritos ← municipalidades ← auth ← reportes ← {notificaciones, desempeno}`, `clasificacion ← reportes`, `auth ← soporte`.
+
+**Flujo del núcleo nuevo** (para ubicar cada pieza):
+
+1. `clasificacion.controller` recibe la foto (`POST /api/clasificaciones`). `ClasificacionService` llama a `port/ClasificadorDano`, que implementa `infra/InferenciaHttpAdapter` (RestClient a `inferencia/`, con timeout). Luego aplica `domain/PoliticaDeSugerencia` (umbral y clase dominante) y devuelve la sugerencia o «sin sugerencia». Si el servicio falla, la respuesta es «sin sugerencia» y el ciudadano elige la categoría a mano.
+2. `reportes.service` crea el reporte con la categoría confirmada y guarda la sugerencia (D-08).
+3. `reportes.service.ConfirmacionReporteService` evalúa la regla «reporte confirmado» (campos completos, municipalidad asignada y requisitos de `municipalidades`) y publica `event/ReporteConfirmadoEvent`.
+4. `notificaciones.listener.ReporteConfirmadoListener` crea ENVIO_CORREO (como máximo uno por reporte) y envía por `port/CorreoSaliente`, que implementa `infra/SmtpCorreoAdapter`. Los reintentos se registran en `intentos`.
+5. `desempeno.listener` refresca los KPIs. Un reporte cuenta en el periodo de su `fecha_creacion`.
+
+### 4.4 Cómo se verifica
+
+`src/test/java/.../arquitectura/ArquitecturaCapasTest.java` corre con `mvn test` (Surefire) y comprueba:
+
+| Regla | Qué detecta |
+|---|---|
+| `capas` | Una dependencia que viola §3 (por ejemplo, un controller que usa un repository). |
+| `dominioSinDependenciasHaciaAfuera` | `domain`, `event` o `port` que importan otra capa. |
+| `controladoresEnPresentacion`, `entidadesEnDominio`, `repositoriosEnPersistencia`, `manejadoresDeEventosEnListener` | Una clase en el subpaquete equivocado o con el sufijo equivocado. |
+| `contratosSoloRequestResponse` | Clases en `dto/` que no son contratos HTTP. |
+| `modulosSinCiclos` | Ciclos entre módulos. |
+| `soloApiPublicaDeOtrosModulos` | Uso de `controller`, `listener`, `repository` o `infra` de otro módulo. |
+
+Las violaciones que existían al instalar la guarda están **congeladas** en `src/test/resources/archunit_store` (versionado). Solo fallan las nuevas, y al corregir una sale sola del almacén. El tamaño del almacén es la deuda pendiente; la migración termina cuando queda vacío.
+
+### 4.5 Convenciones transversales
+
+- **Nombres**: `XController`, `XService`, `XRepository`, `XRequest`, `XResponse`, `XCommand`, `XEvent`, `XListener`; los adaptadores se llaman por tecnología más puerto (`SmtpCorreoAdapter`).
+- **Errores**: el dominio y la aplicación lanzan `BusinessException` (409), `ResourceNotFoundException` (404) u `OperacionNoPermitidaException` (403 con mensaje). Solo `GlobalExceptionHandler` los traduce a HTTP.
+- **Transacciones**: `@Transactional` solo en `service`. Los listeners `AFTER_COMMIT` que escriben abren su propia transacción (`REQUIRES_NEW`).
+- **Eventos**: toda operación que cambie un KPI publica un evento (regla ya registrada en `backend/CLAUDE.md`).
+- **Esquema**: cada entidad nueva tiene su migración `V<n>__…sql`, y cada tabla con FK a `reporte` entra en `AbstractPostgisIT.limpiezaFkSafe()`.
+- **Tests**: un `*IT` por caso de uso en el paquete del módulo, más tests puros (`*Test`) para las reglas de `domain/`.
+
+## 5. Frontend (`frontend/`)
+
+### 5.1 Estructura estándar de una feature
+
+```
+src/features/<feature>/
+├── components/   PRESENTACIÓN  UI de la feature. Recibe props o usa hooks de SU feature. Sin I/O.
+├── hooks/        APLICACIÓN    useX(): orquesta api.ts + estado (cargando / error / datos), cancelación, mutaciones.
+├── model/        DOMINIO       tipos (alias sobre el schema generado) y reglas puras: transiciones, acciones, formato.
+└── api.ts        INFRAESTRUCTURA gateway HTTP: único archivo que usa el cliente. Resuelve URLs de fotos y traduce respuestas.
+```
+
+Una feature es un **área funcional de la UI** (`reportes`, `gestion`, `desempeno`, `auth`, `notificaciones`), no un espejo de los módulos del backend (D-07). Cada `api.ts` puede llamar a cualquier endpoint que su feature necesite.
+
+### 5.2 Qué hace y qué no hace cada capa
+
+| Carpeta | Hace | No hace |
+|---|---|---|
+| `app/**` | Leer `params`, aplicar `GuardiaDeRol`, componer componentes y hooks, hacer `dynamic()` del mapa. | `useEffect` de carga de datos, importar `api.ts` o `lib/api`, lógica de negocio. |
+| `components/` | Renderizar, manejar estado local de formulario, llamar callbacks o hooks. | `fetch`, `apiFetch`, capturar `ApiError`. |
+| `hooks/` | Llamar a `../api`, exponer `{estado, datos, error, accion}`, traducir errores con `mensajeDeError`. | JSX, importar componentes. |
+| `model/` | Tipos y funciones puras, con tests unitarios. | React, Next, `fetch`, `window`, `localStorage`. |
+| `api.ts` | `api.get/post/…`, `conAuth`, adaptar la respuesta a los tipos de `model/`. | React, estado. |
+
+### 5.3 Código compartido
+
+| Carpeta | Capa | Contiene |
+|---|---|---|
+| `src/components/` | Presentación | UI genérica (`ui/form.tsx`, `LineaDeTiempo`). No depende de features. |
+| `src/lib/types/` | Dominio | Tipos de dominio compartidos (`domain.ts`) y reglas puras compartidas (`estados.ts`: etiqueta y color de cada estado). |
+| `src/lib/hooks/` | Aplicación | `useCarga`: el único lugar con el patrón de carga y cancelación (§5.5). |
+| `src/lib/api/` | Infraestructura | `client.ts`, `errors.ts` (con `mensajeDeError`), `generated/`, `catalogos.ts` (distritos y categorías, que usan varias features). |
+| `src/lib/auth/` | Infraestructura | `token-storage.ts`, el único que toca el JWT. |
+| `src/map/`, `src/pwa/` | Infraestructura | Adaptadores de Leaflet y Serwist. Usan `model/` y `lib/`; nunca `api.ts` ni hooks. |
+
+**Importaciones:** dentro de una feature se importa en **relativo** (`../api`, `../model/tipos`). El alias `@/features/<otra>/…` solo se usa para el `model/` de **otra** feature. Si dos features necesitan lo mismo, va a `lib/`.
+
+### 5.4 Cómo se verifica
+
+`eslint.capas.mjs` (incluido en `eslint.config.mjs`) aplica `no-restricted-imports` por capa. `npm run lint` muestra el mensaje de la regla. Durante la migración la severidad es `warn`; la tarea FE-09 la sube a `error`. Línea base medida el 03/10: **66 avisos en 24 archivos**.
+
+### 5.5 Patrón de hook (uniforme en todas las features)
+
+```ts
+// src/features/reportes/hooks/useMisReportes.ts
+import { useCarga } from '@/lib/hooks/useCarga';
+import { misReportes } from '../api';
+import type { ReporteResumen } from '../model/tipos';
+
+/** US-07: reportes del ciudadano autenticado. */
+export function useMisReportes() {
+  return useCarga<ReporteResumen[]>(() => misReportes(), []);
+}
+// useCarga devuelve { estado: 'cargando' | 'listo' | 'error', datos, error, recargar }
+// y encapsula una sola vez el flag `cancelado` que hoy se repite en cada página.
+```
+
+La página queda en composición:
+
+```tsx
+export default function MisReportesPage() {
+  return <GuardiaDeRol rolesPermitidos={['CIUDADANO']}>{() => <ListaMisReportes />}</GuardiaDeRol>;
+}
+// ListaMisReportes (features/reportes/components) usa useMisReportes() y renderiza.
+```
+
+## 6. Servicio de inferencia (`inferencia/`, nuevo)
+
+```
+inferencia/
+├── app/
+│   ├── api/             PRESENTACIÓN   routers FastAPI + esquemas.py (Pydantic)
+│   ├── application/     APLICACIÓN     detectar(imagen) -> Detecciones: valida, preprocesa, invoca el modelo
+│   ├── domain/          DOMINIO        Deteccion, ClaseDano, VersionModelo (sin onnxruntime)
+│   └── infrastructure/  INFRAESTRUCTURA OnnxModelo (onnxruntime, CPU), carga de pesos
+├── tests/
+└── pyproject.toml       (guarda de capas: import-linter, contrato "layers")
+```
+
+**Contrato** (lo define `inferencia/` y lo consume `clasificacion/infra`):
+`POST /v1/detecciones` (multipart `imagen`) → `{ "version_modelo": str, "detecciones": [{ "clase": str, "confianza": float, "caja": [x1, y1, x2, y2] }] }`.
+El servicio **solo detecta**. El umbral y la clase dominante se aplican en la API (`clasificacion/domain`), según la decisión del OB2 que sigue pendiente de validar.
+
+## 7. Contratos entre contenedores
+
+| Contrato | Dueño | Consumidor | Cómo se sincroniza |
+|---|---|---|---|
+| API REST (OpenAPI en `/v3/api-docs`) | backend | frontend | El backend cambia `dto/` y hace commit; después el frontend corre `npm run api:sync` y ajusta `model/`. |
+| Detección de daños | inferencia | backend (`clasificacion/infra`) | Versión en la ruta (`/v1`). Un cambio incompatible pasa a `/v2`. |
+
+Un agente **nunca** supone un campo que el otro lado todavía no publicó.
+
+## 8. Dónde vive cada entidad del OB2 §5
+
+| Entidad | Módulo / paquete | Tabla actual | Acción |
+|---|---|---|---|
+| USUARIO | `auth.domain.Usuario` | `usuario` | Pasar la jurisdicción de `distrito_id` a `municipalidad_id` (decisión pendiente). |
+| REPORTE | `reportes.domain.Reporte` | `reporte` | + `titulo`, `severidad`, `categoria_sugerida_id`, `confianza_sugerencia`, `periodo_gestion_id`. |
+| CIUDADANO_AFECTADO | `reportes.domain.AdhesionReporte` | `adhesion_reporte` | Mantener la tabla; decidir si `total_adhesiones` se elimina (contradicción 1 del análisis). |
+| HISTORIAL_ESTADO | `reportes.domain.HistorialEstadoReporte` | `historial_estado_reporte` | Sin cambio. |
+| CATEGORIA_DANO | `reportes.domain.CategoriaDano` | `categoria_dano` | + `icono`, `clase_modelo`. Revisar el solapamiento entre Bache y Hueco en calzada. |
+| MUNICIPALIDAD, GESTION_MUNICIPAL, PERIODO_GESTION, REQUISITO_RECEPCION | `municipalidades.domain` | — | Migración nueva. La geometría sigue en `distrito` (MultiPolygon). |
+| ENVIO_CORREO, SUSCRIPCION_PUSH | `notificaciones.domain` | — | Migración nueva. |
+| CONSENTIMIENTO | `auth.domain` | — | Migración nueva. |
+
+## 9. Decisiones
+
+| ID | Decisión | Alternativa descartada y motivo |
+|---|---|---|
+| D-01 | Capas dentro de cada módulo (paquete por módulo, subpaquete por capa). | Capas globales (`controllers/`, `services/`…): dispersan un caso de uso en cuatro carpetas. Hexagonal completa: duplica modelos y adaptadores sin beneficio a esta escala. |
+| D-02 | Las entidades JPA son el modelo de dominio. | Modelo de persistencia separado más mappers: el doble de clases para un sistema con una sola base de datos. |
+| D-03 | `dto/` es una capa de contratos que comparten presentación y aplicación; el servicio devuelve el DTO. | Que el controller mapee la entidad: provoca `LazyInitializationException` fuera de la transacción y saca reglas de visibilidad del servicio. |
+| D-04 | La aplicación usa los repositorios Spring Data sin puerto; los puertos son solo para I/O externo. | Un puerto por repositorio: no aporta nada mientras PostgreSQL+PostGIS sea la única opción. |
+| D-05 | Se conservan los nombres actuales (`controller/service/repository`) y se estandarizan los subpaquetes que faltaban (`port/`, `infra/`). | Renombrar a `api/application/domain/infrastructure`: toca casi todos los archivos e imports sin cambiar el comportamiento (decisión del 03/10). |
+| D-06 | Migración incremental con violaciones congeladas (ArchUnit) y severidad `warn` (ESLint). | Reescritura de una vez: bloquea a ambos agentes y mezcla refactor con funcionalidad. |
+| D-07 | Las features del frontend siguen áreas de la UI, y los hooks son la capa de aplicación. | Copiar los módulos del backend: el ciudadano y el funcionario usan los mismos datos en pantallas distintas. |
+| D-08 | **Abierta**: cómo llega la sugerencia de IA al reporte. (a) El frontend reenvía la categoría sugerida y su confianza: es simple, pero el cliente podría alterar esos datos. (b) El backend vuelve a clasificar al crear el reporte: los datos quedan protegidos, pero se hace una segunda inferencia de hasta 3 s. Se recomienda (b) si la meta de tiempo de inferencia lo permite. | — |
+
+## 10. Trabajo con varios agentes
+
+- **Dueños**: el agente de `backend/` modifica solo `backend/`, el de `frontend/` solo `frontend/`, y el de `inferencia/` solo esa carpeta. Este documento y `project-context/` son del arquitecto (el usuario).
+- **Una duda de diseño no se resuelve creando un subpaquete o carpeta nueva.** El agente escribe la propuesta en `project-context/decisions/` y espera la decisión.
+- **Orden ante un cambio de contrato**: primero el backend (DTO, test y commit), después el frontend (`api:sync`). Nunca en paralelo.
+- **Definición de terminado** de cualquier tarea:
+  - backend: `mvn clean verify` en verde, `completed` de Failsafe igual o mayor que antes y `archunit_store` igual o más chico.
+  - frontend: `npm run typecheck`, `npm test` y `npm run lint` con avisos de capas iguales o menos.
+- **Commits**: las tareas de arquitectura se titulan `ARQ BE-03: …` o `ARQ FE-05: …`; las funcionales siguen con `US-xx`.

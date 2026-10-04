@@ -21,6 +21,7 @@
         <java.version>21</java.version>
         <jjwt.version>0.12.6</jjwt.version>
         <poi.version>5.3.0</poi.version>
+        <archunit.version>1.3.0</archunit.version>
     </properties>
 
     <dependencies>
@@ -136,6 +137,16 @@
             <groupId>com.icegreen</groupId>
             <artifactId>greenmail-junit5</artifactId>
             <version>2.0.1</version>
+            <scope>test</scope>
+        </dependency>
+        <!-- ArchUnit: verifica las capas y la dependencia entre modulos
+             (ARCHITECTURE.md, seccion 4.4). Corre en Surefire ('mvn test')
+             como ArquitecturaCapasTest; las violaciones previas a la
+             migracion quedan congeladas en src/test/resources/archunit_store. -->
+        <dependency>
+            <groupId>com.tngtech.archunit</groupId>
+            <artifactId>archunit-junit5</artifactId>
+            <version>${archunit.version}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
