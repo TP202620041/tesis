@@ -13,7 +13,7 @@ Cada feature: `components/` (presentación) → `hooks/` (aplicación) → `mode
 - `app/**` solo compone: sin `useEffect` de carga de datos, sin importar `api.ts` ni `@/lib/api/*`. La carga va en un hook de la feature sobre `useCarga` (`src/lib/hooks/`).
 - Dentro de una feature se importa en relativo; de **otra** feature solo su `model/`. Lo que usan dos features va a `lib/`.
 - Los tipos generados (`@/lib/api/generated`) solo se importan en `model/`, `api.ts` o `lib/types`.
-- `eslint.capas.mjs` lo verifica en `npm run lint` (hoy en `warn`; pasa a `error` en la tarea FE-09). Un aviso de capas **nuevo** no se acepta: la cantidad solo puede bajar. Plan: `../project-context/decisions/plan-migracion-capas.md`.
+- `eslint.capas.mjs` lo verifica en `npm run lint` (hoy en `warn`; pasa a `error` en la tarea FE-09). Un aviso de capas **nuevo** no se acepta: la cantidad solo puede bajar. Única excepción: el aviso que aparece porque un archivo que ningún bloque medía entra en uno (al moverlo a `components/`, `hooks/`, `model/` o `api.ts`), siempre que el PR lo liste (`../ARCHITECTURE.md` §5.4). Un aviso por un import nuevo nunca se acepta. Plan: `../project-context/decisions/plan-migracion-capas.md`.
 
 ## Entorno
 

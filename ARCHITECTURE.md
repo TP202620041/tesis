@@ -160,7 +160,9 @@ Una feature es un **área funcional de la UI** (`reportes`, `gestion`, `desempen
 
 ### 5.4 Cómo se verifica
 
-`eslint.capas.mjs` (incluido en `eslint.config.mjs`) aplica `no-restricted-imports` por capa. `npm run lint` muestra el mensaje de la regla. Durante la migración la severidad es `warn`; la tarea FE-09 la sube a `error`. Línea base medida el 03/10: **66 avisos en 24 archivos**.
+`eslint.capas.mjs` (incluido en `eslint.config.mjs`) aplica `no-restricted-imports` por capa. `npm run lint` muestra el mensaje de la regla. Durante la migración la severidad es `warn`; la tarea FE-09 la sube a `error`. Línea base (FE-01, 11/10): **66 avisos en 24 archivos**; **67** desde que `src/components/**` también prohíbe los tipos generados (bloque `compartidos-ui`, 11/10).
+
+La cantidad de avisos solo puede bajar. Única excepción: un archivo que hoy no cae en ningún bloque (por ejemplo `features/<f>/formato.ts`) y que una tarea mueve a `components/`, `hooks/`, `model/` o `api.ts` puede traer avisos que antes no se medían. Esos no cuentan como retroceso si el PR los lista uno por uno; un aviso causado por un import nuevo, sí (decisión del usuario, 11/10).
 
 ### 5.5 Patrón de hook (uniforme en todas las features)
 
