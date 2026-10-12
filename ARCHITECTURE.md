@@ -1,7 +1,7 @@
 # Arquitectura de software — ViaSegura
 
 > **Documento normativo.** Define las capas, qué va en cada una y qué puede depender de qué, igual para `backend/`, `frontend/` y el futuro `inferencia/`. Los agentes de cada carpeta lo siguen; no lo modifican salvo pedido explícito (ver §10).
-> Versión 1.2 · 2026-10-04 (D-08 y D-09 decididas) · Plan de migración: `project-context/decisions/plan-migracion-capas.md`.
+> Versión 1.3 · 2026-10-11 (D-11 decidida) · Plan de migración: `project-context/decisions/plan-migracion-capas.md`.
 
 ## 1. Principios
 
@@ -72,11 +72,11 @@ Un subpaquete que el módulo no necesita no se crea. **No se crean otros subpaqu
 
 ### 4.3 Módulos y dependencias permitidas
 
-De otro módulo solo se usa su **API pública**: `service`, `domain`, `event`, `port` y `dto`. Nunca su `controller`, `listener`, `repository` ni `infra`. `common` es transversal y no depende de ningún módulo.
+De otro módulo solo se usa su **API pública**: `service`, `domain`, `event`, `port` y `dto`. Nunca su `controller`, `listener`, `repository` ni `infra`. `common` es transversal y no depende de ningún módulo. `common/port` es solo para I/O externa que usan **dos o más** módulos; lo que usa un solo módulo va en el `port/` de ese módulo (D-11).
 
 | Módulo | Responsabilidad | Entidades (OB2 §5) | Usa a | Estado |
 |---|---|---|---|---|
-| `common` | Seguridad JWT, errores, configuración web, utilitarios geo. | — | — | existe |
+| `common` | Seguridad JWT, errores, configuración web, utilitarios geo y almacenamiento de fotos (`port/FotoStorageService`, `infra/LocalFotoStorageService`, D-11). | — | — | existe |
 | `distritos` | 43 distritos y sus polígonos; resolución por coordenadas. | (geometría de MUNICIPALIDAD) | common | existe |
 | `municipalidades` | Canal oficial, periodos de gestión y requisitos de recepción. Cada municipalidad referencia a su distrito (D-09). | MUNICIPALIDAD, GESTION_MUNICIPAL, PERIODO_GESTION, REQUISITO_RECEPCION | distritos | **nuevo** |
 | `auth` | Cuentas, credenciales, perfil y consentimiento. | USUARIO, CONSENTIMIENTO | distritos, municipalidades | existe + CONSENTIMIENTO |
@@ -92,7 +92,7 @@ Grafo, sin ciclos: `common ← distritos ← municipalidades ← auth ← report
 
 1. **Vista previa (solo UX, W-07/W-08).** `clasificacion.controller` recibe la foto (`POST /api/clasificaciones`). `ClasificacionService` llama a `port/ClasificadorDano`, que implementa `infra/InferenciaHttpAdapter` (RestClient a `inferencia/`, con timeout). Luego aplica `domain/PoliticaDeSugerencia` (umbral y clase dominante) y devuelve la sugerencia o “sin sugerencia”. **No guarda nada.** Si el servicio falla, la respuesta es “sin sugerencia” y el ciudadano elige la categoría a mano.
 2. **Creación.** `reportes.service` crea el reporte solo con la categoría que **confirmó** el ciudadano. `CrearReporteRequest` no tiene campos de sugerencia, y si el cliente los envía se ignoran (D-08).
-3. **Sugerencia oficial (D-08).** `reportes.listener.SugerenciaCategoriaListener` escucha `ReporteCreadoEvent` (solo reportes nuevos, no adhesiones) con `AFTER_COMMIT` + `@Async` + `REQUIRES_NEW`. Lee la foto guardada por `port/FotoStorageService`, llama a `clasificacion.service.ClasificacionService` y escribe `categoria_sugerida_id` y `confianza_sugerencia`, **solo si siguen nulos** (idempotente). Si la inferencia falla, los campos quedan nulos y el reporte sigue su curso: la IA nunca bloquea un reporte. Como es asíncrono, los hasta 3 s de inferencia no se suman al tiempo de respuesta de la creación.
+3. **Sugerencia oficial (D-08).** `reportes.listener.SugerenciaCategoriaListener` escucha `ReporteCreadoEvent` (solo reportes nuevos, no adhesiones) con `AFTER_COMMIT` + `@Async` + `REQUIRES_NEW`. Lee la foto guardada por `common.port.FotoStorageService` (D-11), llama a `clasificacion.service.ClasificacionService` y escribe `categoria_sugerida_id` y `confianza_sugerencia`, **solo si siguen nulos** (idempotente). Si la inferencia falla, los campos quedan nulos y el reporte sigue su curso: la IA nunca bloquea un reporte. Como es asíncrono, los hasta 3 s de inferencia no se suman al tiempo de respuesta de la creación.
 4. `reportes.service.ConfirmacionReporteService` evalúa la regla “reporte confirmado” (campos completos, municipalidad asignada y requisitos de `municipalidades`) y publica `event/ReporteConfirmadoEvent`.
 5. `notificaciones.listener.ReporteConfirmadoListener` crea ENVIO_CORREO (como máximo uno por reporte) y envía por `port/CorreoSaliente`, que implementa `infra/SmtpCorreoAdapter`. Los reintentos se registran en `intentos`.
 6. `desempeno.listener` refresca los KPIs. Un reporte cuenta en el periodo de su `fecha_creacion`.
@@ -111,6 +111,8 @@ Grafo, sin ciclos: `common ← distritos ← municipalidades ← auth ← report
 | `soloApiPublicaDeOtrosModulos` | Uso de `controller`, `listener`, `repository` o `infra` de otro módulo. |
 
 Las violaciones que existían al instalar la guarda están **congeladas** en `src/test/resources/archunit_store` (versionado). Solo fallan las nuevas, y al corregir una sale sola del almacén. El tamaño del almacén es la deuda pendiente; la migración termina cuando queda vacío.
+
+ArchUnit compara el texto completo de cada violación congelada (solo ignora los números de línea), así que **mover una clase** cambia el texto de las violaciones que la mencionan y el test las da por nuevas. En el commit que mueve la clase se vuelve a congelar el almacén **de forma controlada**: una corrida con `-Darchunit.freeze.refreeze=true` (sin tocar `archunit.properties`) y, en el diff del almacén, el número de entradas no sube y solo cambian nombres de paquete. Como `refreeze` acepta todas las violaciones actuales, también las nuevas, el revisor comprueba ese diff entrada por entrada (decisión del usuario, 11/10).
 
 ### 4.5 Convenciones transversales
 
@@ -239,6 +241,7 @@ Un agente **nunca** supone un campo que el otro lado todavía no publicó.
 | D-07 | Las features del frontend siguen áreas de la UI, y los hooks son la capa de aplicación. | Copiar los módulos del backend: el ciudadano y el funcionario usan los mismos datos en pantallas distintas. |
 | D-08 | **El backend vuelve a clasificar la foto guardada** y es la única fuente de `categoria_sugerida_id` y `confianza_sugerencia`. Lo hace en un listener asíncrono posterior al commit (§4.3, paso 3). La vista previa del frontend es solo de interfaz (decisión del usuario, 04/10). Como el modelo es determinista en CPU, la misma foto con la misma versión del modelo da la misma sugerencia que vio el ciudadano. | Que el frontend reenvíe la sugerencia: el cliente podría alterar los datos con los que se evalúa la IA (OE3). Clasificar dentro de la transacción de creación: retiene una conexión a la base durante la inferencia y suma hasta 3 s a cada creación. |
 | D-09 | **La municipalidad referencia a su distrito** (`municipalidad.distrito_id`, `NOT NULL UNIQUE`), y la geometría sigue solo en `distrito` (decisión del usuario, 04/10). Hay 43 filas: 42 municipalidades distritales más la Municipalidad Metropolitana de Lima, asociada a Cercado de Lima. La asignación por punto en polígono no cambia: el reporte obtiene su distrito y de ahí su municipalidad. | Fusionar distrito y municipalidad en una sola tabla, como en el OB2: obliga a migrar todo lo que hoy usa `distrito` (asignación, jurisdicción, índice, catálogo) y mezcla un dato geográfico con uno institucional. |
+| D-11 | **El puerto de fotos vive en `common`**: `common/port/FotoStorageService` y `common/infra/LocalFotoStorageService`, con los mismos nombres y firmas (D-05). Lo usan `auth` (foto de perfil, privada) y `reportes` (foto de reporte, pública, y su lectura para D-08); el contrato sigue teniendo un método explícito por visibilidad. Mover el puerto corta el único ciclo entre módulos (`auth` → `reportes`), y deja en un solo módulo guardar y servir las fotos (`WebMvcConfig`, `SecurityConfig`). `common/port` queda reservado para I/O que usan dos o más módulos (decisión del usuario, 11/10; propuesta `decisions/propuestas/2026-10-11-puerto-fotos.md`). | Un puerto por módulo: la separación pública/privada sería una frontera entre módulos, pero crea dos clases y duplica unas 40 líneas de validación y copia; se puede hacer después a partir de esta. Puerto en `auth`: pasa las guardas, pero deja la evidencia pública de los reportes a cargo del módulo de cuentas. Dejarlo en `reportes` (BE-02 original): mantiene el ciclo. |
 
 ## 10. Trabajo con varios agentes
 

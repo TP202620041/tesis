@@ -1,6 +1,6 @@
 # Propuesta: ubicación del puerto de almacenamiento de fotos
 
-- **Estado:** abierta <!-- abierta | aceptada | rechazada -->
+- **Estado:** aceptada (opción A, 2026-10-11) <!-- abierta | aceptada | rechazada -->
 - **Fecha:** 2026-10-11
 - **Origen:** sesión coordinadora (raíz), antes de BE-02 y BE-07 de `plan-migracion-capas.md`
 - **Decide:** el usuario. Si se acepta, la sesión de raíz actualiza ARCHITECTURE.md o el plan.
@@ -101,3 +101,7 @@ El puerto de fotos vive en `reportes`, pero dos de sus tres métodos solo los us
 - **BE-06:** conviene ejecutarlo después del corte, porque cambia constructores (`AuthService`, `ReporteService`…) que aparecen en el detalle del ciclo.
 - **NC-04 (D-08):** falta saber en qué puerto se agrega la lectura de la foto de un reporte que necesita `SugerenciaCategoriaListener`.
 - **Para la sesión de raíz, una vez decidido:** registrar la decisión en ARCHITECTURE.md (§4.3 y §9), ajustar BE-02 y BE-07 en el plan y autorizar el nuevo congelamiento del almacén.
+
+## Decisión
+
+**Opción A**, decidida por el usuario el 2026-10-11, junto con el recongelado controlado del almacén de ArchUnit en los commits que mueven clases. Registrada como **D-11** en `ARCHITECTURE.md` (§4.3, §4.4 y §9) y en el plan (BE-02: destino `common` y orden de los commits; BE-07: el ciclo se corta con ese movimiento).
