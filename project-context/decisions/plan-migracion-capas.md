@@ -49,12 +49,18 @@ Nota: la regla `capas` da 0 porque `geo/`, `storage/` y `adapter/` todavía no p
 |---|---|
 | `reportes/geo/GeoAssignmentStrategy` | `reportes/port/` |
 | `reportes/geo/PointInPolygonAssignmentStrategy` | `reportes/infra/` |
-| `reportes/storage/FotoStorageService` | `reportes/port/` |
-| `reportes/storage/LocalFotoStorageService` | `reportes/infra/` |
+| `reportes/storage/FotoStorageService` | `common/port/` (D-11) |
+| `reportes/storage/LocalFotoStorageService` | `common/infra/` (D-11) |
 | `notificaciones/adapter/NotificacionCanalAdapter` | `notificaciones/port/` |
 | `notificaciones/adapter/EmailNotificacionAdapter`, `PushNotificacionAdapter` | `notificaciones/infra/` |
 
 Se conservan los nombres de clase (D-05). Verificar que ningún servicio importe la implementación (`Local…`, `Email…`) en vez de la interfaz.
+**Orden de los commits (D-11):** primero `storage` → `common`, que corta el ciclo `auth` ↔ `reportes` (cierra también BE-07); después `geo`; `notificaciones/adapter` no aparece en el almacén y puede ir en cualquier momento. Mientras el ciclo exista, cualquier cambio en las clases de su detalle reescribe esa violación congelada.
+**Recongelado controlado** (ARCHITECTURE.md §4.4; vale también para BE-03, BE-04 y BE-06, que mueven clases o cambian constructores que aparecen en el almacén):
+1. `node .claude/skills/verificar/contar-archunit.mjs` antes del movimiento.
+2. Mover y correr `mvn test -Dtest=ArquitecturaCapasTest`: las violaciones que falla deben ser las mismas de antes con otro paquete. Si aparece una realmente nueva, se corrige en el código, no se congela.
+3. Una sola corrida con `mvn test -Dtest=ArquitecturaCapasTest -Darchunit.freeze.refreeze=true`, y de nuevo el conteo: ninguna regla sube.
+4. En el PR, el diff del almacén con cada línea quitada emparejada con su línea añadida. El revisor lo comprueba entrada por entrada.
 **Aceptación:** no quedan los paquetes `geo`, `storage` ni `adapter`, y el almacén baja.
 
 ### [ ] BE-03 · Infraestructura suelta en otras capas
@@ -79,7 +85,7 @@ Reemplazar cada uso de `repository/` (o `controller/`, `listener/`, `infra/`) de
 **Aceptación:** esa regla queda sin violaciones congeladas, sin cambios en los IT.
 
 ### [ ] BE-07 · Ciclos entre módulos
-Resolver lo que reporte `modulosSinCiclos`. **Ciclo real (almacén del 04/10): `auth` ↔ `reportes`.** `auth` usa `reportes.storage.FotoStorageService` (fotos de perfil, en `AuthService` y `PerfilFotoService`), y `reportes.domain` referencia `auth.domain.Usuario`. La segunda dirección es legítima; la que hay que cortar es la de `auth` hacia `reportes`. Como el puerto de fotos lo usan dos módulos, su ubicación (`common` o un puerto propio de `auth`) se decide con `/propuesta` **antes de BE-02**, que lo mueve. Otro caso posible: `common.security` ↔ `auth`. Para cortarlo, `common.security` debe depender solo de la interfaz `UserDetailsService` de Spring; `auth` provee el bean. Si cortar un ciclo exige mover una clase entre módulos, proponerlo antes en `project-context/decisions/`.
+Resolver lo que reporte `modulosSinCiclos`. **Ciclo real (almacén del 04/10): `auth` ↔ `reportes`.** `auth` usa `reportes.storage.FotoStorageService` (fotos de perfil, en `AuthService` y `PerfilFotoService`), y `reportes.domain` referencia `auth.domain.Usuario`. La segunda dirección es legítima; la que hay que cortar es la de `auth` hacia `reportes`. **Decidido (D-11, 11/10):** el puerto de fotos pasa a `common`, y ese movimiento (primer commit de BE-02) corta el ciclo, porque esos dos imports son la única dependencia de `auth` hacia `reportes`. BE-07 se cierra al verificar que la regla queda en 0. Otro caso posible: `common.security` ↔ `auth`. Para cortarlo, `common.security` debe depender solo de la interfaz `UserDetailsService` de Spring; `auth` provee el bean. Si cortar un ciclo exige mover una clase entre módulos, proponerlo antes en `project-context/decisions/`.
 **Aceptación:** la regla queda sin violaciones congeladas.
 
 ### [ ] BE-08 · Cierre
