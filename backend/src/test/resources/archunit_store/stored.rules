@@ -1,0 +1,11 @@
+#
+#Sun Oct 04 00:44:24 PET 2026
+Capas\:\ presentacion\ ->\ aplicacion\ ->\ dominio;\ infraestructura\ solo\ via\ puertos=4ac0b4d9-5106-49ef-af9e-d53b25955390
+El\ dominio\ (domain,\ event,\ port)\ no\ depende\ de\ ninguna\ otra\ capa=fb274123-5f9a-4236-a7b3-7cabffcea233
+Las\ @Entity\ viven\ en\ <modulo>.domain=b0c5bc17-38a9-4abc-8b75-51721cc38559
+Los\ @RestController\ viven\ en\ <modulo>.controller\ y\ terminan\ en\ Controller=117ec7ac-5738-4b3e-b7e9-5894d997f60f
+Los\ manejadores\ de\ eventos\ viven\ en\ <modulo>.listener=4e8e89a7-0f89-4c58-9c2f-ac8f01957d2d
+Los\ modulos\ no\ tienen\ dependencias\ circulares=0d931288-cfe9-4bbc-aec0-3a7db6f4559b
+Los\ repositorios\ Spring\ Data\ viven\ en\ <modulo>.repository\ y\ terminan\ en\ Repository=da181bc8-fb06-4594-af99-4ac4d83698a3
+Un\ modulo\ no\ usa\ controller,\ listener,\ repository\ ni\ infra\ de\ otro\ modulo=5d24bb36-40ca-4827-a5bf-6b25d4bb955f
+dto/\ contiene\ solo\ contratos\ HTTP\ (*Request,\ *Response)\ y\ sus\ enums;\ los\ *Command\ van\ en\ service/=b8429609-9ad4-4f38-bc98-88be4a71e253

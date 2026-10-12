@@ -18,7 +18,7 @@ Los tests se **mueven** con el código que prueban; no se borran.
 
 ## Backend
 
-### [ ] BE-01 · Instalar la guarda y medir la línea base
+### [x] BE-01 · Instalar la guarda y medir la línea base (2026-10-11)
 **Prerrequisito de todo lo demás.**
 1. Verificar que `pom.xml` tenga `archunit-junit5` 1.3.0 y que existan `src/test/java/pe/edu/upc/viasegura/arquitectura/ArquitecturaCapasTest.java` y `src/test/resources/archunit.properties`.
 2. `mvn test -Dtest=ArquitecturaCapasTest`. El test **no se probó en compilación** (Maven Central estaba bloqueado en el entorno donde se escribió). Si no compila, corregir solo la API de ArchUnit y no relajar ninguna regla. Si una regla falla por “empty should”, revisar el patrón de paquetes.
@@ -26,17 +26,23 @@ Los tests se **mueven** con el código que prueban; no se borran.
 4. Anotar aquí el número de violaciones congeladas por regla (líneas de cada archivo del almacén) y el `completed` de Failsafe de `mvn clean verify`.
 
 **Aceptación:** el test pasa, el almacén está versionado y la línea base está anotada.
-Línea base (medida por el coordinador el 11/10 sobre el almacén que se generó el 04/10 a las 00:44; falta el `completed` de Failsafe):
+Línea base (almacén generado el 04/10 a las 00:44 y versionado en este commit; recontada el 11/10 con `contar-archunit.mjs` después de `mvn test -Dtest=ArquitecturaCapasTest`, que pasó con 9 reglas y dejó el almacén idéntico):
 | Regla | Violaciones congeladas |
 |---|---|
 | Un módulo no usa controller, listener, repository ni infra de otro módulo | 51 |
 | Los módulos no tienen dependencias circulares | 1 (ciclo `auth` ↔ `reportes`) |
 | dto/ contiene solo contratos HTTP | 1 (`CrearReporteCommand`) |
-| Las otras 6 reglas | 0 |
+| Capas: presentación → aplicación → dominio | 0 |
+| El dominio (domain, event, port) no depende de ninguna otra capa | 0 |
+| Las @Entity viven en `<modulo>.domain` | 0 |
+| Los @RestController viven en `<modulo>.controller` | 0 |
+| Los manejadores de eventos viven en `<modulo>.listener` | 0 |
+| Los repositorios viven en `<modulo>.repository` | 0 |
 | **Total** | **53** |
 
+`mvn clean verify` (11/10): Failsafe `completed` **177** (26 clases IT), `errors` 0, `failures` 0, `skipped` 0. Surefire: 11 tests (9 de `ArquitecturaCapasTest` + 2 de `ReincidenciaDetectorTest`). Esta es la línea base de `completed` para las tareas `ARQ BE-xx`.
+
 Nota: la regla `capas` da 0 porque `geo/`, `storage/` y `adapter/` todavía no pertenecen a ninguna capa. Las violaciones de esa regla aparecerán, si las hay, cuando BE-02 los mueva a `port/` e `infra/`. Eso es esperado y no cuenta como retroceso.
-Pendiente del agente de backend: commitear el almacén si no lo está, y anotar aquí el `completed` de `mvn clean verify`.
 
 ### [ ] BE-02 · Puertos y adaptadores
 | Hoy | Destino |
