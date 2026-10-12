@@ -15,8 +15,8 @@ Vas a ejecutar la tarea **$ARGUMENTS** siguiendo `WORKFLOW.md` (sección 3). Sig
 
 ## 2. Preparar la rama
 - `git status` debe estar limpio. Si no lo está, detente y pregunta al usuario qué hacer con esos cambios.
-- `git switch main` y `git pull --ff-only`.
-- Crea la rama: `arq/<id-en-minúsculas>` para BE/FE (p. ej. `arq/be-02`), `feat/<id>-<tema-corto>` para NC.
+- `git switch develop` y `git pull --ff-only` (GitFlow: toda tarea sale de `develop`, nunca de `main`).
+- Crea la rama: `git switch -c feature/<id-en-minúsculas> develop` para BE/FE (p. ej. `feature/be-02`), `feature/<id>-<tema-corto>` para NC (p. ej. `feature/nc-01-municipalidades`). Si estás en un worktree donde `develop` está tomado por otro, créala con `git switch -c feature/<id> origin/develop` tras un `git fetch`.
 
 ## 3. Planificar
 - Lista los archivos que vas a crear, mover o modificar y qué test cubre cada cambio.
@@ -32,11 +32,11 @@ Vas a ejecutar la tarea **$ARGUMENTS** siguiendo `WORKFLOW.md` (sección 3). Sig
 - Ejecuta `/verificar` y compara con la línea base anotada en el plan. Si alguna métrica empeora, corrige antes de seguir.
 
 ## 6. Revisar
-- Haz commit en la rama: `ARQ $ARGUMENTS: <resumen>` (o `NC-xx: …`).
+- Haz commit en la rama: `ARQ $ARGUMENTS: <resumen>` (o `NC-xx: …`), sin línea `Co-Authored-By` (decisión del usuario).
 - Ejecuta `/revisar`. Corrige todo hallazgo bloqueante o importante y vuelve a `/verificar` si tocaste código.
 
 ## 7. Cerrar
 - En el plan, marca `[x]` en la tarea con la fecha y las métricas de `/verificar` (antes → después). Commit `ARQ $ARGUMENTS: cierre en el plan`.
-- `git push -u origin <rama>`. Si `gh` está disponible, abre el PR con `gh pr create --base main --fill`; si no, dale al usuario el enlace para abrirlo.
+- `git push -u origin <rama>`. Si `gh` está disponible, abre el PR con `gh pr create --base develop --fill`; si no, dale al usuario el enlace para abrirlo. Nunca `git flow feature finish` (fusiona en local sobre `develop`, que está protegida).
 - Termina con un resumen de 5 líneas: qué cambió, métricas antes → después, veredicto del revisor y qué decide el usuario (si algo).
 - **No fusiones el PR.** Lo fusiona el usuario.
