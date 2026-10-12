@@ -99,9 +99,17 @@ export const reglasDeCapas = [
     comunes.otraFeatureInterna,
   ]),
 
-  // Compartidos: no dependen de features ni de rutas.
-  capa('compartidos', ['src/lib/**/*.{ts,tsx}', 'src/components/**/*.{ts,tsx}'], [
+  // Compartidos de infraestructura y tipos: no dependen de features ni de
+  // rutas. lib/types y lib/api sí pueden usar los tipos generados.
+  capa('compartidos-lib', ['src/lib/**/*.{ts,tsx}'], [
     p(['@/features/**', '@/app/**'], MSG.haciaFeatures),
+  ]),
+
+  // Compartidos de presentación: además, sin tipos generados (van por
+  // lib/types). Bloque aparte porque los globs no pueden solaparse.
+  capa('compartidos-ui', ['src/components/**/*.{ts,tsx}'], [
+    p(['@/features/**', '@/app/**'], MSG.haciaFeatures),
+    comunes.schema,
   ]),
 
   // Adaptadores de librerías (Leaflet, Serwist): pueden usar model y lib.

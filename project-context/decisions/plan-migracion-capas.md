@@ -10,7 +10,7 @@
 | Agente | Condición |
 |---|---|
 | Backend | `mvn clean verify` en verde. `completed` en `target/failsafe-reports/failsafe-summary.xml` **igual** al de la línea base (una tarea de arquitectura no agrega ni quita IT). `src/test/resources/archunit_store` **más chico o igual**. |
-| Frontend | `npm run typecheck`, `npm test` (con su guarda) y `npm run lint` en verde. Avisos `capas/*` **menos o igual** que antes. |
+| Frontend | `npm run typecheck`, `npm test` (con su guarda) y `npm run lint` en verde. Avisos `capas/*` **menos o igual** que antes, salvo los de archivos que entran por primera vez a un bloque, listados en el PR (ARCHITECTURE.md §5.4). |
 
 Los tests se **mueven** con el código que prueban; no se borran.
 
@@ -140,6 +140,8 @@ Nota: hay 9 archivos de feature fuera de `components/`, `hooks/`, `model/` y `ap
 
 La guarda no cubre el schema en `components/`: `components/LineaDeTiempo.tsx` importa `generated/schema` sin aviso, porque `compartidos` no prohíbe esa ruta (lo resuelve el coordinador).
 
+**Actualización del coordinador (11/10):** el bloque `compartidos` se partió en `compartidos-lib` (`src/lib/**`) y `compartidos-ui` (`src/components/**`, que además prohíbe `schema`). **Línea base vigente: 67 avisos en 24 archivos**: el de `LineaDeTiempo` → `generated/schema` es el nuevo (mensaje `schema`: 0 → 1; `capas/compartidos-ui`: 2 avisos / 1 archivo). Las otras cifras no cambian.
+
 ### [ ] FE-02 · Reglas puras a `model/`
 | Hoy | Destino |
 |---|---|
@@ -155,7 +157,9 @@ La guarda no cubre el schema en `components/`: `components/LineaDeTiempo.tsx` im
 
 ### [ ] FE-03 · Tipos en `model/`
 Crear `features/<f>/model/tipos.ts` con los alias sobre `generated/schema` (`ReporteResumen`, `HistorialEntrada`, `AsignacionResponsable`…). `api.ts`, los hooks y los componentes importan los tipos desde ahí. `components/LineaDeTiempo.tsx` y `desempeno/formato.ts` dejan de importar `generated/schema`.
-**Aceptación:** el bloque `capas/*` no tiene avisos de `schema`.
+**Aceptación:**
+- `git grep -l "lib/api/generated" -- frontend/src ':!frontend/src/lib/api/generated'` solo devuelve archivos de `features/*/model/**`, `features/*/api.ts` y `lib/types/**`. Hoy devuelve 5: `components/LineaDeTiempo.tsx` y `desempeno/formato.ts` (fuera de lugar) y `gestion/api.ts`, `reportes/api.ts`, `lib/types/domain.ts` (permitidos).
+- El mensaje `schema` de `contar-capas.mjs` queda en 0 (hoy 1, el de `LineaDeTiempo` en `capas/compartidos-ui`).
 
 ### [ ] FE-04 · Imports internos relativos
 Dentro de cada feature, cambiar `@/features/<misma>/…` por imports relativos. Casos detectados: `FormularioReporte` → `CampoFoto`/`CampoUbicacion` y `GuardiaDeRol` → `auth/hooks`.

@@ -46,7 +46,7 @@ Cada agente de Claude Code trabaja **en una sola carpeta, en una sola tarea, en 
 | Carpeta | Condición |
 |---|---|
 | backend | `mvn clean verify` en verde; `completed` de Failsafe igual o mayor (igual en tareas ARQ); violaciones congeladas de ArchUnit iguales o menos. |
-| frontend | `npm run typecheck`, `npm test` (con su guarda) y lint en verde; avisos de capas iguales o menos. |
+| frontend | `npm run typecheck`, `npm test` (con su guarda) y lint en verde; avisos de capas iguales o menos (salvo archivos que entran por primera vez a un bloque, listados en el PR: ARCHITECTURE.md §5.4). |
 
 ## 4. Comandos (skills en `.claude/skills/`)
 
