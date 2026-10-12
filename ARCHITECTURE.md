@@ -1,7 +1,7 @@
 # Arquitectura de software — ViaSegura
 
 > **Documento normativo.** Define las capas, qué va en cada una y qué puede depender de qué, igual para `backend/`, `frontend/` y el futuro `inferencia/`. Los agentes de cada carpeta lo siguen; no lo modifican salvo pedido explícito (ver §10).
-> Versión 1.0 · 2026-10-03 · Plan de migración: `project-context/decisions/plan-migracion-capas.md`.
+> Versión 1.2 · 2026-10-04 (D-08 y D-09 decididas) · Plan de migración: `project-context/decisions/plan-migracion-capas.md`.
 
 ## 1. Principios
 
@@ -78,7 +78,7 @@ De otro módulo solo se usa su **API pública**: `service`, `domain`, `event`, `
 |---|---|---|---|---|
 | `common` | Seguridad JWT, errores, configuración web, utilitarios geo. | — | — | existe |
 | `distritos` | 43 distritos y sus polígonos; resolución por coordenadas. | (geometría de MUNICIPALIDAD) | common | existe |
-| `municipalidades` | Canal oficial, periodos de gestión y requisitos de recepción. | MUNICIPALIDAD, GESTION_MUNICIPAL, PERIODO_GESTION, REQUISITO_RECEPCION | distritos | **nuevo** |
+| `municipalidades` | Canal oficial, periodos de gestión y requisitos de recepción. Cada municipalidad referencia a su distrito (D-09). | MUNICIPALIDAD, GESTION_MUNICIPAL, PERIODO_GESTION, REQUISITO_RECEPCION | distritos | **nuevo** |
 | `auth` | Cuentas, credenciales, perfil y consentimiento. | USUARIO, CONSENTIMIENTO | distritos, municipalidades | existe + CONSENTIMIENTO |
 | `clasificacion` | Sugerir la categoría de una foto: puerto al servicio de inferencia, umbral y clase dominante. | (escribe `categoria_sugerida_id` y `confianza_sugerencia` vía reportes) | — | **nuevo** |
 | `reportes` | Ciclo del reporte: creación, adhesión, gestión, historial, categorías, fotos, idempotencia, confirmación. | REPORTE, CIUDADANO_AFECTADO, HISTORIAL_ESTADO, CATEGORIA_DANO | auth, distritos, municipalidades, clasificacion | existe |
@@ -90,11 +90,12 @@ Grafo, sin ciclos: `common ← distritos ← municipalidades ← auth ← report
 
 **Flujo del núcleo nuevo** (para ubicar cada pieza):
 
-1. `clasificacion.controller` recibe la foto (`POST /api/clasificaciones`). `ClasificacionService` llama a `port/ClasificadorDano`, que implementa `infra/InferenciaHttpAdapter` (RestClient a `inferencia/`, con timeout). Luego aplica `domain/PoliticaDeSugerencia` (umbral y clase dominante) y devuelve la sugerencia o «sin sugerencia». Si el servicio falla, la respuesta es «sin sugerencia» y el ciudadano elige la categoría a mano.
-2. `reportes.service` crea el reporte con la categoría confirmada y guarda la sugerencia (D-08).
-3. `reportes.service.ConfirmacionReporteService` evalúa la regla «reporte confirmado» (campos completos, municipalidad asignada y requisitos de `municipalidades`) y publica `event/ReporteConfirmadoEvent`.
-4. `notificaciones.listener.ReporteConfirmadoListener` crea ENVIO_CORREO (como máximo uno por reporte) y envía por `port/CorreoSaliente`, que implementa `infra/SmtpCorreoAdapter`. Los reintentos se registran en `intentos`.
-5. `desempeno.listener` refresca los KPIs. Un reporte cuenta en el periodo de su `fecha_creacion`.
+1. **Vista previa (solo UX, W-07/W-08).** `clasificacion.controller` recibe la foto (`POST /api/clasificaciones`). `ClasificacionService` llama a `port/ClasificadorDano`, que implementa `infra/InferenciaHttpAdapter` (RestClient a `inferencia/`, con timeout). Luego aplica `domain/PoliticaDeSugerencia` (umbral y clase dominante) y devuelve la sugerencia o “sin sugerencia”. **No guarda nada.** Si el servicio falla, la respuesta es “sin sugerencia” y el ciudadano elige la categoría a mano.
+2. **Creación.** `reportes.service` crea el reporte solo con la categoría que **confirmó** el ciudadano. `CrearReporteRequest` no tiene campos de sugerencia, y si el cliente los envía se ignoran (D-08).
+3. **Sugerencia oficial (D-08).** `reportes.listener.SugerenciaCategoriaListener` escucha `ReporteCreadoEvent` (solo reportes nuevos, no adhesiones) con `AFTER_COMMIT` + `@Async` + `REQUIRES_NEW`. Lee la foto guardada por `port/FotoStorageService`, llama a `clasificacion.service.ClasificacionService` y escribe `categoria_sugerida_id` y `confianza_sugerencia`, **solo si siguen nulos** (idempotente). Si la inferencia falla, los campos quedan nulos y el reporte sigue su curso: la IA nunca bloquea un reporte. Como es asíncrono, los hasta 3 s de inferencia no se suman al tiempo de respuesta de la creación.
+4. `reportes.service.ConfirmacionReporteService` evalúa la regla “reporte confirmado” (campos completos, municipalidad asignada y requisitos de `municipalidades`) y publica `event/ReporteConfirmadoEvent`.
+5. `notificaciones.listener.ReporteConfirmadoListener` crea ENVIO_CORREO (como máximo uno por reporte) y envía por `port/CorreoSaliente`, que implementa `infra/SmtpCorreoAdapter`. Los reintentos se registran en `intentos`.
+6. `desempeno.listener` refresca los KPIs. Un reporte cuenta en el periodo de su `fecha_creacion`.
 
 ### 4.4 Cómo se verifica
 
@@ -216,12 +217,12 @@ Un agente **nunca** supone un campo que el otro lado todavía no publicó.
 
 | Entidad | Módulo / paquete | Tabla actual | Acción |
 |---|---|---|---|
-| USUARIO | `auth.domain.Usuario` | `usuario` | Pasar la jurisdicción de `distrito_id` a `municipalidad_id` (decisión pendiente). |
+| USUARIO | `auth.domain.Usuario` | `usuario` | Jurisdicción del funcionario: **pendiente (D-10)**. Con D-09 la relación es 1:1, así que `distrito_id` y `municipalidad_id` son equivalentes. |
 | REPORTE | `reportes.domain.Reporte` | `reporte` | + `titulo`, `severidad`, `categoria_sugerida_id`, `confianza_sugerencia`, `periodo_gestion_id`. |
 | CIUDADANO_AFECTADO | `reportes.domain.AdhesionReporte` | `adhesion_reporte` | Mantener la tabla; decidir si `total_adhesiones` se elimina (contradicción 1 del análisis). |
 | HISTORIAL_ESTADO | `reportes.domain.HistorialEstadoReporte` | `historial_estado_reporte` | Sin cambio. |
 | CATEGORIA_DANO | `reportes.domain.CategoriaDano` | `categoria_dano` | + `icono`, `clase_modelo`. Revisar el solapamiento entre Bache y Hueco en calzada. |
-| MUNICIPALIDAD, GESTION_MUNICIPAL, PERIODO_GESTION, REQUISITO_RECEPCION | `municipalidades.domain` | — | Migración nueva. La geometría sigue en `distrito` (MultiPolygon). |
+| MUNICIPALIDAD, GESTION_MUNICIPAL, PERIODO_GESTION, REQUISITO_RECEPCION | `municipalidades.domain` | — | Migración nueva. `municipalidad.distrito_id` es `NOT NULL UNIQUE` y apunta a `distrito`. La geometría sigue solo en `distrito` (D-09). |
 | ENVIO_CORREO, SUSCRIPCION_PUSH | `notificaciones.domain` | — | Migración nueva. |
 | CONSENTIMIENTO | `auth.domain` | — | Migración nueva. |
 
@@ -236,7 +237,8 @@ Un agente **nunca** supone un campo que el otro lado todavía no publicó.
 | D-05 | Se conservan los nombres actuales (`controller/service/repository`) y se estandarizan los subpaquetes que faltaban (`port/`, `infra/`). | Renombrar a `api/application/domain/infrastructure`: toca casi todos los archivos e imports sin cambiar el comportamiento (decisión del 03/10). |
 | D-06 | Migración incremental con violaciones congeladas (ArchUnit) y severidad `warn` (ESLint). | Reescritura de una vez: bloquea a ambos agentes y mezcla refactor con funcionalidad. |
 | D-07 | Las features del frontend siguen áreas de la UI, y los hooks son la capa de aplicación. | Copiar los módulos del backend: el ciudadano y el funcionario usan los mismos datos en pantallas distintas. |
-| D-08 | **Abierta**: cómo llega la sugerencia de IA al reporte. (a) El frontend reenvía la categoría sugerida y su confianza: es simple, pero el cliente podría alterar esos datos. (b) El backend vuelve a clasificar al crear el reporte: los datos quedan protegidos, pero se hace una segunda inferencia de hasta 3 s. Se recomienda (b) si la meta de tiempo de inferencia lo permite. | — |
+| D-08 | **El backend vuelve a clasificar la foto guardada** y es la única fuente de `categoria_sugerida_id` y `confianza_sugerencia`. Lo hace en un listener asíncrono posterior al commit (§4.3, paso 3). La vista previa del frontend es solo de interfaz (decisión del usuario, 04/10). Como el modelo es determinista en CPU, la misma foto con la misma versión del modelo da la misma sugerencia que vio el ciudadano. | Que el frontend reenvíe la sugerencia: el cliente podría alterar los datos con los que se evalúa la IA (OE3). Clasificar dentro de la transacción de creación: retiene una conexión a la base durante la inferencia y suma hasta 3 s a cada creación. |
+| D-09 | **La municipalidad referencia a su distrito** (`municipalidad.distrito_id`, `NOT NULL UNIQUE`), y la geometría sigue solo en `distrito` (decisión del usuario, 04/10). Hay 43 filas: 42 municipalidades distritales más la Municipalidad Metropolitana de Lima, asociada a Cercado de Lima. La asignación por punto en polígono no cambia: el reporte obtiene su distrito y de ahí su municipalidad. | Fusionar distrito y municipalidad en una sola tabla, como en el OB2: obliga a migrar todo lo que hoy usa `distrito` (asignación, jurisdicción, índice, catálogo) y mezcla un dato geográfico con uno institucional. |
 
 ## 10. Trabajo con varios agentes
 

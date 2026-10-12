@@ -15,7 +15,13 @@ desktop.ini
 
 ### Herramientas de agentes ###
 # Se versiona el contenido del proyecto, no el estado local de las sesiones.
+# Si se versionan .claude/settings.json, agents/, skills/ y hooks/ (WORKFLOW.md).
 .agents/
+.claude/settings.local.json
+**/.claude/settings.local.json
+.claude/worktrees/
+.eslint-capas.json
+**/.eslint-capas.json
 
 ### Logs sueltos ###
 *.log

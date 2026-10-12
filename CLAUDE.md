@@ -21,7 +21,15 @@ Todo el código, comentarios, commits y docs están en **español**. Los commits
 - Cada agente modifica solo su carpeta. `ARCHITECTURE.md` y `project-context/` no se editan sin pedido explícito: una duda de diseño se propone en `project-context/decisions/`.
 - Ante un cambio de contrato, primero el backend (DTO + commit), después el frontend (`npm run api:sync`).
 
-## Comandos
+## Workflow de agentes (obligatorio)
+
+`WORKFLOW.md` define roles, el ciclo de una tarea y las guardas. Resumen:
+
+- Una sesión = una carpeta = una tarea = una rama. Nunca se trabaja en `main`.
+- `/tarea <ID>` lleva una tarea del plan hasta el PR; `/verificar` mide la definición de terminado; `/revisar` pide revisión al subagente `revisor-arquitectura`; `/contrato` coordina cambios de API con un handoff escrito; `/propuesta` registra una duda de diseño en vez de resolverla.
+- El hook `.claude/hooks/guardia.mjs` bloquea escribir fuera de la carpeta propia, editar normas, generados o migraciones existentes, y operaciones git peligrosas. Si bloquea algo legítimo, dilo al usuario: no lo esquives con comandos de shell.
+- El PR lo fusiona el usuario.
+
 
 ### Backend (`backend/`)
 

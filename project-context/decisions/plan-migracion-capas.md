@@ -1,6 +1,7 @@
 # Plan de migración a capas uniformes
 
 > Norma: `ARCHITECTURE.md`. Este plan lleva el código actual a esa norma **sin cambiar comportamiento**: ninguna tarea toca el contrato del API ni la base de datos.
+> Cómo se ejecuta cada tarea: `WORKFLOW.md` (`/tarea <ID>`, `/verificar`, `/revisar`).
 > El backend y el frontend migran **en paralelo**, porque no comparten archivos. Cada tarea es un commit `ARQ BE-xx` o `ARQ FE-xx`.
 > Creado el 2026-10-03. Marcar `[x]` y anotar la fecha al cerrar cada tarea.
 
@@ -20,12 +21,22 @@ Los tests se **mueven** con el código que prueban; no se borran.
 ### [ ] BE-01 · Instalar la guarda y medir la línea base
 **Prerrequisito de todo lo demás.**
 1. Verificar que `pom.xml` tenga `archunit-junit5` 1.3.0 y que existan `src/test/java/pe/edu/upc/viasegura/arquitectura/ArquitecturaCapasTest.java` y `src/test/resources/archunit.properties`.
-2. `mvn test -Dtest=ArquitecturaCapasTest`. El test **no se probó en compilación** (Maven Central estaba bloqueado en el entorno donde se escribió). Si no compila, corregir solo la API de ArchUnit y no relajar ninguna regla. Si una regla falla por «empty should», revisar el patrón de paquetes.
+2. `mvn test -Dtest=ArquitecturaCapasTest`. El test **no se probó en compilación** (Maven Central estaba bloqueado en el entorno donde se escribió). Si no compila, corregir solo la API de ArchUnit y no relajar ninguna regla. Si una regla falla por “empty should”, revisar el patrón de paquetes.
 3. La primera corrida crea `src/test/resources/archunit_store/`. Commitearlo.
 4. Anotar aquí el número de violaciones congeladas por regla (líneas de cada archivo del almacén) y el `completed` de Failsafe de `mvn clean verify`.
 
 **Aceptación:** el test pasa, el almacén está versionado y la línea base está anotada.
-Línea base: _(completar)_
+Línea base (medida por el coordinador el 11/10 sobre el almacén que se generó el 04/10 a las 00:44; falta el `completed` de Failsafe):
+| Regla | Violaciones congeladas |
+|---|---|
+| Un módulo no usa controller, listener, repository ni infra de otro módulo | 51 |
+| Los módulos no tienen dependencias circulares | 1 (ciclo `auth` ↔ `reportes`) |
+| dto/ contiene solo contratos HTTP | 1 (`CrearReporteCommand`) |
+| Las otras 6 reglas | 0 |
+| **Total** | **53** |
+
+Nota: la regla `capas` da 0 porque `geo/`, `storage/` y `adapter/` todavía no pertenecen a ninguna capa. Las violaciones de esa regla aparecerán, si las hay, cuando BE-02 los mueva a `port/` e `infra/`. Eso es esperado y no cuenta como retroceso.
+Pendiente del agente de backend: commitear el almacén si no lo está, y anotar aquí el `completed` de `mvn clean verify`.
 
 ### [ ] BE-02 · Puertos y adaptadores
 | Hoy | Destino |
@@ -62,12 +73,12 @@ Reemplazar cada uso de `repository/` (o `controller/`, `listener/`, `infra/`) de
 **Aceptación:** esa regla queda sin violaciones congeladas, sin cambios en los IT.
 
 ### [ ] BE-07 · Ciclos entre módulos
-Resolver lo que reporte `modulosSinCiclos`. Caso probable: `common.security` ↔ `auth`. Para cortarlo, `common.security` debe depender solo de la interfaz `UserDetailsService` de Spring; `auth` provee el bean. Si cortar un ciclo exige mover una clase entre módulos, proponerlo antes en `project-context/decisions/`.
+Resolver lo que reporte `modulosSinCiclos`. **Ciclo real (almacén del 04/10): `auth` ↔ `reportes`.** `auth` usa `reportes.storage.FotoStorageService` (fotos de perfil, en `AuthService` y `PerfilFotoService`), y `reportes.domain` referencia `auth.domain.Usuario`. La segunda dirección es legítima; la que hay que cortar es la de `auth` hacia `reportes`. Como el puerto de fotos lo usan dos módulos, su ubicación (`common` o un puerto propio de `auth`) se decide con `/propuesta` **antes de BE-02**, que lo mueve. Otro caso posible: `common.security` ↔ `auth`. Para cortarlo, `common.security` debe depender solo de la interfaz `UserDetailsService` de Spring; `auth` provee el bean. Si cortar un ciclo exige mover una clase entre módulos, proponerlo antes en `project-context/decisions/`.
 **Aceptación:** la regla queda sin violaciones congeladas.
 
 ### [ ] BE-08 · Cierre
 - El almacén vacío, o con violaciones residuales que el arquitecto aceptó y que quedan listadas en `ARCHITECTURE.md` §9.
-- Actualizar la sección «Estructura del proyecto» de `backend/README.md` y la de arquitectura de `backend/CLAUDE.md`.
+- Actualizar la sección “Estructura del proyecto” de `backend/README.md` y la de arquitectura de `backend/CLAUDE.md`.
 
 ### [ ] BE-09 · (Opcional, después de BE-08) Partir `reportes`
 Si el tamaño lo justifica, separar `categorias` (CategoriaDano y su CRUD, US-29) y `participacion` (calificación, comentarios y reincidencia, US-26 y US-27). Requiere aprobación previa: mueve tablas de módulo y afecta `limpiezaFkSafe`.
@@ -124,7 +135,7 @@ Los componentes que hoy llaman al API pasan a usar un hook de su feature: `Cambi
 **Aceptación:** sin avisos `otraFeature`.
 
 ### [ ] FE-09 · Cierre
-- `npm run lint` con 0 avisos de capas. Cambiar `SEVERIDAD` a `'error'` en `eslint.capas.mjs`.
+- `npm run lint` con 0 avisos de capas. El cambio de `SEVERIDAD` a `'error'` en `eslint.capas.mjs` lo hace la sesión de raíz, porque la guardia lo bloquea para el agente (WORKFLOW.md §5).
 - Actualizar `frontend/README.md` (estructura) y `frontend/CLAUDE.md`.
 
 ---
@@ -135,7 +146,7 @@ No es migración, es funcionalidad. Se lista aquí para fijar **dónde** va cada
 
 | ID | Pieza | Dónde (ARCHITECTURE.md) | Depende de |
 |---|---|---|---|
-| NC-01 | Módulo `municipalidades` + migración (MUNICIPALIDAD, GESTION_MUNICIPAL, PERIODO_GESTION, REQUISITO_RECEPCION) | §4.3, §8 | Decidir la relación entre distrito y municipalidad |
+| NC-01 | Módulo `municipalidades` y una migración Flyway nueva, con la siguiente versión libre (MUNICIPALIDAD, GESTION_MUNICIPAL, PERIODO_GESTION, REQUISITO_RECEPCION). `municipalidad.distrito_id NOT NULL UNIQUE` → `distrito`, sin geometría propia. Seed de 43 municipalidades: 42 distritales más la MML para Cercado de Lima. `correo_contacto` puede ser nulo. Seed del periodo 2023-2026 (verificar las fechas antes de sembrar). API pública: `MunicipalidadService#deDistrito(distritoId)` y `#periodoVigente(fecha)`. IT: cada distrito tiene exactamente una municipalidad. | §4.3, §8, D-09 | D-09 decidida (04/10). D-10 (jurisdicción del funcionario) no bloquea NC-01 |
 | NC-02 | `reportes`: `titulo`, `severidad` y `periodo_gestion_id` | §8 | NC-01 |
 | NC-03 | Servicio `inferencia/` (FastAPI + ONNX) con contrato `/v1/detecciones` | §6 | Elegir las clases finales del modelo |
 | NC-04 | Módulo `clasificacion` (puerto, adaptador HTTP y política de umbral), vista previa en `features/reportes` y `reportes.listener.SugerenciaCategoriaListener` asíncrono (D-08). Requiere `@EnableAsync` con un executor acotado. IT: la creación responde aunque la inferencia falle, la sugerencia se escribe una sola vez y lo que envíe el cliente se ignora. | §4.3 pasos 1-3, D-08 | NC-03 (se puede usar un adaptador falso mientras tanto) |
