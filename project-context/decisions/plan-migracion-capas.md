@@ -87,12 +87,46 @@ Si el tamaño lo justifica, separar `categorias` (CategoriaDano y su CRUD, US-29
 
 ## Frontend
 
-### [ ] FE-01 · Instalar la guarda y medir la línea base
+### [x] FE-01 · Instalar la guarda y medir la línea base (2026-10-11)
 1. Verificar que `eslint.capas.mjs` exista y que `eslint.config.mjs` lo incluya al final.
 2. `npm run lint`. Anotar los avisos por bloque `capas/*`. La medición previa (03/10) se hizo solo con los imports y dio **66 avisos en 24 archivos**. La cifra real puede variar un poco por los `export … from` y los imports de tipos.
 3. Confirmar que `npm run lint` siga terminando con código 0, porque son avisos y no errores.
 
-Línea base: _(completar)_
+Línea base (2026-10-11, sobre `f2f8954`). `eslint.capas.mjs` existe y `eslint.config.mjs` lo incluye como último bloque, así que no hubo que tocar nada.
+- `npm run typecheck`: 0 errores. En un checkout recién clonado (sin `.next/`) falla con `Cannot find name 'LayoutProps'` hasta correr `npx next typegen` (lo resuelve el coordinador).
+- `npm test`: **80 tests en 8 archivos**, todos en verde. La guarda confirma 8 de 8 archivos presentes en `src/`.
+- `npm run lint`: código de salida 0, con 66 avisos y 0 errores. Todos son de capas: **0 avisos de otras reglas**.
+- **Avisos de capas: 66 en 24 archivos.** Es la misma cifra que la medición del 03/10. 8 de esos avisos vienen de `import type`, y ningún `export … from` cae en una regla.
+
+| Mensaje (`contar-capas.mjs`) | Avisos |
+|---|---|
+| `gatewayDesdeUi` (presentación llama al API) | 35 |
+| `otraFeature` | 16 |
+| `clienteHttp` | 14 |
+| `haciaFeatures` (compartidos dependen de una feature) | 1 |
+| `schema`, `token`, `modelPuro`, `hookSinUi` | 0 |
+
+Los 66 avisos salen de 47 imports, porque algunos imports caen en dos reglas a la vez:
+- **`gatewayDesdeUi`:** en `feature-components`, el patrón `**/api` también coincide con `@/lib/api/client`. Por eso los 8 imports de `ApiError`/`NetworkError` cuentan dos veces, como `gatewayDesdeUi` y como `clienteHttp`. De los 35 avisos `gatewayDesdeUi`, 8 son ese doble conteo.
+- **`otraFeature`:** de los 16 avisos, 11 son imports de la misma feature con alias, que arregla FE-04. Los otros 5 son cruces reales entre features, que arregla FE-08:
+  - `CambiarEstado` y `TablaBandeja` → `reportes/api`
+  - `CampoUbicacion` → `distritos/api`
+  - `gestion/api.ts` → `reportes/api`
+  - `MapaReportes` → `reportes/api`
+
+| Bloque | Avisos / archivos |
+|---|---|
+| `capas/feature-components` | 41 / 11 |
+| `capas/app` | 22 / 10 |
+| `capas/compartidos` (`components/LineaDeTiempo` → `reportes/mapa/estados`) | 1 / 1 |
+| `capas/feature-api` (`gestion/api.ts` → `@/features/reportes/api`) | 1 / 1 |
+| `capas/adaptadores` (`map/MapaReportes` → `@/features/reportes/api`) | 1 / 1 |
+
+Nota: hay 9 archivos de feature fuera de `components/`, `hooks/`, `model/` y `api.ts`. No caen en ningún bloque, así que hoy no se miden. Son `auth/{fotoPerfil,hooks,rutas}.ts`, `desempeno/formato.ts`, `gestion/transiciones.ts`, `reportes/{acciones,useGeolocalizacion}.ts` y `reportes/mapa/{bbox,estados}.ts`.
+- `desempeno/formato.ts` importa `generated/schema`, pero al moverlo a `model/` en FE-02 no dará aviso, porque `feature-model` permite el schema.
+- El único aviso nuevo previsible está en FE-05. Si `auth/hooks.ts` pasa a `hooks/useSesion.ts` y conserva `@/features/auth/api`, cae en `otraFeatureApi`. Se evita importando `../api`.
+
+La guarda no cubre el schema en `components/`: `components/LineaDeTiempo.tsx` importa `generated/schema` sin aviso, porque `compartidos` no prohíbe esa ruta (lo resuelve el coordinador).
 
 ### [ ] FE-02 · Reglas puras a `model/`
 | Hoy | Destino |
