@@ -25,7 +25,8 @@ Todo el código, comentarios, commits y docs están en **español**. Los commits
 
 `WORKFLOW.md` define roles, el ciclo de una tarea y las guardas. Resumen:
 
-- Una sesión = una carpeta = una tarea = una rama. Nunca se trabaja en `main`.
+- Una sesión = una carpeta = una tarea = una rama. **GitFlow**: cada tarea es una `feature/<id>` que sale de `develop` y vuelve por PR a `develop`; `main` solo recibe versiones (`release/*`, `hotfix/*`) etiquetadas `vX.Y.Z`. Nunca se trabaja en `main` ni en `develop` (ambas protegidas en GitHub) y nunca se usa `git flow … finish`.
+- Los commits no llevan línea `Co-Authored-By` (decisión del usuario).
 - `/tarea <ID>` lleva una tarea del plan hasta el PR; `/verificar` mide la definición de terminado; `/revisar` pide revisión al subagente `revisor-arquitectura`; `/contrato` coordina cambios de API con un handoff escrito; `/propuesta` registra una duda de diseño en vez de resolverla.
 - El hook `.claude/hooks/guardia.mjs` bloquea escribir fuera de la carpeta propia, editar normas, generados o migraciones existentes, y operaciones git peligrosas. Si bloquea algo legítimo, dilo al usuario: no lo esquives con comandos de shell.
 - El PR lo fusiona el usuario.

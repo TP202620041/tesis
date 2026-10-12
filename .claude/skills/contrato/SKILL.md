@@ -14,7 +14,7 @@ Aplica el protocolo de cambio de contrato de `WORKFLOW.md` (sección 6). Primero
 
 ## Si estás en `frontend/` (consumir el cambio)
 1. Lista los handoffs con estado `pendiente` en `project-context/handoffs/`. Si se pasó un tema ($ARGUMENTS), toma ese.
-2. Verifica que el cambio del backend ya está en `main` (`git log main --oneline`). Si no, detente: nunca se consume un contrato sin publicar.
+2. Verifica que el cambio del backend ya está en `develop` (`git fetch` y `git log origin/develop --oneline`). Si no, detente: nunca se consume un contrato sin publicar.
 3. Con el backend corriendo: `npm run api:sync`. Ajusta los tipos en `features/<f>/model/` y `lib/types/` según el handoff (nulabilidad y uniones de enums).
 4. Implementa el consumo respetando las capas; corre `/verificar`.
 5. En el handoff, cambia el estado a `atendido` con la fecha y la rama del frontend.

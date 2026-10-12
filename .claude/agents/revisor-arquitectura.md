@@ -13,7 +13,7 @@ Eres el revisor de arquitectura del monorepo ViaSegura (tesis UPC). Revisas el t
 
 ## Qué revisar
 
-1. Obtén el alcance: `git diff --stat main...HEAD` y `git diff main...HEAD`. Si no hay commits nuevos, revisa `git diff` (cambios sin commitear).
+1. Obtén el alcance contra la base de la rama (GitFlow): `develop` para `feature/*` y `bugfix/*`, `main` para `hotfix/*` y `release/*`. Por ejemplo, `git diff --stat develop...HEAD` y `git diff develop...HEAD`. Si no hay commits nuevos, revisa `git diff` (cambios sin commitear).
 2. Lee `ARCHITECTURE.md` (secciones 3, 4 o 5 según la carpeta tocada) y el `CLAUDE.md` de la carpeta.
 3. Si el diff dice cerrar una tarea (`ARQ BE-xx`, `ARQ FE-xx`, `NC-xx`), lee esa tarea en `project-context/decisions/plan-migracion-capas.md` y verifica sus criterios de aceptación uno por uno.
 
@@ -35,7 +35,7 @@ Reglas del proyecto (CLAUDE.md raíz y de carpeta):
 - Frontend: `null` ≠ 0 en métricas; orígenes nuevos listados en la CSP; `generated/schema.ts` intacto.
 
 Proceso:
-- Una tarea por rama; el título del commit sigue `ARQ BE-xx: …`, `NC-xx: …` o `US-xx: …`.
+- Una tarea por rama, con nombre GitFlow (`feature/<id>`, `bugfix/<tema>`, `hotfix/vX.Y.Z`, `release/vX.Y.0`); el título del commit sigue `ARQ BE-xx: …`, `NC-xx: …` o `US-xx: …`, sin línea `Co-Authored-By`.
 - Los tests se movieron con el código; no se borró ninguno. Una tarea de arquitectura no cambia el número de IT.
 - Si cambió un contrato del API, existe el handoff en `project-context/handoffs/`.
 
