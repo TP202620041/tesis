@@ -9,7 +9,7 @@
     "lint": "eslint",
     "api:types": "openapi-typescript src/lib/api/openapi.json -o src/lib/api/generated/schema.ts",
     "api:spec": "curl -s http://localhost:8080/v3/api-docs -o src/lib/api/openapi.json",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "next typegen && tsc --noEmit",
     "api:sync": "npm run api:spec && npm run api:types",
     "pwa:build": "serwist build serwist.config.mjs",
     "test": "vitest run --reporter=default --reporter=json --outputFile=.vitest-resultado.json && node scripts/verificar-tests.mjs",
