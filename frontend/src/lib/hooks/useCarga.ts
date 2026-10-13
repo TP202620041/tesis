@@ -42,8 +42,12 @@ export function useCarga<T>(
 
   useEffect(() => {
     let cancelado = false;
-    // Todo el estado se escribe dentro de la función asíncrona, nunca de
-    // forma síncrona en el cuerpo del efecto (React lo desaconseja).
+    // El estado se escribe siempre desde la función de carga, no directamente
+    // en el cuerpo del efecto. `CARGANDO` sí se escribe de forma síncrona
+    // (antes del primer `await`, dentro de la misma ejecución del efecto);
+    // en el montaje es la misma referencia que el estado inicial y React no
+    // vuelve a renderizar. `listo`/`error` se escriben tras el `await`, y
+    // solo si la carga no se canceló.
     const ejecutar = async () => {
       setEstado(CARGANDO);
       try {
