@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { estiloDeEstado } from '@/features/reportes/mapa/estados';
+import { estiloDeEstado } from '@/lib/types/estados';
 import type { ReporteResumen } from '@/features/reportes/api';
 
 /** Criterios de orden de la bandeja. */

@@ -4,12 +4,12 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { GuardiaDeRol } from '@/features/auth/components/GuardiaDeRol';
-import { ROLES_AREA_MUNICIPAL } from '@/features/auth/rutas';
+import { ROLES_AREA_MUNICIPAL } from '@/features/auth/model/rutas';
 import { cerrarSesion } from '@/features/auth/api';
 import { bandeja, FILTROS_BANDEJA_VACIOS, type FiltrosBandeja } from '@/features/gestion/api';
 import { ordenar, TablaBandeja, type OrdenBandeja } from '@/features/gestion/components/TablaBandeja';
 import { listarCategorias, type ReporteResumen } from '@/features/reportes/api';
-import { ESTADOS_EN_BANDEJA, estiloDeEstado } from '@/features/reportes/mapa/estados';
+import { ESTADOS_EN_BANDEJA, estiloDeEstado } from '@/lib/types/estados';
 import type { CategoriaDano, Usuario } from '@/lib/types/domain';
 
 /** US-13: bandeja de reportes del distrito del funcionario. */

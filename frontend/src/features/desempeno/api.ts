@@ -1,5 +1,5 @@
 import { api } from '@/lib/api/client';
-import type { DesempenoDistrital } from '@/features/desempeno/formato';
+import type { DesempenoDistrital } from './model/formato';
 
 /**
  * US-18/US-20: indice publico de desempeno distrital.

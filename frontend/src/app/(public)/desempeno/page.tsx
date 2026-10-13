@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { rankingDistrital } from '@/features/desempeno/api';
 import { TablaDesempeno } from '@/features/desempeno/components/TablaDesempeno';
-import { ORDEN_INICIAL, type DesempenoDistrital, type Orden } from '@/features/desempeno/formato';
+import { ORDEN_INICIAL, type DesempenoDistrital, type Orden } from '@/features/desempeno/model/formato';
 import { listarCategorias } from '@/features/reportes/api';
 import type { CategoriaDano } from '@/lib/types/domain';
 

@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { iniciarSesion } from '@/features/auth/api';
 import { AlertaError, Boton, Campo } from '@/components/ui/form';
 import { ApiError, NetworkError } from '@/lib/api/client';
-import { rutaInicialDe } from '@/features/auth/rutas';
+import { rutaInicialDe } from '../model/rutas';
 
 /** US-02: inicio de sesion para ciudadano y funcionario municipal. */
 export function FormularioLogin() {

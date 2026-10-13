@@ -14,11 +14,11 @@ import {
   explicacionDeEstado,
   puedeCalificar,
   puedeEditar,
-} from '@/features/reportes/acciones';
+} from '@/features/reportes/model/acciones';
 import { Calificar } from '@/features/reportes/components/Calificar';
 import { Comentarios } from '@/features/reportes/components/Comentarios';
 import { EditarReporte } from '@/features/reportes/components/EditarReporte';
-import { estiloDeEstado } from '@/features/reportes/mapa/estados';
+import { estiloDeEstado } from '@/lib/types/estados';
 import { urlDeFoto } from '@/lib/api/client';
 
 /**

@@ -4,8 +4,8 @@ import 'leaflet/dist/leaflet.css';
 import { DivIcon, type LatLngBounds } from 'leaflet';
 import { useEffect, useMemo } from 'react';
 import { MapContainer, Marker, Popup, TileLayer, useMapEvents } from 'react-leaflet';
-import type { BoundingBox } from '@/features/reportes/mapa/bbox';
-import { ESTADOS_EN_MAPA, estiloDeEstado } from '@/features/reportes/mapa/estados';
+import type { BoundingBox } from '@/features/reportes/model/bbox';
+import { ESTADOS_EN_MAPA, estiloDeEstado } from '@/lib/types/estados';
 import type { ReporteResumen } from '@/features/reportes/api';
 import { urlDeFoto } from '@/lib/api/client';
 

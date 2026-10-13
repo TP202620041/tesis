@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, type ReactNode } from 'react';
 import { useSesion } from '@/features/auth/hooks';
-import { puedeAcceder, rutaInicialDe } from '@/features/auth/rutas';
+import { puedeAcceder, rutaInicialDe } from '../model/rutas';
 import type { Rol, Usuario } from '@/lib/types/domain';
 
 /**

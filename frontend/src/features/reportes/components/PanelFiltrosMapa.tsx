@@ -1,7 +1,7 @@
 'use client';
 
-import { ESTADOS_EN_MAPA, estiloDeEstado } from '@/features/reportes/mapa/estados';
-import type { FiltrosMapa } from '@/features/reportes/mapa/bbox';
+import { ESTADOS_EN_MAPA, estiloDeEstado } from '@/lib/types/estados';
+import type { FiltrosMapa } from '../model/bbox';
 import type { CategoriaDano, Distrito } from '@/lib/types/domain';
 
 /**

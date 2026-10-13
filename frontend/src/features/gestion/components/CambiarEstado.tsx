@@ -4,8 +4,8 @@ import { useState } from 'react';
 import { AlertaError, Boton } from '@/components/ui/form';
 import { ApiError, NetworkError } from '@/lib/api/client';
 import { cambiarEstado } from '@/features/gestion/api';
-import { esTerminal, exigeComentario, transicionesDesde } from '@/features/gestion/transiciones';
-import { estiloDeEstado } from '@/features/reportes/mapa/estados';
+import { esTerminal, exigeComentario, transicionesDesde } from '../model/transiciones';
+import { estiloDeEstado } from '@/lib/types/estados';
 import type { ReporteResumen } from '@/features/reportes/api';
 
 /** US-14: el funcionario mueve el reporte por la maquina de estados. */
