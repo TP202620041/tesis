@@ -11,7 +11,7 @@ import pe.edu.upc.viasegura.distritos.repository.DistritoRepository;
 /**
  * Catalogo de distritos de Lima Metropolitana (dato de referencia).
  *
- * <p>Los 43 distritos los carga {@link DistritoSeeder} al arrancar; aqui
+ * <p>Los 43 distritos los carga {@code infra.DistritoSeeder} al arrancar; aqui
  * solo se leen.</p>
  */
 @Service
