@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic';
 import { useState } from 'react';
 import { distritoPorCoordenadas } from '@/features/distritos/api';
-import { useGeolocalizacion } from '@/features/reportes/useGeolocalizacion';
+import { useGeolocalizacion } from '../useGeolocalizacion';
 import type { Coordenadas } from '@/map/MapaSelectorUbicacion';
 import type { Distrito } from '@/lib/types/domain';
 

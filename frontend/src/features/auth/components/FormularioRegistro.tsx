@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { registrar } from '@/features/auth/api';
+import { registrar } from '../api';
 import { AlertaError, Boton, Campo } from '@/components/ui/form';
 import { ApiError, NetworkError } from '@/lib/api/client';
 import { PASSWORD_MAX, PASSWORD_MIN } from '../model/password';

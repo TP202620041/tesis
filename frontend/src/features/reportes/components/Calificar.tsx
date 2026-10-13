@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { AlertaError, Boton } from '@/components/ui/form';
 import { ApiError, NetworkError } from '@/lib/api/client';
-import { calificar, miCalificacion, type Calificacion } from '@/features/reportes/api';
+import { calificar, miCalificacion, type Calificacion } from '../api';
 
 /**
  * US-26: el ciudadano califica la atencion recibida tras la resolucion.

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { AlertaError, Boton } from '@/components/ui/form';
 import { ApiError, NetworkError } from '@/lib/api/client';
-import { cancelarReporte, editarReporte, listarCategorias, type ReporteResumen } from '@/features/reportes/api';
+import { cancelarReporte, editarReporte, listarCategorias, type ReporteResumen } from '../api';
 import type { CategoriaDano } from '@/lib/types/domain';
 
 /**
