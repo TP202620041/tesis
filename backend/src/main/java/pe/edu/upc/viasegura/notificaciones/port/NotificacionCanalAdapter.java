@@ -1,4 +1,4 @@
-package pe.edu.upc.viasegura.notificaciones.adapter;
+package pe.edu.upc.viasegura.notificaciones.port;
 
 import pe.edu.upc.viasegura.auth.domain.Usuario;
 import pe.edu.upc.viasegura.notificaciones.domain.CanalNotificacion;
