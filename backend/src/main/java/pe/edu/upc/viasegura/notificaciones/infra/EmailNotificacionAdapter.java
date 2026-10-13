@@ -1,4 +1,4 @@
-package pe.edu.upc.viasegura.notificaciones.adapter;
+package pe.edu.upc.viasegura.notificaciones.infra;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import pe.edu.upc.viasegura.auth.domain.Usuario;
 import pe.edu.upc.viasegura.notificaciones.domain.CanalNotificacion;
+import pe.edu.upc.viasegura.notificaciones.port.NotificacionCanalAdapter;
 
 /**
  * Canal EMAIL: envio real por SMTP via {@link JavaMailSender}. En desarrollo

@@ -44,7 +44,7 @@ Línea base (almacén generado el 04/10 a las 00:44 y versionado en este commit;
 
 Nota: la regla `capas` da 0 porque `geo/`, `storage/` y `adapter/` todavía no pertenecen a ninguna capa. Las violaciones de esa regla aparecerán, si las hay, cuando BE-02 los mueva a `port/` e `infra/`. Eso es esperado y no cuenta como retroceso.
 
-### [ ] BE-02 · Puertos y adaptadores
+### [x] BE-02 · Puertos y adaptadores (2026-10-13, PR #10)
 | Hoy | Destino |
 |---|---|
 | `reportes/geo/GeoAssignmentStrategy` | `reportes/port/` |
@@ -62,35 +62,52 @@ Se conservan los nombres de clase (D-05). Verificar que ningún servicio importe
 3. Una sola corrida con `mvn test -Dtest=ArquitecturaCapasTest -Darchunit.freeze.refreeze=true`, y de nuevo el conteo: ninguna regla sube.
 4. En el PR, el diff del almacén con cada línea quitada emparejada con su línea añadida. El revisor lo comprueba entrada por entrada.
 **Aceptación:** no quedan los paquetes `geo`, `storage` ni `adapter`, y el almacén baja.
+**Cierre (2026-10-13, anotado por el coordinador):** commits `9a6974c` (storage → `common`), `36337c1` (geo → `reportes/port` + `reportes/infra`) y `7a48eb7` (notificaciones → `port` + `infra`). Almacén **53 → 52**: `soloApiPublicaDeOtrosModulos` 51 → 51, `modulosSinCiclos` 1 → 0, `contratosSoloRequestResponse` 1 → 1, el resto en 0. Recongelado controlado: 2 entradas (storage) y 4 (geo), emparejadas una a una; solo cambian el paquete y, en una, el número de línea (ArchUnit lo ignora). Notificaciones no necesitó recongelar. Failsafe `completed` 177 → 177 (0 errores, 0 fallos), Surefire 11. Ningún servicio importa una implementación. Pendiente para BE-08: `common/geo/` es un subpaquete que §4.1 no lista.
 
-### [ ] BE-03 · Infraestructura suelta en otras capas
+### [x] BE-03 · Infraestructura suelta en otras capas (2026-10-13)
 - `distritos/service/DistritoSeeder` → `distritos/infra/`. Es arranque, no un caso de uso.
 - `reportes/service/ExportarReportesService`: separar la escritura con Apache POI en `reportes/infra/ExcelReportesExportador`, que implementa `reportes/port/ExportadorReportes`. El servicio arma las filas, el adaptador escribe el archivo.
 - `reportes/service/ReincidenciaDetector` → `reportes/domain/`, si es una regla pura (palabras clave sin I/O). Si depende de algo de Spring además de `@Component`, dejarlo en `service/` y anotarlo aquí.
 
 **Aceptación:** `service/` no importa `org.apache.poi`, y el almacén baja.
+**Cierre (2026-10-13, commit `e764af4`):**
+- `DistritoSeeder` → `distritos/infra/` (usa `DistritoRepository` del mismo módulo, que la regla `capas` permite a `infra`).
+- Puerto `reportes/port/ExportadorReportes` (`extension()`, `tipoContenido()`, `escribir(columnas, filas)`), Strategy elegido por extensión como `NotificacionCanalAdapter`. Adaptadores `reportes/infra/ExcelReportesExportador` (Apache POI) y `reportes/infra/CsvReportesExportador`. **El CSV también va detrás del puerto**: hoy se escribía en el servicio (escape de comillas, separadores, UTF-8), y dejarlo allí obligaba al servicio a conocer un formato de archivo mientras el otro no; así el servicio solo decide qué reportes salen y arma las filas. `service/` ya no importa `org.apache.poi` (solo lo importa `ExcelReportesExportador`).
+- **`ReincidenciaDetector` se queda en `service/`**: además de `@Component` usa `org.springframework.util.StringUtils.hasText`. Es una regla pura de palabras clave sin I/O; si se reemplaza `StringUtils.hasText(texto)` por `texto != null && !texto.isBlank()` (misma semántica, ambos usan `Character.isWhitespace`) podría pasar a `reportes/domain/` en una tarea posterior. Decide el usuario. `ReincidenciaDetectorTest` no se movió.
+- Recongelado controlado: 2 entradas de `soloApiPublicaDeOtrosModulos`, emparejadas una a una: el constructor de `ExportarReportesService` suma `java.util.List` (los exportadores) y `exportar` cambia de línea (58 → 66). Misma violación (`UsuarioRepository`, pendiente de BE-06).
+- Almacén **52 → 52**: `soloApiPublicaDeOtrosModulos` 51 → 51, `contratosSoloRequestResponse` 1 → 1, el resto 0 → 0. No baja porque ninguna de estas clases tenía violaciones propias; ninguna regla sube. Failsafe `completed` 177 → 177 (0 errores, 0 fallos, 0 omitidos), Surefire 11.
+- **Decisión del usuario (13/10):** el cierre se acepta. Para esta tarea el criterio queda en «ninguna regla sube y `service/` no importa POI»; la baja del almacén la hace BE-06. `ReincidenciaDetector` pasa a `domain/` dentro de BE-06.
 
-### [ ] BE-04 · Contratos
+### [x] BE-04 · Contratos (2026-10-13)
 - `reportes/dto/CrearReporteCommand` → `reportes/service/`.
 - Revisar que todo lo demás en `*/dto/` sea `*Request`, `*Response` o un enum de parámetro.
 
 **Aceptación:** la regla `contratosSoloRequestResponse` queda sin violaciones congeladas.
+**Cierre (2026-10-13, commit `be7b5ef`):** `CrearReporteCommand` en `reportes/service/`. Revisión de `*/dto/`: todo lo demás termina en `Request` o `Response`, salvo `reportes/dto/FormatoExportacion`, que es el enum del parámetro `formato` de la exportación (permitido). Sin otros casos. Observación, sin cambio: el comando lleva un `MultipartFile` (tipo de Spring Web) hacia el servicio; ninguna regla lo cubre hoy y quitarlo cambiaría la firma de `ReporteService.crear`. Recongelado controlado: 3 entradas de `soloApiPublicaDeOtrosModulos`, emparejadas una a una (`ReporteService.crear` cambia el paquete de su parámetro `dto` → `service`; `misReportes` y `reportePendienteDelCreador` solo el número de línea, por el import quitado). Almacén **52 → 51**: `contratosSoloRequestResponse` 1 → 0 (su archivo quedó vacío), `soloApiPublicaDeOtrosModulos` 51 → 51, el resto 0 → 0. Failsafe `completed` 177 → 177 (0 errores, 0 fallos, 0 omitidos), Surefire 11.
 
-### [ ] BE-05 · Manejadores de eventos
+### [x] BE-05 · Manejadores de eventos (2026-10-13)
 Todo método `@TransactionalEventListener` o `@EventListener` debe vivir en `<modulo>/listener/`. Mover los que estén en otro lugar. Si un listener escribe en la base, debe declarar `@Transactional(propagation = REQUIRES_NEW)`.
 **Aceptación:** la regla `manejadoresDeEventosEnListener` queda sin violaciones congeladas.
+**Cierre (2026-10-13, sin cambios de código):** la regla ya estaba en 0 desde BE-01 (su archivo del almacén está vacío). Solo hay 5 manejadores, todos `@TransactionalEventListener(AFTER_COMMIT)` y todos en `listener/`: 4 en `desempeno/listener/IndiceDesempenoRefreshListener` y 1 en `notificaciones/listener/ReporteEstadoCambiadoListener`. No hay `@EventListener` ni `ApplicationListener`. **Escritura en la base:** ningún listener escribe directamente; delegan en `DesempenoService.refrescarIndice()` (`REFRESH MATERIALIZED VIEW`) y `NotificacionService.notificarCambioEstado()` (inserta notificaciones), y **ambos métodos ya declaran `@Transactional(propagation = REQUIRES_NEW)`**. No se agregó `@Transactional` en los listeners: §4.5 deja `@Transactional` solo en `service`, y anotarlos abriría una transacción exterior extra (otra conexión del pool) que el servicio suspende de todos modos, sin cambiar lo que se confirma. Almacén **51 → 51** (`manejadoresDeEventosEnListener` 0 → 0, el resto igual). Failsafe `completed` 177 → 177 (0 errores, 0 fallos, 0 omitidos), Surefire 11.
 
 ### [ ] BE-06 · API pública entre módulos
 Reemplazar cada uso de `repository/` (o `controller/`, `listener/`, `infra/`) de **otro** módulo por un método del `service` de ese módulo. Por ejemplo, si `reportes` usa `UsuarioRepository` o `DistritoRepository`, pasa a usar `AuthService#…` o `DistritoService#…` con métodos de consulta explícitos. La lista exacta sale de la regla `soloApiPublicaDeOtrosModulos` en el almacén.
+- Además (decisión del usuario, 13/10): `reportes/service/ReincidenciaDetector` → `reportes/domain/`, reemplazando `StringUtils.hasText(texto)` por `texto != null && !texto.isBlank()` (misma semántica, también con `null`), y moviendo `ReincidenciaDetectorTest`.
 **Aceptación:** esa regla queda sin violaciones congeladas, sin cambios en los IT.
 
-### [ ] BE-07 · Ciclos entre módulos
+### [x] BE-07 · Ciclos entre módulos (2026-10-13, con BE-02 en `9a6974c`: `modulosSinCiclos` 1 → 0, su archivo del almacén quedó vacío)
 Resolver lo que reporte `modulosSinCiclos`. **Ciclo real (almacén del 04/10): `auth` ↔ `reportes`.** `auth` usa `reportes.storage.FotoStorageService` (fotos de perfil, en `AuthService` y `PerfilFotoService`), y `reportes.domain` referencia `auth.domain.Usuario`. La segunda dirección es legítima; la que hay que cortar es la de `auth` hacia `reportes`. **Decidido (D-11, 11/10):** el puerto de fotos pasa a `common`, y ese movimiento (primer commit de BE-02) corta el ciclo, porque esos dos imports son la única dependencia de `auth` hacia `reportes`. BE-07 se cierra al verificar que la regla queda en 0. Otro caso posible: `common.security` ↔ `auth`. Para cortarlo, `common.security` debe depender solo de la interfaz `UserDetailsService` de Spring; `auth` provee el bean. Si cortar un ciclo exige mover una clase entre módulos, proponerlo antes en `project-context/decisions/`.
 **Aceptación:** la regla queda sin violaciones congeladas.
 
 ### [ ] BE-08 · Cierre
 - El almacén vacío, o con violaciones residuales que el arquitecto aceptó y que quedan listadas en `ARCHITECTURE.md` §9.
 - Actualizar la sección “Estructura del proyecto” de `backend/README.md` y la de arquitectura de `backend/CLAUDE.md`.
+
+### [ ] BE-10 · El archivo subido no llega como tipo de Spring Web a `service/`
+Decisión del usuario (13/10), a partir de la observación del revisor en BE-04: `reportes/service/CrearReporteCommand` lleva un `MultipartFile` (Spring Web) hasta el servicio, y §4.2 no permite HTTP en `service/` (ninguna regla de ArchUnit lo detecta).
+- El controller convierte el archivo en un record propio (bytes, `contentType`, nombre original) antes de llamar al servicio; `CrearReporteCommand` y el puerto de fotos (`common/port/FotoStorageService`) lo reciben así. Revisar también la foto de perfil (`AuthService#editarPerfil`), que sigue el mismo camino.
+- Sin cambios de contrato del API ni de comportamiento (validaciones de extensión y tamaño iguales).
+**Aceptación:** `git grep -l "org.springframework.web.multipart" -- backend/src/main` solo devuelve `controller/`; Failsafe igual; almacén igual o menor.
 
 ### [ ] BE-09 · (Opcional, después de BE-08) Partir `reportes`
 Si el tamaño lo justifica, separar `categorias` (CategoriaDano y su CRUD, US-29) y `participacion` (calificación, comentarios y reincidencia, US-26 y US-27). Requiere aprobación previa: mueve tablas de módulo y afecta `limpiezaFkSafe`.
@@ -142,7 +159,7 @@ La guarda no cubre el schema en `components/`: `components/LineaDeTiempo.tsx` im
 
 **Actualización del coordinador (11/10):** el bloque `compartidos` se partió en `compartidos-lib` (`src/lib/**`) y `compartidos-ui` (`src/components/**`, que además prohíbe `schema`). **Línea base vigente: 67 avisos en 24 archivos**: el de `LineaDeTiempo` → `generated/schema` es el nuevo (mensaje `schema`: 0 → 1; `capas/compartidos-ui`: 2 avisos / 1 archivo). Las otras cifras no cambian.
 
-### [ ] FE-02 · Reglas puras a `model/`
+### [x] FE-02 · Reglas puras a `model/` (2026-10-13)
 | Hoy | Destino |
 |---|---|
 | `features/gestion/transiciones.ts` (+ test) | `features/gestion/model/transiciones.ts` |
@@ -151,9 +168,23 @@ La guarda no cubre el schema en `components/`: `components/LineaDeTiempo.tsx` im
 | `features/reportes/mapa/estados.ts` (+ test) | `src/lib/types/estados.ts`: lo usan `gestion`, `reportes` y `components/LineaDeTiempo` |
 | `features/desempeno/formato.ts` (+ test) | `features/desempeno/model/formato.ts` |
 | `features/auth/rutas.ts` (+ test) | `features/auth/model/rutas.ts` |
-| `features/auth/fotoPerfil.ts` (+ test) | `model/` si es puro; si usa el cliente HTTP o `blob:`, va a `features/auth/api.ts` |
+| ~~`features/auth/fotoPerfil.ts` (+ test)~~ | Pasó a **FE-07** (no es puro; ver el cierre) |
 
 **Aceptación:** `npm test` corre la misma cantidad de archivos de test que antes, y no queda la carpeta `features/reportes/mapa/`.
+
+Cierre (2026-10-13, rama `feature/fe-02`). Se movieron 6 de los 7 archivos con `git mv`, cada uno con su test. Los imports dentro de la feature quedaron relativos; los de `app/`, `map/` y las demás features usan el alias hacia `model/` o `lib/types`. Ya no queda `features/reportes/mapa/`.
+- **`auth/fotoPerfil.ts` no se movió.** No es puro, porque usa `apiFetch` y `URL.createObjectURL`, así que le corresponde `auth/api.ts`. Pero entonces `auth/components/FotoDePerfil.tsx` importaría `../api`, lo que agrega un aviso `gatewayDesdeUi` por un import nuevo, y §5.4 no lo admite. Para evitarlo hace falta el hook de foto de perfil de FE-07. Por eso el movimiento (`descargarFotoDePerfil` → `auth/api.ts`, con su test) pasa a FE-07. El revisor lo dio por correcto. Hoy ningún bloque mide ese archivo, igual que antes.
+
+| Métrica | Antes | Después |
+|---|---|---|
+| `npm run typecheck` | 0 errores | 0 errores |
+| `npm test` (con la guarda) | 80 tests en 8 archivos | 80 tests en 8 archivos |
+| `npm run lint`: código / avisos que no son de capas | 0 / 0 | 0 / 0 |
+| Avisos de capas (`contar-capas.mjs`) | **67 en 24 archivos** | **66 en 24 archivos** |
+| `haciaFeatures` | 1 | 0: `LineaDeTiempo` importa `@/lib/types/estados` |
+| `gatewayDesdeUi` / `otraFeature` / `clienteHttp` / `schema` | 35 / 16 / 14 / 1 | 35 / 16 / 14 / 1 |
+
+No hay avisos en los archivos que entraron a `model/` ni en `lib/types/estados.ts`, así que no aparece ningún aviso antes no medido que haya que listar (§5.4). Las referencias a `features/gestion/transiciones.ts` en `frontend/CLAUDE.md` y `frontend/README.md` ya apuntan a `model/`. El ejemplo del `CLAUDE.md` raíz (`npx vitest run src/features/reportes/acciones.test.ts`) ya apunta a `model/` (corregido por el coordinador en esta misma rama).
 
 ### [ ] FE-03 · Tipos en `model/`
 Crear `features/<f>/model/tipos.ts` con los alias sobre `generated/schema` (`ReporteResumen`, `HistorialEntrada`, `AsignacionResponsable`…). `api.ts`, los hooks y los componentes importan los tipos desde ahí. `components/LineaDeTiempo.tsx` y `desempeno/formato.ts` dejan de importar `generated/schema`.
@@ -165,9 +196,9 @@ Crear `features/<f>/model/tipos.ts` con los alias sobre `generated/schema` (`Rep
 Dentro de cada feature, cambiar `@/features/<misma>/…` por imports relativos. Casos detectados: `FormularioReporte` → `CampoFoto`/`CampoUbicacion` y `GuardiaDeRol` → `auth/hooks`.
 
 ### [ ] FE-05 · Hooks de carga y páginas como composición
-1. Crear `src/lib/hooks/useCarga.ts` con el patrón de `ARCHITECTURE.md` §5.5, con tests de la cancelación.
-2. Agregar `mensajeDeError(e: unknown): { mensaje: string; detalles: string[] }` a `src/lib/api/errors.ts`.
-3. Mover `features/auth/hooks.ts` → `features/auth/hooks/useSesion.ts` y `features/reportes/useGeolocalizacion.ts` → `features/reportes/hooks/`.
+1. ~~Crear `src/lib/hooks/useCarga.ts` con el patrón de `ARCHITECTURE.md` §5.5, con tests de la cancelación.~~ **Hecho en US-17 (Sprint 1, PR #18):** 6 tests de cancelación, respuesta vieja descartada, recarga y desmontaje.
+2. ~~Agregar `mensajeDeError(e: unknown): { mensaje: string; detalles: string[] }` a `src/lib/api/errors.ts`.~~ **Hecho en US-03 (Sprint 1, PR #16)**, con test.
+3. Mover `features/auth/hooks.ts` → `features/auth/hooks/useSesion.ts` (hoy conviven el archivo `hooks.ts` y la carpeta `hooks/` creada en el Sprint 1: unificarlos) y `features/reportes/useGeolocalizacion.ts` → `features/reportes/hooks/`.
 4. Por cada página con `useEffect` de datos, crear el hook y llevar el contenido a un componente de la feature: `mis-reportes`, `mis-reportes/[id]`, `perfil`, `bandeja`, `bandeja/[id]`, `desempeno`, `mapa`, `reportes/[id]`, `reportar` y `sesion`.
 
 **Aceptación:** ninguna página de `app/` usa `useEffect` para cargar datos ni importa `api.ts`.
@@ -177,6 +208,7 @@ Los componentes que hoy llaman al API pasan a usar un hook de su feature: `Cambi
 
 ### [ ] FE-07 · URLs de fotos en el gateway
 `features/<f>/api.ts` devuelve `fotoUrl` ya absoluta (`urlDeFoto`). Las páginas y los componentes dejan de importar `@/lib/api/client`. La foto de perfil (que requiere token) se resuelve en un hook de auth que devuelve la URL `blob:`.
+- Viene de FE-02: `features/auth/fotoPerfil.ts` (+ test) → `descargarFotoDePerfil` en `features/auth/api.ts` (test a `auth/api.test.ts`; siguen 8 archivos de test). Hacerlo **junto con** el hook, para que `auth/components/FotoDePerfil.tsx` use el hook y no importe `../api` (eso sería un aviso `gatewayDesdeUi` nuevo).
 
 ### [ ] FE-08 · Dependencias entre features
 - `gestion` deja de importar `@/features/reportes/api`: usa `reportes/model/tipos` y su propio `api.ts`.

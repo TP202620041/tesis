@@ -1,6 +1,6 @@
 'use client';
 
-import { estiloDeEstado } from '@/features/reportes/mapa/estados';
+import { estiloDeEstado } from '@/lib/types/estados';
 import type { components } from '@/lib/api/generated/schema';
 
 type HistorialEntrada = components['schemas']['HistorialEntradaResponse'];

@@ -1,8 +1,9 @@
-package pe.edu.upc.viasegura.notificaciones.adapter;
+package pe.edu.upc.viasegura.notificaciones.infra;
 
 import org.springframework.stereotype.Component;
 import pe.edu.upc.viasegura.auth.domain.Usuario;
 import pe.edu.upc.viasegura.notificaciones.domain.CanalNotificacion;
+import pe.edu.upc.viasegura.notificaciones.port.NotificacionCanalAdapter;
 
 /**
  * Canal PUSH: <strong>stub documentado</strong>.

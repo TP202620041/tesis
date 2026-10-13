@@ -1,4 +1,4 @@
-package pe.edu.upc.viasegura.reportes.geo;
+package pe.edu.upc.viasegura.reportes.infra;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -9,6 +9,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import pe.edu.upc.viasegura.common.geo.GeometryUtils;
 import pe.edu.upc.viasegura.distritos.domain.Distrito;
+import pe.edu.upc.viasegura.reportes.port.GeoAssignmentStrategy;
 import pe.edu.upc.viasegura.support.AbstractPostgisIT;
 
 /**

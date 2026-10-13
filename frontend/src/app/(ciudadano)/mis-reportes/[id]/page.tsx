@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { use, useCallback, useEffect, useState } from 'react';
 import { LineaDeTiempo } from '@/components/LineaDeTiempo';
+import { BotonCerrarSesion } from '@/features/auth/components/BotonCerrarSesion';
 import { GuardiaDeRol } from '@/features/auth/components/GuardiaDeRol';
 import {
   historialDeReporte,
@@ -14,11 +15,11 @@ import {
   explicacionDeEstado,
   puedeCalificar,
   puedeEditar,
-} from '@/features/reportes/acciones';
+} from '@/features/reportes/model/acciones';
 import { Calificar } from '@/features/reportes/components/Calificar';
 import { Comentarios } from '@/features/reportes/components/Comentarios';
 import { EditarReporte } from '@/features/reportes/components/EditarReporte';
-import { estiloDeEstado } from '@/features/reportes/mapa/estados';
+import { estiloDeEstado } from '@/lib/types/estados';
 import { urlDeFoto } from '@/lib/api/client';
 
 /**
@@ -101,9 +102,12 @@ function Detalle({ reporteId }: { reporteId: number }) {
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 py-6">
-      <Link href="/mis-reportes" className="text-sm text-sky-700 hover:underline dark:text-sky-400">
-        ← Volver a mis reportes
-      </Link>
+      <div className="flex items-center justify-between gap-3">
+        <Link href="/mis-reportes" className="text-sm text-sky-700 hover:underline dark:text-sky-400">
+          ← Volver a mis reportes
+        </Link>
+        <BotonCerrarSesion />
+      </div>
 
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>

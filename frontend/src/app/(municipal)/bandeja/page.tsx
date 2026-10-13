@@ -1,15 +1,15 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { BotonCerrarSesion } from '@/features/auth/components/BotonCerrarSesion';
 import { GuardiaDeRol } from '@/features/auth/components/GuardiaDeRol';
-import { ROLES_AREA_MUNICIPAL } from '@/features/auth/rutas';
-import { cerrarSesion } from '@/features/auth/api';
+import { ROLES_AREA_MUNICIPAL } from '@/features/auth/model/rutas';
 import { bandeja, FILTROS_BANDEJA_VACIOS, type FiltrosBandeja } from '@/features/gestion/api';
+import { ExportarReportes } from '@/features/gestion/components/ExportarReportes';
 import { ordenar, TablaBandeja, type OrdenBandeja } from '@/features/gestion/components/TablaBandeja';
 import { listarCategorias, type ReporteResumen } from '@/features/reportes/api';
-import { ESTADOS_EN_BANDEJA, estiloDeEstado } from '@/features/reportes/mapa/estados';
+import { ESTADOS_EN_BANDEJA, estiloDeEstado } from '@/lib/types/estados';
 import type { CategoriaDano, Usuario } from '@/lib/types/domain';
 
 /** US-13: bandeja de reportes del distrito del funcionario. */
@@ -22,7 +22,6 @@ export default function BandejaPage() {
 }
 
 function Bandeja({ usuario }: { usuario: Usuario }) {
-  const router = useRouter();
   const [reportes, setReportes] = useState<ReporteResumen[]>([]);
   const [filtros, setFiltros] = useState<FiltrosBandeja>(FILTROS_BANDEJA_VACIOS);
   const [orden, setOrden] = useState<OrdenBandeja>('apoyos');
@@ -80,16 +79,15 @@ function Bandeja({ usuario }: { usuario: Usuario }) {
             {usuario.apellido}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            cerrarSesion();
-            router.replace('/login');
-          }}
-          className="rounded-md border border-slate-300 px-3 py-1.5 text-sm dark:border-slate-600 dark:text-slate-200"
-        >
-          Cerrar sesión
-        </button>
+        <nav className="flex flex-wrap gap-2">
+          <Link
+            href="/dashboard"
+            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm dark:border-slate-600 dark:text-slate-200"
+          >
+            Dashboard del distrito
+          </Link>
+          <BotonCerrarSesion />
+        </nav>
       </header>
 
       {error && (
@@ -99,6 +97,8 @@ function Bandeja({ usuario }: { usuario: Usuario }) {
       )}
 
       <Filtros filtros={filtros} onCambiar={setFiltros} categorias={categorias} />
+
+      <ExportarReportes filtros={filtros} />
 
       <p aria-live="polite" className="text-sm text-slate-600 dark:text-slate-400">
         {cargando

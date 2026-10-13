@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { use, useCallback, useEffect, useState } from 'react';
 import { GuardiaDeRol } from '@/features/auth/components/GuardiaDeRol';
-import { ROLES_AREA_MUNICIPAL } from '@/features/auth/rutas';
+import { ROLES_AREA_MUNICIPAL } from '@/features/auth/model/rutas';
 import {
   bandeja,
   historial,
@@ -13,7 +13,7 @@ import {
 import { CambiarEstado } from '@/features/gestion/components/CambiarEstado';
 import { LineaDeTiempo } from '@/components/LineaDeTiempo';
 import { Responsable } from '@/features/gestion/components/Responsable';
-import { estiloDeEstado } from '@/features/reportes/mapa/estados';
+import { estiloDeEstado } from '@/lib/types/estados';
 import { urlDeFoto } from '@/lib/api/client';
 import type { ReporteResumen } from '@/features/reportes/api';
 

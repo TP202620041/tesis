@@ -1,4 +1,4 @@
-package pe.edu.upc.viasegura.reportes.dto;
+package pe.edu.upc.viasegura.reportes.service;
 
 import org.springframework.web.multipart.MultipartFile;
 

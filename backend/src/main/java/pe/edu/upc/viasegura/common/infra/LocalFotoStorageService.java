@@ -1,4 +1,4 @@
-package pe.edu.upc.viasegura.reportes.storage;
+package pe.edu.upc.viasegura.common.infra;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 import pe.edu.upc.viasegura.common.exception.BusinessException;
+import pe.edu.upc.viasegura.common.port.FotoStorageService;
 
 /**
  * Almacenamiento de fotos en el filesystem local. Elegido para el entorno

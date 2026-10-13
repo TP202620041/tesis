@@ -130,6 +130,13 @@ por defecto del framework, o compilar el SW como paso aparte. Se eligió lo
 segundo: Turbopack sigue siendo el bundler de la app y el SW deja de depender
 de su pipeline de bundling.
 
+**El API nunca se cachea** (`NetworkOnly` para `/api/**`, antes de
+`defaultCache`): su regla `cross-origin` guardaría respuestas que dependen del
+usuario (`/api/auth/me`, `mis-reportes`, `mi-distrito`) y el siguiente usuario
+del dispositivo podría recibirlas offline. Al cerrar sesión (US-04) además se
+borra esa caché, por si la llenó una versión anterior del SW
+(`src/pwa/cachesDeSesion.ts`).
+
 ### Seguridad: dónde vive el JWT
 
 **Decisión: `localStorage`, con su costo asumido explícitamente.**
@@ -174,6 +181,22 @@ Componerla es del cliente: `urlDeFoto()` en `lib/api/client.ts`.
 - **Foto de perfil** (`/api/perfiles/fotos/…`) exige `Authorization`: un
   `<img src>` plano devuelve **401**; hay que traerla con `apiFetch` y
   convertirla a `blob:`. `fotoRequiereAuth()` distingue ambos casos.
+
+### Descargas autenticadas (US-28)
+
+La exportación de la bandeja (`GET /api/reportes/exportar`) exige
+`Authorization`, así que un `<a href>` al API no sirve. `apiDescargar()`
+(`lib/api/client.ts`) la trae como `Blob` por el mismo camino que `apiFetch`
+(token, 401 centralizado, `ApiError`), y el hook `useExportarReportes` la
+guarda con un enlace temporal a una URL `blob:` que libera al terminar. Se
+exporta con los filtros activos de la bandeja; las fechas, que la bandeja
+filtra por día local, viajan como instantes con la misma semántica
+(`gestion/model/exportacion.ts`).
+
+El nombre sale de `Content-Disposition`, pero entre orígenes el navegador solo
+deja leer esa cabecera si el backend la expone
+(`Access-Control-Expose-Headers`). Si no puede leerse, se usa
+`reportes.csv` / `reportes.xlsx`.
 
 ### Mapa
 
@@ -229,7 +252,7 @@ comunican la comparación sin que la interfaz emita su propia calificación.
 
 ### La máquina de estados está en dos sitios, a propósito
 
-`features/gestion/transiciones.ts` replica las transiciones válidas del
+`features/gestion/model/transiciones.ts` replica las transiciones válidas del
 backend. La autoridad sigue siendo `EstadoReporte.puedeTransicionarA`, que
 responde **409** ante una inválida; la tabla del cliente existe solo para no
 ofrecerle al funcionario opciones que van a fallar.

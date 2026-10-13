@@ -1,16 +1,17 @@
 # Workflow de agentes de Claude — ViaSegura
 
-> **Documento normativo**, igual que `ARCHITECTURE.md`. Define quién hace qué, cómo avanza una tarea desde el plan hasta `main` y qué lo hace cumplir automáticamente.
-> Versión 1.0 · 2026-10-11. Configuración en `.claude/` (raíz) y en `backend/.claude/` y `frontend/.claude/`.
+> **Documento normativo**, igual que `ARCHITECTURE.md`. Define quién hace qué, cómo avanza una tarea desde el plan hasta `develop` (y de ahí a una versión en `main`, con GitFlow) y qué lo hace cumplir automáticamente.
+> Versión 1.1 · 2026-10-11 (GitFlow). Configuración en `.claude/` (raíz) y en `backend/.claude/` y `frontend/.claude/`.
 
 ## 1. Idea central
 
 Cada agente de Claude Code trabaja **en una sola carpeta, en una sola tarea, en una sola rama**. Las decisiones las toma el usuario; los agentes ejecutan, verifican con números y piden revisión antes de proponer un cambio. Lo que importa no depende de que el agente "se acuerde": lo imponen hooks, ArchUnit y ESLint.
 
 ```
- plan-migracion-capas.md ──► /tarea BE-02 ──► rama arq/be-02 ──► implementar ──► /verificar ──► /revisar ──► PR ──► el usuario fusiona
-        ▲                                                                                                                │
-        └──────────────────────────── el agente marca [x] y anota métricas en el plan ◄─────────────────────────────────┘
+ plan-migracion-capas.md ──► /tarea BE-02 ──► feature/be-02 ──► implementar ──► /verificar ──► /revisar ──► PR a develop ──► el usuario fusiona
+        ▲                                                                                                                       │
+        └──────────────────────────────── el agente marca [x] y anota métricas en el plan ◄────────────────────────────────────┘
+ develop ──► release/vX.Y.0 ──► PR a main (+ etiqueta vX.Y.0) y PR de vuelta a develop      (cuando el usuario decide una entrega)
 ```
 
 ## 2. Roles
@@ -33,13 +34,13 @@ Cada agente de Claude Code trabaja **en una sola carpeta, en una sola tarea, en 
 | Paso | Comando | Qué pasa | Sale cuando… |
 |---|---|---|---|
 | 1. Elegir | — | El usuario indica la tarea (o el agente propone la siguiente sin dependencias abiertas). | Hay un ID: `BE-02`, `FE-03`, `NC-01`… |
-| 2. Abrir | `/tarea BE-02` | Lee la tarea y las secciones de `ARCHITECTURE.md`; verifica dueño y dependencias; crea la rama desde `main` actualizado. | Rama `arq/be-02` (o `feat/nc-01-municipalidades`). |
+| 2. Abrir | `/tarea BE-02` | Lee la tarea y las secciones de `ARCHITECTURE.md`; verifica dueño y dependencias; crea la rama desde `develop` actualizado. | Rama `feature/be-02` (o `feature/nc-01-municipalidades`). |
 | 3. Planificar | (dentro de `/tarea`) | Lista archivos y tests. En `NC-*` espera tu aprobación; en `BE/FE-*` con lista explícita, continúa. | Plan visible en la conversación. |
 | 4. Implementar | — | Cambios mínimos para los criterios de aceptación. Duda de diseño → `/propuesta` y se detiene. Cambio de contrato → `/contrato`. | Compila y los tests nuevos/movidos pasan. |
 | 5. Verificar | `/verificar` | Corre la definición de terminado y cuenta métricas con scripts. | Ninguna métrica peor que la línea base. |
 | 6. Revisar | `/revisar` | El subagente revisor lee el diff y da veredicto. | APTO, o hallazgos corregidos. |
-| 7. Cerrar | (dentro de `/tarea`) | Marca `[x]` en el plan con métricas antes → después; push de la rama; abre el PR. | PR abierto. |
-| 8. Fusionar | El usuario | Revisa el resumen del PR y fusiona (squash). | `main` actualizado. |
+| 7. Cerrar | (dentro de `/tarea`) | Marca `[x]` en el plan con métricas antes → después; push de la rama; abre el PR contra `develop`. | PR abierto. |
+| 8. Fusionar | El usuario | Revisa el resumen del PR y fusiona con merge commit; la rama se borra. | `develop` actualizado. |
 
 **Definición de terminado** (la mide `/verificar`):
 
@@ -62,11 +63,11 @@ Cada agente de Claude Code trabaja **en una sola carpeta, en una sola tarea, en 
 
 | Guarda | Dónde | Qué impide |
 |---|---|---|
-| **Hook `guardia.mjs`** (PreToolUse) | `.claude/settings.json` de raíz, `backend/` y `frontend/` | Escribir fuera de la carpeta propia; editar `ARCHITECTURE.md`, `WORKFLOW.md`, `CLAUDE.md` raíz, `.claude/`, las guardas de ArchUnit/ESLint o `project-context/` (salvo plan, handoffs y propuestas); editar el almacén de ArchUnit, `generated/schema.ts` o una migración existente; commit en `main`, push a `main`, push forzado, `reset --hard`, `clean -f`, restaurar documentos normativos. |
+| **Hook `guardia.mjs`** (PreToolUse) | `.claude/settings.json` de raíz, `backend/` y `frontend/` | Escribir fuera de la carpeta propia; editar `ARCHITECTURE.md`, `WORKFLOW.md`, `CLAUDE.md` raíz, `.claude/`, las guardas de ArchUnit/ESLint o `project-context/` (salvo plan, handoffs y propuestas); editar el almacén de ArchUnit, `generated/schema.ts` o una migración existente; commit, merge o push sobre `main` o `develop`; `git flow … finish`; push forzado, `reset --hard`, `clean -f`, restaurar documentos normativos. |
 | **ArchUnit** | `mvn test` | Una violación de capas nueva en el backend. |
 | **ESLint de capas** | `npm run lint` | Un import que rompe las capas del frontend (aviso hasta FE-09, luego error). |
 | **Revisor** | `/revisar` | Reglas que ninguna herramienta mide: señales internas en DTO, SEC-01, eventos de KPI, limpieza de tests, CSP. |
-| **Protección de `main`** (recomendado) | GitHub → Settings → Branches | Que algo llegue a `main` sin PR. |
+| **Protección de `main` y `develop`** (activa desde el 11/10) | GitHub → Settings → Branches | Que algo llegue a `main` o `develop` sin PR, un push forzado o el borrado de esas ramas, también para admins. |
 
 El hook es una red de seguridad, no un sandbox: un comando de shell podría saltárselo. Si bloquea algo legítimo, el agente lo dice y lo hace la sesión de raíz o tú.
 
@@ -74,9 +75,9 @@ El hook es una red de seguridad, no un sandbox: un comando de shell podría salt
 
 1. **Backend** implementa el cambio (DTO + IT), `/verificar`, y con `/contrato <tema>` escribe `project-context/handoffs/AAAA-MM-DD-<tema>.md` (estado `pendiente`) dentro del mismo PR.
 2. **El usuario** fusiona ese PR.
-3. **Frontend**, en una tarea propia, corre `/contrato <tema>`: verifica que el cambio esté en `main`, levanta el backend, `npm run api:sync`, ajusta `model/` y marca el handoff `atendido`.
+3. **Frontend**, en una tarea propia, corre `/contrato <tema>`: verifica que el cambio esté en `develop`, levanta el backend, `npm run api:sync`, ajusta `model/` y marca el handoff `atendido`.
 
-Nunca en paralelo: el frontend no consume un contrato que no está en `main`.
+Nunca en paralelo: el frontend no consume un contrato que no está en `develop`.
 
 ## 7. Decisiones de diseño
 
@@ -84,14 +85,26 @@ Nunca en paralelo: el frontend no consume un contrato que no está en `main`.
 2. **El usuario** decide (puede pedirle a la sesión de raíz que analice las opciones).
 3. **La sesión de raíz** registra la decisión (D-xx en `ARCHITECTURE.md`, ajuste del plan) y marca la propuesta `aceptada` o `rechazada`.
 
-## 8. Ramas y paralelismo
+## 8. Ramas (GitFlow) y paralelismo
 
-- `main` solo avanza por PR. Ramas: `arq/<id>` para migración, `feat/<id>-<tema>` para núcleo nuevo, `fix/<tema>` para correcciones. Fusión con squash, título igual al del commit principal.
+| Rama | Sale de | Se fusiona en (por PR) | Para |
+|---|---|---|---|
+| `main` | — | — | Solo versiones etiquetadas (`vX.Y.Z`). Avanza únicamente con el PR de un `release/*` o un `hotfix/*`. |
+| `develop` | `main` | — | Integración. Toda tarea termina aquí. |
+| `feature/<id>[-<tema>]` | `develop` | `develop` | Una tarea: `feature/be-02`, `feature/fe-03`, `feature/nc-01-municipalidades`. Los cambios de normas o guardas de la sesión de raíz: `feature/<tema>`. |
+| `bugfix/<tema>` | `develop` | `develop` | Corregir algo que todavía no salió en una versión. |
+| `release/vX.Y.0` | `develop` | `main` y `develop` | Preparar una entrega. Solo número de versión, documentación y correcciones; nada de funcionalidad nueva. |
+| `hotfix/vX.Y.Z` | `main` | `main` y `develop` | Corregir una versión ya entregada. |
+
+- **Nadie hace commit, merge ni push sobre `main` o `develop`**: lo impiden la guardia (local) y la protección de GitHub (remota, también para admins). Fusión con merge commit (sin squash ni rebase), título del PR igual al del commit principal; después se borra la rama.
+- **`git flow`** (AVH) está configurado con estos prefijos y la etiqueta `v` (§10). Sirve para abrir ramas (`git flow feature start be-02`, equivalente a `git switch -c feature/be-02 develop`). **Nunca `git flow … finish`**: fusiona en local sobre una rama protegida; se cierra por PR.
+- **Entrega (release):** el usuario la decide. La sesión de raíz abre `release/vX.Y.0` desde `develop`, ajusta versión y documentación y abre dos PR del mismo `release/*`: a `main` y a `develop`. Fusionado el de `main`, etiqueta ese merge: `git tag -a vX.Y.0 -m "…"` y `git push origin vX.Y.0`. Un **hotfix** sigue el mismo camino desde `main`, con el patch siguiente.
+- **Versiones:** semver. Minor por entrega, patch por hotfix. `v0.1.0` (11/10): el estado de US-01..US-30 a esa fecha (no todas completas: ver `project-context/decisions/plan-sprints.md`), la norma de capas con su línea base y este workflow. Las siguientes versiones siguen los sprints de ese plan.
 - **En paralelo sí:** una tarea de backend y una de frontend (carpetas distintas, ramas distintas).
 - **Dos tareas en la misma carpeta:** usa un worktree por tarea para que no compartan árbol de trabajo:
-  `git worktree add ../tesis-be-03 -b arq/be-03` y abre Claude Code en `../tesis-be-03/backend`. Al fusionar: `git worktree remove ../tesis-be-03`.
-- **Nunca en paralelo:** dos tareas que tocan los mismos archivos, ni el consumo de un contrato antes de que esté en `main`.
-- Antes de empezar cualquier tarea: `git switch main && git pull --ff-only` (lo hace `/tarea`).
+  `git worktree add ../tesis-be-03 -b feature/be-03 develop` y abre Claude Code en `../tesis-be-03/backend`. Al fusionar: `git worktree remove ../tesis-be-03`.
+- **Nunca en paralelo:** dos tareas que tocan los mismos archivos, ni el consumo de un contrato antes de que esté en `develop`.
+- Antes de empezar cualquier tarea: `git switch develop && git pull --ff-only` (lo hace `/tarea`).
 
 ## 9. Modelos
 
@@ -103,9 +116,14 @@ Nunca en paralelo: el frontend no consume un contrato que no está en `main`.
 
 ## 10. Puesta en marcha (una vez)
 
-1. Revisa `claude-config/` (sobre todo `raiz/hooks/guardia.mjs` y los `settings.json`) y ejecuta desde la raíz `node claude-config/instalar.mjs`. Copia la configuración a `.claude/`, `backend/.claude/` y `frontend/.claude/`; viene aparte porque las herramientas remotas no pueden escribir en `.claude/`.
-   Luego haz commit en una rama `arq/workflow` de `WORKFLOW.md`, las carpetas `.claude/` instaladas (sin `settings.local.json`), `project-context/handoffs/`, `project-context/decisions/propuestas/` y los cambios de `CLAUDE.md`, `.gitignore` y el plan. Borra `claude-config/` y fusiona.
+1. La configuración de agentes ya está versionada en `.claude/` (raíz), `backend/.claude/` y `frontend/.claude/` (instalada el 11/10, PR #1). En un clon nuevo, configura `git flow` con los nombres de este repositorio (en vez de aceptar sin revisar los valores por defecto de `git flow init`):
+   ```
+   git config gitflow.branch.master main && git config gitflow.branch.develop develop
+   for p in feature bugfix release hotfix support; do git config gitflow.prefix.$p $p/; done
+   git config gitflow.prefix.versiontag v
+   ```
+   Comprueba con `git flow config`.
 2. Cierra y vuelve a abrir las sesiones de backend y frontend para que carguen hooks y skills. Con `/status`, revisa que la línea de fuentes de configuración incluya la configuración compartida del proyecto.
 3. Prueba la guardia: en la sesión de backend pide "edita ../frontend/package.json" y confirma que se bloquea.
 4. Requisito: `node` en el PATH de la terminal donde corre Claude Code (ya lo usa el frontend).
-5. Recomendado: protege `main` en GitHub (exigir PR para fusionar).
+5. `main` y `develop` están protegidas en GitHub (PR obligatorio, sin push forzado ni borrado, también para admins) y `develop` es la rama por defecto, así que los PR apuntan ahí solos.

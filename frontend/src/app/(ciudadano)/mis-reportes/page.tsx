@@ -2,9 +2,10 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { BotonCerrarSesion } from '@/features/auth/components/BotonCerrarSesion';
 import { GuardiaDeRol } from '@/features/auth/components/GuardiaDeRol';
 import { misReportes, pendientesDeCalificacion, type ReporteResumen } from '@/features/reportes/api';
-import { estiloDeEstado } from '@/features/reportes/mapa/estados';
+import { estiloDeEstado } from '@/lib/types/estados';
 import { urlDeFoto } from '@/lib/api/client';
 
 /** US-07: los reportes que el ciudadano envio, con su estado actual. */
@@ -56,7 +57,7 @@ function MisReportes() {
             Los daños que enviaste y en qué va cada uno.
           </p>
         </div>
-        <nav className="flex gap-2">
+        <nav className="flex flex-wrap gap-2">
           <Link
             href="/perfil"
             className="rounded-md border border-slate-300 px-3 py-1.5 text-sm dark:border-slate-600 dark:text-slate-200"
@@ -75,6 +76,7 @@ function MisReportes() {
           >
             Reportar un daño
           </Link>
+          <BotonCerrarSesion />
         </nav>
       </header>
 

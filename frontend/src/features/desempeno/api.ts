@@ -1,5 +1,6 @@
 import { api } from '@/lib/api/client';
-import type { DesempenoDistrital } from '@/features/desempeno/formato';
+import type { DashboardDistrito } from './model/dashboard';
+import type { DesempenoDistrital } from './model/formato';
 
 /**
  * US-18/US-20: indice publico de desempeno distrital.
@@ -16,4 +17,15 @@ import type { DesempenoDistrital } from '@/features/desempeno/formato';
 export function rankingDistrital(categoriaId?: number | null): Promise<DesempenoDistrital[]> {
   const query = categoriaId != null ? `?categoriaId=${categoriaId}` : '';
   return api.get<DesempenoDistrital[]>(`/api/desempeno/distritos${query}`, { conAuth: false });
+}
+
+/**
+ * US-17: dashboard interno del distrito del funcionario autenticado.
+ *
+ * CON token: a diferencia del índice público, trae señales operativas
+ * internas (sin responsable, estancados). El distrito lo decide el backend a
+ * partir del token, no un parámetro: el funcionario no puede pedir el de otro.
+ */
+export function dashboardMiDistrito(): Promise<DashboardDistrito> {
+  return api.get<DashboardDistrito>('/api/desempeno/mi-distrito');
 }

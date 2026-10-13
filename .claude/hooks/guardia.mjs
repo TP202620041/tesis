@@ -5,8 +5,9 @@
  * Se ejecuta como hook PreToolUse. Recibe el JSON del evento por stdin y:
  *   - Edit/Write/MultiEdit/NotebookEdit: bloquea escribir fuera de la carpeta del
  *     agente, en archivos normativos o generados, y en migraciones ya aplicadas.
- *   - Bash/PowerShell: bloquea commits en main, push a main, push forzado y
- *     comandos git que descartan trabajo sin pedirlo.
+ *   - Bash/PowerShell: bloquea commit, merge o push sobre las ramas protegidas de
+ *     GitFlow (main y develop), `git flow ... finish`, push forzado y comandos git
+ *     que descartan trabajo sin pedirlo.
  *
  * Uso (desde settings.json):  node <raiz>/.claude/hooks/guardia.mjs <dueno>
  *   <dueno> = raiz | backend | frontend | inferencia
@@ -23,6 +24,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const DUENOS = new Set(['raiz', 'backend', 'frontend', 'inferencia']);
+// GitFlow (WORKFLOW.md, seccion 8): solo avanzan por PR.
+const PROTEGIDAS = new Set(['main', 'master', 'develop']);
 const dueno = process.argv[2] ?? 'raiz';
 if (!DUENOS.has(dueno)) {
   bloquear(`guardia.mjs: dueno desconocido "${dueno}". Revisa .claude/settings.json de esta carpeta.`);
@@ -106,37 +109,53 @@ function revisarEscritura(destino) {
 }
 
 function revisarComando(comando) {
-  const c = comando.replace(/\s+/g, ' ');
-  if (!/\bgit\b/.test(c)) return;
+  // Solo cuentan los segmentos que SON un comando git. El texto de un mensaje
+  // de commit, de un heredoc, de un grep o de un echo no dispara la guardia:
+  // "push ... develop" en la descripcion de un PR no es un push a develop.
+  const segmentos = comando
+    .split(/\r?\n|&&|\|\||[;|&]/)
+    .map((s) => s.replace(/\s+/g, ' ').trim())
+    .map((s) => s.replace(/^(\S+=\S*\s+|env\s+|nohup\s+|command\s+|timeout\s+\S+\s+)*/, ''))
+    .filter((s) => /^git\b/.test(s))
+    .map((s) => s.replace(/^git -C \S+ /, 'git '));
+  segmentos.forEach(revisarGit);
+}
 
-  if (/\bgit (-C \S+ )?push\b/.test(c)) {
-    if (/(--force\b|-f\b|--force-with-lease\b)/.test(c)) {
+function revisarGit(s) {
+  if (/^git push\b/.test(s)) {
+    if (/\s(--force(-with-lease)?(=\S*)?|-[a-zA-Z]*f[a-zA-Z]*)(\s|$)/.test(s)) {
       bloquear('Push forzado bloqueado. Si de verdad hace falta, que lo haga el usuario.');
     }
-    const aMain = /\bpush\b[^|;&]*(\s|:)(main|master)(\s|$|[|;&])/.test(c);
-    const sinDestinoDesdeMain = /\bpush( -u| --set-upstream)?( origin)?\s*($|[|;&])/.test(c) && ramaActual() === 'main';
-    if (aMain || sinDestinoDesdeMain) {
-      bloquear('Nadie hace push a main. Sube tu rama (git push -u origin <rama>) y abre un PR.');
+    const aProtegida = /(\s|:)(main|master|develop)(\s|$)/.test(s);
+    const sinDestinoDesdeProtegida =
+      /^git push( -u| --set-upstream)?( origin)?$/.test(s) && PROTEGIDAS.has(ramaActual());
+    if (aProtegida || sinDestinoDesdeProtegida) {
+      bloquear('Nadie hace push a main ni a develop (GitFlow). Sube tu rama (git push -u origin feature/<id>) y abre un PR contra develop.');
     }
   }
 
-  if (/\bgit (-C \S+ )?commit\b/.test(c) && ramaActual() === 'main') {
-    bloquear('Estas en main. Cada tarea va en su rama: usa /tarea <ID> o "git switch -c <tipo>/<id>".');
+  if (/^git flow (feature|bugfix|release|hotfix|support) finish\b/.test(s)) {
+    bloquear('"git flow ... finish" fusiona en local sobre una rama protegida. En este repo las ramas se cierran por PR (WORKFLOW.md, seccion 8).');
+  }
+
+  const rama = /^git (commit|merge)\b/.test(s) ? ramaActual() : '';
+  if (PROTEGIDAS.has(rama)) {
+    bloquear(`Estas en ${rama}, que solo avanza por PR (GitFlow). Cada tarea va en su rama: usa /tarea <ID> o "git switch -c feature/<id> develop".`);
   }
 
   if (dueno !== 'raiz') {
     const destructivos = [
-      /\bgit reset --hard\b/,
-      /\bgit clean -[a-z]*f/,
-      /\bgit checkout (-- )?\.(\s|$)/,
-      /\bgit restore (--staged )?\.(\s|$)/,
-      /\bgit stash (drop|clear)\b/,
-      /\bgit branch -D\b/,
+      /^git reset --hard\b/,
+      /^git clean -[a-z]*f/,
+      /^git checkout (-- )?\.(\s|$)/,
+      /^git restore (--staged )?\.(\s|$)/,
+      /^git stash (drop|clear)\b/,
+      /^git branch -D\b/,
     ];
-    if (destructivos.some((r) => r.test(c))) {
+    if (destructivos.some((r) => r.test(s))) {
       bloquear('Comando git que descarta trabajo. Explica al usuario que quieres descartar y deja que el lo ejecute.');
     }
-    if (/\bgit (checkout|restore)\b[^|;&]*(ARCHITECTURE\.md|WORKFLOW\.md|project-context\/)/.test(c)) {
+    if (/^git (checkout|restore)\b.*(ARCHITECTURE\.md|WORKFLOW\.md|project-context\/)/.test(s)) {
       bloquear('No restaures documentos normativos ni project-context/ desde git: los mantiene la sesion de raiz.');
     }
   }

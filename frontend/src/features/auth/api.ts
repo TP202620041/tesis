@@ -3,16 +3,19 @@ import { borrarToken, guardarToken } from '@/lib/auth/token-storage';
 import type {
   LoginRequest,
   PreferenciaNotificacion,
+  RecuperarPasswordRequest,
   RegistroRequest,
+  RestablecerPasswordRequest,
   SesionIniciada,
   Usuario,
 } from '@/lib/types/domain';
 
 /**
- * Llamadas al API de autenticacion (US-01, US-02, US-04).
+ * Llamadas al API de autenticacion (US-01, US-02, US-03, US-04).
  *
- * `registro` y `login` son las dos unicas rutas que se llaman sin token
- * (`conAuth: false`): en el backend estan en `RUTAS_PUBLICAS`.
+ * `registro`, `login`, `recuperar-password` y `restablecer-password` son las
+ * unicas rutas que se llaman sin token (`conAuth: false`): en el backend
+ * estan en `RUTAS_PUBLICAS`.
  */
 
 /** US-01: registra una cuenta ciudadana y deja la sesion iniciada. */
@@ -31,6 +34,26 @@ export async function iniciarSesion(datos: LoginRequest): Promise<SesionIniciada
   });
   guardarToken(sesion.token);
   return sesion;
+}
+
+/**
+ * US-03, paso 1: pide que se envie un token de recuperacion al correo.
+ *
+ * El backend responde 202 exista o no la cuenta (no revela que correos
+ * estan registrados), asi que aqui no hay resultado que interpretar: solo
+ * puede fallar por validacion (400) o por red.
+ */
+export async function solicitarRecuperacion(datos: RecuperarPasswordRequest): Promise<void> {
+  await api.post<void>('/api/auth/recuperar-password', datos, { conAuth: false });
+}
+
+/**
+ * US-03, paso 2: fija la contrasena nueva con el token recibido por correo.
+ * 404 = token invalido; 409 = token vencido o ya usado. No inicia sesion:
+ * el usuario vuelve al login con su contrasena nueva.
+ */
+export async function restablecerPassword(datos: RestablecerPasswordRequest): Promise<void> {
+  await api.post<void>('/api/auth/restablecer-password', datos, { conAuth: false });
 }
 
 /** Usuario autenticado segun el token actual. Sirve para validar la sesion. */

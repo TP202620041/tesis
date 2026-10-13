@@ -2,7 +2,8 @@
 
 import { defaultCache } from '@serwist/next/worker';
 import type { PrecacheEntry, SerwistGlobalConfig } from 'serwist';
-import { Serwist } from 'serwist';
+import { NetworkOnly, Serwist } from 'serwist';
+import { esPeticionAlApi } from './cachesDeSesion';
 
 /**
  * Service Worker de la PWA.
@@ -12,7 +13,8 @@ import { Serwist } from 'serwist';
  * hooks. Corre en otro hilo, sin DOM, con su propio ciclo de vida.
  *
  * Alcance actual: precache del App Shell y caching en runtime por defecto de
- * Serwist. Es lo que permite que la aplicacion abra sin conexion.
+ * Serwist, salvo el API, que nunca se cachea. Es lo que permite que la
+ * aplicacion abra sin conexion.
  *
  * PENDIENTE (US-06, slice propio): la cola de sincronizacion de reportes
  * creados offline. El plan es un `BackgroundSyncPlugin` de Workbox sobre
@@ -35,7 +37,13 @@ const serwist = new Serwist({
   skipWaiting: true,
   clientsClaim: true,
   navigationPreload: true,
-  runtimeCaching: defaultCache,
+  // La primera regla que coincide gana: el API va siempre a la red y nunca
+  // se guarda (ver `cachesDeSesion.ts`), antes de que la regla `cross-origin`
+  // de `defaultCache` lo cachee.
+  runtimeCaching: [
+    { matcher: ({ url }) => esPeticionAlApi(url), handler: new NetworkOnly() },
+    ...defaultCache,
+  ],
 });
 
 serwist.addEventListeners();

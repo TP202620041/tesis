@@ -60,7 +60,14 @@ function manejarNoAutenticado(): void {
   }
 }
 
-export async function apiFetch<T>(ruta: string, opciones: OpcionesPeticion = {}): Promise<T> {
+/**
+ * Ejecuta la peticion y devuelve la respuesta ya validada (2xx). Concentra
+ * URL base, cabeceras, token, errores de red y el 401 centralizado, para que
+ * {@link apiFetch} y {@link apiDescargar} no los repitan.
+ */
+async function ejecutar(ruta: string, opciones: OpcionesPeticion): Promise<Response> {
+  // `comoBlob` lo interpreta apiFetch al leer el cuerpo, no viaja en el fetch.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { json, conAuth = true, idempotencyKey, comoBlob, headers, ...resto } = opciones;
 
   const cabeceras = new Headers(headers);
@@ -96,12 +103,18 @@ export async function apiFetch<T>(ruta: string, opciones: OpcionesPeticion = {})
     throw await desdeRespuesta(respuesta);
   }
 
+  return respuesta;
+}
+
+export async function apiFetch<T>(ruta: string, opciones: OpcionesPeticion = {}): Promise<T> {
+  const respuesta = await ejecutar(ruta, opciones);
+
   // 204 (restablecer-password) y 202 sin cuerpo no traen JSON que parsear.
   if (respuesta.status === 204 || respuesta.headers.get('content-length') === '0') {
     return undefined as T;
   }
 
-  if (comoBlob) {
+  if (opciones.comoBlob) {
     return (await respuesta.blob()) as T;
   }
 
@@ -111,6 +124,33 @@ export async function apiFetch<T>(ruta: string, opciones: OpcionesPeticion = {})
   }
 
   return (await respuesta.json()) as T;
+}
+
+/** Archivo binario devuelto por el API, con la cabecera que trae su nombre. */
+export interface ArchivoDescargado {
+  contenido: Blob;
+  /**
+   * `Content-Disposition` tal como llegó, o `null` si no vino o si el
+   * navegador no la deja leer: en una petición entre orígenes solo es
+   * visible si el backend la expone (`Access-Control-Expose-Headers`).
+   */
+  contentDisposition: string | null;
+}
+
+/**
+ * Descarga un archivo autenticado (US-28: exportación). No sirve un enlace
+ * directo porque la descarga exige el header `Authorization`; por eso se trae
+ * como `Blob` y la UI lo guarda con una URL `blob:`.
+ */
+export async function apiDescargar(
+  ruta: string,
+  opciones: OpcionesPeticion = {},
+): Promise<ArchivoDescargado> {
+  const respuesta = await ejecutar(ruta, { ...opciones, method: 'GET' });
+  return {
+    contenido: await respuesta.blob(),
+    contentDisposition: respuesta.headers.get('Content-Disposition'),
+  };
 }
 
 /**

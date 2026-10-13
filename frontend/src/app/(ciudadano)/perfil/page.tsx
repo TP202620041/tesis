@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { AlertaError, Boton, Campo } from '@/components/ui/form';
+import { BotonCerrarSesion } from '@/features/auth/components/BotonCerrarSesion';
 import { GuardiaDeRol } from '@/features/auth/components/GuardiaDeRol';
 import { FotoDePerfil } from '@/features/auth/components/FotoDePerfil';
 import { actualizarPreferenciaNotificacion, editarPerfil } from '@/features/auth/api';
@@ -80,9 +81,12 @@ function Perfil({ inicial }: { inicial: Usuario }) {
 
   return (
     <main className="mx-auto flex w-full max-w-lg flex-col gap-6 px-4 py-6">
-      <Link href="/mis-reportes" className="text-sm text-sky-700 hover:underline dark:text-sky-400">
-        ← Volver a mis reportes
-      </Link>
+      <div className="flex items-center justify-between gap-3">
+        <Link href="/mis-reportes" className="text-sm text-sky-700 hover:underline dark:text-sky-400">
+          ← Volver a mis reportes
+        </Link>
+        <BotonCerrarSesion />
+      </div>
 
       <header className="flex items-center gap-4">
         <FotoDePerfil fotoUrl={usuario.fotoUrl} nombre={usuario.nombre} />

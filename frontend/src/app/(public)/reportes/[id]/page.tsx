@@ -5,7 +5,7 @@ import { use, useEffect, useState } from 'react';
 import { useSesion } from '@/features/auth/hooks';
 import { reportePorId, type ReporteResumen } from '@/features/reportes/api';
 import { Comentarios } from '@/features/reportes/components/Comentarios';
-import { estiloDeEstado } from '@/features/reportes/mapa/estados';
+import { estiloDeEstado } from '@/lib/types/estados';
 import { urlDeFoto } from '@/lib/api/client';
 
 /**

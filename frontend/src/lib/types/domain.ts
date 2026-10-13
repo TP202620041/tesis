@@ -82,6 +82,11 @@ export type SesionIniciada = Requerido<
 export type RegistroRequest = Schemas['RegistroRequest'];
 export type LoginRequest = Schemas['LoginRequest'];
 
+/** US-03: `POST /api/auth/recuperar-password` (responde 202 exista o no la cuenta). */
+export type RecuperarPasswordRequest = Schemas['RecuperarPasswordRequest'];
+/** US-03: `POST /api/auth/restablecer-password` con el token que llegó por correo. */
+export type RestablecerPasswordRequest = Schemas['RestablecerPasswordRequest'];
+
 /** Cuerpo de error estandar del backend (`common/exception/ApiError.java`). */
 export interface ApiErrorBody {
   timestamp: string;

@@ -84,12 +84,14 @@ src/main/java/pe/edu/upc/viasegura/
 │   ├── config/        # (reservado) OpenApiConfig, etc.
 │   ├── security/      # SecurityConfig, JwtService, JwtAuthenticationFilter
 │   ├── exception/     # GlobalExceptionHandler, ApiError, excepciones de dominio
-│   └── domain/        # BaseAuditableEntity (createdAt/updatedAt)
+│   ├── domain/        # BaseAuditableEntity (createdAt/updatedAt)
+│   ├── port/          # FotoStorageService (fotos de reporte y de perfil, D-11)
+│   └── infra/         # LocalFotoStorageService (filesystem)
 ├── auth/              # US-01..US-04  (Usuario, login/registro, roles)
 ├── distritos/         # Distrito (límites GEOGRAPHY, base de asignación)
 ├── reportes/          # Reporte + CategoriaDano, Adhesion, Historial, Asignacion,
-│                      #   Calificacion, ComentarioPublico  (+ geo/ para Strategy)
-├── notificaciones/    # Notificacion  (+ channel/ para Strategy push/email)
+│                      #   Calificacion, ComentarioPublico  (+ port/ + infra/ para Strategy geo)
+├── notificaciones/    # Notificacion  (+ port/ + infra/ para Strategy push/email)
 ├── desempeno/         # IndiceDesempenoDistrital (vista materializada, read-only)
 └── soporte/           # TicketSoporte
 
@@ -101,8 +103,9 @@ Cada dominio se organiza en `controller/ · service/ · repository/ · dto/ · d
 ## Patrones de diseño previstos (referencia de arquitectura)
 
 - **Repository** (Spring Data JPA) para acceso a datos.
-- **Strategy** para la asignación geoespacial de distrito (`reportes/geo/`) y
-  para el envío multicanal de notificaciones (`notificaciones/channel/`).
+- **Strategy** para la asignación geoespacial de distrito (`reportes/port/` +
+  `reportes/infra/`) y para el envío multicanal de notificaciones
+  (`notificaciones/port/` + `notificaciones/infra/`).
 - **Manejo centralizado de excepciones** con `@RestControllerAdvice`.
 - **DTOs** desacoplados de las entidades JPA en todas las capas de API.
 
@@ -122,6 +125,11 @@ Cada dominio se organiza en `controller/ · service/ · repository/ · dto/ · d
   min), incluso si el usuario "cierra sesión" en otro dispositivo o cambia
   su contraseña. Ver también el comentario en
   `common/security/SecurityConfig.java`.
+- **CORS** (`SecurityConfig#corsConfigurationSource`): solo los orígenes de
+  `app.cors.allowed-origins`, `allowCredentials=false` (el token viaja en
+  `Authorization`, no en cookie) y `maxAge` de 1 h para ahorrar preflights.
+  Se expone `Content-Disposition` porque el frontend, en otro origen, necesita
+  leer el nombre del archivo exportado (US-28); no se expone nada más.
 
 ## Idempotencia en la creación de reportes (US-06)
 
