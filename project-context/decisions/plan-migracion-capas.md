@@ -151,7 +151,7 @@ La guarda no cubre el schema en `components/`: `components/LineaDeTiempo.tsx` im
 | `features/reportes/mapa/estados.ts` (+ test) | `src/lib/types/estados.ts`: lo usan `gestion`, `reportes` y `components/LineaDeTiempo` |
 | `features/desempeno/formato.ts` (+ test) | `features/desempeno/model/formato.ts` |
 | `features/auth/rutas.ts` (+ test) | `features/auth/model/rutas.ts` |
-| `features/auth/fotoPerfil.ts` (+ test) | `model/` si es puro; si usa el cliente HTTP o `blob:`, va a `features/auth/api.ts` |
+| ~~`features/auth/fotoPerfil.ts` (+ test)~~ | Pasó a **FE-07** (no es puro; ver el cierre) |
 
 **Aceptación:** `npm test` corre la misma cantidad de archivos de test que antes, y no queda la carpeta `features/reportes/mapa/`.
 
@@ -167,7 +167,7 @@ Cierre (2026-10-13, rama `feature/fe-02`). Se movieron 6 de los 7 archivos con `
 | `haciaFeatures` | 1 | 0: `LineaDeTiempo` importa `@/lib/types/estados` |
 | `gatewayDesdeUi` / `otraFeature` / `clienteHttp` / `schema` | 35 / 16 / 14 / 1 | 35 / 16 / 14 / 1 |
 
-No hay avisos en los archivos que entraron a `model/` ni en `lib/types/estados.ts`, así que no aparece ningún aviso antes no medido que haya que listar (§5.4). Las referencias a `features/gestion/transiciones.ts` en `frontend/CLAUDE.md` y `frontend/README.md` ya apuntan a `model/`. Pendiente para la sesión de raíz: el `CLAUDE.md` raíz sigue poniendo como ejemplo `npx vitest run src/features/reportes/acciones.test.ts`, que ahora está en `model/`.
+No hay avisos en los archivos que entraron a `model/` ni en `lib/types/estados.ts`, así que no aparece ningún aviso antes no medido que haya que listar (§5.4). Las referencias a `features/gestion/transiciones.ts` en `frontend/CLAUDE.md` y `frontend/README.md` ya apuntan a `model/`. El ejemplo del `CLAUDE.md` raíz (`npx vitest run src/features/reportes/acciones.test.ts`) ya apunta a `model/` (corregido por el coordinador en esta misma rama).
 
 ### [ ] FE-03 · Tipos en `model/`
 Crear `features/<f>/model/tipos.ts` con los alias sobre `generated/schema` (`ReporteResumen`, `HistorialEntrada`, `AsignacionResponsable`…). `api.ts`, los hooks y los componentes importan los tipos desde ahí. `components/LineaDeTiempo.tsx` y `desempeno/formato.ts` dejan de importar `generated/schema`.
@@ -191,6 +191,7 @@ Los componentes que hoy llaman al API pasan a usar un hook de su feature: `Cambi
 
 ### [ ] FE-07 · URLs de fotos en el gateway
 `features/<f>/api.ts` devuelve `fotoUrl` ya absoluta (`urlDeFoto`). Las páginas y los componentes dejan de importar `@/lib/api/client`. La foto de perfil (que requiere token) se resuelve en un hook de auth que devuelve la URL `blob:`.
+- Viene de FE-02: `features/auth/fotoPerfil.ts` (+ test) → `descargarFotoDePerfil` en `features/auth/api.ts` (test a `auth/api.test.ts`; siguen 8 archivos de test). Hacerlo **junto con** el hook, para que `auth/components/FotoDePerfil.tsx` use el hook y no importe `../api` (eso sería un aviso `gatewayDesdeUi` nuevo).
 
 ### [ ] FE-08 · Dependencias entre features
 - `gestion` deja de importar `@/features/reportes/api`: usa `reportes/model/tipos` y su propio `api.ts`.
