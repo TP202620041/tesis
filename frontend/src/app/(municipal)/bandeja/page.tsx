@@ -1,11 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { BotonCerrarSesion } from '@/features/auth/components/BotonCerrarSesion';
 import { GuardiaDeRol } from '@/features/auth/components/GuardiaDeRol';
 import { ROLES_AREA_MUNICIPAL } from '@/features/auth/model/rutas';
-import { cerrarSesion } from '@/features/auth/api';
 import { bandeja, FILTROS_BANDEJA_VACIOS, type FiltrosBandeja } from '@/features/gestion/api';
 import { ExportarReportes } from '@/features/gestion/components/ExportarReportes';
 import { ordenar, TablaBandeja, type OrdenBandeja } from '@/features/gestion/components/TablaBandeja';
@@ -23,7 +22,6 @@ export default function BandejaPage() {
 }
 
 function Bandeja({ usuario }: { usuario: Usuario }) {
-  const router = useRouter();
   const [reportes, setReportes] = useState<ReporteResumen[]>([]);
   const [filtros, setFiltros] = useState<FiltrosBandeja>(FILTROS_BANDEJA_VACIOS);
   const [orden, setOrden] = useState<OrdenBandeja>('apoyos');
@@ -88,16 +86,7 @@ function Bandeja({ usuario }: { usuario: Usuario }) {
           >
             Dashboard del distrito
           </Link>
-          <button
-            type="button"
-            onClick={() => {
-              cerrarSesion();
-              router.replace('/login');
-            }}
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm dark:border-slate-600 dark:text-slate-200"
-          >
-            Cerrar sesión
-          </button>
+          <BotonCerrarSesion />
         </nav>
       </header>
 

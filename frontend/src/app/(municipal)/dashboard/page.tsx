@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { BotonCerrarSesion } from '@/features/auth/components/BotonCerrarSesion';
 import { GuardiaDeRol } from '@/features/auth/components/GuardiaDeRol';
 import { ROLES_AREA_MUNICIPAL } from '@/features/auth/model/rutas';
 import { DashboardDistrito } from '@/features/desempeno/components/DashboardDistrito';
@@ -31,6 +32,7 @@ export default function DashboardPage() {
               >
                 Índice público
               </Link>
+              <BotonCerrarSesion />
             </nav>
           </header>
           <DashboardDistrito />
