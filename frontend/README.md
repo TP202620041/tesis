@@ -130,6 +130,13 @@ por defecto del framework, o compilar el SW como paso aparte. Se eligió lo
 segundo: Turbopack sigue siendo el bundler de la app y el SW deja de depender
 de su pipeline de bundling.
 
+**El API nunca se cachea** (`NetworkOnly` para `/api/**`, antes de
+`defaultCache`): su regla `cross-origin` guardaría respuestas que dependen del
+usuario (`/api/auth/me`, `mis-reportes`, `mi-distrito`) y el siguiente usuario
+del dispositivo podría recibirlas offline. Al cerrar sesión (US-04) además se
+borra esa caché, por si la llenó una versión anterior del SW
+(`src/pwa/cachesDeSesion.ts`).
+
 ### Seguridad: dónde vive el JWT
 
 **Decisión: `localStorage`, con su costo asumido explícitamente.**
