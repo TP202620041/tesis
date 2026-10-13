@@ -1,6 +1,7 @@
 package pe.edu.upc.viasegura.soporte;
 
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -21,6 +22,8 @@ import pe.edu.upc.viasegura.auth.domain.Rol;
 import pe.edu.upc.viasegura.auth.domain.Usuario;
 import pe.edu.upc.viasegura.auth.repository.UsuarioRepository;
 import pe.edu.upc.viasegura.common.security.JwtService;
+import pe.edu.upc.viasegura.soporte.domain.EstadoTicket;
+import pe.edu.upc.viasegura.soporte.domain.TicketSoporte;
 import pe.edu.upc.viasegura.soporte.repository.TicketSoporteRepository;
 import pe.edu.upc.viasegura.support.AbstractPostgisMailIT;
 
@@ -174,6 +177,118 @@ class TicketSoporteIT extends AbstractPostgisMailIT {
                         .content("{\"respuesta\":\"x\",\"estado\":\"CERRADO\"}")
                         .header("Authorization", "Bearer " + token(admin())))
                 .andExpect(status().isNotFound());
+    }
+
+    // ---- US-25: listado del ADMIN ----
+
+    private TicketSoporte ticket(Usuario autor, String asunto, EstadoTicket estado) {
+        return ticketRepository.save(TicketSoporte.builder()
+                .usuario(autor)
+                .emailContacto(autor.getEmail())
+                .asunto(asunto)
+                .mensaje("Mensaje de " + asunto)
+                .estado(estado)
+                .build());
+    }
+
+    @Test
+    void adminListaTodos_masRecientesPrimero_conAutorYContacto() throws Exception {
+        Usuario ciu = ciudadano();
+        Usuario func = funcionario();
+        ticket(ciu, "Primero", EstadoTicket.ABIERTO);
+        ticket(func, "Segundo", EstadoTicket.EN_PROCESO);
+        TicketSoporte tercero = ticket(ciu, "Tercero", EstadoTicket.CERRADO);
+
+        mockMvc.perform(get("/api/soporte/tickets")
+                        .header("Authorization", "Bearer " + token(admin())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements", is(3)))
+                .andExpect(jsonPath("$.content[0].id", is(tercero.getId().intValue())))
+                .andExpect(jsonPath("$.content[0].asunto", is("Tercero")))
+                .andExpect(jsonPath("$.content[0].mensaje", is("Mensaje de Tercero")))
+                .andExpect(jsonPath("$.content[0].estado", is("CERRADO")))
+                .andExpect(jsonPath("$.content[0].respuesta", nullValue()))
+                .andExpect(jsonPath("$.content[0].emailContacto", is(ciu.getEmail())))
+                .andExpect(jsonPath("$.content[0].nombreAutor", is("Ana Vecina")))
+                .andExpect(jsonPath("$.content[0].createdAt", notNullValue()))
+                .andExpect(jsonPath("$.content[0].updatedAt", notNullValue()))
+                .andExpect(jsonPath("$.content[1].asunto", is("Segundo")))
+                .andExpect(jsonPath("$.content[1].nombreAutor", is("Fabi Municipal")))
+                .andExpect(jsonPath("$.content[2].asunto", is("Primero")));
+    }
+
+    @Test
+    void adminFiltraPorEstado() throws Exception {
+        Usuario ciu = ciudadano();
+        ticket(ciu, "Abierto 1", EstadoTicket.ABIERTO);
+        ticket(ciu, "Cerrado", EstadoTicket.CERRADO);
+        ticket(ciu, "Abierto 2", EstadoTicket.ABIERTO);
+
+        mockMvc.perform(get("/api/soporte/tickets").param("estado", "ABIERTO")
+                        .header("Authorization", "Bearer " + token(admin())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements", is(2)))
+                .andExpect(jsonPath("$.content[0].asunto", is("Abierto 2")))
+                .andExpect(jsonPath("$.content[1].asunto", is("Abierto 1")));
+
+        mockMvc.perform(get("/api/soporte/tickets").param("estado", "EN_PROCESO")
+                        .header("Authorization", "Bearer " + token(admin())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements", is(0)));
+    }
+
+    @Test
+    void adminPagina() throws Exception {
+        Usuario ciu = ciudadano();
+        ticket(ciu, "T1", EstadoTicket.ABIERTO);
+        ticket(ciu, "T2", EstadoTicket.ABIERTO);
+        ticket(ciu, "T3", EstadoTicket.ABIERTO);
+
+        mockMvc.perform(get("/api/soporte/tickets").param("page", "1").param("size", "2")
+                        .header("Authorization", "Bearer " + token(admin())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements", is(3)))
+                .andExpect(jsonPath("$.totalPages", is(2)))
+                .andExpect(jsonPath("$.content.length()", is(1)))
+                .andExpect(jsonPath("$.content[0].asunto", is("T1")));
+    }
+
+    @Test
+    void adminConSizeFueraDeRango_400() throws Exception {
+        mockMvc.perform(get("/api/soporte/tickets").param("size", "0")
+                        .header("Authorization", "Bearer " + token(admin())))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/soporte/tickets").param("size", "101")
+                        .header("Authorization", "Bearer " + token(admin())))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void listadoAdmin_ciudadanoYFuncionario_403() throws Exception {
+        mockMvc.perform(get("/api/soporte/tickets")
+                        .header("Authorization", "Bearer " + token(ciudadano())))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/soporte/tickets")
+                        .header("Authorization", "Bearer " + token(funcionario())))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void listadoAdmin_sinToken_401() throws Exception {
+        mockMvc.perform(get("/api/soporte/tickets"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void misTicketsSigueFuncionandoJuntoAlListadoAdmin() throws Exception {
+        // La ruta literal /mis-tickets no la captura el GET de la raiz.
+        Usuario ciu = ciudadano();
+        ticket(ciu, "Propio", EstadoTicket.ABIERTO);
+        mockMvc.perform(get("/api/soporte/tickets/mis-tickets")
+                        .header("Authorization", "Bearer " + token(ciu)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].asunto", is("Propio")))
+                .andExpect(jsonPath("$[0].emailContacto").doesNotExist());
     }
 
     @Test

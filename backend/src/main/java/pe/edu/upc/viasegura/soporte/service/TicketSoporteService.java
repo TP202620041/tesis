@@ -3,6 +3,9 @@ package pe.edu.upc.viasegura.soporte.service;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
@@ -10,9 +13,11 @@ import org.springframework.transaction.annotation.Transactional;
 import pe.edu.upc.viasegura.auth.domain.Usuario;
 import pe.edu.upc.viasegura.auth.repository.UsuarioRepository;
 import pe.edu.upc.viasegura.common.exception.ResourceNotFoundException;
+import pe.edu.upc.viasegura.soporte.domain.EstadoTicket;
 import pe.edu.upc.viasegura.soporte.domain.TicketSoporte;
 import pe.edu.upc.viasegura.soporte.dto.CrearTicketRequest;
 import pe.edu.upc.viasegura.soporte.dto.ResponderTicketRequest;
+import pe.edu.upc.viasegura.soporte.dto.TicketAdminResponse;
 import pe.edu.upc.viasegura.soporte.dto.TicketSoporteResponse;
 import pe.edu.upc.viasegura.soporte.repository.TicketSoporteRepository;
 
@@ -37,6 +42,9 @@ public class TicketSoporteService {
     private final TicketSoporteRepository ticketRepository;
     private final UsuarioRepository usuarioRepository;
     private final JavaMailSender mailSender;
+
+    /** Tope del {@code size} del listado del ADMIN (US-25). */
+    static final int TAMANO_MAXIMO_PAGINA = 100;
 
     @Value("${app.notificaciones.email-remitente:no-reply@viasegura.pe}")
     private String remitente;
@@ -63,6 +71,28 @@ public class TicketSoporteService {
         return ticketRepository.findByUsuarioIdOrderByCreatedAtDesc(usuario.getId()).stream()
                 .map(TicketSoporteResponse::from)
                 .toList();
+    }
+
+    /**
+     * US-25: bandeja del equipo de soporte (ADMIN), los mas recientes primero.
+     * El orden es fijo (con {@code id} como desempate, para que la paginacion
+     * sea estable) y {@code estado} {@code null} significa "todos": se combinan
+     * dos consultas derivadas en vez de un filtro opcional en JPQL.
+     */
+    @Transactional(readOnly = true)
+    public Page<TicketAdminResponse> listarParaAdmin(EstadoTicket estado, int page, int size) {
+        if (page < 0) {
+            throw new IllegalArgumentException("page debe ser mayor o igual a 0");
+        }
+        if (size < 1 || size > TAMANO_MAXIMO_PAGINA) {
+            throw new IllegalArgumentException("size debe estar entre 1 y " + TAMANO_MAXIMO_PAGINA);
+        }
+        PageRequest pagina = PageRequest.of(page, size,
+                Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id")));
+        Page<TicketSoporte> tickets = estado == null
+                ? ticketRepository.findAllBy(pagina)
+                : ticketRepository.findByEstado(estado, pagina);
+        return tickets.map(TicketAdminResponse::from);
     }
 
     /** ADMIN responde el ticket: se persiste la respuesta y se avisa por correo. */
