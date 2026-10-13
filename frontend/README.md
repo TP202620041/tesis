@@ -175,6 +175,22 @@ Componerla es del cliente: `urlDeFoto()` en `lib/api/client.ts`.
   `<img src>` plano devuelve **401**; hay que traerla con `apiFetch` y
   convertirla a `blob:`. `fotoRequiereAuth()` distingue ambos casos.
 
+### Descargas autenticadas (US-28)
+
+La exportación de la bandeja (`GET /api/reportes/exportar`) exige
+`Authorization`, así que un `<a href>` al API no sirve. `apiDescargar()`
+(`lib/api/client.ts`) la trae como `Blob` por el mismo camino que `apiFetch`
+(token, 401 centralizado, `ApiError`), y el hook `useExportarReportes` la
+guarda con un enlace temporal a una URL `blob:` que libera al terminar. Se
+exporta con los filtros activos de la bandeja; las fechas, que la bandeja
+filtra por día local, viajan como instantes con la misma semántica
+(`gestion/model/exportacion.ts`).
+
+El nombre sale de `Content-Disposition`, pero entre orígenes el navegador solo
+deja leer esa cabecera si el backend la expone
+(`Access-Control-Expose-Headers`). Si no puede leerse, se usa
+`reportes.csv` / `reportes.xlsx`.
+
 ### Mapa
 
 Leaflet vive encapsulado en `src/map/`; el resto de la app solo maneja
