@@ -18,10 +18,10 @@ import pe.edu.upc.viasegura.auth.dto.UsuarioResponse;
 import pe.edu.upc.viasegura.auth.repository.UsuarioRepository;
 import pe.edu.upc.viasegura.common.exception.BusinessException;
 import pe.edu.upc.viasegura.common.exception.ResourceNotFoundException;
+import pe.edu.upc.viasegura.common.port.FotoStorageService;
 import pe.edu.upc.viasegura.common.security.JwtService;
 import pe.edu.upc.viasegura.distritos.domain.Distrito;
 import pe.edu.upc.viasegura.distritos.repository.DistritoRepository;
-import pe.edu.upc.viasegura.reportes.storage.FotoStorageService;
 
 /**
  * Casos de uso de acceso: registro (US-01) e inicio de sesion (US-02).

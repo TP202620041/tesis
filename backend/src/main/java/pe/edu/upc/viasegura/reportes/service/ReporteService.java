@@ -16,6 +16,7 @@ import pe.edu.upc.viasegura.auth.repository.UsuarioRepository;
 import pe.edu.upc.viasegura.common.exception.BusinessException;
 import pe.edu.upc.viasegura.common.exception.ResourceNotFoundException;
 import pe.edu.upc.viasegura.common.geo.GeometryUtils;
+import pe.edu.upc.viasegura.common.port.FotoStorageService;
 import pe.edu.upc.viasegura.distritos.domain.Distrito;
 import pe.edu.upc.viasegura.reportes.domain.AdhesionReporte;
 import pe.edu.upc.viasegura.reportes.domain.CategoriaDano;
@@ -35,7 +36,6 @@ import pe.edu.upc.viasegura.reportes.repository.AdhesionReporteRepository;
 import pe.edu.upc.viasegura.reportes.repository.CategoriaDanoRepository;
 import pe.edu.upc.viasegura.reportes.repository.HistorialEstadoReporteRepository;
 import pe.edu.upc.viasegura.reportes.repository.ReporteRepository;
-import pe.edu.upc.viasegura.reportes.storage.FotoStorageService;
 
 /**
  * Casos de uso de creacion de reportes (US-05) con acumulacion de
