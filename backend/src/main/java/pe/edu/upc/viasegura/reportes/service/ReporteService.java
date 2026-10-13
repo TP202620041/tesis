@@ -24,7 +24,6 @@ import pe.edu.upc.viasegura.reportes.domain.EstadoReporte;
 import pe.edu.upc.viasegura.reportes.domain.HistorialEstadoReporte;
 import pe.edu.upc.viasegura.reportes.domain.Reporte;
 import pe.edu.upc.viasegura.reportes.domain.TipoEventoHistorial;
-import pe.edu.upc.viasegura.reportes.dto.CrearReporteCommand;
 import pe.edu.upc.viasegura.reportes.dto.EditarReporteRequest;
 import pe.edu.upc.viasegura.reportes.dto.ReporteResponse;
 import pe.edu.upc.viasegura.reportes.dto.ReporteResumenResponse;
