@@ -31,7 +31,7 @@ import pe.edu.upc.viasegura.reportes.dto.ReporteResumenResponse;
 import pe.edu.upc.viasegura.reportes.event.ReporteCategoriaCambiadaEvent;
 import pe.edu.upc.viasegura.reportes.event.ReporteCreadoEvent;
 import pe.edu.upc.viasegura.reportes.event.ReporteEstadoCambiadoEvent;
-import pe.edu.upc.viasegura.reportes.geo.GeoAssignmentStrategy;
+import pe.edu.upc.viasegura.reportes.port.GeoAssignmentStrategy;
 import pe.edu.upc.viasegura.reportes.repository.AdhesionReporteRepository;
 import pe.edu.upc.viasegura.reportes.repository.CategoriaDanoRepository;
 import pe.edu.upc.viasegura.reportes.repository.HistorialEstadoReporteRepository;
