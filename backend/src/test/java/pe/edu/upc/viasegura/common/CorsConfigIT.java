@@ -1,15 +1,32 @@
 package pe.edu.upc.viasegura.common;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.UUID;
+import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
+import pe.edu.upc.viasegura.auth.domain.Rol;
+import pe.edu.upc.viasegura.auth.domain.Usuario;
+import pe.edu.upc.viasegura.auth.repository.UsuarioRepository;
+import pe.edu.upc.viasegura.common.geo.GeometryUtils;
+import pe.edu.upc.viasegura.common.security.JwtService;
+import pe.edu.upc.viasegura.distritos.domain.Distrito;
+import pe.edu.upc.viasegura.distritos.repository.DistritoRepository;
+import pe.edu.upc.viasegura.reportes.domain.CategoriaDano;
+import pe.edu.upc.viasegura.reportes.domain.EstadoReporte;
+import pe.edu.upc.viasegura.reportes.domain.Reporte;
+import pe.edu.upc.viasegura.reportes.repository.CategoriaDanoRepository;
+import pe.edu.upc.viasegura.reportes.repository.ReporteRepository;
 import pe.edu.upc.viasegura.support.AbstractPostgisIT;
 
 /**
@@ -25,6 +42,18 @@ class CorsConfigIT extends AbstractPostgisIT {
 
     @Autowired
     MockMvc mockMvc;
+    @Autowired
+    JwtService jwtService;
+    @Autowired
+    PasswordEncoder passwordEncoder;
+    @Autowired
+    UsuarioRepository usuarioRepository;
+    @Autowired
+    DistritoRepository distritoRepository;
+    @Autowired
+    CategoriaDanoRepository categoriaRepository;
+    @Autowired
+    ReporteRepository reporteRepository;
 
     @Test
     void preflightDesdeElFrontend_esAceptado() throws Exception {
@@ -78,5 +107,40 @@ class CorsConfigIT extends AbstractPostgisIT {
                             .header("Access-Control-Request-Method", metodo.name()))
                     .andExpect(status().isOk());
         }
+    }
+
+    @Test
+    void exportacionDesdeElFrontend_exponeContentDisposition() throws Exception {
+        // US-28: el frontend corre en otro origen; sin Access-Control-Expose-Headers
+        // el navegador le oculta Content-Disposition y pierde el nombre del archivo.
+        Distrito miraflores = distritoRepository.findByNombre("Miraflores").orElseThrow();
+        CategoriaDano categoria = categoriaRepository.findAll().stream()
+                .filter(CategoriaDano::isEsEstandar).findFirst().orElseThrow();
+        Usuario ciudadano = usuarioRepository.save(Usuario.builder()
+                .email("ciu-" + UUID.randomUUID() + "@lima.pe")
+                .passwordHash(passwordEncoder.encode("x"))
+                .nombre("Ana").apellido("Vecina").rol(Rol.CIUDADANO).build());
+        Usuario funcionario = usuarioRepository.save(Usuario.builder()
+                .email("func-" + UUID.randomUUID() + "@muni.pe")
+                .passwordHash(passwordEncoder.encode("x"))
+                .nombre("Fabi").apellido("Municipal")
+                .rol(Rol.FUNCIONARIO_MUNICIPAL).distrito(miraflores).build());
+        reporteRepository.save(Reporte.builder()
+                .ubicacion(GeometryUtils.point(-77.0297, -12.1215))
+                .categoria(categoria).creador(ciudadano).distrito(miraflores)
+                .estado(EstadoReporte.PENDIENTE).totalAdhesiones(1).build());
+        String token = jwtService.generarToken(funcionario.getEmail(), funcionario.getRol().name());
+
+        mockMvc.perform(get("/api/reportes/exportar")
+                        .param("formato", "CSV")
+                        .header("Origin", ORIGEN_FRONTEND)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Origin", ORIGEN_FRONTEND))
+                .andExpect(header().string(HttpHeaders.CONTENT_DISPOSITION,
+                        Matchers.containsString("attachment")))
+                .andExpect(header().stringValues("Access-Control-Expose-Headers",
+                        Matchers.hasItem(Matchers.containsStringIgnoringCase(
+                                HttpHeaders.CONTENT_DISPOSITION))));
     }
 }

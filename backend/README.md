@@ -125,6 +125,11 @@ Cada dominio se organiza en `controller/ · service/ · repository/ · dto/ · d
   min), incluso si el usuario "cierra sesión" en otro dispositivo o cambia
   su contraseña. Ver también el comentario en
   `common/security/SecurityConfig.java`.
+- **CORS** (`SecurityConfig#corsConfigurationSource`): solo los orígenes de
+  `app.cors.allowed-origins`, `allowCredentials=false` (el token viaja en
+  `Authorization`, no en cookie) y `maxAge` de 1 h para ahorrar preflights.
+  Se expone `Content-Disposition` porque el frontend, en otro origen, necesita
+  leer el nombre del archivo exportado (US-28); no se expone nada más.
 
 ## Idempotencia en la creación de reportes (US-06)
 
