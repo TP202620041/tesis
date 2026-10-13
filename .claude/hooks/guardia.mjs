@@ -138,7 +138,8 @@ function revisarGit(s) {
     bloquear('"git flow ... finish" fusiona en local sobre una rama protegida. En este repo las ramas se cierran por PR (WORKFLOW.md, seccion 8).');
   }
 
-  const rama = /^git (commit|merge)\b/.test(s) ? ramaActual() : '';
+  // (\s|$) y no \b: "git merge-base" y "git commit-tree" solo leen o no mueven la rama.
+  const rama = /^git (commit|merge)(\s|$)/.test(s) ? ramaActual() : '';
   if (PROTEGIDAS.has(rama)) {
     bloquear(`Estas en ${rama}, que solo avanza por PR (GitFlow). Cada tarea va en su rama: usa /tarea <ID> o "git switch -c feature/<id> develop".`);
   }
