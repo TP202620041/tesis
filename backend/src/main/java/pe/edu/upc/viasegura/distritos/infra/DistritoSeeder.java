@@ -1,4 +1,4 @@
-package pe.edu.upc.viasegura.distritos.service;
+package pe.edu.upc.viasegura.distritos.infra;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
