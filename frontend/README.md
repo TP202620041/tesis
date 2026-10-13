@@ -229,7 +229,7 @@ comunican la comparación sin que la interfaz emita su propia calificación.
 
 ### La máquina de estados está en dos sitios, a propósito
 
-`features/gestion/transiciones.ts` replica las transiciones válidas del
+`features/gestion/model/transiciones.ts` replica las transiciones válidas del
 backend. La autoridad sigue siendo `EstadoReporte.puedeTransicionarA`, que
 responde **409** ante una inválida; la tabla del cliente existe solo para no
 ofrecerle al funcionario opciones que van a fallar.

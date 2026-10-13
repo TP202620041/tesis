@@ -58,10 +58,10 @@ mvn test -Dtest=ReincidenciaDetectorTest         # un solo unit test
 npm run dev                  # :3000 (SW desactivado en dev)
 npm run build                # next build + serwist build serwist.config.mjs
 npm run lint
-npm run typecheck            # tsc --noEmit
+npm run typecheck            # next typegen && tsc --noEmit (funciona en un checkout limpio)
 npm test                     # vitest + scripts/verificar-tests.mjs (falla si algún *.test.ts(x) no se ejecutó)
 npm run test:rapido          # vitest pelado, para iterar
-npx vitest run src/features/reportes/acciones.test.ts   # un solo archivo
+npx vitest run src/features/reportes/model/acciones.test.ts   # un solo archivo
 npm run api:sync             # baja /v3/api-docs del backend corriendo y regenera los tipos
 ```
 

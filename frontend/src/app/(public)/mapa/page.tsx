@@ -13,7 +13,7 @@ import {
   FILTROS_VACIOS,
   type BoundingBox,
   type FiltrosMapa,
-} from '@/features/reportes/mapa/bbox';
+} from '@/features/reportes/model/bbox';
 import type { CategoriaDano, Distrito } from '@/lib/types/domain';
 
 const MapaReportes = dynamic(() => import('@/map/MapaReportes'), {

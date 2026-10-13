@@ -11,7 +11,7 @@ import {
   type ColumnaOrden,
   type DesempenoDistrital,
   type Orden,
-} from '@/features/desempeno/formato';
+} from '../model/formato';
 
 /**
  * Ranking de desempeno distrital (US-18/US-20).

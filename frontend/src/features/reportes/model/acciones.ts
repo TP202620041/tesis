@@ -1,7 +1,7 @@
 /**
  * Que puede hacer el CIUDADANO con un reporte propio, segun su estado.
  *
- * Igual que `features/gestion/transiciones.ts` para el funcionario, esto es
+ * Igual que `features/gestion/model/transiciones.ts` para el funcionario, esto es
  * una ayuda de interfaz: la autoridad sigue siendo el backend, que responde
  * 403 (no eres el creador) o 409 (el estado no lo permite). Sirve para no
  * ofrecer botones que van a fallar.

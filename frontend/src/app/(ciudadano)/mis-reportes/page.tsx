@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { GuardiaDeRol } from '@/features/auth/components/GuardiaDeRol';
 import { misReportes, pendientesDeCalificacion, type ReporteResumen } from '@/features/reportes/api';
-import { estiloDeEstado } from '@/features/reportes/mapa/estados';
+import { estiloDeEstado } from '@/lib/types/estados';
 import { urlDeFoto } from '@/lib/api/client';
 
 /** US-07: los reportes que el ciudadano envio, con su estado actual. */

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { AlertaError, Boton, Campo } from '@/components/ui/form';
 import { ApiError, NetworkError } from '@/lib/api/client';
 import { asignarResponsable, responsableActivo, type AsignacionResponsable } from '@/features/gestion/api';
-import { admiteResponsable } from '@/features/gestion/transiciones';
+import { admiteResponsable } from '../model/transiciones';
 
 /**
  * US-15: responsable interno del reporte.

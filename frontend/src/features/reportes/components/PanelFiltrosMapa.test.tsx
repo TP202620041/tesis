@@ -2,8 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { PanelFiltrosMapa } from './PanelFiltrosMapa';
-import { FILTROS_VACIOS } from '@/features/reportes/mapa/bbox';
-import { ESTADOS_EN_MAPA, estiloDeEstado } from '@/features/reportes/mapa/estados';
+import { FILTROS_VACIOS } from '../model/bbox';
+import { ESTADOS_EN_MAPA, estiloDeEstado } from '@/lib/types/estados';
 import type { CategoriaDano, Distrito } from '@/lib/types/domain';
 
 const DISTRITOS: Distrito[] = [
