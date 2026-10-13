@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { apiDescargar, apiFetch } from './client';
-import { ApiError } from './errors';
-import { borrarToken, guardarToken } from '@/lib/auth/token-storage';
+import { ApiError, NetworkError } from './errors';
+import { borrarToken, guardarToken, leerToken } from '@/lib/auth/token-storage';
 
 const fetchFalso = vi.fn<typeof fetch>();
 
@@ -57,6 +57,37 @@ describe('apiDescargar', () => {
     await expect(apiDescargar('/api/reportes/exportar')).rejects.toEqual(
       new ApiError(400, 'No hay reportes que coincidan con los filtros seleccionados para exportar'),
     );
+  });
+});
+
+/**
+ * Regresión de `ejecutar()`, el camino común de `apiFetch` y `apiDescargar`:
+ * el 401 centralizado y el error de red deben seguir iguales en ambos.
+ */
+describe.each([
+  ['apiFetch', (ruta: string) => apiFetch(ruta)],
+  ['apiDescargar', (ruta: string) => apiDescargar(ruta)],
+] as const)('%s comparte el manejo de errores', (_nombre, llamar) => {
+  it('un 401 borra el token y navega al login con la ruta actual como redirect', async () => {
+    // jsdom no implementa la navegación: se reemplaza `location` por un doble.
+    const assign = vi.fn();
+    vi.stubGlobal('location', { pathname: '/mis-reportes/7', search: '?tab=historial', assign });
+    fetchFalso.mockResolvedValue(new Response(null, { status: 401 }));
+
+    await expect(llamar('/api/reportes/mis-reportes')).rejects.toBeInstanceOf(ApiError);
+
+    expect(leerToken()).toBeNull();
+    expect(assign).toHaveBeenCalledWith(
+      `/login?redirect=${encodeURIComponent('/mis-reportes/7?tab=historial')}`,
+    );
+  });
+
+  it('si fetch rechaza (red o CORS) lanza NetworkError, no ApiError', async () => {
+    fetchFalso.mockRejectedValue(new TypeError('Failed to fetch'));
+
+    await expect(llamar('/api/auth/me')).rejects.toBeInstanceOf(NetworkError);
+    // Sin respuesta no hay 401: la sesión se conserva.
+    expect(leerToken()).toBe('token-de-prueba');
   });
 });
 
