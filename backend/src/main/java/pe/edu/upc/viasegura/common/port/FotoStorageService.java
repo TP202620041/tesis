@@ -1,4 +1,4 @@
-package pe.edu.upc.viasegura.reportes.storage;
+package pe.edu.upc.viasegura.common.port;
 
 import org.springframework.core.io.Resource;
 import org.springframework.web.multipart.MultipartFile;
@@ -8,7 +8,7 @@ import org.springframework.web.multipart.MultipartFile;
  *
  * <p>Patron Adapter: la logica de negocio depende de esta interfaz, no de
  * un proveedor concreto. Hoy se implementa en filesystem local
- * ({@link LocalFotoStorageService}); manana podria ser S3-compatible sin
+ * ({@link pe.edu.upc.viasegura.common.infra.LocalFotoStorageService}); manana podria ser S3-compatible sin
  * tocar los servicios de negocio. Por eso la lectura devuelve un
  * {@link Resource} de Spring y no un {@code java.nio.file.Path}: un
  * {@code Path} ataria la interfaz al filesystem.</p>

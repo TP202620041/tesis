@@ -8,7 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import pe.edu.upc.viasegura.auth.domain.Usuario;
 import pe.edu.upc.viasegura.auth.repository.UsuarioRepository;
-import pe.edu.upc.viasegura.reportes.storage.FotoStorageService;
+import pe.edu.upc.viasegura.common.port.FotoStorageService;
 
 /**
  * Acceso a la foto de perfil (US-30) verificando que quien la pide sea su
