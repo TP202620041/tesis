@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { registrar } from '@/features/auth/api';
 import { AlertaError, Boton, Campo } from '@/components/ui/form';
 import { ApiError, NetworkError } from '@/lib/api/client';
+import { PASSWORD_MAX, PASSWORD_MIN } from '../model/password';
 
 /**
  * US-01: registro de cuenta ciudadana.
@@ -81,8 +82,8 @@ export function FormularioRegistro() {
         type="password"
         autoComplete="new-password"
         required
-        minLength={8}
-        maxLength={72}
+        minLength={PASSWORD_MIN}
+        maxLength={PASSWORD_MAX}
         value={campos.password}
         onChange={actualizar('password')}
       />

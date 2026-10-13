@@ -55,6 +55,32 @@ export class NetworkError extends Error {
   }
 }
 
+/** Error listo para mostrar: mensaje general y detalle por campo (si lo hay). */
+export interface MensajeDeError {
+  mensaje: string;
+  detalles: string[];
+}
+
+/**
+ * Traduce cualquier error de una llamada al API a algo que la UI puede
+ * mostrar (ARCHITECTURE.md §5.2: lo usan los hooks, no los componentes).
+ *
+ * - {@link NetworkError}: no hubo respuesta, asi que no hay mensaje del
+ *   backend que mostrar.
+ * - {@link ApiError}: el backend ya devuelve el mensaje en español, y en un
+ *   400 de `@Valid` el detalle por campo viene en `details`.
+ * - Cualquier otra cosa es un error de programacion: mensaje generico.
+ */
+export function mensajeDeError(e: unknown): MensajeDeError {
+  if (e instanceof NetworkError) {
+    return { mensaje: 'Sin conexión con el servidor. Revisa tu red.', detalles: [] };
+  }
+  if (e instanceof ApiError) {
+    return { mensaje: e.message, detalles: e.details };
+  }
+  return { mensaje: 'Ocurrió un error inesperado.', detalles: [] };
+}
+
 /** Construye un {@link ApiError} desde la respuesta, tolerando cuerpos no-JSON. */
 export async function desdeRespuesta(respuesta: Response): Promise<ApiError> {
   let cuerpo: Partial<ApiErrorBody> = {};
