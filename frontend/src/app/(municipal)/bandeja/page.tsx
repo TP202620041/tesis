@@ -81,16 +81,24 @@ function Bandeja({ usuario }: { usuario: Usuario }) {
             {usuario.apellido}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            cerrarSesion();
-            router.replace('/login');
-          }}
-          className="rounded-md border border-slate-300 px-3 py-1.5 text-sm dark:border-slate-600 dark:text-slate-200"
-        >
-          Cerrar sesión
-        </button>
+        <nav className="flex flex-wrap gap-2">
+          <Link
+            href="/dashboard"
+            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm dark:border-slate-600 dark:text-slate-200"
+          >
+            Dashboard del distrito
+          </Link>
+          <button
+            type="button"
+            onClick={() => {
+              cerrarSesion();
+              router.replace('/login');
+            }}
+            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm dark:border-slate-600 dark:text-slate-200"
+          >
+            Cerrar sesión
+          </button>
+        </nav>
       </header>
 
       {error && (
