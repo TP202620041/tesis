@@ -101,8 +101,9 @@ Cada dominio se organiza en `controller/ · service/ · repository/ · dto/ · d
 ## Patrones de diseño previstos (referencia de arquitectura)
 
 - **Repository** (Spring Data JPA) para acceso a datos.
-- **Strategy** para la asignación geoespacial de distrito (`reportes/geo/`) y
-  para el envío multicanal de notificaciones (`notificaciones/channel/`).
+- **Strategy** para la asignación geoespacial de distrito (`reportes/port/` +
+  `reportes/infra/`) y para el envío multicanal de notificaciones
+  (`notificaciones/port/` + `notificaciones/infra/`).
 - **Manejo centralizado de excepciones** con `@RestControllerAdvice`.
 - **DTOs** desacoplados de las entidades JPA en todas las capas de API.
 
