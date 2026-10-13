@@ -34,7 +34,7 @@ Hay un carril de backend y uno de frontend en paralelo. En un mismo sprint el fr
 | S1 | BE-03 · BE-04 · BE-05 | US-03 · US-04 · US-28 · US-17 (sobre `/mi-distrito`) | v0.2.0 |
 | S2 | US-25 (listado del ADMIN) · US-29 (editar/desactivar) · NC-07 | US-25 · US-29 · US-12 · FE-03 · FE-04 | v0.3.0 |
 | S3 | US-21 (adaptador Web Push + VAPID) | US-21 (suscripción + `push` en el SW) · US-06 · FE-05 | v0.4.0 |
-| S4 | US-11 (endpoint de densidad) · BE-06 | US-11 (capa de calor) · US-23 · US-24 · FE-06 | v0.5.0 |
+| S4 | US-11 (endpoint de densidad) · BE-06 (incluye `ReincidenciaDetector` → `domain/`) · BE-10 | US-11 (capa de calor) · US-23 · US-24 · FE-06 | v0.5.0 |
 | S5 | NC-01 · NC-02 | US-19 · FE-07 · FE-08 | v0.6.0 |
 | S6 | NC-05 · NC-06 · BE-08 | NC-06 (dashboard por periodo, reemplaza US-17 v1) · FE-09 | v0.7.0 |
 | S7 | NC-03 (`inferencia/`) · NC-04 (`clasificacion`) | NC-04 (vista previa al reportar) | v1.0.0 |
@@ -57,3 +57,7 @@ Ya hechas antes de S1: BE-01, BE-02, BE-07, FE-01 y FE-02.
 - Cambio de contrato (US-25, US-29, US-21, US-11): primero el backend con su handoff (`/contrato`). El frontend arranca cuando ese PR está en `develop`.
 - Cada tarea pasa por `revisor-arquitectura` antes del PR. Commits `US-xx: …`, `ARQ …` o `NC-xx: …`, sin `Co-Authored-By`.
 - Definición de terminado: la de `WORKFLOW.md` §3. En las HU con interfaz, además, verificación en vivo del flujo con el backend y el frontend levantados (de a uno, por la memoria).
+
+## Registro
+
+- **S1 (2026-10-13):** fusionados BE-03, BE-04, BE-05 (#12–#14), el CORS de `Content-Disposition` (#15), US-03 (#16), US-04 (#17, con la caché del API fuera del Service Worker), US-28 (#18) y US-17 (#19). Almacén de ArchUnit 52 → 51; Failsafe 177 → 178; frontend 80 → 126 tests, avisos de capas 66 → 65. Decisiones del usuario: se acepta el cierre de BE-03; `ReincidenciaDetector` pasa a `domain/` en BE-06; nueva tarea BE-10 (sin `MultipartFile` en `service/`), en S4.
