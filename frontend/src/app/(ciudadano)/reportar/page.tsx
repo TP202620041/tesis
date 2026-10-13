@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { FormularioReporte } from '@/features/reportes/components/FormularioReporte';
 import type { ReporteCreado } from '@/features/reportes/api';
 import { useSesion } from '@/features/auth/hooks';
+import { BotonCerrarSesion } from '@/features/auth/components/BotonCerrarSesion';
 import { urlDeFoto } from '@/lib/api/client';
 
 /** US-05: crear un reporte de daño vial. */
@@ -25,6 +26,7 @@ export default function ReportarPage() {
 
   return (
     <main className="mx-auto flex w-full max-w-lg flex-col gap-6 px-4 py-8">
+      <BotonCerrarSesion className="self-end" />
       {creado ? (
         <Confirmacion reporte={creado} onOtro={() => setCreado(null)} />
       ) : (
