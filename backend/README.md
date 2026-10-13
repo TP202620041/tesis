@@ -202,6 +202,35 @@ distritos dejaría elegir una que el `POST /api/reportes` rechaza con 409. Con
 endpoint devuelve es siempre seleccionable** (también se filtran las
 `activo = false`, que el POST igualmente rechazaría).
 
+### Gestión de categorías personalizadas (US-29)
+
+| Método | Ruta | Rol | Descripción |
+|---|---|---|---|
+| GET | `/api/categorias/gestion` | FUNCIONARIO_MUNICIPAL | Estándar + personalizadas de su distrito, **incluidas las inactivas**, con `activo` (`CategoriaGestionResponse`). |
+| PATCH | `/api/categorias/{id}` | FUNCIONARIO_MUNICIPAL | Edita `nombre` y `descripcion` de una personalizada de su distrito. |
+| PATCH | `/api/categorias/{id}/activa` | FUNCIONARIO_MUNICIPAL | `{ "activa": bool }`: desactiva o reactiva una personalizada de su distrito. |
+
+- **Desactivar solo deja de ofrecerla** (decisión del usuario, 13/10): sale
+  del catálogo público y no se puede elegir para un reporte nuevo ni al
+  *cambiar* la categoría de uno existente (409). Los reportes que ya la usan
+  quedan intactos y siguen editables: `ReporteService#editar` solo valida la
+  categoría cuando cambia, así que reenviar la actual o editar solo la
+  descripción funciona aunque esté inactiva. Es reversible y no cambia
+  ningún KPI (el desglose de US-20 agrupa por la categoría que ya tiene cada
+  reporte), por eso no publica evento.
+- **Las estándar no se gestionan**: se listan en la vista de gestión pero
+  editarlas o desactivarlas da 403 (`OperacionNoPermitidaException`, con
+  mensaje). Una personalizada de otro distrito también da 403; una
+  inexistente, 404.
+- **Nombre único** sin distinguir mayúsculas dentro del distrito **y frente a
+  las estándar** (409), al crear y al editar: dos opciones iguales en el
+  mismo selector serían ambiguas.
+- `activo` solo aparece en el DTO de gestión; el `GET /api/categorias`
+  público sigue sin exponerlo.
+- El servicio obtiene al funcionario con `auth.service.UsuarioConsultaService`
+  (API pública de `auth`), no con `UsuarioRepository`; eso retiró 3
+  violaciones congeladas de ArchUnit.
+
 ### ¿Por qué `/api/distritos` si `/api/desempeno/distritos` ya devuelve los 43?
 
 No es duplicación: son dos cosas distintas que coinciden en los datos.

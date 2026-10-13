@@ -192,7 +192,10 @@ public class ReporteService {
 
         Long categoriaAnterior = reporte.getCategoria() != null ? reporte.getCategoria().getId() : null;
 
-        if (req.categoriaId() != null) {
+        // US-29: solo se valida (activa y del distrito) al CAMBIAR de categoria.
+        // Reenviar la actual no la cambia: si se desactivo despues de crear el
+        // reporte, el creador debe poder seguir editando la descripcion.
+        if (req.categoriaId() != null && !req.categoriaId().equals(categoriaAnterior)) {
             CategoriaDano categoria = categoriaRepository.findById(req.categoriaId())
                     .orElseThrow(() -> new ResourceNotFoundException(
                             "Categoria no encontrada: " + req.categoriaId()));
