@@ -106,6 +106,14 @@ export type CategoriaDano = Requerido<
   'id' | 'nombre' | 'esEstandar'
 >;
 
+/**
+ * US-22: una fila de la linea de tiempo del reporte (cambio de estado o
+ * asignacion). Vive aqui y no en una feature porque la usan `reportes`
+ * (vista del ciudadano), `gestion` (vista del funcionario) y el componente
+ * compartido `LineaDeTiempo`, que no puede depender de features.
+ */
+export type HistorialEntrada = Schemas['HistorialEntradaResponse'];
+
 export function esRol(valor: unknown): valor is Rol {
   return typeof valor === 'string' && (ROLES as readonly string[]).includes(valor);
 }

@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { use, useEffect, useState } from 'react';
 import { useSesion } from '@/features/auth/hooks';
-import { reportePorId, type ReporteResumen } from '@/features/reportes/api';
+import { reportePorId } from '@/features/reportes/api';
+import type { ReporteResumen } from '@/features/reportes/model/tipos';
 import { Comentarios } from '@/features/reportes/components/Comentarios';
 import { estiloDeEstado } from '@/lib/types/estados';
 import { urlDeFoto } from '@/lib/api/client';

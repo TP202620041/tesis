@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { FormularioReporte } from '@/features/reportes/components/FormularioReporte';
-import type { ReporteCreado } from '@/features/reportes/api';
+import type { ReporteCreado } from '@/features/reportes/model/tipos';
 import { useSesion } from '@/features/auth/hooks';
 import { BotonCerrarSesion } from '@/features/auth/components/BotonCerrarSesion';
 import { urlDeFoto } from '@/lib/api/client';

@@ -6,7 +6,7 @@ import { useEffect, useMemo } from 'react';
 import { MapContainer, Marker, Popup, TileLayer, useMapEvents } from 'react-leaflet';
 import type { BoundingBox } from '@/features/reportes/model/bbox';
 import { ESTADOS_EN_MAPA, estiloDeEstado } from '@/lib/types/estados';
-import type { ReporteResumen } from '@/features/reportes/api';
+import type { ReporteResumen } from '@/features/reportes/model/tipos';
 import { urlDeFoto } from '@/lib/api/client';
 
 /**

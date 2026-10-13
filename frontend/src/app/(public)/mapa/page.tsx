@@ -4,7 +4,8 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { listarDistritos } from '@/features/distritos/api';
-import { buscarReportes, listarCategorias, type ReporteResumen } from '@/features/reportes/api';
+import { buscarReportes, listarCategorias } from '@/features/reportes/api';
+import type { ReporteResumen } from '@/features/reportes/model/tipos';
 import { PanelFiltrosMapa } from '@/features/reportes/components/PanelFiltrosMapa';
 import {
   construirQuery,

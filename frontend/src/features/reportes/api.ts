@@ -1,21 +1,15 @@
 import { apiFetch, api } from '@/lib/api/client';
 import { ApiError } from '@/lib/api/errors';
-import type { CategoriaDano } from '@/lib/types/domain';
-import type { components } from '@/lib/api/generated/schema';
-
-type ReporteResponse = components['schemas']['ReporteResponse'];
-export type HistorialEntrada = components['schemas']['HistorialEntradaResponse'];
-
-/** Reporte recien creado (o al que el ciudadano se adhirio). */
-export interface ReporteCreado {
-  id: number;
-  /** true = se sumo a un reporte existente cercano (US-09). */
-  esAdhesion: boolean;
-  totalAdhesiones: number;
-  distritoNombre: string | null;
-  categoriaNombre: string | null;
-  fotoUrl: string | null;
-}
+import type { CategoriaDano, HistorialEntrada } from '@/lib/types/domain';
+import type {
+  Calificacion,
+  ComentarioPublico,
+  NuevoReporte,
+  PaginaReportes,
+  ReporteCreado,
+  ReporteResponse,
+  ReporteResumen,
+} from './model/tipos';
 
 /**
  * Categorias seleccionables (US-05, US-29).
@@ -28,15 +22,6 @@ export interface ReporteCreado {
 export function listarCategorias(distritoId?: number | null): Promise<CategoriaDano[]> {
   const query = distritoId != null ? `?distritoId=${distritoId}` : '';
   return api.get<CategoriaDano[]>(`/api/categorias${query}`, { conAuth: false });
-}
-
-/** Resumen de reporte que devuelve la busqueda publica (US-10/US-12). */
-export type ReporteResumen = components['schemas']['ReporteResumenResponse'];
-
-export interface PaginaReportes {
-  contenido: ReporteResumen[];
-  /** Total que cumple los filtros, no solo los de esta pagina. */
-  total: number;
 }
 
 /**
@@ -120,8 +105,6 @@ export async function reportePorId(reporteId: number): Promise<ReporteResumen | 
   }
 }
 
-export type ComentarioPublico = components['schemas']['ComentarioPublicoResponse'];
-
 /**
  * US-27: comentarios de un reporte. **Lectura publica** — sin token: es
  * informacion que cualquiera debe poder consultar, igual que el mapa.
@@ -143,8 +126,6 @@ export function comentar(reporteId: number, contenido: string): Promise<Comentar
     contenido: contenido.trim(),
   });
 }
-
-export type Calificacion = components['schemas']['CalificacionResponse'];
 
 /**
  * US-26: la calificacion que el propio ciudadano dejo, o `null` si todavia
@@ -169,28 +150,11 @@ export function calificar(
   reporteId: number,
   estrellas: number,
   comentario?: string,
-): Promise<components['schemas']['CalificacionResponse']> {
+): Promise<Calificacion> {
   return api.post(`/api/reportes/${reporteId}/calificacion`, {
     estrellas,
     comentario: comentario?.trim() || undefined,
   });
-}
-
-export interface NuevoReporte {
-  latitud: number;
-  longitud: number;
-  categoriaId: number;
-  descripcion?: string;
-  /** true si el ciudadano marco el punto a mano (US-05, escenario 2). */
-  ubicacionManual: boolean;
-  foto?: File | null;
-  /**
-   * Clave de idempotencia (US-06): identifica el INTENTO logico de creacion,
-   * no la peticion HTTP. Debe ser la MISMA si se reintenta el mismo reporte,
-   * para que el backend devuelva la respuesta original en vez de crear un
-   * duplicado o rechazarlo con el 409 de acumulacion.
-   */
-  idempotencyKey: string;
 }
 
 /**
