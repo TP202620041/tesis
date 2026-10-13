@@ -1,14 +1,20 @@
-import { api } from '@/lib/api/client';
+import { api, apiDescargar } from '@/lib/api/client';
 import { ApiError } from '@/lib/api/errors';
 import type { components } from '@/lib/api/generated/schema';
 import type { ReporteResumen } from '@/features/reportes/api';
+import {
+  nombreDeArchivo,
+  parametrosDeExportacion,
+  type FiltrosExportacion,
+  type FormatoExportacion,
+} from './model/exportacion';
 
 type Schemas = components['schemas'];
 export type HistorialEntrada = Schemas['HistorialEntradaResponse'];
 export type AsignacionResponsable = Schemas['AsignacionResponsableResponse'];
 
 /**
- * API de gestion municipal (US-13, US-14, US-15, US-22).
+ * API de gestion municipal (US-13, US-14, US-15, US-22, US-28).
  *
  * Todas exigen token y rol FUNCIONARIO_MUNICIPAL, y el backend valida ademas
  * que el reporte pertenezca al distrito del funcionario (403 si no). Por eso
@@ -116,4 +122,27 @@ export function asignarResponsable(
     responsable: responsable.trim(),
     notas: notas?.trim() || undefined,
   });
+}
+
+/** Archivo exportado, listo para guardarse con su nombre. */
+export interface ReportesExportados {
+  contenido: Blob;
+  nombreArchivo: string;
+}
+
+/**
+ * US-28: exporta los reportes del distrito del funcionario con los filtros
+ * activos de la bandeja. Se trae como `Blob` porque la descarga exige token.
+ * 400 = no hay reportes que coincidan (el backend no genera archivos vacíos).
+ */
+export async function exportarReportes(
+  filtros: FiltrosExportacion,
+  formato: FormatoExportacion,
+): Promise<ReportesExportados> {
+  const params = parametrosDeExportacion(filtros, formato);
+  const archivo = await apiDescargar(`/api/reportes/exportar?${params.toString()}`);
+  return {
+    contenido: archivo.contenido,
+    nombreArchivo: nombreDeArchivo(archivo.contentDisposition, formato),
+  };
 }

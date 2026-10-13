@@ -7,6 +7,7 @@ import { GuardiaDeRol } from '@/features/auth/components/GuardiaDeRol';
 import { ROLES_AREA_MUNICIPAL } from '@/features/auth/model/rutas';
 import { cerrarSesion } from '@/features/auth/api';
 import { bandeja, FILTROS_BANDEJA_VACIOS, type FiltrosBandeja } from '@/features/gestion/api';
+import { ExportarReportes } from '@/features/gestion/components/ExportarReportes';
 import { ordenar, TablaBandeja, type OrdenBandeja } from '@/features/gestion/components/TablaBandeja';
 import { listarCategorias, type ReporteResumen } from '@/features/reportes/api';
 import { ESTADOS_EN_BANDEJA, estiloDeEstado } from '@/lib/types/estados';
@@ -99,6 +100,8 @@ function Bandeja({ usuario }: { usuario: Usuario }) {
       )}
 
       <Filtros filtros={filtros} onCambiar={setFiltros} categorias={categorias} />
+
+      <ExportarReportes filtros={filtros} />
 
       <p aria-live="polite" className="text-sm text-slate-600 dark:text-slate-400">
         {cargando
