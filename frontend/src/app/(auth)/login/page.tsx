@@ -23,6 +23,15 @@ export default function LoginPage() {
       </Suspense>
 
       <p className="text-sm text-slate-600 dark:text-slate-400">
+        <Link
+          href="/recuperar-password"
+          className="font-medium text-sky-700 hover:underline dark:text-sky-400"
+        >
+          ¿Olvidaste tu contraseña?
+        </Link>
+      </p>
+
+      <p className="text-sm text-slate-600 dark:text-slate-400">
         ¿No tienes cuenta?{' '}
         <Link href="/registro" className="font-medium text-sky-700 hover:underline dark:text-sky-400">
           Regístrate
