@@ -13,7 +13,7 @@
 
     <groupId>pe.edu.upc</groupId>
     <artifactId>viasegura</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>0.2.0</version>
     <name>viasegura</name>
     <description>Sistema de crowdsourcing geoespacial para reporte ciudadano y gestion municipal de infraestructura vial en Lima Metropolitana</description>
 
