@@ -14,6 +14,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -84,6 +85,10 @@ public class SecurityConfig {
      * <p>{@code Idempotency-Key} (US-06) viaja dentro de {@code "*"}: el
      * Service Worker lo agrega en los reintentos de sincronizacion offline y
      * debe sobrevivir al preflight.</p>
+     *
+     * <p>Se expone {@code Content-Disposition} (US-28): sin ello el navegador
+     * oculta esa cabecera al frontend de otro origen y la exportacion se
+     * descarga sin el nombre de archivo que arma el backend.</p>
      */
     @Bean
     public CorsConfigurationSource corsConfigurationSource(
@@ -93,6 +98,7 @@ public class SecurityConfig {
         config.setAllowedMethods(List.of("GET", "POST", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(false);
+        config.setExposedHeaders(List.of(HttpHeaders.CONTENT_DISPOSITION));
         // Cachea el preflight 1 h: evita un OPTIONS por request en el mapa,
         // que dispara muchas consultas al mover/hacer zoom (US-10).
         config.setMaxAge(Duration.ofHours(1));
