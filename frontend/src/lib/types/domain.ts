@@ -51,6 +51,14 @@ export type CanalNotificacion = (typeof CANALES_NOTIFICACION)[number];
 export const TIPOS_EVENTO_HISTORIAL = ['CAMBIO_ESTADO', 'ASIGNACION'] as const;
 export type TipoEventoHistorial = (typeof TIPOS_EVENTO_HISTORIAL)[number];
 
+/** US-25: estado de un ticket de soporte (`soporte/domain/EstadoTicket.java`). */
+export const ESTADOS_TICKET = ['ABIERTO', 'EN_PROCESO', 'CERRADO'] as const;
+export type EstadoTicket = (typeof ESTADOS_TICKET)[number];
+
+export function esEstadoTicket(valor: unknown): valor is EstadoTicket {
+  return typeof valor === 'string' && (ESTADOS_TICKET as readonly string[]).includes(valor);
+}
+
 /* -------------------------------------------------------------------------
  * Alias de dominio: campos siempre presentes + enums tipados
  * ---------------------------------------------------------------------- */

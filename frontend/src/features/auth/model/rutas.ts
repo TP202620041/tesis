@@ -1,4 +1,4 @@
-import type { Rol } from '@/lib/types/domain';
+import { ROLES, type Rol } from '@/lib/types/domain';
 
 /**
  * Pantalla inicial de cada rol tras iniciar sesion.
@@ -13,9 +13,9 @@ export function rutaInicialDe(rol: Rol): string {
     case 'FUNCIONARIO_MUNICIPAL':
       return '/bandeja';
     case 'ADMIN':
-      // El admin solo responde tickets de soporte (US-25) por ahora; hasta
-      // que tenga vista propia, entra por la pantalla de sesion.
-      return '/sesion';
+      // Por ahora el admin solo atiende tickets de soporte (US-25): esa
+      // bandeja es su area.
+      return RUTA_SOPORTE_ADMIN;
     case 'CIUDADANO':
       // Sus propios reportes, no el mapa publico: quien inicia sesion lo
       // hace para reportar o para ver como van los suyos. El mapa sigue
@@ -24,8 +24,18 @@ export function rutaInicialDe(rol: Rol): string {
   }
 }
 
+/**
+ * Bandeja de soporte del ADMIN. Va bajo `/admin/` y no en `/soporte`, que es
+ * la pagina de soporte de cualquier usuario: dos grupos de rutas no pueden
+ * resolver a la misma URL.
+ */
+export const RUTA_SOPORTE_ADMIN = '/admin/soporte';
+
 /** Roles que pueden entrar a cada area protegida del cliente. */
 export const ROLES_AREA_MUNICIPAL: readonly Rol[] = ['FUNCIONARIO_MUNICIPAL'];
+export const ROLES_AREA_ADMIN: readonly Rol[] = ['ADMIN'];
+/** Paginas de cualquier usuario autenticado (p. ej. soporte, US-25). */
+export const ROLES_CON_SESION: readonly Rol[] = ROLES;
 
 /**
  * `true` si el rol puede ver un area.
@@ -36,4 +46,18 @@ export const ROLES_AREA_MUNICIPAL: readonly Rol[] = ['FUNCIONARIO_MUNICIPAL'];
  */
 export function puedeAcceder(rol: Rol, rolesPermitidos: readonly Rol[]): boolean {
   return rolesPermitidos.includes(rol);
+}
+
+/**
+ * Texto de "acceso denegado" segun el area que se intento abrir. Se deduce
+ * de los roles permitidos para no obligar a cada pagina a repetirlo.
+ */
+export function descripcionDeArea(rolesPermitidos: readonly Rol[]): string {
+  const solo = (rol: Rol) => rolesPermitidos.length === 1 && rolesPermitidos[0] === rol;
+  if (solo('FUNCIONARIO_MUNICIPAL')) {
+    return 'El área municipal es para funcionarios de una municipalidad distrital.';
+  }
+  if (solo('ADMIN')) return 'El área de administración es para el equipo de soporte de ViaSegura.';
+  if (solo('CIUDADANO')) return 'Esta sección es para ciudadanos que reportan daños viales.';
+  return 'Esta sección no está disponible para tu tipo de cuenta.';
 }

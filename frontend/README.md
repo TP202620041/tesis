@@ -71,7 +71,9 @@ src/
 │   ├── (public)/               # sin login — mapa, desempeño, guía
 │   ├── (auth)/                 # login, registro, recuperar-password
 │   ├── (ciudadano)/            # rol CIUDADANO — mis-reportes, reportar, perfil
-│   └── (municipal)/            # rol FUNCIONARIO_MUNICIPAL — bandeja, dashboard
+│   ├── (municipal)/            # rol FUNCIONARIO_MUNICIPAL — bandeja, dashboard
+│   ├── (cuenta)/               # cualquier usuario con sesión — soporte
+│   └── (admin)/admin/          # rol ADMIN — soporte (bandeja de tickets)
 ├── features/                   # lógica por dominio, no por tipo de archivo
 │   ├── auth/  reportes/  distritos/  desempeno/  gestion/  soporte/
 ├── lib/
@@ -234,6 +236,17 @@ Verificado end-to-end contra el backend real:
   señal interna `posibleReincidencia` (SEC-02 del backend): el
   `ReporteResumen` del mapa, del detalle público y de «mis reportes» ya no la
   tipa, así que una vista pública no puede leerla ni por descuido.
+- **US-25** soporte. `/soporte` (grupo `(cuenta)`, cualquier usuario con
+  sesión: la guardia admite todos los roles) para abrir un ticket y ver los
+  propios con su estado y la respuesta; enlazada desde «mis reportes», la
+  bandeja y el dashboard. El ADMIN aterriza en `/admin/soporte`: bandeja
+  paginada en el servidor, filtro por estado y respuesta en línea (al
+  responder se recarga la página actual). Va bajo `/admin/` y no en
+  `(admin)/soporte` porque dos grupos de rutas no pueden resolver a la misma
+  URL, y `/soporte` ya es la del usuario. El correo y el nombre del autor
+  solo existen en el tipo `TicketAdmin`, que solo usa el área ADMIN.
+  `GuardiaDeRol` explica el acceso denegado según el área
+  (`descripcionDeArea` en `auth/model/rutas.ts`).
 - **US-18/20** índice de desempeño (`/desempeno`), **público**: ranking de los
   43 distritos con tasa de resolución, tiempo promedio y satisfacción,
   ordenable por columna y filtrable por tipo de daño.
