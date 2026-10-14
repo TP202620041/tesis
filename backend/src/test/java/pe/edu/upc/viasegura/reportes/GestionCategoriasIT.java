@@ -3,6 +3,7 @@ package pe.edu.upc.viasegura.reportes;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -14,6 +15,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
@@ -57,6 +59,8 @@ class GestionCategoriasIT extends AbstractPostgisIT {
     CategoriaDanoRepository categoriaRepository;
     @Autowired
     ReporteRepository reporteRepository;
+    @Autowired
+    JdbcTemplate jdbcTemplate;
 
     private Distrito distrito(String nombre) {
         return distritoRepository.findByNombre(nombre)
@@ -147,9 +151,13 @@ class GestionCategoriasIT extends AbstractPostgisIT {
 
     @Test
     void catalogoPublico_noExponeActivo() throws Exception {
-        mockMvc.perform(get("/api/categorias"))
+        Distrito miraflores = distrito("Miraflores");
+        CategoriaDano propia = personalizada(miraflores, unico("Visible"));
+
+        mockMvc.perform(get("/api/categorias").param("distritoId", miraflores.getId().toString()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].activo").doesNotExist());
+                .andExpect(jsonPath("$[?(@.id == " + propia.getId() + ")]", hasSize(1)))
+                .andExpect(jsonPath("$[*].activo", hasSize(0)));
     }
 
     // ---- Editar ----
@@ -171,6 +179,46 @@ class GestionCategoriasIT extends AbstractPostgisIT {
         // Mismo nombre que ya tiene, en otra capitalizacion: no choca consigo misma.
         editar(func, cat.getId(), nuevoNombre.toUpperCase(), "Otra")
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void editarSoloNombre_reemplazaLaDescripcionPorNull() throws Exception {
+        // PATCH de categoria = reemplazo de los dos campos editables
+        // (a diferencia del PATCH parcial de reportes, US-08).
+        Distrito miraflores = distrito("Miraflores");
+        Usuario func = funcionario(miraflores);
+        CategoriaDano cat = personalizada(miraflores, unico("Con descripcion"));
+        String nuevoNombre = unico("Sin descripcion");
+
+        mockMvc.perform(patch("/api/categorias/{id}", cat.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"nombre\":\"%s\"}".formatted(nuevoNombre))
+                        .header("Authorization", "Bearer " + token(func)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.nombre", is(nuevoNombre)))
+                .andExpect(jsonPath("$.descripcion", nullValue()));
+    }
+
+    @Test
+    void personalizadaAntiguaConNombreDeEstandar_puedeEditarSuDescripcion_200() throws Exception {
+        // Anterior a la regla de nombre unico frente a las estandar: se crea
+        // por SQL directo porque la API ya no lo permite.
+        Distrito miraflores = distrito("Miraflores");
+        Usuario func = funcionario(miraflores);
+        String nombreEstandar = estandar().getNombre();
+        Long id = jdbcTemplate.queryForObject(
+                "INSERT INTO categoria_dano (nombre, descripcion, es_estandar, distrito_id, activo) "
+                        + "VALUES (?, 'Antigua', FALSE, ?, TRUE) RETURNING id",
+                Long.class, nombreEstandar, miraflores.getId());
+
+        editar(func, id, nombreEstandar, "Descripcion corregida")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.nombre", is(nombreEstandar)))
+                .andExpect(jsonPath("$.descripcion", is("Descripcion corregida")));
+
+        // categoria_dano no se limpia entre tests: se borra para no dejar en
+        // Miraflores una personalizada homonima de una estandar.
+        jdbcTemplate.update("DELETE FROM categoria_dano WHERE id = ?", id);
     }
 
     @Test

@@ -99,7 +99,12 @@ public class CategoriaDanoService {
     public CategoriaGestionResponse editar(String emailFuncionario, Long categoriaId, EditarCategoriaRequest req) {
         Distrito distrito = distritoDeGestion(emailFuncionario);
         CategoriaDano categoria = categoriaGestionable(categoriaId, distrito);
-        validarNombreDisponible(req.nombre(), distrito, categoria.getId());
+        // Si el nombre no cambia (salvo mayusculas) no se revalida contra las
+        // estandar: una personalizada anterior a esa regla que se llame como
+        // una estandar debe poder seguir editando su descripcion.
+        if (!req.nombre().equalsIgnoreCase(categoria.getNombre())) {
+            validarNombreDisponible(req.nombre(), distrito, categoria.getId());
+        }
 
         categoria.setNombre(req.nombre());
         categoria.setDescripcion(req.descripcion());
