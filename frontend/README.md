@@ -241,7 +241,9 @@ Verificado end-to-end contra el backend real:
   propios con su estado y la respuesta; enlazada desde «mis reportes», la
   bandeja y el dashboard. El ADMIN aterriza en `/admin/soporte`: bandeja
   paginada en el servidor, filtro por estado y respuesta en línea (al
-  responder se recarga la página actual). Va bajo `/admin/` y no en
+  responder se recarga la página actual sin desmontar la lista: `useCarga`
+  conserva los datos y marca `recargando` cuando se recarga con las mismas
+  dependencias). Va bajo `/admin/` y no en
   `(admin)/soporte` porque dos grupos de rutas no pueden resolver a la misma
   URL, y `/soporte` ya es la del usuario. El correo y el nombre del autor
   solo existen en el tipo `TicketAdmin`, que solo usa el área ADMIN.

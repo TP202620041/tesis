@@ -18,7 +18,9 @@ import { ResponderTicket } from './ResponderTicket';
 /**
  * US-25 Esc. 2: bandeja de soporte del ADMIN. Lista paginada en el servidor
  * (más recientes primero), filtro por estado y respuesta en línea. Tras
- * responder se recarga la página actual.
+ * responder se recarga la página actual sin desmontar la lista (`useCarga`
+ * conserva los datos mientras recarga): no se pierde el scroll ni lo escrito
+ * en otras respuestas.
  */
 export function BandejaSoporte() {
   const [filtros, setFiltros] = useState<FiltrosTickets>(FILTROS_TICKETS_INICIALES);
@@ -55,6 +57,11 @@ export function BandejaSoporte() {
       {carga.estado === 'cargando' && <p className="text-slate-600 dark:text-slate-400">Cargando…</p>}
       {carga.estado === 'error' && (
         <AlertaError mensaje={carga.error.mensaje} detalles={carga.error.detalles} />
+      )}
+      {carga.recargando && (
+        <p role="status" className="text-sm text-slate-500 dark:text-slate-400">
+          Actualizando…
+        </p>
       )}
       {carga.estado === 'listo' && (
         <ListaTickets

@@ -70,6 +70,24 @@ describe('BandejaSoporte', () => {
     await vi.waitFor(() => expect(listar).toHaveBeenCalledTimes(2));
   });
 
+  it('al recargar tras responder no desmonta la lista ni pierde lo escrito en otro ticket', async () => {
+    const otro: TicketAdmin = { ...TICKET, id: 43, asunto: 'Otra consulta' };
+    listar.mockResolvedValue(pagina({ tickets: [TICKET, otro] }));
+    responder.mockResolvedValue({ ...TICKET, estado: 'CERRADO', respuesta: 'Corregido' });
+    render(<BandejaSoporte />);
+    const usuario = userEvent.setup();
+    const [primero, segundo] = await screen.findAllByRole('listitem');
+
+    await usuario.type(within(segundo!).getByLabelText('Respuesta'), 'Borrador a medias');
+    await usuario.type(within(primero!).getByLabelText('Respuesta'), 'Corregido');
+    await usuario.click(within(primero!).getByRole('button', { name: 'Enviar respuesta' }));
+
+    await vi.waitFor(() => expect(listar).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText('Cargando…')).not.toBeInTheDocument();
+    expect(within(segundo!).getByLabelText('Respuesta')).toHaveValue('Borrador a medias');
+    expect(segundo).toBeInTheDocument();
+  });
+
   it('no envía una respuesta vacía', async () => {
     listar.mockResolvedValue(pagina());
     render(<BandejaSoporte />);

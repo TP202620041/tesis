@@ -22,6 +22,11 @@ export function SoporteUsuario() {
         <h2 id="mis-tickets" className="text-lg font-semibold text-slate-900 dark:text-slate-100">
           Mis consultas
         </h2>
+        {tickets.recargando && (
+          <p role="status" className="text-sm text-slate-500 dark:text-slate-400">
+            Actualizando…
+          </p>
+        )}
         {tickets.estado === 'cargando' && (
           <p className="text-slate-600 dark:text-slate-400">Cargando…</p>
         )}
