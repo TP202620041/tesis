@@ -1,5 +1,6 @@
 package pe.edu.upc.viasegura.reportes;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -10,6 +11,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import pe.edu.upc.viasegura.auth.domain.Rol;
@@ -47,6 +49,8 @@ class BusquedaReporteIT extends AbstractPostgisIT {
     CategoriaDanoRepository categoriaRepository;
     @Autowired
     ReporteRepository reporteRepository;
+    @Autowired
+    JdbcTemplate jdbcTemplate;
 
     private Distrito distrito(String nombre) {
         return distritoRepository.findByNombre(nombre)
@@ -270,5 +274,87 @@ class BusquedaReporteIT extends AbstractPostgisIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements", is(1)))
                 .andExpect(jsonPath("$.content[0].estado", is("PENDIENTE")));
+    }
+
+    // ---- US-12: validacion de fechas y parametros mal tipados ----
+
+    /** Fija created_at: el auditing de JPA lo sobrescribe en cada save. */
+    private Reporte reporteCreadoEn(Instant creadoEn) {
+        Reporte r = reporte(LAT_MIRAFLORES, LON_MIRAFLORES, distrito("Miraflores"), EstadoReporte.PENDIENTE);
+        jdbcTemplate.update("UPDATE reporte SET created_at = ? WHERE id = ?",
+                java.sql.Timestamp.from(creadoEn), r.getId());
+        return r;
+    }
+
+    @Test
+    void fechaMalFormada_400_nombraElParametro() throws Exception {
+        mockMvc.perform(get("/api/reportes").param("fechaDesde", "2026-13-45"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", containsString("fechaDesde")));
+        mockMvc.perform(get("/api/reportes").param("fechaHasta", "ayer"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", containsString("fechaHasta")));
+    }
+
+    @Test
+    void estadoInvalido_400_nombraElParametro() throws Exception {
+        mockMvc.perform(get("/api/reportes").param("estado", "ARREGLADO"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", containsString("estado")));
+    }
+
+    @Test
+    void numeroMalFormado_400() throws Exception {
+        mockMvc.perform(get("/api/reportes").param("distritoId", "miraflores"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", containsString("distritoId")));
+    }
+
+    @Test
+    void rangoInvertido_400() throws Exception {
+        mockMvc.perform(get("/api/reportes")
+                        .param("fechaDesde", "2026-02-01T00:00:00Z")
+                        .param("fechaHasta", "2026-01-01T00:00:00Z"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", containsString("fechaDesde")));
+    }
+
+    @Test
+    void fechaHasta_excluyeLosPosteriores() throws Exception {
+        Reporte enero10 = reporteCreadoEn(Instant.parse("2026-01-10T12:00:00Z"));
+        reporteCreadoEn(Instant.parse("2026-01-20T12:00:00Z"));
+
+        mockMvc.perform(get("/api/reportes").param("fechaHasta", "2026-01-15T00:00:00Z"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements", is(1)))
+                .andExpect(jsonPath("$.content[0].id", is(enero10.getId().intValue())));
+    }
+
+    @Test
+    void rangoDeFechas_esInclusivoEnAmbosBordes() throws Exception {
+        Instant desde = Instant.parse("2026-01-10T12:00:00Z");
+        Instant hasta = Instant.parse("2026-01-20T12:00:00Z");
+        reporteCreadoEn(desde);
+        reporteCreadoEn(hasta);
+        reporteCreadoEn(Instant.parse("2026-01-10T11:59:59Z"));
+        reporteCreadoEn(Instant.parse("2026-01-20T12:00:01Z"));
+
+        mockMvc.perform(get("/api/reportes")
+                        .param("fechaDesde", desde.toString())
+                        .param("fechaHasta", hasta.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements", is(2)));
+    }
+
+    @Test
+    void mismaFechaDesdeYHasta_noEsRangoInvertido() throws Exception {
+        Instant instante = Instant.parse("2026-01-10T12:00:00Z");
+        reporteCreadoEn(instante);
+
+        mockMvc.perform(get("/api/reportes")
+                        .param("fechaDesde", instante.toString())
+                        .param("fechaHasta", instante.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements", is(1)));
     }
 }

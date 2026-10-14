@@ -175,6 +175,23 @@ porque el caso de uso real de US-06 es la resincronización diferida de un
 Service Worker (reintento secuencial tras timeout), no requests
 concurrentes.
 
+## Parámetros mal tipados y rango de fechas (US-12)
+
+Un parámetro de query o de ruta que no se puede convertir a su tipo
+(`fechaDesde=ayer`, `estado=ARREGLADO`, `distritoId=abc`) responde **400**
+con el nombre del parámetro y el formato esperado (fecha ISO-8601 en UTC,
+valores del enum o número), sin repetir el valor recibido. Antes caía en el
+manejador genérico y respondía **500**, como si el servidor hubiera fallado.
+Lo resuelve `GlobalExceptionHandler` para `MethodArgumentTypeMismatchException`,
+así que aplica a todos los endpoints (también al filtro `estado` de los
+tickets de soporte).
+
+En `GET /api/reportes`, `fechaDesde > fechaHasta` es **400**: un rango
+invertido no puede tener resultados y una página vacía escondería el error
+del cliente. Ambos bordes son inclusivos (`created_at >= fechaDesde` y
+`<= fechaHasta`), así que `fechaDesde == fechaHasta` es válido. Las fechas son
+instantes UTC: convertir el "día local" a instantes es tarea del cliente.
+
 ## Catálogos de referencia (descubribilidad)
 
 Dos endpoints **públicos** de solo lectura que existen para que un cliente
