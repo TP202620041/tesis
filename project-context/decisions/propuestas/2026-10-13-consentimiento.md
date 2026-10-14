@@ -1,6 +1,6 @@
 # Propuesta: modelo de CONSENTIMIENTO (NC-07)
 
-- **Estado:** abierta <!-- abierta | aceptada | rechazada -->
+- **Estado:** aceptada (opción A, 2026-10-13) <!-- abierta | aceptada | rechazada -->
 - **Fecha:** 2026-10-13
 - **Origen:** sesión coordinadora (raíz), planificación del Sprint 2 (NC-07)
 - **Decide:** el usuario. Si se acepta, la sesión de raíz actualiza ARCHITECTURE.md (§8) y el plan.
@@ -41,3 +41,7 @@ Si el OB2 define otros campos, se ajusta el enum de finalidades sin cambiar la f
 - US-21 (S3): suscribirse a push sin un consentimiento explícito.
 - El texto de términos y privacidad y su versión (`/privacidad`): lo redacta el usuario o se toma del OB2.
 - Nada del S2: SUSCRIPCION_PUSH (B3) se implementa sin depender de esta decisión.
+
+## Decisión
+
+**Opción A**, decidida por el usuario el 2026-10-13. Registrada como **D-12** en `ARCHITECTURE.md` (§8 y §9). Se implementa en el Sprint 3 como **NC-07b**, junto con US-21. El borrador del texto de términos y privacidad (`/privacidad`, versionado) lo redacta la sesión coordinadora y lo revisa el usuario o su asesor antes de publicarlo.
