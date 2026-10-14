@@ -223,6 +223,9 @@ Verificado end-to-end contra el backend real:
 - **US-10** mapa interactivo (`/mapa`), **público**: marcadores por estado con
   leyenda, filtros de distrito/categoría/estado con conteo de resultados, y
   popup con el resumen del reporte.
+- **US-12** búsqueda en `/mapa`: rango de fechas desde/hasta en el panel y
+  pestaña **Lista** con los mismos resultados del mapa, paginada, con enlace
+  al detalle (`/reportes/[id]`).
 - **US-13/14/15/22** bandeja municipal (`/bandeja`, `/bandeja/[id]`), rol
   `FUNCIONARIO_MUNICIPAL`: lista del distrito con filtros y orden, cambio de
   estado por la máquina de transiciones, asignación de responsable interno e
@@ -282,6 +285,25 @@ Dos criterios que se complementan, uno temporal y otro espacial:
 
 El `maxAge` del CORS ahorra el *preflight*, no la consulta: sin esto, cada
 gesto seguiría siendo una petición real.
+
+Ambos viven en `features/reportes/hooks/useBusquedaMapa.ts` (sobre
+`useCarga`), que es también donde se valida el rango de fechas: con «desde»
+posterior a «hasta» no se consulta y el panel muestra el aviso.
+
+### Búsqueda por fechas y vista de lista (US-12)
+
+- **Día local, igual que la bandeja.** `<input type="date">` da un día sin
+  zona; el backend espera instantes. `lib/types/fechas.ts` convierte «desde»
+  a las 00:00 locales y «hasta» a las 23:59:59.999 locales (incluye el día
+  completo). La exportación de la bandeja (US-28) usa la misma función, así
+  que un rango significa lo mismo en las dos pantallas.
+- **La lista pagina en el cliente sobre los resultados del mapa** (hasta 300
+  del área visible), en vez de hacer otra consulta paginada: lista y mapa no
+  pueden contradecirse, y no hay una segunda petición por gesto. Si el área
+  supera el límite, el mismo aviso invita a acercar el mapa o filtrar.
+- **La lista se dibuja encima del mapa**, que sigue montado: conserva su
+  encuadre (y su área sigue definiendo los resultados) al volver a la
+  pestaña Mapa. Mientras la lista está visible, el mapa queda `inert`.
 
 **La sincronización offline no está implementada** (es un slice propio de
 Service Worker con cola de reintentos). Hoy, sin conexión, el formulario

@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
+import { finDelDiaLocal, inicioDelDiaLocal } from '@/lib/types/fechas';
 import {
   construirQuery,
   esBboxValido,
+  hayFiltrosActivos,
   requiereNuevaConsulta,
+  validarFiltrosMapa,
   FILTROS_VACIOS,
+  MENSAJE_RANGO_INVERTIDO,
   type BoundingBox,
 } from './bbox';
 
@@ -81,7 +85,11 @@ describe('construirQuery', () => {
 
   it('incluye los filtros aplicados', () => {
     const query = new URLSearchParams(
-      construirQuery(AREA, { distritoId: 21, categoriaId: 3, estado: 'RESUELTO' }, 300),
+      construirQuery(
+        AREA,
+        { ...FILTROS_VACIOS, distritoId: 21, categoriaId: 3, estado: 'RESUELTO' },
+        300,
+      ),
     );
     expect(query.get('distritoId')).toBe('21');
     expect(query.get('categoriaId')).toBe('3');
@@ -95,5 +103,62 @@ describe('construirQuery', () => {
       construirQuery(AREA, { ...FILTROS_VACIOS, distritoId: 0 }, 300),
     );
     expect(query.get('distritoId')).toBe('0');
+  });
+
+  it('envía las fechas como instantes con semántica de día local (US-12)', () => {
+    const query = new URLSearchParams(
+      construirQuery(
+        AREA,
+        { ...FILTROS_VACIOS, fechaDesde: '2026-10-01', fechaHasta: '2026-10-05' },
+        300,
+      ),
+    );
+    expect(query.get('fechaDesde')).toBe(inicioDelDiaLocal('2026-10-01'));
+    expect(query.get('fechaHasta')).toBe(finDelDiaLocal('2026-10-05'));
+  });
+
+  it('acepta un solo extremo del rango', () => {
+    const query = new URLSearchParams(
+      construirQuery(AREA, { ...FILTROS_VACIOS, fechaHasta: '2026-10-05' }, 300),
+    );
+    expect(query.has('fechaDesde')).toBe(false);
+    expect(query.get('fechaHasta')).toBe(finDelDiaLocal('2026-10-05'));
+  });
+
+  it('omite las fechas no aplicadas o mal formadas', () => {
+    expect(construirQuery(AREA, FILTROS_VACIOS, 300)).not.toContain('fecha');
+    expect(
+      construirQuery(AREA, { ...FILTROS_VACIOS, fechaDesde: '2026-02-31' }, 300),
+    ).not.toContain('fecha');
+  });
+});
+
+describe('validarFiltrosMapa', () => {
+  it('rechaza el rango invertido con un mensaje', () => {
+    expect(
+      validarFiltrosMapa({ ...FILTROS_VACIOS, fechaDesde: '2026-10-06', fechaHasta: '2026-10-05' }),
+    ).toBe(MENSAJE_RANGO_INVERTIDO);
+  });
+
+  it('acepta el mismo día, un solo extremo o ninguno', () => {
+    expect(
+      validarFiltrosMapa({ ...FILTROS_VACIOS, fechaDesde: '2026-10-05', fechaHasta: '2026-10-05' }),
+    ).toBeNull();
+    expect(validarFiltrosMapa({ ...FILTROS_VACIOS, fechaDesde: '2026-10-05' })).toBeNull();
+    expect(validarFiltrosMapa(FILTROS_VACIOS)).toBeNull();
+  });
+});
+
+describe('hayFiltrosActivos', () => {
+  it('es falso solo con los filtros vacíos', () => {
+    expect(hayFiltrosActivos(FILTROS_VACIOS)).toBe(false);
+    expect(hayFiltrosActivos({ ...FILTROS_VACIOS })).toBe(false);
+  });
+
+  it('cuenta cada filtro, también las fechas y el id 0', () => {
+    expect(hayFiltrosActivos({ ...FILTROS_VACIOS, fechaDesde: '2026-10-01' })).toBe(true);
+    expect(hayFiltrosActivos({ ...FILTROS_VACIOS, fechaHasta: '2026-10-01' })).toBe(true);
+    expect(hayFiltrosActivos({ ...FILTROS_VACIOS, estado: 'PENDIENTE' })).toBe(true);
+    expect(hayFiltrosActivos({ ...FILTROS_VACIOS, distritoId: 0 })).toBe(true);
   });
 });

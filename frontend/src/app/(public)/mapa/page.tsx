@@ -2,19 +2,17 @@
 
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { listarDistritos } from '@/features/distritos/api';
-import { buscarReportes, listarCategorias } from '@/features/reportes/api';
-import type { ReporteResumen } from '@/features/reportes/model/tipos';
+import { listarCategorias } from '@/features/reportes/api';
+import { ListaReportes } from '@/features/reportes/components/ListaReportes';
 import { PanelFiltrosMapa } from '@/features/reportes/components/PanelFiltrosMapa';
 import {
-  construirQuery,
-  esBboxValido,
-  requiereNuevaConsulta,
-  FILTROS_VACIOS,
-  type BoundingBox,
-  type FiltrosMapa,
-} from '@/features/reportes/model/bbox';
+  SelectorDeVista,
+  type VistaResultados,
+} from '@/features/reportes/components/SelectorDeVista';
+import { useBusquedaMapa } from '@/features/reportes/hooks/useBusquedaMapa';
+import { FILTROS_VACIOS, MAXIMO_MARCADORES, type FiltrosMapa } from '@/features/reportes/model/bbox';
 import type { CategoriaDano, Distrito } from '@/lib/types/domain';
 
 const MapaReportes = dynamic(() => import('@/map/MapaReportes'), {
@@ -22,41 +20,29 @@ const MapaReportes = dynamic(() => import('@/map/MapaReportes'), {
   loading: () => <div className="size-full animate-pulse bg-slate-200 dark:bg-slate-700" />,
 });
 
-/** Cuanta calma esperar tras el ultimo gesto antes de consultar. */
-const ESPERA_MS = 400;
-
 /**
- * Cuantos reportes pedir por area visible.
- *
- * El endpoint pagina con 20 por defecto, que en un mapa dejaria zonas
- * densas a medio dibujar. Se sube el tamano en vez de paginar porque un
- * mapa no tiene "siguiente pagina": o el marcador esta o no esta. El
- * `totalElements` de la respuesta permite avisar si el area supera el
- * limite.
- */
-const MAXIMO_MARCADORES = 300;
-
-/**
- * US-10: mapa publico de reportes con filtros.
+ * US-10/US-12: mapa publico de reportes con filtros, y la misma busqueda
+ * como lista paginada.
  *
  * PUBLICA: no requiere sesion y no debe intentar adjuntar token — las
  * llamadas van con `conAuth: false` (ver los modulos `api.ts` de cada
  * feature). Un visitante anonimo la usa completa.
+ *
+ * La consulta (area, debounce, validacion de fechas, cancelacion) vive en
+ * `useBusquedaMapa`. La lista se dibuja ENCIMA del mapa en vez de
+ * reemplazarlo: el mapa sigue montado, conserva su encuadre y su area sigue
+ * definiendo los resultados de las dos vistas. `z-0` encierra los z-index
+ * de Leaflet (hasta 1000) en el panel del mapa, para que la lista lo tape.
  */
 export default function MapaPage() {
-  const [reportes, setReportes] = useState<ReporteResumen[]>([]);
-  const [total, setTotal] = useState(0);
   const [filtros, setFiltros] = useState<FiltrosMapa>(FILTROS_VACIOS);
+  const [vista, setVista] = useState<VistaResultados>('mapa');
   const [distritos, setDistritos] = useState<Distrito[]>([]);
   const [categorias, setCategorias] = useState<CategoriaDano[]>([]);
-  const [cargando, setCargando] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const busqueda = useBusquedaMapa(filtros);
 
-  // Area visible del mapa. Es estado, no ref: cambiarla es lo que dispara
-  // la consulta.
-  const [area, setArea] = useState<BoundingBox | null>(null);
-
-  // Catalogos de los filtros: son estables, se piden una vez.
+  // Catalogos de los filtros: son estables, se piden una vez. (Pendiente de
+  // pasar a un hook en FE-05/FE-08, junto con los catalogos compartidos.)
   useEffect(() => {
     let cancelado = false;
     const cargar = async () => {
@@ -73,51 +59,6 @@ export default function MapaPage() {
       cancelado = true;
     };
   }, []);
-
-  /**
-   * El mapa avisa su area cada vez que termina un gesto. Solo se adopta si
-   * cambio lo suficiente: asi un ajuste minimo de encuadre no cuenta como
-   * area nueva y no dispara el efecto de abajo.
-   */
-  const alCambiarArea = useCallback((bbox: BoundingBox) => {
-    setArea((anterior) => (requiereNuevaConsulta(anterior, bbox) ? bbox : anterior));
-  }, []);
-
-  /**
-   * Consulta los reportes del area visible con los filtros vigentes.
-   *
-   * El `setTimeout` con limpieza ES el debounce: cada cambio de area o de
-   * filtros cancela el temporizador anterior, asi que arrastrar y hacer zoom
-   * seguido produce una sola consulta al final. Se hace con el ciclo de
-   * efectos en vez de una utilidad externa porque aqui la cancelacion ya
-   * viene dada por React, y el flag `cancelado` descarta ademas las
-   * respuestas que lleguen tarde (una consulta lenta de un area que el
-   * usuario ya abandono no debe pisar a la actual).
-   */
-  useEffect(() => {
-    if (!esBboxValido(area)) return;
-
-    let cancelado = false;
-    const temporizador = setTimeout(async () => {
-      setCargando(true);
-      setError(null);
-      try {
-        const pagina = await buscarReportes(construirQuery(area, filtros, MAXIMO_MARCADORES));
-        if (cancelado) return;
-        setReportes(pagina.contenido);
-        setTotal(pagina.total);
-      } catch {
-        if (!cancelado) setError('No se pudieron cargar los reportes de esta zona.');
-      } finally {
-        if (!cancelado) setCargando(false);
-      }
-    }, ESPERA_MS);
-
-    return () => {
-      cancelado = true;
-      clearTimeout(temporizador);
-    };
-  }, [area, filtros]);
 
   return (
     <div className="flex h-dvh flex-col">
@@ -146,9 +87,9 @@ export default function MapaPage() {
         </nav>
       </header>
 
-      {error && (
+      {busqueda.error && (
         <p role="alert" className="bg-red-50 px-4 py-2 text-sm text-red-800 dark:bg-red-950 dark:text-red-200">
-          {error}
+          {busqueda.error}
         </p>
       )}
 
@@ -158,18 +99,36 @@ export default function MapaPage() {
           onCambiar={setFiltros}
           distritos={distritos}
           categorias={categorias}
-          total={total}
-          cargando={cargando}
+          total={busqueda.total}
+          cargando={busqueda.cargando}
+          errorFiltros={busqueda.errorFiltros}
         />
-        <div className="min-h-96 flex-1">
-          <MapaReportes reportes={reportes} onAreaCambiada={alCambiarArea} />
+
+        <div className="flex min-h-0 flex-1 flex-col">
+          <SelectorDeVista vista={vista} onElegir={setVista} />
+
+          <div className="relative min-h-96 flex-1">
+            <div inert={vista !== 'mapa'} className="absolute inset-0 z-0">
+              <MapaReportes reportes={busqueda.reportes} onAreaCambiada={busqueda.alCambiarArea} />
+            </div>
+            {vista === 'lista' && (
+              <div className="absolute inset-0 z-10 overflow-y-auto bg-white dark:bg-slate-900">
+                <ListaReportes
+                  key={busqueda.claveConsulta}
+                  reportes={busqueda.reportes}
+                  consultaHecha={busqueda.consultaHecha}
+                  cargando={busqueda.cargando}
+                />
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      {total > MAXIMO_MARCADORES && (
+      {busqueda.total > MAXIMO_MARCADORES && (
         <p className="bg-amber-50 px-4 py-2 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-          Se muestran {MAXIMO_MARCADORES} de {total} reportes. Acerca el mapa o aplica un filtro
-          para verlos todos.
+          Se muestran {MAXIMO_MARCADORES} de {busqueda.total} reportes. Acerca el mapa o aplica un
+          filtro para verlos todos.
         </p>
       )}
     </div>
