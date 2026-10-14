@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { PanelFiltrosMapa } from './PanelFiltrosMapa';
-import { FILTROS_VACIOS } from '../model/bbox';
+import { FILTROS_VACIOS, MENSAJE_RANGO_INVERTIDO } from '../model/bbox';
 import { ESTADOS_EN_MAPA, estiloDeEstado } from '@/lib/types/estados';
 import type { CategoriaDano, Distrito } from '@/lib/types/domain';
 
@@ -77,14 +77,16 @@ describe('PanelFiltrosMapa', () => {
     // Un onCambiar que reemplazara el objeto entero borraría los demás
     // filtros en silencio.
     const { onCambiar } = renderizar({
-      filtros: { distritoId: 21, categoriaId: 1, estado: null },
+      filtros: { ...FILTROS_VACIOS, distritoId: 21, categoriaId: 1, fechaDesde: '2026-10-01' },
     });
     void userEvent.selectOptions(screen.getByLabelText('Estado'), 'RESUELTO');
     return vi.waitFor(() =>
       expect(onCambiar).toHaveBeenCalledWith({
+        ...FILTROS_VACIOS,
         distritoId: 21,
         categoriaId: 1,
         estado: 'RESUELTO',
+        fechaDesde: '2026-10-01',
       }),
     );
   });
@@ -94,12 +96,53 @@ describe('PanelFiltrosMapa', () => {
     expect(screen.queryByRole('button', { name: 'Limpiar filtros' })).not.toBeInTheDocument();
   });
 
-  it('limpia todos los filtros de una vez', async () => {
+  it('limpia todos los filtros de una vez, fechas incluidas', async () => {
     const { onCambiar } = renderizar({
-      filtros: { distritoId: 21, categoriaId: 1, estado: 'RESUELTO' },
+      filtros: {
+        distritoId: 21,
+        categoriaId: 1,
+        estado: 'RESUELTO',
+        fechaDesde: '2026-10-01',
+        fechaHasta: '2026-10-05',
+      },
     });
     await userEvent.click(screen.getByRole('button', { name: 'Limpiar filtros' }));
     expect(onCambiar).toHaveBeenCalledWith(FILTROS_VACIOS);
+  });
+
+  it('una fecha sola ya cuenta como filtro aplicado', () => {
+    renderizar({ filtros: { ...FILTROS_VACIOS, fechaHasta: '2026-10-05' } });
+    expect(screen.getByRole('button', { name: 'Limpiar filtros' })).toBeInTheDocument();
+  });
+
+  it('emite las fechas elegidas como día AAAA-MM-DD', () => {
+    const { onCambiar } = renderizar();
+    fireEvent.change(screen.getByLabelText('Desde'), { target: { value: '2026-10-01' } });
+    expect(onCambiar).toHaveBeenLastCalledWith({ ...FILTROS_VACIOS, fechaDesde: '2026-10-01' });
+    fireEvent.change(screen.getByLabelText('Hasta'), { target: { value: '2026-10-05' } });
+    expect(onCambiar).toHaveBeenLastCalledWith({ ...FILTROS_VACIOS, fechaHasta: '2026-10-05' });
+  });
+
+  it('emite null al borrar una fecha', () => {
+    const { onCambiar } = renderizar({ filtros: { ...FILTROS_VACIOS, fechaDesde: '2026-10-01' } });
+    fireEvent.change(screen.getByLabelText('Desde'), { target: { value: '' } });
+    expect(onCambiar).toHaveBeenLastCalledWith(FILTROS_VACIOS);
+  });
+
+  it('muestra el error del rango y marca las fechas como inválidas', () => {
+    renderizar({
+      filtros: { ...FILTROS_VACIOS, fechaDesde: '2026-10-06', fechaHasta: '2026-10-05' },
+      errorFiltros: MENSAJE_RANGO_INVERTIDO,
+    });
+    expect(screen.getByRole('alert')).toHaveTextContent(MENSAJE_RANGO_INVERTIDO);
+    expect(screen.getByLabelText('Desde')).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByLabelText('Hasta')).toHaveAccessibleDescription(MENSAJE_RANGO_INVERTIDO);
+  });
+
+  it('sin error no muestra alerta ni marca las fechas', () => {
+    renderizar();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Desde')).not.toHaveAttribute('aria-invalid');
   });
 
   it('muestra la leyenda con el nombre de cada estado, no solo el color', () => {

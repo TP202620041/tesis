@@ -1,11 +1,11 @@
 'use client';
 
 import { ESTADOS_EN_MAPA, estiloDeEstado } from '@/lib/types/estados';
-import type { FiltrosMapa } from '../model/bbox';
+import { FILTROS_VACIOS, hayFiltrosActivos, type FiltrosMapa } from '../model/bbox';
 import type { CategoriaDano, Distrito } from '@/lib/types/domain';
 
 /**
- * Filtros y leyenda del mapa publico (US-10, escenario 2).
+ * Filtros y leyenda del mapa publico (US-10, escenario 2; fechas de US-12).
  *
  * La leyenda nombra cada estado ademas de colorearlo: la informacion no
  * puede depender solo del color (accesibilidad, US-23).
@@ -18,6 +18,8 @@ interface Props {
   /** Reportes que cumplen los filtros en el área visible. */
   total: number;
   cargando: boolean;
+  /** Filtros que no se pueden consultar (p. ej. rango de fechas invertido). */
+  errorFiltros?: string | null;
 }
 
 export function PanelFiltrosMapa({
@@ -27,9 +29,9 @@ export function PanelFiltrosMapa({
   categorias,
   total,
   cargando,
+  errorFiltros = null,
 }: Props) {
-  const hayFiltros =
-    filtros.distritoId != null || filtros.categoriaId != null || filtros.estado != null;
+  const hayFiltros = hayFiltrosActivos(filtros);
 
   return (
     <aside className="flex w-full shrink-0 flex-col gap-4 border-slate-200 bg-white p-4 md:w-72 md:border-r dark:border-slate-700 dark:bg-slate-800">
@@ -81,10 +83,37 @@ export function PanelFiltrosMapa({
         </select>
       </div>
 
+      <fieldset className="flex flex-col gap-2">
+        <legend className="text-sm font-medium text-slate-700 dark:text-slate-200">
+          Fecha del reporte
+        </legend>
+        <div className="grid grid-cols-2 gap-2">
+          <CampoFecha
+            id="filtro-fecha-desde"
+            etiqueta="Desde"
+            valor={filtros.fechaDesde}
+            onCambiar={(v) => onCambiar({ ...filtros, fechaDesde: v })}
+            invalido={errorFiltros != null}
+          />
+          <CampoFecha
+            id="filtro-fecha-hasta"
+            etiqueta="Hasta"
+            valor={filtros.fechaHasta}
+            onCambiar={(v) => onCambiar({ ...filtros, fechaHasta: v })}
+            invalido={errorFiltros != null}
+          />
+        </div>
+        {errorFiltros && (
+          <p id="filtro-fecha-error" role="alert" className="text-sm text-red-700 dark:text-red-300">
+            {errorFiltros}
+          </p>
+        )}
+      </fieldset>
+
       {hayFiltros && (
         <button
           type="button"
-          onClick={() => onCambiar({ distritoId: null, categoriaId: null, estado: null })}
+          onClick={() => onCambiar(FILTROS_VACIOS)}
           className="self-start text-sm font-medium text-sky-700 hover:underline dark:text-sky-400"
         >
           Limpiar filtros
@@ -115,6 +144,42 @@ export function PanelFiltrosMapa({
         </ul>
       </div>
     </aside>
+  );
+}
+
+/**
+ * Dia local `AAAA-MM-DD`. El rango invertido no se impide con `min`/`max`
+ * (se puede escribir igual): se valida antes de consultar y se avisa.
+ */
+function CampoFecha({
+  id,
+  etiqueta,
+  valor,
+  onCambiar,
+  invalido,
+}: {
+  id: string;
+  etiqueta: string;
+  valor: string | null;
+  onCambiar: (valor: string | null) => void;
+  invalido: boolean;
+}) {
+  return (
+    <div className="flex min-w-0 flex-col gap-1">
+      <label htmlFor={id} className="text-xs text-slate-600 dark:text-slate-400">
+        {etiqueta}
+      </label>
+      <input
+        id={id}
+        type="date"
+        value={valor ?? ''}
+        onChange={(e) => onCambiar(e.target.value || null)}
+        aria-invalid={invalido || undefined}
+        aria-describedby={invalido ? 'filtro-fecha-error' : undefined}
+        className="min-w-0 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm
+                   aria-invalid:border-red-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+      />
+    </div>
   );
 }
 
