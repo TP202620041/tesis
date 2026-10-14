@@ -193,7 +193,7 @@ public class ReporteController {
      * decidir entre mostrar el formulario o la calificacion ya emitida. Va
      * como endpoint propio y no como un campo del resumen del reporte:
      * "ya califique" depende de QUIEN pregunta, y {@code ReporteResumenResponse}
-     * lo comparten el mapa publico (anonimo) y la bandeja municipal. Ver
+     * lo comparten el mapa publico (anonimo) y las vistas del ciudadano. Ver
      * {@link CalificacionService#miCalificacion}.</p>
      */
     @GetMapping("/{id}/calificacion")

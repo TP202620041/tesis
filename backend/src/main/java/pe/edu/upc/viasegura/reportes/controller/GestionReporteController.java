@@ -24,7 +24,7 @@ import pe.edu.upc.viasegura.reportes.dto.AsignacionResponsableResponse;
 import pe.edu.upc.viasegura.reportes.dto.AsignarResponsableRequest;
 import pe.edu.upc.viasegura.reportes.dto.CambiarEstadoRequest;
 import pe.edu.upc.viasegura.reportes.dto.FormatoExportacion;
-import pe.edu.upc.viasegura.reportes.dto.ReporteResumenResponse;
+import pe.edu.upc.viasegura.reportes.dto.ReporteGestionResponse;
 import pe.edu.upc.viasegura.reportes.service.ExportarReportesService;
 import pe.edu.upc.viasegura.reportes.service.GestionReporteService;
 
@@ -65,7 +65,7 @@ public class GestionReporteController {
     /** US-13: bandeja del distrito del funcionario, con filtros opcionales. */
     @GetMapping("/bandeja")
     @PreAuthorize("hasRole('FUNCIONARIO_MUNICIPAL')")
-    public ResponseEntity<List<ReporteResumenResponse>> bandeja(
+    public ResponseEntity<List<ReporteGestionResponse>> bandeja(
             @RequestParam(value = "estado", required = false) EstadoReporte estado,
             @RequestParam(value = "categoriaId", required = false) Long categoriaId,
             Principal principal) {
@@ -75,7 +75,7 @@ public class GestionReporteController {
     /** US-14: cambio de estado del reporte (transiciones validadas + auditoria). */
     @PatchMapping("/{id}/estado")
     @PreAuthorize("hasRole('FUNCIONARIO_MUNICIPAL')")
-    public ResponseEntity<ReporteResumenResponse> cambiarEstado(
+    public ResponseEntity<ReporteGestionResponse> cambiarEstado(
             @PathVariable("id") Long id,
             @Valid @RequestBody CambiarEstadoRequest request,
             Principal principal) {

@@ -89,8 +89,9 @@ public class CalificacionService {
      *
      * <p>Existe como endpoint aparte y no como un campo {@code yaCalificado}
      * en {@code ReporteResumenResponse} a proposito. Ese DTO lo comparten el
-     * mapa publico (donde el visitante puede ser anonimo y no hay un "yo"),
-     * la bandeja municipal y "mis reportes", y se construye con un mapper
+     * mapa publico (donde el visitante puede ser anonimo y no hay un "yo")
+     * y "mis reportes" (la bandeja municipal usa su par
+     * {@code ReporteGestionResponse}), y se construye con un mapper
      * estatico sin contexto de quien pregunta. "Ya calificado" es un dato
      * <em>relativo al espectador</em>: ponerlo ahi obligaria a que el campo
      * mintiera con {@code false} en los contextos publicos, o a arrastrar el
