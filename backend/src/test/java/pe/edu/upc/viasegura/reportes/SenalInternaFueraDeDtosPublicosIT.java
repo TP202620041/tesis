@@ -3,6 +3,7 @@ package pe.edu.upc.viasegura.reportes;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -80,11 +81,15 @@ class SenalInternaFueraDeDtosPublicosIT extends AbstractPostgisIT {
     }
 
     private Usuario funcionario() {
+        return funcionarioDe(miraflores());
+    }
+
+    private Usuario funcionarioDe(Distrito distrito) {
         return usuarioRepository.save(Usuario.builder()
                 .email("func-" + UUID.randomUUID() + "@muni.pe")
                 .passwordHash(passwordEncoder.encode("x"))
                 .nombre("Fabi").apellido("Municipal")
-                .rol(Rol.FUNCIONARIO_MUNICIPAL).distrito(miraflores()).build());
+                .rol(Rol.FUNCIONARIO_MUNICIPAL).distrito(distrito).build());
     }
 
     /** Reporte de Miraflores con el detector ya disparado. */
@@ -188,6 +193,7 @@ class SenalInternaFueraDeDtosPublicosIT extends AbstractPostgisIT {
 
         mockMvc.perform(delete("/api/reportes/{id}", r.getId()).header("Authorization", bearer(creador)))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id", is(r.getId().intValue())))
                 .andExpect(jsonPath("$.estado", is("CANCELADO")))
                 .andExpect(jsonPath("$." + FLAG).doesNotExist());
     }
@@ -231,5 +237,24 @@ class SenalInternaFueraDeDtosPublicosIT extends AbstractPostgisIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.estado", is("RECIBIDO")))
                 .andExpect(jsonPath("$." + FLAG, is(true)));
+    }
+
+    @Test
+    void funcionarioDeOtroDistrito_noRecibeElFlag_niEnBandejaNiAlCambiarEstado() throws Exception {
+        // El flag es de gestion, pero acotado a la jurisdiccion: el
+        // funcionario de otro distrito no lo recibe por ninguna de las dos vias.
+        Reporte r = marcado(EstadoReporte.PENDIENTE, ciudadano(), null);
+        Usuario ajeno = funcionarioDe(distritoRepository.findByNombre("San Isidro").orElseThrow());
+
+        mockMvc.perform(get("/api/reportes/bandeja").header("Authorization", bearer(ajeno)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[*].id", not(hasItem(r.getId().intValue()))));
+
+        mockMvc.perform(patch("/api/reportes/{id}/estado", r.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"estado\":\"RECIBIDO\"}")
+                        .header("Authorization", bearer(ajeno)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$." + FLAG).doesNotExist());
     }
 }
