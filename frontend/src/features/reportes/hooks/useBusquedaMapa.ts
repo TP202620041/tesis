@@ -60,14 +60,18 @@ export function useBusquedaMapa(filtros: FiltrosMapa) {
 
   // Ultimos resultados recibidos: se ajusta durante el render (patron de
   // "estado derivado" de React), no en un efecto.
-  const [ultimos, setUltimos] = useState<PaginaReportes>(SIN_RESULTADOS);
+  // `null` hasta que llega la primera respuesta: "aun sin datos" no es
+  // "cero resultados".
+  const [ultimos, setUltimos] = useState<PaginaReportes | null>(null);
   if (carga.estado === 'listo' && carga.datos && carga.datos !== ultimos) {
     setUltimos(carga.datos);
   }
 
   return {
-    reportes: ultimos.contenido,
-    total: ultimos.total,
+    reportes: (ultimos ?? SIN_RESULTADOS).contenido,
+    total: (ultimos ?? SIN_RESULTADOS).total,
+    /** `true` cuando ya llego al menos una respuesta de la busqueda. */
+    consultaHecha: ultimos !== null,
     cargando: consulta !== null && carga.estado === 'cargando',
     error: carga.estado === 'error' ? carga.error.mensaje : null,
     errorFiltros,

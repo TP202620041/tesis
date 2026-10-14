@@ -22,7 +22,7 @@ const varios = (n: number) => Array.from({ length: n }, (_, i) => reporte(i + 1)
 describe('ListaReportes', () => {
   it('muestra categoría, estado con nombre, distrito y adhesiones, con enlace al detalle', () => {
     render(
-      <ListaReportes
+      <ListaReportes consultaHecha cargando={false}
         reportes={[reporte(7, { estado: 'EN_PROCESO', categoriaNombre: 'Bache', totalAdhesiones: 3 })]}
       />,
     );
@@ -36,7 +36,7 @@ describe('ListaReportes', () => {
   });
 
   it('muestra la fecha del reporte', () => {
-    render(<ListaReportes reportes={[reporte(1)]} />);
+    render(<ListaReportes consultaHecha cargando={false} reportes={[reporte(1)]} />);
     const fecha = new Date('2026-10-05T15:00:00Z').toLocaleDateString('es-PE', {
       day: 'numeric',
       month: 'short',
@@ -46,12 +46,12 @@ describe('ListaReportes', () => {
   });
 
   it('usa singular con una sola adhesión', () => {
-    render(<ListaReportes reportes={[reporte(1)]} />);
+    render(<ListaReportes consultaHecha cargando={false} reportes={[reporte(1)]} />);
     expect(screen.getByRole('link')).toHaveTextContent('1 vecino lo reportó');
   });
 
   it('pagina los resultados y navega entre páginas', async () => {
-    render(<ListaReportes reportes={varios(25)} tamanoPagina={10} />);
+    render(<ListaReportes consultaHecha cargando={false} reportes={varios(25)} tamanoPagina={10} />);
     expect(screen.getAllByRole('link')).toHaveLength(10);
     expect(screen.getByText('1–10 de 25')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Anterior' })).toBeDisabled();
@@ -68,13 +68,35 @@ describe('ListaReportes', () => {
   });
 
   it('no muestra señales internas del resumen', () => {
-    render(<ListaReportes reportes={[reporte(1, { posibleReincidencia: true })]} />);
+    render(<ListaReportes consultaHecha cargando={false} reportes={[reporte(1, { posibleReincidencia: true })]} />);
     expect(screen.getByRole('link')).not.toHaveTextContent(/reincid/i);
   });
 
   it('avisa cuando no hay resultados', () => {
-    render(<ListaReportes reportes={[]} />);
+    render(<ListaReportes consultaHecha cargando={false} reportes={[]} />);
     expect(screen.getByText(/No hay reportes en esta zona/)).toBeInTheDocument();
     expect(screen.queryByRole('navigation')).not.toBeInTheDocument();
+  });
+
+  it('antes de la primera respuesta no afirma que no haya reportes', () => {
+    render(<ListaReportes reportes={[]} consultaHecha={false} cargando={false} />);
+    expect(screen.getByRole('status')).toHaveTextContent('Buscando reportes…');
+    expect(screen.queryByText(/No hay reportes/)).not.toBeInTheDocument();
+  });
+
+  it('mientras carga una consulta nueva tampoco afirma cero resultados', () => {
+    render(<ListaReportes reportes={[]} consultaHecha cargando />);
+    expect(screen.getByRole('status')).toHaveTextContent('Buscando reportes…');
+    expect(screen.queryByText(/No hay reportes/)).not.toBeInTheDocument();
+  });
+
+  it('con resultados anteriores en pantalla avisa que se están actualizando', () => {
+    render(<ListaReportes reportes={[reporte(1)]} consultaHecha cargando />);
+    expect(screen.getByRole('link')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Actualizando…');
+    expect(screen.getByRole('region', { name: 'Reportes en esta zona' })).toHaveAttribute(
+      'aria-busy',
+      'true',
+    );
   });
 });

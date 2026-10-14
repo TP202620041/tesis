@@ -139,6 +139,12 @@ describe('PanelFiltrosMapa', () => {
     expect(screen.getByLabelText('Hasta')).toHaveAccessibleDescription(MENSAJE_RANGO_INVERTIDO);
   });
 
+  it('con el rango invertido no muestra un conteo que parezca vigente', () => {
+    renderizar({ total: 12, errorFiltros: MENSAJE_RANGO_INVERTIDO });
+    expect(screen.queryByText('12 reportes en esta zona')).not.toBeInTheDocument();
+    expect(screen.getByText('Resultados sin actualizar: corrige las fechas.')).toBeInTheDocument();
+  });
+
   it('sin error no muestra alerta ni marca las fechas', () => {
     renderizar();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();

@@ -9,6 +9,10 @@ import type { ReporteResumen } from '../model/tipos';
 interface Props {
   /** Los mismos reportes que muestra el mapa (última consulta del área visible). */
   reportes: ReporteResumen[];
+  /** `false` hasta la primera respuesta: «sin datos aún» no es «cero resultados». */
+  consultaHecha: boolean;
+  /** Hay una consulta en vuelo (los reportes mostrados son los anteriores). */
+  cargando: boolean;
   tamanoPagina?: number;
 }
 
@@ -21,9 +25,23 @@ interface Props {
  * La página vuelve a la primera cuando cambia la consulta: quien la usa le
  * pasa como `key` la clave de la consulta.
  */
-export function ListaReportes({ reportes, tamanoPagina = TAMANO_PAGINA_LISTA }: Props) {
+export function ListaReportes({
+  reportes,
+  consultaHecha,
+  cargando,
+  tamanoPagina = TAMANO_PAGINA_LISTA,
+}: Props) {
   const [paginaPedida, setPaginaPedida] = useState(0);
   const pagina = paginar(reportes, paginaPedida, tamanoPagina);
+
+  // Solo se afirma «no hay reportes» con una respuesta confirmada y nada en vuelo.
+  if (pagina.total === 0 && (!consultaHecha || cargando)) {
+    return (
+      <p role="status" className="p-4 text-sm text-slate-600 dark:text-slate-400">
+        Buscando reportes…
+      </p>
+    );
+  }
 
   if (pagina.total === 0) {
     return (
@@ -34,7 +52,12 @@ export function ListaReportes({ reportes, tamanoPagina = TAMANO_PAGINA_LISTA }: 
   }
 
   return (
-    <section aria-label="Reportes en esta zona" className="flex flex-col">
+    <section aria-label="Reportes en esta zona" aria-busy={cargando} className="flex flex-col">
+      {cargando && (
+        <p role="status" className="px-4 pt-3 text-xs text-slate-500 dark:text-slate-400">
+          Actualizando…
+        </p>
+      )}
       <ul className="divide-y divide-slate-200 dark:divide-slate-700">
         {pagina.elementos.map((reporte) => (
           <li key={reporte.id}>

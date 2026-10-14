@@ -38,9 +38,13 @@ export function PanelFiltrosMapa({
       <div>
         <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Filtros</h2>
         <p aria-live="polite" className="mt-0.5 text-sm text-slate-600 dark:text-slate-400">
-          {cargando
-            ? 'Buscando…'
-            : `${total} ${total === 1 ? 'reporte' : 'reportes'} en esta zona`}
+          {/* Con filtros invalidos no se consulta: el mapa y la lista siguen
+              mostrando la busqueda anterior, y un conteo aqui pareceria vigente. */}
+          {errorFiltros
+            ? 'Resultados sin actualizar: corrige las fechas.'
+            : cargando
+              ? 'Buscando…'
+              : `${total} ${total === 1 ? 'reporte' : 'reportes'} en esta zona`}
         </p>
       </div>
 

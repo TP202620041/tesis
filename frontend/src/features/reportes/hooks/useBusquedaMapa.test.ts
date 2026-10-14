@@ -35,12 +35,24 @@ describe('useBusquedaMapa', () => {
 
     expect(result.current.cargando).toBe(false);
     expect(result.current.reportes).toEqual([]);
+    expect(result.current.consultaHecha).toBe(false);
     expect(buscarReportes).not.toHaveBeenCalled();
 
     act(() => result.current.alCambiarArea(AREA));
     await waitFor(() => expect(result.current.reportes).toEqual([REPORTE]), ESPERA);
     expect(result.current.total).toBe(1);
+    expect(result.current.consultaHecha).toBe(true);
     expect(buscarReportes).toHaveBeenCalledTimes(1);
+  });
+
+  it('cero resultados confirmados cuentan como consulta hecha', async () => {
+    vi.mocked(buscarReportes).mockResolvedValue({ contenido: [], total: 0 });
+    const { result } = renderizar();
+
+    act(() => result.current.alCambiarArea(AREA));
+    await waitFor(() => expect(result.current.consultaHecha).toBe(true), ESPERA);
+    expect(result.current.reportes).toEqual([]);
+    expect(result.current.cargando).toBe(false);
   });
 
   it('envía las fechas del filtro con semántica de día local', async () => {

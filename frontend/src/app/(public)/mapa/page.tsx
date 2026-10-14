@@ -7,6 +7,10 @@ import { listarDistritos } from '@/features/distritos/api';
 import { listarCategorias } from '@/features/reportes/api';
 import { ListaReportes } from '@/features/reportes/components/ListaReportes';
 import { PanelFiltrosMapa } from '@/features/reportes/components/PanelFiltrosMapa';
+import {
+  SelectorDeVista,
+  type VistaResultados,
+} from '@/features/reportes/components/SelectorDeVista';
 import { useBusquedaMapa } from '@/features/reportes/hooks/useBusquedaMapa';
 import { FILTROS_VACIOS, MAXIMO_MARCADORES, type FiltrosMapa } from '@/features/reportes/model/bbox';
 import type { CategoriaDano, Distrito } from '@/lib/types/domain';
@@ -15,8 +19,6 @@ const MapaReportes = dynamic(() => import('@/map/MapaReportes'), {
   ssr: false,
   loading: () => <div className="size-full animate-pulse bg-slate-200 dark:bg-slate-700" />,
 });
-
-type Vista = 'mapa' | 'lista';
 
 /**
  * US-10/US-12: mapa publico de reportes con filtros, y la misma busqueda
@@ -34,7 +36,7 @@ type Vista = 'mapa' | 'lista';
  */
 export default function MapaPage() {
   const [filtros, setFiltros] = useState<FiltrosMapa>(FILTROS_VACIOS);
-  const [vista, setVista] = useState<Vista>('mapa');
+  const [vista, setVista] = useState<VistaResultados>('mapa');
   const [distritos, setDistritos] = useState<Distrito[]>([]);
   const [categorias, setCategorias] = useState<CategoriaDano[]>([]);
   const busqueda = useBusquedaMapa(filtros);
@@ -103,33 +105,20 @@ export default function MapaPage() {
         />
 
         <div className="flex min-h-0 flex-1 flex-col">
-          <div
-            role="tablist"
-            aria-label="Vista de resultados"
-            className="flex gap-1 border-b border-slate-200 bg-white px-2 dark:border-slate-700 dark:bg-slate-800"
-          >
-            <Pestana id="mapa" etiqueta="Mapa" vista={vista} onElegir={setVista} />
-            <Pestana id="lista" etiqueta="Lista" vista={vista} onElegir={setVista} />
-          </div>
+          <SelectorDeVista vista={vista} onElegir={setVista} />
 
           <div className="relative min-h-96 flex-1">
-            <div
-              id="panel-mapa"
-              role="tabpanel"
-              aria-labelledby="pestana-mapa"
-              inert={vista !== 'mapa'}
-              className="absolute inset-0 z-0"
-            >
+            <div inert={vista !== 'mapa'} className="absolute inset-0 z-0">
               <MapaReportes reportes={busqueda.reportes} onAreaCambiada={busqueda.alCambiarArea} />
             </div>
             {vista === 'lista' && (
-              <div
-                id="panel-lista"
-                role="tabpanel"
-                aria-labelledby="pestana-lista"
-                className="absolute inset-0 z-10 overflow-y-auto bg-white dark:bg-slate-900"
-              >
-                <ListaReportes key={busqueda.claveConsulta} reportes={busqueda.reportes} />
+              <div className="absolute inset-0 z-10 overflow-y-auto bg-white dark:bg-slate-900">
+                <ListaReportes
+                  key={busqueda.claveConsulta}
+                  reportes={busqueda.reportes}
+                  consultaHecha={busqueda.consultaHecha}
+                  cargando={busqueda.cargando}
+                />
               </div>
             )}
           </div>
@@ -143,36 +132,5 @@ export default function MapaPage() {
         </p>
       )}
     </div>
-  );
-}
-
-function Pestana({
-  id,
-  etiqueta,
-  vista,
-  onElegir,
-}: {
-  id: Vista;
-  etiqueta: string;
-  vista: Vista;
-  onElegir: (vista: Vista) => void;
-}) {
-  const activa = vista === id;
-  return (
-    <button
-      type="button"
-      role="tab"
-      id={`pestana-${id}`}
-      aria-selected={activa}
-      aria-controls={`panel-${id}`}
-      onClick={() => onElegir(id)}
-      className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${
-        activa
-          ? 'border-sky-600 text-sky-700 dark:text-sky-400'
-          : 'border-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100'
-      }`}
-    >
-      {etiqueta}
-    </button>
   );
 }
