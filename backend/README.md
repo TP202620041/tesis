@@ -186,7 +186,8 @@ Lo resuelve `GlobalExceptionHandler` para `MethodArgumentTypeMismatchException`,
 así que aplica a todos los endpoints (también al filtro `estado` de los
 tickets de soporte).
 
-En `GET /api/reportes`, `fechaDesde > fechaHasta` es **400**: un rango
+En `GET /api/reportes` y en la exportación municipal (`GET /api/reportes/exportar`),
+`fechaDesde > fechaHasta` es **400** (regla única en `reportes/domain/RangoFechas`): un rango
 invertido no puede tener resultados y una página vacía escondería el error
 del cliente. Ambos bordes son inclusivos (`created_at >= fechaDesde` y
 `<= fechaHasta`), así que `fechaDesde == fechaHasta` es válido. Las fechas son

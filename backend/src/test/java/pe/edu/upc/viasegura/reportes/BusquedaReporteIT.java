@@ -2,6 +2,7 @@ package pe.edu.upc.viasegura.reportes;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -290,24 +291,28 @@ class BusquedaReporteIT extends AbstractPostgisIT {
     void fechaMalFormada_400_nombraElParametro() throws Exception {
         mockMvc.perform(get("/api/reportes").param("fechaDesde", "2026-13-45"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message", containsString("fechaDesde")));
+                .andExpect(jsonPath("$.message", containsString("fechaDesde")))
+                .andExpect(jsonPath("$.message", not(containsString("2026-13-45"))));
         mockMvc.perform(get("/api/reportes").param("fechaHasta", "ayer"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message", containsString("fechaHasta")));
+                .andExpect(jsonPath("$.message", containsString("fechaHasta")))
+                .andExpect(jsonPath("$.message", not(containsString("ayer"))));
     }
 
     @Test
     void estadoInvalido_400_nombraElParametro() throws Exception {
         mockMvc.perform(get("/api/reportes").param("estado", "ARREGLADO"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message", containsString("estado")));
+                .andExpect(jsonPath("$.message", containsString("estado")))
+                .andExpect(jsonPath("$.message", not(containsString("ARREGLADO"))));
     }
 
     @Test
     void numeroMalFormado_400() throws Exception {
         mockMvc.perform(get("/api/reportes").param("distritoId", "miraflores"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message", containsString("distritoId")));
+                .andExpect(jsonPath("$.message", containsString("distritoId")))
+                .andExpect(jsonPath("$.message", not(containsString("miraflores"))));
     }
 
     @Test
