@@ -387,9 +387,35 @@ para ese navegador.
 
 **La baja borra la fila** (no la marca inactiva): no hay razón para conservar
 las claves de un navegador que se dio de baja. Una ajena responde **404**,
-como una inexistente, para no revelar que ese endpoint está registrado.
-`activa = false` queda para US-21, cuando el servicio de push responda que una
-suscripción caducó. La respuesta nunca devuelve las claves.
+como una inexistente: lo que protege es que nadie borre lo ajeno, no el
+secreto de que el endpoint existe (eso ya lo delata el POST con 200 frente a
+201, y el endpoint solo lo conoce quien tiene el navegador). `activa = false`
+queda para US-21, cuando el servicio de push responda que una suscripción
+caducó. La respuesta nunca devuelve las claves.
+
+**Lista blanca de servicios de push (contra SSRF).** Con el envío real
+(US-21) el servidor hará peticiones al `endpoint` que manda el cliente; sin
+control, un usuario podría registrar `https://169.254.169.254/…` o una IP
+interna y usar el backend como proxy. `notificaciones/domain/PoliticaEndpointPush`
+solo admite los hosts de `app.notificaciones.push.hosts-permitidos` (por
+defecto `fcm.googleapis.com`, `*.push.services.mozilla.com`,
+`*.notify.windows.com`, `web.push.apple.com`; variable `PUSH_HOSTS_PERMITIDOS`).
+El host sale de parsear la URL con `java.net.URI`, no de una regex sobre la
+cadena, y además se exigen `https`, sin `usuario@`, puerto por defecto y que no
+sea una IP literal; así fallan `fcm.googleapis.com.evil.com`,
+`fcm.googleapis.com@evil.com` o `evil.com/fcm.googleapis.com`. Fuera de la
+lista: **400**.
+
+**Tope por usuario** (`app.notificaciones.push.max-por-usuario`, 10 por
+defecto). Al superarlo se **borran las menos recientemente registradas** (cada
+POST refresca `updated_at`), en vez de responder 409: el usuario no puede dar
+de baja a mano las de navegadores que ya no usa (no tiene su endpoint), así
+que un 409 lo dejaría sin push en el dispositivo nuevo.
+
+**Altas simultáneas.** El upsert es un único `INSERT … ON CONFLICT (endpoint)
+DO UPDATE … RETURNING (xmax = 0)`: dos POST a la vez con el mismo endpoint
+nuevo ya no chocan con el `UNIQUE` (antes, `DataIntegrityViolationException`
+→ 500); uno inserta (201) y el otro actualiza (200).
 
 **Efecto en las notificaciones.** `PushNotificacionAdapter#estaDisponible` ya
 es real: el canal PUSH está disponible si el usuario tiene al menos una

@@ -17,7 +17,7 @@ Ambos: cualquier rol autenticado (`Authorization: Bearer …`); sin token, **401
 ## Campos
 | DTO | Campo | Tipo | ¿Nulo? | Cambio | Quién lo ve |
 |---|---|---|---|---|---|
-| `SuscripcionPushRequest` | `endpoint` | string, `https://…`, ≤ 2048 | no | nuevo | — (entrada) |
+| `SuscripcionPushRequest` | `endpoint` | string, `https://` de un servicio de push permitido (FCM, Mozilla, WNS, Apple), ≤ 2048 | no | nuevo | — (entrada) |
 | `SuscripcionPushRequest` | `keys.p256dh` | string base64url, ≤ 255 | no | nuevo | — (entrada) |
 | `SuscripcionPushRequest` | `keys.auth` | string base64url, ≤ 255 | no | nuevo | — (entrada) |
 | `SuscripcionPushRequest` | `userAgent` | string ≤ 500 | sí (opcional) | nuevo | — (entrada) |
@@ -68,7 +68,7 @@ En código: `apiFetch('/api/notificaciones/suscripciones', { method: 'POST', bod
 ## Errores
 | Código | Cuándo |
 |---|---|
-| 400 | `endpoint` vacío o no `https://`, falta `keys`, `keys.p256dh` o `keys.auth` vacíos (`details` nombra el campo, p. ej. `keys.p256dh: …`); en la baja, `endpoint` vacío. |
+| 400 | `endpoint` vacío o no `https://`, falta `keys`, `keys.p256dh` o `keys.auth` vacíos (`details` nombra el campo, p. ej. `keys.p256dh: …`); en la baja, `endpoint` vacío. También si el host del endpoint no está en la lista blanca de servicios de push (`message`: `endpoint: el servicio de push no esta permitido`). |
 | 401 | Sin token o token inválido. |
 | 404 | Baja de un endpoint inexistente o de otro usuario. |
 
@@ -76,6 +76,7 @@ En código: `apiFetch('/api/notificaciones/suscripciones', { method: 'POST', bod
 - Llamar al POST cada vez que el usuario inicia sesión con una suscripción ya concedida (o tras `pushManager.subscribe`): es idempotente y es lo que reasigna el navegador al usuario actual.
 - Al cerrar sesión, si se quiere que ese navegador deje de recibir avisos de ese usuario, llamar al DELETE **antes** de borrar el token (después ya sería 401).
 - 200 y 201 son ambos éxito; no hace falta distinguirlos en la UI.
+- Hay un tope de 10 suscripciones por usuario: al registrar la undécima, el backend borra la menos recientemente registrada. Es transparente para el frontend.
 - El consentimiento para notificaciones va aparte (propuesta del coordinador); este contrato solo guarda la suscripción.
 - Por ahora ningún aviso llega por push: el envío es US-21. Con suscripción activa, la notificación se registra como push `FALLIDA` y se entrega por email, igual que antes.
 - `npm run api:sync` con el backend de `develop` levantado generará `SuscripcionPushRequest`, `ClavesRequest` (anidado) y `SuscripcionPushResponse`.

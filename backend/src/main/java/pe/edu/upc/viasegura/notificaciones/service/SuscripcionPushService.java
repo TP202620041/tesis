@@ -1,11 +1,13 @@
 package pe.edu.upc.viasegura.notificaciones.service;
 
-import lombok.RequiredArgsConstructor;
+import java.util.List;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import pe.edu.upc.viasegura.auth.domain.Usuario;
 import pe.edu.upc.viasegura.auth.service.UsuarioConsultaService;
 import pe.edu.upc.viasegura.common.exception.ResourceNotFoundException;
+import pe.edu.upc.viasegura.notificaciones.domain.PoliticaEndpointPush;
 import pe.edu.upc.viasegura.notificaciones.domain.SuscripcionPush;
 import pe.edu.upc.viasegura.notificaciones.dto.SuscripcionPushRequest;
 import pe.edu.upc.viasegura.notificaciones.dto.SuscripcionPushResponse;
@@ -19,11 +21,26 @@ import pe.edu.upc.viasegura.notificaciones.repository.SuscripcionPushRepository;
  * canal PUSH esta disponible.</p>
  */
 @Service
-@RequiredArgsConstructor
 public class SuscripcionPushService {
 
     private final SuscripcionPushRepository suscripcionRepository;
     private final UsuarioConsultaService usuarioConsultaService;
+    private final List<String> hostsPermitidos;
+    private final int maxPorUsuario;
+
+    public SuscripcionPushService(
+            SuscripcionPushRepository suscripcionRepository,
+            UsuarioConsultaService usuarioConsultaService,
+            @Value("${app.notificaciones.push.hosts-permitidos}") List<String> hostsPermitidos,
+            @Value("${app.notificaciones.push.max-por-usuario:10}") int maxPorUsuario) {
+        if (maxPorUsuario < 1) {
+            throw new IllegalStateException("app.notificaciones.push.max-por-usuario debe ser >= 1");
+        }
+        this.suscripcionRepository = suscripcionRepository;
+        this.usuarioConsultaService = usuarioConsultaService;
+        this.hostsPermitidos = List.copyOf(hostsPermitidos);
+        this.maxPorUsuario = maxPorUsuario;
+    }
 
     /** Resultado del alta: si la fila es nueva (201) o ya existia (200). */
     public record ResultadoSuscripcion(boolean creada, SuscripcionPushResponse suscripcion) {}
@@ -38,34 +55,51 @@ public class SuscripcionPushService {
      *       <b>aunque fuera de otro</b>: en ese navegador inicio sesion otra
      *       persona y los avisos del anterior no deben seguir llegando ahi.</li>
      * </ul>
-     * Reclamar un endpoint ajeno exige conocerlo, y es una URL de capacidad
-     * que el servicio de push genera al azar para ese navegador: quien la
-     * tiene, en la practica, tiene el navegador.
+     * Solo se aceptan servicios de push de la lista blanca
+     * ({@link PoliticaEndpointPush}, contra SSRF). Al superar el tope por
+     * usuario se borran las menos recientemente registradas: ver
+     * {@link #aplicarTope}.
      */
     @Transactional
     public ResultadoSuscripcion suscribir(String email, SuscripcionPushRequest req) {
+        if (!PoliticaEndpointPush.esPermitido(req.endpoint(), hostsPermitidos)) {
+            throw new IllegalArgumentException(
+                    "endpoint: el servicio de push no esta permitido");
+        }
         Usuario usuario = usuarioConsultaService.usuarioPorEmail(email);
-        SuscripcionPush existente = suscripcionRepository.findByEndpoint(req.endpoint()).orElse(null);
-        boolean creada = existente == null;
-        SuscripcionPush suscripcion = creada
-                ? SuscripcionPush.builder().endpoint(req.endpoint()).build()
-                : existente;
-
-        suscripcion.setUsuario(usuario);
-        suscripcion.setP256dh(req.keys().p256dh());
-        suscripcion.setAuth(req.keys().auth());
-        suscripcion.setUserAgent(req.userAgent());
-        suscripcion.setActiva(true);
-
-        SuscripcionPush guardada = suscripcionRepository.saveAndFlush(suscripcion);
+        boolean creada = suscripcionRepository.upsert(usuario.getId(), req.endpoint(),
+                req.keys().p256dh(), req.keys().auth(), req.userAgent());
+        SuscripcionPush guardada = suscripcionRepository.findByEndpoint(req.endpoint())
+                .orElseThrow(() -> new IllegalStateException("Upsert sin fila para el endpoint"));
+        aplicarTope(usuario.getId(), guardada.getId());
         return new ResultadoSuscripcion(creada, SuscripcionPushResponse.desde(guardada));
     }
 
     /**
+     * Tope de suscripciones por usuario: deja las {@code maxPorUsuario} mas
+     * recientemente registradas (la recien dada de alta siempre se queda) y
+     * borra el resto. Se elige desalojar en vez de responder 409 porque el
+     * usuario no puede limpiar a mano las de navegadores que ya no usa (no
+     * tiene su endpoint): un 409 lo dejaria sin push en el dispositivo nuevo.
+     */
+    private void aplicarTope(Long usuarioId, Long recienRegistradaId) {
+        List<SuscripcionPush> otras = suscripcionRepository
+                .findByUsuarioIdOrderByUpdatedAtDescIdDesc(usuarioId).stream()
+                .filter(s -> !s.getId().equals(recienRegistradaId))
+                .toList();
+        int cupoOtras = maxPorUsuario - 1;
+        if (otras.size() > cupoOtras) {
+            suscripcionRepository.deleteAll(otras.subList(cupoOtras, otras.size()));
+        }
+    }
+
+    /**
      * Baja de la suscripcion de este navegador. Solo las propias: la de otro
-     * usuario responde 404, igual que una inexistente, para no revelar que
-     * ese endpoint esta registrado. Se borra la fila (no se marca inactiva):
-     * tras la baja no hay razon para conservar las claves del navegador.
+     * usuario responde 404, igual que una inexistente, para que nadie borre
+     * lo ajeno. (No pretende ocultar que el endpoint existe: el POST ya lo
+     * delata con 200 frente a 201; el endpoint es una URL de capacidad que
+     * solo conoce quien tiene el navegador.) Se borra la fila, no se marca
+     * inactiva: tras la baja no hay razon para conservar las claves.
      */
     @Transactional
     public void darDeBaja(String email, String endpoint) {

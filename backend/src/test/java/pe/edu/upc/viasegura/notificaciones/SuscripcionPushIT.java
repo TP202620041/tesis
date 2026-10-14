@@ -268,6 +268,103 @@ class SuscripcionPushIT extends AbstractPostgisIT {
     }
 
     @Test
+    void hostNoPermitidoOEnganoso_400_yNoSeGuarda() throws Exception {
+        // Contra SSRF (US-21 hara peticiones a este endpoint): solo servicios
+        // de push de la lista blanca, comparando el host parseado.
+        String auth = token(usuario(Rol.CIUDADANO));
+        for (String endpoint : List.of(
+                "https://evil.example/push",
+                "https://fcm.googleapis.com.evil.com/fcm/send/abc",
+                "https://fcm.googleapis.com@evil.com/fcm/send/abc",
+                "https://evil.com/fcm.googleapis.com",
+                "https://fcm.googleapis.com:8443/fcm/send/abc",
+                "https://169.254.169.254/latest/meta-data",
+                "https://localhost/push")) {
+            mockMvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON)
+                            .content(cuerpo(endpoint, "p256", "auth")).header("Authorization", auth))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.message", containsString("no esta permitido")));
+        }
+        assertThat(suscripcionRepository.count()).isZero();
+    }
+
+    @Test
+    void otrosServiciosDePushConocidos_201() throws Exception {
+        String auth = token(usuario(Rol.CIUDADANO));
+        for (String endpoint : List.of(
+                "https://updates.push.services.mozilla.com/wpush/v2/" + UUID.randomUUID(),
+                "https://wns2-par02p.notify.windows.com/w/?token=" + UUID.randomUUID(),
+                "https://web.push.apple.com/" + UUID.randomUUID())) {
+            mockMvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON)
+                            .content(cuerpo(endpoint, "p256", "auth")).header("Authorization", auth))
+                    .andExpect(status().isCreated());
+        }
+    }
+
+    @Test
+    void alSuperarElTope_seBorraLaMenosRecientementeRegistrada() throws Exception {
+        // Tope por defecto: 10 por usuario (app.notificaciones.push.max-por-usuario).
+        Usuario ciu = usuario(Rol.CIUDADANO);
+        List<String> endpoints = new java.util.ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            String endpoint = endpointNuevo();
+            endpoints.add(endpoint);
+            mockMvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON)
+                            .content(cuerpo(endpoint, "p256", "auth")).header("Authorization", token(ciu)))
+                    .andExpect(status().isCreated());
+        }
+        // Volver a registrar la primera la hace la mas reciente: no se desaloja.
+        mockMvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON)
+                        .content(cuerpo(endpoints.get(0), "p256", "auth")).header("Authorization", token(ciu)))
+                .andExpect(status().isOk());
+
+        String undecima = endpointNuevo();
+        mockMvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON)
+                        .content(cuerpo(undecima, "p256", "auth")).header("Authorization", token(ciu)))
+                .andExpect(status().isCreated());
+
+        assertThat(suscripcionRepository.count()).isEqualTo(10);
+        assertThat(suscripcionRepository.findByEndpoint(undecima)).isPresent();
+        assertThat(suscripcionRepository.findByEndpoint(endpoints.get(0))).isPresent();
+        // La desalojada es la segunda: la menos recientemente registrada.
+        assertThat(suscripcionRepository.findByEndpoint(endpoints.get(1))).isEmpty();
+    }
+
+    @Test
+    void altasSimultaneasDelMismoEndpoint_ningun500_unaSolaFila() throws Exception {
+        Usuario ciu = usuario(Rol.CIUDADANO);
+        String auth = token(ciu);
+        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(4);
+        try {
+            for (int ronda = 0; ronda < 5; ronda++) {
+                String endpoint = endpointNuevo();
+                java.util.concurrent.CountDownLatch largada = new java.util.concurrent.CountDownLatch(1);
+                List<java.util.concurrent.Future<Integer>> respuestas = new java.util.ArrayList<>();
+                for (int i = 0; i < 4; i++) {
+                    respuestas.add(pool.submit(() -> {
+                        largada.await();
+                        return mockMvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON)
+                                        .content(cuerpo(endpoint, "p256", "auth"))
+                                        .header("Authorization", auth))
+                                .andReturn().getResponse().getStatus();
+                    }));
+                }
+                largada.countDown();
+                List<Integer> codigos = new java.util.ArrayList<>();
+                for (java.util.concurrent.Future<Integer> r : respuestas) {
+                    codigos.add(r.get(30, java.util.concurrent.TimeUnit.SECONDS));
+                }
+                assertThat(codigos).allMatch(c -> c == 200 || c == 201);
+                assertThat(codigos).filteredOn(c -> c == 201).hasSize(1);
+                assertThat(suscripcionRepository.findByEndpoint(endpoint)).isPresent();
+            }
+        } finally {
+            pool.shutdownNow();
+        }
+        assertThat(suscripcionRepository.count()).isEqualTo(5);
+    }
+
+    @Test
     void validacion_400() throws Exception {
         String auth = token(usuario(Rol.CIUDADANO));
         // endpoint vacio
