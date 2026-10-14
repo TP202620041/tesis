@@ -361,6 +361,43 @@ contención de ruta como segunda barrera.
 desviación deliberada del criterio general del proyecto, porque un 403
 confirmaría que ese archivo existe y se trata de fotos de personas.
 
+## Suscripciones push (NC-07)
+
+La PWA registra cada navegador suscrito con la Push API en `suscripcion_push`
+(V12): el `endpoint` del servicio de push y las claves `p256dh`/`auth` con las
+que se cifra el mensaje, tal como las entrega `PushSubscription.toJSON()`.
+
+| Método | Ruta | Respuesta |
+|---|---|---|
+| POST | `/api/notificaciones/suscripciones` | 201 si es nueva, 200 si el endpoint ya existía |
+| DELETE | `/api/notificaciones/suscripciones` (cuerpo `{endpoint}`) | 204, o 404 si no es del usuario |
+
+Cualquier rol autenticado; sin token, 401.
+
+**Upsert por endpoint, con reasignación.** El `endpoint` identifica al
+*navegador*, no a la persona, por eso es `UNIQUE`. Si llega uno que ya está
+registrado, se actualizan las claves (el navegador puede rotarlas), se
+reactiva y **pasa al usuario autenticado aunque fuera de otro**: en ese
+navegador inició sesión otra persona, y los avisos de la anterior no deben
+seguir apareciendo ahí. La alternativa (rechazar con 409) dejaría al nuevo
+usuario sin push en su propio dispositivo hasta que el anterior se diera de
+baja, cosa que normalmente no hace. Reclamar un endpoint ajeno exige
+conocerlo, y es una URL de capacidad que el servicio de push genera al azar
+para ese navegador.
+
+**La baja borra la fila** (no la marca inactiva): no hay razón para conservar
+las claves de un navegador que se dio de baja. Una ajena responde **404**,
+como una inexistente, para no revelar que ese endpoint está registrado.
+`activa = false` queda para US-21, cuando el servicio de push responda que una
+suscripción caducó. La respuesta nunca devuelve las claves.
+
+**Efecto en las notificaciones.** `PushNotificacionAdapter#estaDisponible` ya
+es real: el canal PUSH está disponible si el usuario tiene al menos una
+suscripción activa. El envío sigue siendo un stub (US-21, Sprint 3) que lanza,
+y `NotificacionService` lo registra `FALLIDA` y cae a email, igual que cuando
+el canal no estaba disponible (`NotificacionIT` cubre PUSH y AMBAS con
+suscripción). El ciudadano no pierde avisos mientras tanto.
+
 ## Deuda técnica conocida
 
 - **Testcontainers bloqueado por Docker 29 / docker-java 1.20.x.** Los tests
@@ -398,4 +435,5 @@ confirmaría que ese archivo existe y se trata de fotos de personas.
 12 entidades con soporte geoespacial en `distrito.limites`
 (`GEOGRAPHY(MultiPolygon,4326)`) y `reporte.ubicacion`
 (`GEOGRAPHY(Point,4326)`), ambas con índice **GiST**. Ver
-`src/main/resources/db/migration/V1__init_schema.sql`.
+`src/main/resources/db/migration/V1__init_schema.sql`. Las migraciones
+posteriores agregan tablas propias, como `suscripcion_push` (V12, NC-07).
