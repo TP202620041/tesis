@@ -264,6 +264,13 @@ class TicketSoporteIT extends AbstractPostgisMailIT {
     }
 
     @Test
+    void adminConPageNegativa_400() throws Exception {
+        mockMvc.perform(get("/api/soporte/tickets").param("page", "-1")
+                        .header("Authorization", "Bearer " + token(admin())))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void listadoAdmin_ciudadanoYFuncionario_403() throws Exception {
         mockMvc.perform(get("/api/soporte/tickets")
                         .header("Authorization", "Bearer " + token(ciudadano())))
