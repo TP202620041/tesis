@@ -1,6 +1,8 @@
 package pe.edu.upc.viasegura.common.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
+import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -11,6 +13,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
@@ -48,6 +51,39 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ApiError> handleNotReadable(HttpMessageNotReadableException ex, HttpServletRequest req) {
         return build(HttpStatus.BAD_REQUEST, "Cuerpo de la peticion invalido o mal formado", req, List.of());
+    }
+
+    /**
+     * Parametro de ruta o de query que no se puede convertir a su tipo
+     * ({@code fechaDesde=ayer}, {@code estado=ARREGLADO}, {@code distritoId=abc}).
+     *
+     * <p>Sin este manejador caia en el {@code Exception.class} de abajo y
+     * respondia <b>500</b>, cuando el error es del cliente (US-12). El mensaje
+     * nombra el parametro y, si se puede, el formato esperado; no repite el
+     * valor recibido.</p>
+     */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiError> handleTypeMismatch(
+            MethodArgumentTypeMismatchException ex, HttpServletRequest req) {
+        return build(HttpStatus.BAD_REQUEST,
+                "Valor invalido para el parametro '%s'%s".formatted(ex.getName(), formatoEsperado(ex.getRequiredType())),
+                req, List.of());
+    }
+
+    private String formatoEsperado(Class<?> tipo) {
+        if (tipo == null) {
+            return "";
+        }
+        if (tipo.isEnum()) {
+            return ": se espera uno de " + Arrays.toString(tipo.getEnumConstants());
+        }
+        if (Instant.class.equals(tipo)) {
+            return ": se espera una fecha ISO-8601 en UTC, p. ej. 2026-01-31T05:00:00Z";
+        }
+        if (Number.class.isAssignableFrom(tipo)) {
+            return ": se espera un numero";
+        }
+        return "";
     }
 
     @ExceptionHandler(BadCredentialsException.class)

@@ -2,6 +2,7 @@ package pe.edu.upc.viasegura.reportes;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.io.ByteArrayInputStream;
@@ -146,6 +147,22 @@ class ExportarReportesIT extends AbstractPostgisIT {
         mockMvc.perform(get("/api/reportes/exportar")
                         .header("Authorization", "Bearer " + token(func)))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void rangoDeFechasInvertido_400() throws Exception {
+        // Hay un reporte exportable: el 400 viene del rango, no de "sin resultados".
+        Distrito barranco = distrito("Barranco");
+        Usuario func = funcionario(barranco);
+        reporte(barranco, EstadoReporte.PENDIENTE);
+
+        mockMvc.perform(get("/api/reportes/exportar")
+                        .param("fechaDesde", "2026-02-01T00:00:00Z")
+                        .param("fechaHasta", "2026-01-01T00:00:00Z")
+                        .header("Authorization", "Bearer " + token(func)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message")
+                        .value(org.hamcrest.Matchers.containsString("fechaDesde no puede ser posterior")));
     }
 
     @Test
