@@ -3,9 +3,9 @@
 import { useEffect, useState } from 'react';
 import { AlertaError, Boton } from '@/components/ui/form';
 import { ApiError, NetworkError } from '@/lib/api/client';
-import { crearReporte, listarCategorias, type ReporteCreado } from '@/features/reportes/api';
-import { CampoFoto } from '@/features/reportes/components/CampoFoto';
-import { CampoUbicacion, type UbicacionElegida } from '@/features/reportes/components/CampoUbicacion';
+import { crearReporte, listarCategorias, type ReporteCreado } from '../api';
+import { CampoFoto } from './CampoFoto';
+import { CampoUbicacion, type UbicacionElegida } from './CampoUbicacion';
 import type { CategoriaDano } from '@/lib/types/domain';
 
 /** US-05: crear un reporte con foto, categoría y GPS. */

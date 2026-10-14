@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { obtenerUsuarioActual } from '@/features/auth/api';
+import { obtenerUsuarioActual } from './api';
 import { haySesion } from '@/lib/auth/token-storage';
 import type { Usuario } from '@/lib/types/domain';
 

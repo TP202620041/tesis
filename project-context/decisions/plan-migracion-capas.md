@@ -192,8 +192,19 @@ Crear `features/<f>/model/tipos.ts` con los alias sobre `generated/schema` (`Rep
 - `git grep -l "lib/api/generated" -- frontend/src ':!frontend/src/lib/api/generated'` solo devuelve archivos de `features/*/model/**`, `features/*/api.ts` y `lib/types/**`. Hoy devuelve 5: `components/LineaDeTiempo.tsx` y `desempeno/formato.ts` (fuera de lugar) y `gestion/api.ts`, `reportes/api.ts`, `lib/types/domain.ts` (permitidos).
 - El mensaje `schema` de `contar-capas.mjs` queda en 0 (hoy 1, el de `LineaDeTiempo` en `capas/compartidos-ui`).
 
-### [ ] FE-04 · Imports internos relativos
+### [x] FE-04 · Imports internos relativos (2026-10-13)
 Dentro de cada feature, cambiar `@/features/<misma>/…` por imports relativos. Casos detectados: `FormularioReporte` → `CampoFoto`/`CampoUbicacion` y `GuardiaDeRol` → `auth/hooks`.
+
+Cierre (2026-10-13, rama `feature/fe-04`). 14 imports en 12 archivos: los 11 con aviso `otraFeature` (`auth/components/{FormularioLogin,FormularioRegistro,GuardiaDeRol}`, `gestion/components/{CambiarEstado,Responsable}`, `reportes/components/{Calificar,Comentarios,EditarReporte}` y los 3 de `FormularioReporte`) y 3 sin aviso (`CampoUbicacion` → `../useGeolocalizacion`, `FotoDePerfil` → `../fotoPerfil`, `auth/hooks.ts` → `./api`). `GuardiaDeRol` importa `../hooks`, que resuelve al **archivo** `auth/hooks.ts` igual que el alias (comprobado con `tsc --traceResolution`; la carpeta `hooks/` no tiene `index.ts`). La unificación de `hooks.ts` y `hooks/` sigue en FE-05. Los `gatewayDesdeUi` de esos componentes se mantienen (FE-06).
+
+| Métrica | Antes | Después |
+|---|---|---|
+| `npm run typecheck` | 0 errores | 0 errores |
+| `npm test` (con la guarda) | 136 tests en 19 archivos | 136 tests en 19 archivos |
+| `npm run lint`: código / avisos que no son de capas | 0 / 0 | 0 / 0 |
+| Avisos de capas (`contar-capas.mjs`) | **64 en 23 archivos** | **53 en 22 archivos** |
+| `otraFeature` | 16 | 5 (los cruces reales de FE-08) |
+| `gatewayDesdeUi` / `clienteHttp` / `schema` | 33 / 14 / 1 | 33 / 14 / 1 |
 
 ### [ ] FE-05 · Hooks de carga y páginas como composición
 1. ~~Crear `src/lib/hooks/useCarga.ts` con el patrón de `ARCHITECTURE.md` §5.5, con tests de la cancelación.~~ **Hecho en US-17 (Sprint 1, PR #18):** 6 tests de cancelación, respuesta vieja descartada, recarga y desmontaje.

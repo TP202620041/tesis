@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
-import { iniciarSesion } from '@/features/auth/api';
+import { iniciarSesion } from '../api';
 import { AlertaError, Boton, Campo } from '@/components/ui/form';
 import { ApiError, NetworkError } from '@/lib/api/client';
 import { rutaInicialDe } from '../model/rutas';

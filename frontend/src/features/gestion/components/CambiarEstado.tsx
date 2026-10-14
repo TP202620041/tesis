@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { AlertaError, Boton } from '@/components/ui/form';
 import { ApiError, NetworkError } from '@/lib/api/client';
-import { cambiarEstado } from '@/features/gestion/api';
+import { cambiarEstado } from '../api';
 import { esTerminal, exigeComentario, transicionesDesde } from '../model/transiciones';
 import { estiloDeEstado } from '@/lib/types/estados';
 import type { ReporteResumen } from '@/features/reportes/api';
