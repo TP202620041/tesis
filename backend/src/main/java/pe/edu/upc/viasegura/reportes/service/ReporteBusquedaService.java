@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import pe.edu.upc.viasegura.common.exception.ResourceNotFoundException;
 import pe.edu.upc.viasegura.reportes.domain.EstadoReporte;
+import pe.edu.upc.viasegura.reportes.domain.RangoFechas;
 import pe.edu.upc.viasegura.reportes.domain.Reporte;
 import pe.edu.upc.viasegura.reportes.dto.ReporteResumenResponse;
 import pe.edu.upc.viasegura.reportes.repository.ReporteRepository;
@@ -66,7 +67,7 @@ public class ReporteBusquedaService {
             Pageable pageable) {
 
         validarBbox(minLat, minLon, maxLat, maxLon);
-        validarRangoDeFechas(fechaDesde, fechaHasta);
+        RangoFechas.validar(fechaDesde, fechaHasta);
 
         // La consulta es NATIVA con ORDER BY fijo (created_at DESC): un
         // Pageable con Sort haria que Spring Data intente anexar su propio
@@ -83,18 +84,6 @@ public class ReporteBusquedaService {
                         fechaDesde, fechaHasta, soloPaginacion);
 
         return pagina.map(ReporteResumenResponse::from);
-    }
-
-    /**
-     * US-12: un rango invertido no tiene resultados posibles; devolver una
-     * pagina vacia ocultaria el error del cliente (p. ej. campos cruzados en
-     * el formulario), asi que es 400. Ambos bordes son inclusivos, por eso
-     * {@code fechaDesde == fechaHasta} es valido.
-     */
-    private void validarRangoDeFechas(Instant fechaDesde, Instant fechaHasta) {
-        if (fechaDesde != null && fechaHasta != null && fechaDesde.isAfter(fechaHasta)) {
-            throw new IllegalArgumentException("fechaDesde no puede ser posterior a fechaHasta");
-        }
     }
 
     /**

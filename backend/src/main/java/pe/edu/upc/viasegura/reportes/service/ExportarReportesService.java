@@ -16,6 +16,7 @@ import pe.edu.upc.viasegura.auth.repository.UsuarioRepository;
 import pe.edu.upc.viasegura.common.exception.ResourceNotFoundException;
 import pe.edu.upc.viasegura.distritos.domain.Distrito;
 import pe.edu.upc.viasegura.reportes.domain.EstadoReporte;
+import pe.edu.upc.viasegura.reportes.domain.RangoFechas;
 import pe.edu.upc.viasegura.reportes.domain.Reporte;
 import pe.edu.upc.viasegura.reportes.dto.FormatoExportacion;
 import pe.edu.upc.viasegura.reportes.port.ExportadorReportes;
@@ -63,6 +64,7 @@ public class ExportarReportesService {
     public Exportacion exportar(String emailFuncionario, FormatoExportacion formato,
                                  Long categoriaId, EstadoReporte estado,
                                  Instant fechaDesde, Instant fechaHasta) {
+        RangoFechas.validar(fechaDesde, fechaHasta);
         Usuario funcionario = usuarioRepository.findByEmail(emailFuncionario)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
         Distrito distrito = funcionario.getDistrito();
