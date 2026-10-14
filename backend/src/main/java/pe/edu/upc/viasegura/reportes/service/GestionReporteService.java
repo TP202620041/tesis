@@ -25,7 +25,7 @@ import pe.edu.upc.viasegura.reportes.domain.TipoEventoHistorial;
 import pe.edu.upc.viasegura.reportes.dto.AsignacionResponsableResponse;
 import pe.edu.upc.viasegura.reportes.dto.AsignarResponsableRequest;
 import pe.edu.upc.viasegura.reportes.dto.CambiarEstadoRequest;
-import pe.edu.upc.viasegura.reportes.dto.ReporteResumenResponse;
+import pe.edu.upc.viasegura.reportes.dto.ReporteGestionResponse;
 import pe.edu.upc.viasegura.reportes.event.ReporteEstadoCambiadoEvent;
 import pe.edu.upc.viasegura.reportes.repository.AsignacionResponsableRepository;
 import pe.edu.upc.viasegura.reportes.repository.HistorialEstadoReporteRepository;
@@ -54,16 +54,16 @@ public class GestionReporteService {
 
     /** US-13: reportes del distrito del funcionario, con filtros opcionales. */
     @Transactional(readOnly = true)
-    public List<ReporteResumenResponse> bandeja(String emailFuncionario, EstadoReporte estado, Long categoriaId) {
+    public List<ReporteGestionResponse> bandeja(String emailFuncionario, EstadoReporte estado, Long categoriaId) {
         Distrito distrito = distritoDeGestion(emailFuncionario);
         return reporteRepository.findBandeja(distrito.getId(), estado, categoriaId).stream()
-                .map(ReporteResumenResponse::from)
+                .map(ReporteGestionResponse::from)
                 .toList();
     }
 
     /** US-14: cambia el estado de un reporte con validaciones y auditoria. */
     @Transactional
-    public ReporteResumenResponse cambiarEstado(String emailFuncionario, Long reporteId, CambiarEstadoRequest req) {
+    public ReporteGestionResponse cambiarEstado(String emailFuncionario, Long reporteId, CambiarEstadoRequest req) {
         Usuario funcionario = usuarioRepository.findByEmail(emailFuncionario)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
         Reporte reporte = reporteRepository.findById(reporteId)
@@ -128,7 +128,7 @@ public class GestionReporteService {
                 distrito != null ? distrito.getNombre() : null,
                 anterior, nuevo, req.comentario()));
 
-        return ReporteResumenResponse.from(guardado);
+        return ReporteGestionResponse.from(guardado);
     }
 
     /**

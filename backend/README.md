@@ -303,6 +303,51 @@ un "Acceso denegado" fijo (correcto: esa excepción también la lanza Spring
 Security desde `@PreAuthorize` y sus textos internos no son para el usuario
 final), pero aquí el mensaje era la parte útil.
 
+### SEC-02 — La señal de reincidencia llegaba al mapa público y al ciudadano
+
+**Detectado:** 2026-10-13, en la revisión del Sprint 2 (B5).
+**Estado:** corregido y cubierto por regresión.
+
+**El problema.** `posibleReincidencia` (US-27) la marca el `ReincidenciaDetector`
+cuando un comentario público sugiere que el daño reapareció, y sirve para
+**resaltar el reporte en la bandeja municipal**. El campo vivía en
+`ReporteResumenResponse`, un DTO que nació para la bandeja y que después se
+reutilizó para la búsqueda y el detalle públicos (`GET /api/reportes`,
+`GET /api/reportes/{id}`, sin autenticación) y para las vistas del ciudadano
+(`mis-reportes`, `pendientes-calificacion`, editar y cancelar). En
+`ComentarioPublicoResponse` ya se había quitado el flag por esta razón, pero
+el mismo dato seguía saliendo por el resumen del reporte: se revisó la ruta,
+no el campo.
+
+**Por qué importaba.** Con el flag visible, cualquiera puede comentar,
+consultar el reporte y ver si el detector se disparó: probando redacciones
+reconstruye su lista de palabras clave. Y como el flag decide qué reportes
+resalta la bandeja, sondearlo es poder **manipular en qué se fija el
+municipio** (o evitar que se fije en algo).
+
+**La corrección.** Dos DTOs con los mismos nombres de campo:
+
+| DTO | Lleva el flag | Endpoints |
+|---|---|---|
+| `ReporteResumenResponse` | **no** | `GET /api/reportes`, `GET /api/reportes/{id}`, `GET /mis-reportes`, `GET /mis-reportes/pendientes-calificacion`, `PATCH /api/reportes/{id}`, `DELETE /api/reportes/{id}` |
+| `ReporteGestionResponse` | sí | `GET /api/reportes/bandeja`, `PATCH /api/reportes/{id}/estado` (rol `FUNCIONARIO_MUNICIPAL`, acotados a su distrito) |
+
+`ReporteResponse` (crear o adherirse) nunca lo llevó. Se prefirió un DTO
+aparte y no `@JsonView` ni un campo `null` según el rol: el contrato queda
+explícito en el tipo, OpenAPI genera dos esquemas distintos para el
+frontend, y una señal operativa nueva tiene un único lugar donde ir. El
+detalle de gestión del frontend ya se arma desde la bandeja, así que no
+hizo falta un endpoint nuevo.
+
+**Regresión:** `SenalInternaFueraDeDtosPublicosIT`. Cada caso usa un reporte
+**con el flag en `true`** (un campo ausente en un reporte sin marcar no
+probaría nada) y afirma primero que el reporte está en la respuesta, para que
+el `doesNotExist` no pase sobre una lista vacía. Cubre los siete endpoints
+públicos y del ciudadano (la búsqueda por filtros y por área, que son dos
+queries), el `POST` de crear/adherirse, y que la bandeja y el cambio de estado
+**sí** lo devuelven. Con el DTO anterior fallan exactamente los siete casos
+públicos y del ciudadano.
+
 ## Frescura del índice de desempeño
 
 El índice público (US-18/US-20) se sirve desde una vista materializada que se

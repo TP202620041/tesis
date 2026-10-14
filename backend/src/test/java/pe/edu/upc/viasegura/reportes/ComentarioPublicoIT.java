@@ -194,7 +194,7 @@ class ComentarioPublicoIT extends AbstractPostgisIT {
                 .andExpect(jsonPath("$[0].posibleReincidencia").doesNotExist());
 
         // Pero el municipio SI lo ve: el flag vive en el reporte, no en el
-        // comentario, y llega a la bandeja por ReporteResumenResponse.
+        // comentario, y llega a la bandeja por ReporteGestionResponse.
         mockMvc.perform(get("/api/reportes/bandeja")
                         .header("Authorization", "Bearer " + token(func)))
                 .andExpect(status().isOk())

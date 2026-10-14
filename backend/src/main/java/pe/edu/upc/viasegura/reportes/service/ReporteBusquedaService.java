@@ -23,8 +23,10 @@ import pe.edu.upc.viasegura.reportes.repository.ReporteRepository;
  * de uso distinto -- ver {@link ReporteRepository#buscar}.
  *
  * <p>Publica sin autenticacion, igual que el indice de desempeno (US-18):
- * {@link ReporteResumenResponse} ya no expone identidad del creador (nace
- * de la bandeja municipal US-13), asi que reusarla aqui no filtra PII.</p>
+ * {@link ReporteResumenResponse} no expone identidad del creador ni senales
+ * internas como {@code posibleReincidencia}, que solo van en el
+ * {@code ReporteGestionResponse} de la bandeja (SEC-02), asi que reusarla
+ * aqui no filtra PII ni deja sondear los detectores.</p>
  */
 @Service
 @RequiredArgsConstructor

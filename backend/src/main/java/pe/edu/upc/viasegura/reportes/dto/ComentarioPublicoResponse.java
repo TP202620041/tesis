@@ -12,7 +12,7 @@ import pe.edu.upc.viasegura.reportes.domain.ComentarioPublico;
  * <p><b>No incluye {@code posibleReincidencia} a proposito.</b> Ese flag
  * existe para dirigir la atencion de la municipalidad: marca el reporte
  * ({@code Reporte.posibleReincidencia}) y llega a la bandeja del funcionario
- * por {@link ReporteResumenResponse}. Publicarlo aqui no servia a ningun
+ * por {@link ReporteGestionResponse}. Publicarlo aqui no servia a ningun
  * consumidor y tenia un costo: revelar que comentarios marco el detector
  * permite sondear su lista de palabras clave probando redacciones y, como
  * ese flag resalta reportes en la bandeja, sondearlo es poder manipular en
