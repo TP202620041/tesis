@@ -53,6 +53,8 @@ Orden: primero las estándar y luego las personalizadas, cada grupo por `nombre`
 `PATCH /api/categorias/58/activa` con `{ "activa": true }` → 200 con el `CategoriaGestionResponse` de la 58 y `"activo": true`.
 
 ## Notas para el frontend
+- **Ojo, semántica distinta a US-08:** `PATCH /api/categorias/{id}` **reemplaza** `nombre` y `descripcion`; enviar solo `{"nombre": …}` deja `descripcion` en `null`. En cambio `PATCH /api/reportes/{id}` (US-08) es parcial (lo ausente no cambia). El formulario de categoría debe enviar siempre ambos campos.
+- Si el nombre no cambia (sin distinguir mayúsculas), no se revalida contra las estándar: una personalizada antigua homónima de una estándar puede seguir editando su descripción.
 - **Errores** (cuerpo `ApiError`, usar `message` cuando exista):
   - 400: `nombre` vacío o largo, `descripcion` > 300, `activa` ausente.
   - 401: sin token. 403 "Acceso denegado": rol distinto de `FUNCIONARIO_MUNICIPAL`.
