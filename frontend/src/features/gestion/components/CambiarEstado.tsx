@@ -6,15 +6,15 @@ import { ApiError, NetworkError } from '@/lib/api/client';
 import { cambiarEstado } from '../api';
 import { esTerminal, exigeComentario, transicionesDesde } from '../model/transiciones';
 import { estiloDeEstado } from '@/lib/types/estados';
-import type { ReporteResumen } from '@/features/reportes/model/tipos';
+import type { ReporteGestion } from '../model/tipos';
 
 /** US-14: el funcionario mueve el reporte por la maquina de estados. */
 export function CambiarEstado({
   reporte,
   onCambiado,
 }: {
-  reporte: ReporteResumen;
-  onCambiado: (actualizado: ReporteResumen) => void;
+  reporte: ReporteGestion;
+  onCambiado: (actualizado: ReporteGestion) => void;
 }) {
   const actual = reporte.estado ?? '';
   const opciones = transicionesDesde(actual);

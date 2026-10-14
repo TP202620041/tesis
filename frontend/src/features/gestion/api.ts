@@ -1,14 +1,18 @@
 import { api, apiDescargar } from '@/lib/api/client';
 import { ApiError } from '@/lib/api/errors';
 import type { HistorialEntrada } from '@/lib/types/domain';
-import type { ReporteResumen } from '@/features/reportes/model/tipos';
 import {
   nombreDeArchivo,
   parametrosDeExportacion,
   type FiltrosExportacion,
   type FormatoExportacion,
 } from './model/exportacion';
-import type { AsignacionResponsable, FiltrosBandeja, ReportesExportados } from './model/tipos';
+import type {
+  AsignacionResponsable,
+  FiltrosBandeja,
+  ReporteGestion,
+  ReportesExportados,
+} from './model/tipos';
 
 /**
  * API de gestion municipal (US-13, US-14, US-15, US-22, US-28).
@@ -27,19 +31,19 @@ import type { AsignacionResponsable, FiltrosBandeja, ReportesExportados } from '
  * la bandeja devuelve la LISTA COMPLETA del distrito, no una pagina: no hay
  * riesgo de filtrar solo sobre un subconjunto.
  */
-export async function bandeja(filtros: FiltrosBandeja): Promise<ReporteResumen[]> {
+export async function bandeja(filtros: FiltrosBandeja): Promise<ReporteGestion[]> {
   const params = new URLSearchParams();
   if (filtros.estado) params.set('estado', filtros.estado);
   if (filtros.categoriaId != null) params.set('categoriaId', String(filtros.categoriaId));
 
   const query = params.toString();
-  const reportes = await api.get<ReporteResumen[]>(
+  const reportes = await api.get<ReporteGestion[]>(
     `/api/reportes/bandeja${query ? `?${query}` : ''}`,
   );
   return filtrarPorFecha(reportes, filtros);
 }
 
-function filtrarPorFecha(reportes: ReporteResumen[], filtros: FiltrosBandeja): ReporteResumen[] {
+function filtrarPorFecha(reportes: ReporteGestion[], filtros: FiltrosBandeja): ReporteGestion[] {
   if (!filtros.fechaDesde && !filtros.fechaHasta) return reportes;
   // `fechaHasta` incluye el dia completo: quien filtra "hasta el 5" espera
   // ver lo reportado el 5, no solo hasta su medianoche inicial.
@@ -60,8 +64,8 @@ export function cambiarEstado(
   reporteId: number,
   estado: string,
   comentario?: string,
-): Promise<ReporteResumen> {
-  return api.patch<ReporteResumen>(`/api/reportes/${reporteId}/estado`, {
+): Promise<ReporteGestion> {
+  return api.patch<ReporteGestion>(`/api/reportes/${reporteId}/estado`, {
     estado,
     comentario: comentario?.trim() || undefined,
   });

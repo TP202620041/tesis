@@ -67,8 +67,11 @@ describe('ListaReportes', () => {
     expect(screen.getByText('11–20 de 25')).toBeInTheDocument();
   });
 
-  it('no muestra señales internas del resumen', () => {
-    render(<ListaReportes consultaHecha cargando={false} reportes={[reporte(1, { posibleReincidencia: true })]} />);
+  it('no muestra señales internas aunque el objeto las trajera', () => {
+    // SEC-02: el resumen público ya no tipa `posibleReincidencia`; se inyecta a
+    // mano para probar que la lista no lee campos fuera de su contrato.
+    const conSenal = { ...reporte(1), posibleReincidencia: true } as ReporteResumen;
+    render(<ListaReportes consultaHecha cargando={false} reportes={[conSenal]} />);
     expect(screen.getByRole('link')).not.toHaveTextContent(/reincid/i);
   });
 

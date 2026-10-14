@@ -6,11 +6,14 @@ import { BotonCerrarSesion } from '@/features/auth/components/BotonCerrarSesion'
 import { GuardiaDeRol } from '@/features/auth/components/GuardiaDeRol';
 import { ROLES_AREA_MUNICIPAL } from '@/features/auth/model/rutas';
 import { bandeja } from '@/features/gestion/api';
-import { FILTROS_BANDEJA_VACIOS, type FiltrosBandeja } from '@/features/gestion/model/tipos';
+import {
+  FILTROS_BANDEJA_VACIOS,
+  type FiltrosBandeja,
+  type ReporteGestion,
+} from '@/features/gestion/model/tipos';
 import { ExportarReportes } from '@/features/gestion/components/ExportarReportes';
 import { ordenar, TablaBandeja, type OrdenBandeja } from '@/features/gestion/components/TablaBandeja';
 import { listarCategorias } from '@/features/reportes/api';
-import type { ReporteResumen } from '@/features/reportes/model/tipos';
 import { ESTADOS_EN_BANDEJA, estiloDeEstado } from '@/lib/types/estados';
 import type { CategoriaDano, Usuario } from '@/lib/types/domain';
 
@@ -24,7 +27,7 @@ export default function BandejaPage() {
 }
 
 function Bandeja({ usuario }: { usuario: Usuario }) {
-  const [reportes, setReportes] = useState<ReporteResumen[]>([]);
+  const [reportes, setReportes] = useState<ReporteGestion[]>([]);
   const [filtros, setFiltros] = useState<FiltrosBandeja>(FILTROS_BANDEJA_VACIOS);
   const [orden, setOrden] = useState<OrdenBandeja>('apoyos');
   const [categorias, setCategorias] = useState<CategoriaDano[]>([]);

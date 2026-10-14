@@ -5,13 +5,12 @@ import { use, useCallback, useEffect, useState } from 'react';
 import { GuardiaDeRol } from '@/features/auth/components/GuardiaDeRol';
 import { ROLES_AREA_MUNICIPAL } from '@/features/auth/model/rutas';
 import { bandeja, historial } from '@/features/gestion/api';
-import { FILTROS_BANDEJA_VACIOS } from '@/features/gestion/model/tipos';
+import { FILTROS_BANDEJA_VACIOS, type ReporteGestion } from '@/features/gestion/model/tipos';
 import { CambiarEstado } from '@/features/gestion/components/CambiarEstado';
 import { LineaDeTiempo } from '@/components/LineaDeTiempo';
 import { Responsable } from '@/features/gestion/components/Responsable';
 import { estiloDeEstado } from '@/lib/types/estados';
 import { urlDeFoto } from '@/lib/api/client';
-import type { ReporteResumen } from '@/features/reportes/model/tipos';
 import type { HistorialEntrada } from '@/lib/types/domain';
 
 /**
@@ -35,7 +34,7 @@ export default function DetalleReportePage({ params }: { params: Promise<{ id: s
 }
 
 function Detalle({ reporteId }: { reporteId: number }) {
-  const [reporte, setReporte] = useState<ReporteResumen | null>(null);
+  const [reporte, setReporte] = useState<ReporteGestion | null>(null);
   const [entradas, setEntradas] = useState<HistorialEntrada[]>([]);
   const [cargando, setCargando] = useState(true);
   const [noEncontrado, setNoEncontrado] = useState(false);
