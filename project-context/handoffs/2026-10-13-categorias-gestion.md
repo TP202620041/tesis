@@ -1,10 +1,10 @@
 # Handoff de contrato: gestión de categorías personalizadas
 
-- **Estado:** pendiente <!-- pendiente | atendido -->
+- **Estado:** atendido <!-- pendiente | atendido -->
 - **Fecha:** 2026-10-13
 - **Origen:** backend, rama `feature/us-29-categorias`, commit `88118d8` (PR pendiente; la rama sale de `feature/us-25-soporte-admin`)
 - **Historia o tarea:** US-29
-- **Atendido por:** _(frontend, rama y fecha)_
+- **Atendido por:** frontend, rama `feature/us-29-categorias-ui`, 2026-10-14 (página `/categorias`; `EditarReporte` ya no reenvía la categoría si no cambió)
 
 ## Endpoints afectados
 | Método | Ruta | Cambio |

@@ -247,6 +247,20 @@ Verificado end-to-end contra el backend real:
   solo existen en el tipo `TicketAdmin`, que solo usa el área ADMIN.
   `GuardiaDeRol` explica el acceso denegado según el área
   (`descripcionDeArea` en `auth/model/rutas.ts`).
+- **US-29** gestión de categorías (`/categorias`, rol
+  `FUNCIONARIO_MUNICIPAL`, enlazada desde la bandeja y el dashboard): las 6
+  estándar de solo lectura y las propias del distrito, activas e inactivas
+  con su estado escrito, para crear, editar y activar/desactivar.
+  Desactivar solo deja de ofrecerla al reportar; se puede reactivar. Dos
+  detalles de contrato:
+  - El `PATCH /api/categorias/{id}` **reemplaza** nombre y descripción (al
+    revés que el `PATCH` de reporte de US-08, que es parcial). El formulario
+    parte de los valores actuales y envía siempre los dos
+    (`gestion/model/categorias.ts`); borrar la descripción la deja en `null`.
+  - En «editar mi reporte» (US-08), si la categoría del reporte se desactivó
+    ya no viene en el catálogo: se agrega igual al selector, seleccionada y
+    marcada «ya no se ofrece», y la petición solo lleva `categoriaId` si el
+    ciudadano eligió otra (`reportes/model/edicion.ts`).
 - **US-18/20** índice de desempeño (`/desempeno`), **público**: ranking de los
   43 distritos con tasa de resolución, tiempo promedio y satisfacción,
   ordenable por columna y filtrable por tipo de daño.
