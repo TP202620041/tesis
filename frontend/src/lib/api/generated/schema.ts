@@ -11,7 +11,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        get: operations["listarParaAdmin"];
         put?: never;
         post: operations["crear"];
         delete?: never;
@@ -75,10 +75,26 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        get: operations["miCalificacion"];
         put?: never;
         post: operations["calificar"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/notificaciones/suscripciones": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["suscribir"];
+        delete: operations["darDeBaja"];
         options?: never;
         head?: never;
         patch?: never;
@@ -187,7 +203,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        get: operations["porId"];
         put?: never;
         post?: never;
         delete: operations["cancelar"];
@@ -210,6 +226,38 @@ export interface paths {
         options?: never;
         head?: never;
         patch: operations["cambiarEstado"];
+        trace?: never;
+    };
+    "/api/categorias/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["editar_1"];
+        trace?: never;
+    };
+    "/api/categorias/{id}/activa": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["cambiarActiva"];
         trace?: never;
     };
     "/api/auth/me": {
@@ -420,6 +468,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/categorias/gestion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listarParaGestion"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -487,7 +551,6 @@ export interface components {
             reporteId?: number;
             autor?: string;
             contenido?: string;
-            posibleReincidencia?: boolean;
             /** Format: date-time */
             createdAt?: string;
         };
@@ -506,6 +569,24 @@ export interface components {
             comentario?: string;
             /** Format: date-time */
             createdAt?: string;
+        };
+        ClavesRequest: {
+            p256dh: string;
+            auth: string;
+        };
+        SuscripcionPushRequest: {
+            endpoint: string;
+            keys: components["schemas"]["ClavesRequest"];
+            userAgent?: string;
+        };
+        SuscripcionPushResponse: {
+            endpoint?: string;
+            userAgent?: string;
+            activa?: boolean;
+            /** Format: date-time */
+            creadaEn?: string;
+            /** Format: date-time */
+            actualizadaEn?: string;
         };
         CrearCategoriaRequest: {
             nombre: string;
@@ -590,34 +671,68 @@ export interface components {
             createdAt?: string;
             /** Format: date-time */
             resolvedAt?: string;
-            posibleReincidencia?: boolean;
         };
         CambiarEstadoRequest: {
             /** @enum {string} */
             estado: "PENDIENTE" | "RECIBIDO" | "EN_PROCESO" | "RESUELTO" | "RECHAZADO" | "CANCELADO";
             comentario?: string;
         };
+        ReporteGestionResponse: {
+            /** Format: int64 */
+            id?: number;
+            /** Format: double */
+            latitud?: number;
+            /** Format: double */
+            longitud?: number;
+            fotoUrl?: string;
+            descripcion?: string;
+            /** Format: int64 */
+            categoriaId?: number;
+            categoriaNombre?: string;
+            estado?: string;
+            /** Format: int64 */
+            distritoId?: number;
+            distritoNombre?: string;
+            /** Format: int32 */
+            totalAdhesiones?: number;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: date-time */
+            resolvedAt?: string;
+            posibleReincidencia?: boolean;
+        };
+        EditarCategoriaRequest: {
+            nombre: string;
+            descripcion?: string;
+        };
+        CategoriaGestionResponse: {
+            /** Format: int64 */
+            id?: number;
+            nombre?: string;
+            descripcion?: string;
+            esEstandar?: boolean;
+            activo?: boolean;
+            /** Format: int64 */
+            distritoId?: number;
+            distritoNombre?: string;
+        };
+        CambiarActivaCategoriaRequest: {
+            activa: boolean;
+        };
         ActualizarPreferenciaRequest: {
             /** @enum {string} */
             preferenciaNotificacion: "PUSH" | "EMAIL" | "AMBAS";
         };
-        Pageable: {
-            /** Format: int32 */
-            page?: number;
-            /** Format: int32 */
-            size?: number;
-            sort?: string[];
-        };
-        PageReporteResumenResponse: {
-            /** Format: int64 */
-            totalElements?: number;
+        PageTicketAdminResponse: {
             /** Format: int32 */
             totalPages?: number;
+            /** Format: int64 */
+            totalElements?: number;
             /** Format: int32 */
             numberOfElements?: number;
             /** Format: int32 */
             size?: number;
-            content?: components["schemas"]["ReporteResumenResponse"][];
+            content?: components["schemas"]["TicketAdminResponse"][];
             /** Format: int32 */
             number?: number;
             sort?: components["schemas"]["SortObject"];
@@ -631,16 +746,55 @@ export interface components {
             offset?: number;
             sort?: components["schemas"]["SortObject"];
             paged?: boolean;
-            unpaged?: boolean;
-            /** Format: int32 */
-            pageNumber?: number;
             /** Format: int32 */
             pageSize?: number;
+            /** Format: int32 */
+            pageNumber?: number;
+            unpaged?: boolean;
         };
         SortObject: {
             empty?: boolean;
-            unsorted?: boolean;
             sorted?: boolean;
+            unsorted?: boolean;
+        };
+        TicketAdminResponse: {
+            /** Format: int64 */
+            id?: number;
+            asunto?: string;
+            mensaje?: string;
+            estado?: string;
+            respuesta?: string;
+            emailContacto?: string;
+            nombreAutor?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: date-time */
+            updatedAt?: string;
+        };
+        Pageable: {
+            /** Format: int32 */
+            page?: number;
+            /** Format: int32 */
+            size?: number;
+            sort?: string[];
+        };
+        PageReporteResumenResponse: {
+            /** Format: int32 */
+            totalPages?: number;
+            /** Format: int64 */
+            totalElements?: number;
+            /** Format: int32 */
+            numberOfElements?: number;
+            /** Format: int32 */
+            size?: number;
+            content?: components["schemas"]["ReporteResumenResponse"][];
+            /** Format: int32 */
+            number?: number;
+            sort?: components["schemas"]["SortObject"];
+            pageable?: components["schemas"]["PageableObject"];
+            first?: boolean;
+            last?: boolean;
+            empty?: boolean;
         };
         HistorialEntradaResponse: {
             /** Format: int64 */
@@ -684,6 +838,9 @@ export interface components {
             /** Format: date-time */
             calculatedAt?: string;
         };
+        BajaSuscripcionPushRequest: {
+            endpoint: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -693,6 +850,30 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    listarParaAdmin: {
+        parameters: {
+            query?: {
+                estado?: "ABIERTO" | "EN_PROCESO" | "CERRADO";
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PageTicketAdminResponse"];
+                };
+            };
+        };
+    };
     crear: {
         parameters: {
             query?: never;
@@ -879,6 +1060,28 @@ export interface operations {
             };
         };
     };
+    miCalificacion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["CalificacionResponse"];
+                };
+            };
+        };
+    };
     calificar: {
         parameters: {
             query?: never;
@@ -902,6 +1105,52 @@ export interface operations {
                 content: {
                     "*/*": components["schemas"]["CalificacionResponse"];
                 };
+            };
+        };
+    };
+    suscribir: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SuscripcionPushRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SuscripcionPushResponse"];
+                };
+            };
+        };
+    };
+    darDeBaja: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BajaSuscripcionPushRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -1069,6 +1318,28 @@ export interface operations {
             };
         };
     };
+    porId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ReporteResumenResponse"];
+                };
+            };
+        };
+    };
     cancelar: {
         parameters: {
             query?: never;
@@ -1138,7 +1409,59 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["ReporteResumenResponse"];
+                    "*/*": components["schemas"]["ReporteGestionResponse"];
+                };
+            };
+        };
+    };
+    editar_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EditarCategoriaRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["CategoriaGestionResponse"];
+                };
+            };
+        };
+    };
+    cambiarActiva: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CambiarActivaCategoriaRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["CategoriaGestionResponse"];
                 };
             };
         };
@@ -1344,7 +1667,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["ReporteResumenResponse"][];
+                    "*/*": components["schemas"]["ReporteGestionResponse"][];
                 };
             };
         };
@@ -1452,6 +1775,26 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["DesempenoDistritalResponse"][];
+                };
+            };
+        };
+    };
+    listarParaGestion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["CategoriaGestionResponse"][];
                 };
             };
         };

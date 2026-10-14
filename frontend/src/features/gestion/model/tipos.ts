@@ -1,10 +1,19 @@
 /**
  * Tipos de la feature `gestion` (ARCHITECTURE.md §5.1). Componentes, hooks y
- * paginas los importan desde aqui, no desde `api.ts`. El reporte en si
- * (`ReporteResumen`) es de `reportes/model/tipos`, y la linea de tiempo
- * (`HistorialEntrada`) de `lib/types/domain`.
+ * paginas los importan desde aqui, no desde `api.ts`. La linea de tiempo
+ * (`HistorialEntrada`) es de `lib/types/domain`.
  */
 import type { components } from '@/lib/api/generated/schema';
+
+/**
+ * US-13/US-14 (SEC-02): reporte tal como lo ve el funcionario en la bandeja.
+ *
+ * Mismos campos que el `ReporteResumen` publico mas `posibleReincidencia`,
+ * la senal interna del detector de reincidencia. Por eso es un tipo aparte:
+ * el flag solo viaja en `GET /bandeja` y `PATCH /{id}/estado`, y ninguna vista
+ * publica ni del ciudadano debe poder leerlo (regla del proyecto).
+ */
+export type ReporteGestion = components['schemas']['ReporteGestionResponse'];
 
 /** US-15: responsable interno vigente de un reporte. */
 export type AsignacionResponsable = components['schemas']['AsignacionResponsableResponse'];
