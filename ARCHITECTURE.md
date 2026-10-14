@@ -1,7 +1,7 @@
 # Arquitectura de software — ViaSegura
 
 > **Documento normativo.** Define las capas, qué va en cada una y qué puede depender de qué, igual para `backend/`, `frontend/` y el futuro `inferencia/`. Los agentes de cada carpeta lo siguen; no lo modifican salvo pedido explícito (ver §10).
-> Versión 1.3 · 2026-10-11 (D-11 decidida) · Plan de migración: `project-context/decisions/plan-migracion-capas.md`.
+> Versión 1.4 · 2026-10-13 (D-12 decidida) · Plan de migración: `project-context/decisions/plan-migracion-capas.md`.
 
 ## 1. Principios
 
@@ -228,7 +228,7 @@ Un agente **nunca** supone un campo que el otro lado todavía no publicó.
 | CATEGORIA_DANO | `reportes.domain.CategoriaDano` | `categoria_dano` | + `icono`, `clase_modelo`. Revisar el solapamiento entre Bache y Hueco en calzada. |
 | MUNICIPALIDAD, GESTION_MUNICIPAL, PERIODO_GESTION, REQUISITO_RECEPCION | `municipalidades.domain` | — | Migración nueva. `municipalidad.distrito_id` es `NOT NULL UNIQUE` y apunta a `distrito`. La geometría sigue solo en `distrito` (D-09). |
 | ENVIO_CORREO, SUSCRIPCION_PUSH | `notificaciones.domain` | — | Migración nueva. |
-| CONSENTIMIENTO | `auth.domain` | — | Migración nueva. |
+| CONSENTIMIENTO | `auth.domain` | — | Migración nueva. Historial por finalidad y versión (D-12). |
 
 ## 9. Decisiones
 
@@ -244,6 +244,7 @@ Un agente **nunca** supone un campo que el otro lado todavía no publicó.
 | D-08 | **El backend vuelve a clasificar la foto guardada** y es la única fuente de `categoria_sugerida_id` y `confianza_sugerencia`. Lo hace en un listener asíncrono posterior al commit (§4.3, paso 3). La vista previa del frontend es solo de interfaz (decisión del usuario, 04/10). Como el modelo es determinista en CPU, la misma foto con la misma versión del modelo da la misma sugerencia que vio el ciudadano. | Que el frontend reenvíe la sugerencia: el cliente podría alterar los datos con los que se evalúa la IA (OE3). Clasificar dentro de la transacción de creación: retiene una conexión a la base durante la inferencia y suma hasta 3 s a cada creación. |
 | D-09 | **La municipalidad referencia a su distrito** (`municipalidad.distrito_id`, `NOT NULL UNIQUE`), y la geometría sigue solo en `distrito` (decisión del usuario, 04/10). Hay 43 filas: 42 municipalidades distritales más la Municipalidad Metropolitana de Lima, asociada a Cercado de Lima. La asignación por punto en polígono no cambia: el reporte obtiene su distrito y de ahí su municipalidad. | Fusionar distrito y municipalidad en una sola tabla, como en el OB2: obliga a migrar todo lo que hoy usa `distrito` (asignación, jurisdicción, índice, catálogo) y mezcla un dato geográfico con uno institucional. |
 | D-11 | **El puerto de fotos vive en `common`**: `common/port/FotoStorageService` y `common/infra/LocalFotoStorageService`, con los mismos nombres y firmas (D-05). Lo usan `auth` (foto de perfil, privada) y `reportes` (foto de reporte, pública, y su lectura para D-08); el contrato sigue teniendo un método explícito por visibilidad. Mover el puerto corta el único ciclo entre módulos (`auth` → `reportes`), y deja en un solo módulo guardar y servir las fotos (`WebMvcConfig`, `SecurityConfig`). `common/port` queda reservado para I/O que usan dos o más módulos (decisión del usuario, 11/10; propuesta `decisions/propuestas/2026-10-11-puerto-fotos.md`). | Un puerto por módulo: la separación pública/privada sería una frontera entre módulos, pero crea dos clases y duplica unas 40 líneas de validación y copia; se puede hacer después a partir de esta. Puerto en `auth`: pasa las guardas, pero deja la evidencia pública de los reportes a cargo del módulo de cuentas. Dejarlo en `reportes` (BE-02 original): mantiene el ciclo. |
+| D-12 | **El consentimiento es un historial por finalidad y versión**: tabla `consentimiento` en `auth` (`usuario_id`, `finalidad` = `TERMINOS_Y_PRIVACIDAD` \| `NOTIFICACIONES_PUSH` \| `NOTIFICACIONES_CORREO`, `version_documento`, `aceptado_en`, `revocado_en`). Cada aceptación es una fila nueva y revocar llena `revocado_en`. El registro (US-01) exige aceptar los términos vigentes. Los usuarios existentes ven una pantalla de aceptación en su próximo inicio de sesión, sin que se los dé por aceptados. Suscribirse a push (US-21) exige el consentimiento `NOTIFICACIONES_PUSH` vigente. `preferencia_notificacion` sigue siendo una **preferencia**; el consentimiento es el **permiso** (decisión del usuario, 13/10; propuesta `decisions/propuestas/2026-10-13-consentimiento.md`; se implementa en S3 como NC-07b). | Solo términos en dos columnas de `usuario`: no distingue finalidades ni guarda la revocación, que pide la Ley N.° 29733. Esperar el OB2: US-21 quedaría sin un consentimiento explícito para push. |
 
 ## 10. Trabajo con varios agentes
 
