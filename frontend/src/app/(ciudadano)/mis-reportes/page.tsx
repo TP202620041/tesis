@@ -4,7 +4,8 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { BotonCerrarSesion } from '@/features/auth/components/BotonCerrarSesion';
 import { GuardiaDeRol } from '@/features/auth/components/GuardiaDeRol';
-import { misReportes, pendientesDeCalificacion, type ReporteResumen } from '@/features/reportes/api';
+import { misReportes, pendientesDeCalificacion } from '@/features/reportes/api';
+import type { ReporteResumen } from '@/features/reportes/model/tipos';
 import { estiloDeEstado } from '@/lib/types/estados';
 import { urlDeFoto } from '@/lib/api/client';
 

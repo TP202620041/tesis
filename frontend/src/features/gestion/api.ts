@@ -1,17 +1,14 @@
 import { api, apiDescargar } from '@/lib/api/client';
 import { ApiError } from '@/lib/api/errors';
-import type { components } from '@/lib/api/generated/schema';
-import type { ReporteResumen } from '@/features/reportes/api';
+import type { HistorialEntrada } from '@/lib/types/domain';
+import type { ReporteResumen } from '@/features/reportes/model/tipos';
 import {
   nombreDeArchivo,
   parametrosDeExportacion,
   type FiltrosExportacion,
   type FormatoExportacion,
 } from './model/exportacion';
-
-type Schemas = components['schemas'];
-export type HistorialEntrada = Schemas['HistorialEntradaResponse'];
-export type AsignacionResponsable = Schemas['AsignacionResponsableResponse'];
+import type { AsignacionResponsable, FiltrosBandeja, ReportesExportados } from './model/tipos';
 
 /**
  * API de gestion municipal (US-13, US-14, US-15, US-22, US-28).
@@ -20,21 +17,6 @@ export type AsignacionResponsable = Schemas['AsignacionResponsableResponse'];
  * que el reporte pertenezca al distrito del funcionario (403 si no). Por eso
  * NINGUNA lleva `conAuth: false`.
  */
-
-export interface FiltrosBandeja {
-  estado: string | null;
-  categoriaId: number | null;
-  /** Filtro por fecha, aplicado en el cliente (ver `bandeja`). */
-  fechaDesde: string | null;
-  fechaHasta: string | null;
-}
-
-export const FILTROS_BANDEJA_VACIOS: FiltrosBandeja = {
-  estado: null,
-  categoriaId: null,
-  fechaDesde: null,
-  fechaHasta: null,
-};
 
 /**
  * US-13: reportes del distrito del funcionario.
@@ -122,12 +104,6 @@ export function asignarResponsable(
     responsable: responsable.trim(),
     notas: notas?.trim() || undefined,
   });
-}
-
-/** Archivo exportado, listo para guardarse con su nombre. */
-export interface ReportesExportados {
-  contenido: Blob;
-  nombreArchivo: string;
 }
 
 /**

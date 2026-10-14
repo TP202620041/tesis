@@ -5,12 +5,9 @@ import { use, useCallback, useEffect, useState } from 'react';
 import { LineaDeTiempo } from '@/components/LineaDeTiempo';
 import { BotonCerrarSesion } from '@/features/auth/components/BotonCerrarSesion';
 import { GuardiaDeRol } from '@/features/auth/components/GuardiaDeRol';
-import {
-  historialDeReporte,
-  misReportes,
-  type HistorialEntrada,
-  type ReporteResumen,
-} from '@/features/reportes/api';
+import { historialDeReporte, misReportes } from '@/features/reportes/api';
+import type { ReporteResumen } from '@/features/reportes/model/tipos';
+import type { HistorialEntrada } from '@/lib/types/domain';
 import {
   explicacionDeEstado,
   puedeCalificar,

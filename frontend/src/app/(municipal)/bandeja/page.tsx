@@ -5,10 +5,12 @@ import { useEffect, useState } from 'react';
 import { BotonCerrarSesion } from '@/features/auth/components/BotonCerrarSesion';
 import { GuardiaDeRol } from '@/features/auth/components/GuardiaDeRol';
 import { ROLES_AREA_MUNICIPAL } from '@/features/auth/model/rutas';
-import { bandeja, FILTROS_BANDEJA_VACIOS, type FiltrosBandeja } from '@/features/gestion/api';
+import { bandeja } from '@/features/gestion/api';
+import { FILTROS_BANDEJA_VACIOS, type FiltrosBandeja } from '@/features/gestion/model/tipos';
 import { ExportarReportes } from '@/features/gestion/components/ExportarReportes';
 import { ordenar, TablaBandeja, type OrdenBandeja } from '@/features/gestion/components/TablaBandeja';
-import { listarCategorias, type ReporteResumen } from '@/features/reportes/api';
+import { listarCategorias } from '@/features/reportes/api';
+import type { ReporteResumen } from '@/features/reportes/model/tipos';
 import { ESTADOS_EN_BANDEJA, estiloDeEstado } from '@/lib/types/estados';
 import type { CategoriaDano, Usuario } from '@/lib/types/domain';
 

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { estiloDeEstado } from '@/lib/types/estados';
-import type { ReporteResumen } from '@/features/reportes/api';
+import type { ReporteResumen } from '@/features/reportes/model/tipos';
 
 /** Criterios de orden de la bandeja. */
 export type OrdenBandeja = 'apoyos' | 'recientes';

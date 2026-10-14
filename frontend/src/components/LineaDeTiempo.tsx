@@ -1,9 +1,7 @@
 'use client';
 
 import { estiloDeEstado } from '@/lib/types/estados';
-import type { components } from '@/lib/api/generated/schema';
-
-type HistorialEntrada = components['schemas']['HistorialEntradaResponse'];
+import type { HistorialEntrada } from '@/lib/types/domain';
 
 /**
  * US-22: linea de tiempo unificada de la gestion de un reporte.
