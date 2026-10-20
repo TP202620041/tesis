@@ -18,6 +18,7 @@ const CON_DATOS: EstadoCapaCalor = {
   ),
   celdaGrados: 0.001,
   consultaHecha: true,
+  cargando: false,
   error: null,
   sinReportesEnVista: false,
 };
@@ -28,6 +29,7 @@ const SIN_DATOS: EstadoCapaCalor = {
   totalEnVista: 0,
   celdaGrados: 0.001,
   consultaHecha: true,
+  cargando: false,
   error: null,
   sinReportesEnVista: true,
 };
@@ -76,12 +78,26 @@ describe('CapasDelMapa', () => {
     ]);
     expect(screen.getByText('11 reportes en la vista')).toBeInTheDocument();
     expect(screen.getByText(/Escala relativa a la zona con más reportes en la vista \(10\)/)).toBeInTheDocument();
+    expect(screen.getByText(/con un mínimo de 4: un reporte aislado no se muestra como densidad alta/)).toBeInTheDocument();
     expect(screen.getByText(/unos 110 m de lado/)).toBeInTheDocument();
+  });
+
+  it('el total de la vista no se anuncia: solo los cambios de estado van en la región viva', () => {
+    renderizar({ calor: true });
+    const total = screen.getByText('11 reportes en la vista');
+    expect(total.closest('[aria-live]')).toBeNull();
+  });
+
+  it('mientras actualiza avisa «Actualizando…» y conserva la leyenda', () => {
+    renderizar({ calor: true, capaCalor: { ...CON_DATOS, cargando: true } });
+    expect(screen.getByText('Actualizando…')).toHaveAttribute('aria-live', 'polite');
+    expect(screen.getByRole('list', { name: 'Leyenda del mapa de calor' })).toBeInTheDocument();
+    expect(screen.getByText('11 reportes en la vista')).toBeInTheDocument();
   });
 
   it('muestra el estado vacío cuando no hay reportes en la vista', () => {
     renderizar({ calor: true, capaCalor: SIN_DATOS });
-    expect(screen.getByText(MENSAJE_SIN_REPORTES_EN_ZONA)).toBeInTheDocument();
+    expect(screen.getByText(MENSAJE_SIN_REPORTES_EN_ZONA)).toHaveAttribute('aria-live', 'polite');
     expect(screen.queryByRole('list', { name: 'Leyenda del mapa de calor' })).not.toBeInTheDocument();
   });
 

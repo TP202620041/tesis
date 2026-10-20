@@ -65,6 +65,7 @@ export function useDensidadMapa(filtros: FiltrosMapa, activa: boolean, area: Bou
     celdaGrados: ultima?.celdaGrados ?? 0,
     /** `true` cuando ya llego una densidad para la capa encendida. */
     consultaHecha: ultima !== null,
+    /** Consulta en vuelo; la capa anterior sigue dibujada mientras tanto («Actualizando…»). */
     cargando: pedida !== null && carga.estado === 'cargando',
     error: activa && carga.estado === 'error' ? carga.error.mensaje : null,
     /** Hay respuesta y ninguna celda cae en la vista: «Sin reportes en esta zona con estos filtros». */

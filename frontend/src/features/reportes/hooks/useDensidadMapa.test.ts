@@ -95,6 +95,28 @@ describe('useDensidadMapa', () => {
     );
   });
 
+  it('mientras llega la consulta nueva marca cargando y no vacía la capa', async () => {
+    vi.mocked(densidadDeReportes).mockResolvedValueOnce(DENSIDAD);
+    let responder: (d: DensidadReportes) => void = () => {};
+    vi.mocked(densidadDeReportes).mockReturnValueOnce(
+      new Promise<DensidadReportes>((r) => {
+        responder = r;
+      }),
+    );
+    const { result, rerender } = renderizar();
+    await waitFor(() => expect(result.current.celdas).toHaveLength(2), ESPERA);
+    expect(result.current.cargando).toBe(false);
+
+    rerender({ f: { ...FILTROS_VACIOS, distritoId: 21 }, activa: true, area: AREA });
+    await waitFor(() => expect(result.current.cargando).toBe(true), ESPERA);
+    expect(result.current.celdas).toHaveLength(2);
+    expect(result.current.consultaHecha).toBe(true);
+
+    responder({ ...DENSIDAD, celdas: [{ latitud: -12.12, longitud: -77.03, cantidad: 7 }] });
+    await waitFor(() => expect(result.current.cargando).toBe(false), ESPERA);
+    expect(result.current.celdas.map((c) => c.cantidad)).toEqual([7]);
+  });
+
   it('respuesta sin celdas: estado vacío, no error', async () => {
     vi.mocked(densidadDeReportes).mockResolvedValue({ celdaGrados: 0.001, totalReportes: 0, celdas: [] });
     const { result } = renderizar();

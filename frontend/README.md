@@ -470,16 +470,33 @@ ni similares) y sin tocar la CSP: no hay orígenes nuevos.
   se funden en manchas, como en un mapa de calor. Se descartó el
   `Rectangle` del tamaño real de la celda por eso mismo.
 - **Cuatro niveles relativos al máximo de la vista** (`nivelDeCalor`: el
-  cuartil de `cantidad / máximo`), no al de toda Lima: al acercarse a un
+  cuartil de `cantidad / referencia`, ver el piso abajo), no al de toda Lima: al acercarse a un
   distrito con pocos reportes se siguen distinguiendo sus zonas, en vez de
   quedar todo en «Baja» por comparación con el centro. Al mover el mapa la
   escala se recalcula en memoria con las celdas visibles (`capaDeCalor`).
+- **Con un piso de 4** (`UMBRAL_MINIMO_ESCALA`): el denominador es
+  `max(máximo visible, 4)`. Una escala puramente relativa engaña con pocos
+  datos: en la verificación en vivo, con todas las celdas en 1 reporte, todas
+  salían «Muy alta: 1 reporte». Con el piso, un reporte aislado es «Baja» y
+  hacen falta 4 en la misma zona para llegar a «Muy alta»; con más datos el
+  piso deja de actuar. La leyenda lo dice («con un mínimo de 4») y solo
+  muestra los niveles a los que llega alguna cantidad de la vista.
 - **No solo color:** cada nivel crece en color (rampa de violetas, de claro
   a oscuro, que no se confunde con los colores de estado de los marcadores y
   se ordena también en escala de grises) **y en tamaño**. La leyenda del
   panel repite ambos y nombra cada nivel con su cantidad («Media: 3 a 5
   reportes»), el máximo de referencia y el lado de la celda. Sin celdas en la
   vista dice «Sin reportes en esta zona con estos filtros».
+- **Un solo `<canvas>` para toda la capa** (renderer `canvas()` compartido
+  por todos los `CircleMarker`), no un nodo SVG por celda: la capa no tiene
+  tope —la grilla cubre toda Lima con los filtros dados— y con miles de
+  celdas el SVG por defecto de Leaflet llenaría el DOM de nodos.
+- **Accesibilidad de la leyenda:** solo los cambios de estado («Calculando
+  densidad…», «Actualizando…», el estado vacío) van en la región
+  `aria-live`; el total «N reportes en la vista» va aparte, porque cambia con
+  cada gesto del mapa y anunciarlo sería ruido. Mientras llega una consulta
+  nueva la capa anterior sigue dibujada y se avisa «Actualizando…». El nivel
+  más oscuro lleva borde claro en la leyenda para verse en modo oscuro.
 - Los círculos van en el `overlayPane`, debajo de los marcadores, que siguen
   siendo clicables. Las dos capas se encienden y apagan por separado
   (casillas «Capas del mapa»); apagar los marcadores no detiene la búsqueda,

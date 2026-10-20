@@ -36,7 +36,9 @@ const MapaReportes = dynamic(() => import('@/map/MapaReportes'), {
  *
  * US-11: la capa de calor usa los mismos filtros y el area de la busqueda
  * (solo para la escala de la vista; la densidad no se vuelve a pedir al
- * mover el mapa). Se enciende y apaga junto a los marcadores.
+ * mover el mapa). Marcadores y calor se encienden y apagan por separado,
+ * cada uno con su casilla en «Capas del mapa»; ocultar los marcadores no
+ * detiene la busqueda, que sigue alimentando la lista.
  */
 export default function MapaPage() {
   const [filtros, setFiltros] = useState<FiltrosMapa>(FILTROS_VACIOS);

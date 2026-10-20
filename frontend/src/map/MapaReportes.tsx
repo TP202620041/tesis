@@ -1,7 +1,7 @@
 'use client';
 
 import 'leaflet/dist/leaflet.css';
-import { DivIcon, type LatLngBounds } from 'leaflet';
+import { DivIcon, canvas, type LatLngBounds } from 'leaflet';
 import { useEffect, useMemo } from 'react';
 import {
   CircleMarker,
@@ -94,8 +94,14 @@ function ObservarArea({ onAreaCambiada }: { onAreaCambiada: (b: BoundingBox) => 
  *   intensidad no depende solo del color, y la leyenda repite ambos.
  * - Vectores en el `overlayPane`, por debajo de los marcadores
  *   (`markerPane`): los marcadores siguen siendo clicables encima.
+ * - **Un solo `<canvas>` compartido** para todas las celdas, no un nodo SVG
+ *   por celda: la capa no tiene tope (la grilla cubre toda Lima con los
+ *   filtros dados), y con miles de celdas el SVG por defecto de Leaflet
+ *   crearia miles de nodos en el DOM. El renderer se crea una vez por
+ *   montaje de la capa.
  */
 function CapaCalor({ celdas }: { celdas: CeldaCalor[] }) {
+  const renderer = useMemo(() => canvas(), []);
   return celdas.map((celda) => {
     const estilo = estiloDeNivel(celda.nivel);
     return (
@@ -103,6 +109,7 @@ function CapaCalor({ celdas }: { celdas: CeldaCalor[] }) {
         key={`${celda.latitud},${celda.longitud}`}
         center={[celda.latitud, celda.longitud]}
         radius={estilo.radio}
+        renderer={renderer}
         pathOptions={{
           color: estilo.color,
           weight: 1,
