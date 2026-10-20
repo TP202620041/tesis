@@ -173,6 +173,17 @@ export function urlDeFoto(fotoUrl: string | null | undefined): string | null {
   return `${BASE_URL}${fotoUrl}`;
 }
 
+/**
+ * Copia de `entidad` con su `fotoUrl` ya absoluta ({@link urlDeFoto}). La
+ * usan los `api.ts` de las features para que paginas y componentes reciban
+ * la URL lista para `<img src>`. Solo para fotos publicas (de reporte).
+ */
+export function conFotoAbsoluta<T extends { fotoUrl?: string | null }>(entidad: T): T {
+  // Sin foto se devuelve tal cual: no se cambia un `undefined` por `null`.
+  if (!entidad.fotoUrl) return entidad;
+  return { ...entidad, fotoUrl: urlDeFoto(entidad.fotoUrl) ?? entidad.fotoUrl };
+}
+
 /** `true` si la foto exige token (perfil) en vez de ser publica (reporte). */
 export function fotoRequiereAuth(fotoUrl: string): boolean {
   return fotoUrl.startsWith('/api/');

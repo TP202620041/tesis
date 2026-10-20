@@ -2,9 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
-import { listarDistritos } from '@/features/distritos/api';
-import { listarCategorias } from '@/features/reportes/api';
+import { useState } from 'react';
 import { ListaReportes } from '@/features/reportes/components/ListaReportes';
 import { PanelFiltrosMapa } from '@/features/reportes/components/PanelFiltrosMapa';
 import {
@@ -12,8 +10,8 @@ import {
   type VistaResultados,
 } from '@/features/reportes/components/SelectorDeVista';
 import { useBusquedaMapa } from '@/features/reportes/hooks/useBusquedaMapa';
+import { useCatalogosMapa } from '@/features/reportes/hooks/useCatalogosMapa';
 import { FILTROS_VACIOS, MAXIMO_MARCADORES, type FiltrosMapa } from '@/features/reportes/model/bbox';
-import type { CategoriaDano, Distrito } from '@/lib/types/domain';
 
 const MapaReportes = dynamic(() => import('@/map/MapaReportes'), {
   ssr: false,
@@ -37,28 +35,9 @@ const MapaReportes = dynamic(() => import('@/map/MapaReportes'), {
 export default function MapaPage() {
   const [filtros, setFiltros] = useState<FiltrosMapa>(FILTROS_VACIOS);
   const [vista, setVista] = useState<VistaResultados>('mapa');
-  const [distritos, setDistritos] = useState<Distrito[]>([]);
-  const [categorias, setCategorias] = useState<CategoriaDano[]>([]);
+  // Catalogos de los filtros: son estables, se piden una vez.
+  const { distritos, categorias } = useCatalogosMapa();
   const busqueda = useBusquedaMapa(filtros);
-
-  // Catalogos de los filtros: son estables, se piden una vez. (Pendiente de
-  // pasar a un hook en FE-05/FE-08, junto con los catalogos compartidos.)
-  useEffect(() => {
-    let cancelado = false;
-    const cargar = async () => {
-      const [d, c] = await Promise.all([
-        listarDistritos().catch(() => [] as Distrito[]),
-        listarCategorias().catch(() => [] as CategoriaDano[]),
-      ]);
-      if (cancelado) return;
-      setDistritos(d);
-      setCategorias(c);
-    };
-    void cargar();
-    return () => {
-      cancelado = true;
-    };
-  }, []);
 
   return (
     <div className="flex h-dvh flex-col">

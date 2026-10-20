@@ -75,9 +75,9 @@ src/
 │   ├── (cuenta)/               # cualquier usuario con sesión — soporte
 │   └── (admin)/admin/          # rol ADMIN — soporte (bandeja de tickets)
 ├── features/                   # lógica por dominio, no por tipo de archivo
-│   ├── auth/  reportes/  distritos/  desempeno/  gestion/  soporte/
+│   ├── auth/  reportes/  desempeno/  gestion/  soporte/
 ├── lib/
-│   ├── api/                    # cliente HTTP tipado + tipos generados
+│   ├── api/                    # cliente HTTP tipado + tipos generados + catálogos compartidos
 │   ├── auth/                   # almacenamiento del token
 │   └── types/domain.ts         # uniones de enums y alias de dominio
 ├── components/ui/              # presentacionales compartidos
