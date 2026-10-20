@@ -57,13 +57,14 @@
 - **Fórmulas de los KPIs** (S6) y **clases del modelo** (S7): siguen pendientes según `plan-sprints.md`.
 - **Revisión legal** del borrador de términos (los `[COMPLETAR]`, y si la exclusión de la §10 es válida en Perú).
 
-## 4. Entorno de esta máquina (macOS) — distinto de lo que dice `CLAUDE.md` raíz
+## 4. Entorno: el usuario trabaja en Windows y en macOS
+
+La tabla de `CLAUDE.md` raíz tiene los dos entornos (JDK, puerto y cómo liberar el 8080). En Windows: JDK en `C:/Cursos/...`, PostgreSQL en 5433. Lo de abajo es de la máquina macOS:
 
 - **JDK 21:** `export JAVA_HOME=/opt/homebrew/opt/openjdk@21` antes de `mvn`. El Java por defecto es el 24, y con él Lombok no compila. No se fijó en `~/.zshrc`.
 - **PostgreSQL en el puerto 5432**, no en 5433. Los IT necesitan `TEST_DB_URL=jdbc:postgresql://localhost:5432/viasegura_test` porque `AbstractPostgisIT` usa 5433 por defecto.
-- `CLAUDE.md` raíz todavía menciona JAVA_HOME de Windows, el puerto 5433, «push es stub» y Vitest «en este Windows». Corregirlo en un PR `DOC:` (tarea del coordinador; la guardia lo bloquea para los agentes).
 - Backend para la PWA: `JAVA_HOME=/opt/homebrew/opt/openjdk@21 CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3001 mvn spring-boot:run`.
-- **Playwright** 1.64.1 global (`npm i -g`) con Chromium. El usuario quiere las pruebas E2E en **modo `--headed`** (navegador visible, `slowMo` ~300). No agregarlo al `package.json`.
+- **Playwright** 1.64.1 global en el Mac (en Windows, instalarlo igual: `npm i -g playwright && playwright install chromium`) con Chromium. El usuario quiere las pruebas E2E en **modo `--headed`** (navegador visible, `slowMo` ~300). No agregarlo al `package.json`.
 - **Datos de prueba:** `backend/scripts/seed-datos-prueba.sql` (instrucciones en su cabecera). Usuarios `*@viasegura.test` con contraseña `Prueba123!`: `ciudadano1..8`, `func.{miraflores,surco,sjl,ate,lima,comas}` y `admin`. En la BD de dev también quedan reportes E2E (168–171) y una cuenta `e2e.terminos+…@viasegura.test`.
 
 ## 5. Forma de trabajo acordada con el usuario
