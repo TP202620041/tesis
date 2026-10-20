@@ -10,13 +10,14 @@ describe('TextoTerminosYPrivacidad', () => {
     expect(screen.getAllByText(VERSION_TERMINOS).length).toBeGreaterThanOrEqual(2);
   });
 
-  it('trae las diez secciones del borrador, en orden', () => {
+  it('trae las once secciones del borrador, en orden', () => {
     render(<TextoTerminosYPrivacidad />);
     const titulos = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent);
-    expect(titulos).toHaveLength(10);
+    expect(titulos).toHaveLength(11);
     expect(titulos[0]).toBe('1. Quiénes somos');
     expect(titulos[4]).toBe('5. Tus consentimientos (y cómo retirarlos)');
-    expect(titulos[9]).toBe('10. Cambios a este documento');
+    expect(titulos[9]).toBe('10. Responsabilidad sobre las fotografías y el contenido que subes');
+    expect(titulos[10]).toBe('11. Cambios a este documento');
   });
 
   it('deja visibles los [COMPLETAR] del borrador en vez de inventar datos', () => {
