@@ -266,9 +266,27 @@ Cierre (2026-10-19, rama `feature/fe-05`, sobre `develop` v0.3.0).
 
 Los 24 restantes son de los 8 componentes de FE-06 (`FormularioLogin`, `FormularioRegistro`, `CambiarEstado`, `Responsable`, `Calificar`, `Comentarios`, `EditarReporte`, `FormularioReporte`). No hay avisos nuevos en los archivos que entraron a `hooks/` ni a `components/`.
 
-### [ ] FE-06 · Mutaciones en hooks
+### [x] FE-06 · Mutaciones en hooks (2026-10-20)
 Los componentes que hoy llaman al API pasan a usar un hook de su feature: `CambiarEstado`, `Responsable`, `Calificar`, `Comentarios`, `EditarReporte`, `FormularioReporte`, `FormularioLogin` y `FormularioRegistro`. El hook captura el error con `mensajeDeError`, y el componente ya no importa `ApiError` ni `NetworkError`. **Se conserva** la regla de `Idempotency-Key` de `FormularioReporte`: la clave vive en el hook y no se regenera en un reintento.
 - `EditarReporte` ganó lógica en US-29 (`reportes/model/edicion.ts`); migrar a `useEditarReporte`.
+
+Cierre (2026-10-20, rama `feature/fe-06-mutaciones-en-hooks`, sobre `develop` con NC-07b).
+- `FormularioLogin` y `FormularioRegistro` ya estaban resueltos por NC-07b (`useIniciarSesion`, `useRegistro`): sin avisos al empezar, no se tocaron.
+- **gestion:** `useCambiarEstado` (exige el motivo al rechazar antes de enviar) y `useResponsable` (consulta sobre `useCarga` con `[reporteId, estado]`; la asignación adopta la respuesta del servidor y vale solo para ese reporte y estado).
+- **reportes:** `useCalificar`, `useComentarios` (tras publicar, `recargar()` sin desmontar la lista), `useEditarReporte` (opciones con `opcionesDeCategoria` y cuerpo con `cambiosDeEdicion`), `useCategoriasDeReporte` (catálogo por distrito desde `lib/api/catalogos`) y `useCrearReporte`.
+- **`Idempotency-Key`:** vive en `useCrearReporte` (una por formulario montado); se conserva tras un error del backend, el 403 `TERMINOS_PENDIENTES` o la falta de IndexedDB, y solo se renueva tras crear o encolar el reporte. La cola de US-06 (`useEncolarReporte`, `SincronizadorDeReportes`) no cambia.
+- **FE-08:** se quita la reexportación de `listarCategorias` de `reportes/api.ts`.
+- Diferencias mínimas aceptadas: el aviso sin red pasa a ser el de `mensajeDeError` ("Sin conexión con el servidor. Revisa tu red."); en `FormularioReporte` una categoría que no existe en el distrito nuevo cuenta como no elegida (se deriva de la lista en vez de limpiarse en un efecto), y mientras se recarga el catálogo el selector queda vacío; en `Comentarios` la lista se conserva visible al recargar tras publicar.
+- Tests: 6 archivos nuevos (`useCambiarEstado`, `useResponsable`, `useCalificar`, `useComentarios`, `useEditarReporte`, `useCrearReporte`, 34 tests); `EditarReporte.test` y `FormularioReporte.test` mockean el catálogo en `@/lib/api/catalogos`. No se borró ningún test.
+
+| Métrica | Antes | Después |
+|---|---|---|
+| `npm run typecheck` | 0 errores | 0 errores |
+| `npm test` (con la guarda) | 400 tests en 62 archivos | 434 tests en 68 archivos |
+| `npm run lint`: código / avisos que no son de capas | 0 / 0 | 0 / 0 |
+| Avisos de capas (`contar-capas.mjs`) | **18 en 6 archivos** | **0 en 0 archivos** |
+| `gatewayDesdeUi` / `clienteHttp` | 12 / 6 | 0 / 0 |
+| `npm run build` | — | OK |
 
 ### [ ] FE-07 · URLs de fotos en el gateway
 `features/<f>/api.ts` devuelve `fotoUrl` ya absoluta (`urlDeFoto`). Las páginas y los componentes dejan de importar `@/lib/api/client`. La foto de perfil (que requiere token) se resuelve en un hook de auth que devuelve la URL `blob:`.
