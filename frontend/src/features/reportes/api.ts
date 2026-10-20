@@ -87,11 +87,11 @@ export function historialDeReporte(reporteId: number): Promise<HistorialEntrada[
 }
 
 /** US-08: edita categoria y/o descripcion. Campos ausentes no se modifican. */
-export function editarReporte(
+export async function editarReporte(
   reporteId: number,
   cambios: { categoriaId?: number; descripcion?: string },
 ): Promise<ReporteResumen> {
-  return api.patch<ReporteResumen>(`/api/reportes/${reporteId}`, cambios);
+  return conFotoAbsoluta(await api.patch<ReporteResumen>(`/api/reportes/${reporteId}`, cambios));
 }
 
 /**
@@ -101,8 +101,8 @@ export function editarReporte(
  * adheridos (US-09), porque es un unico dano fisico modelado en una sola
  * fila; aceptable porque solo aplica en PENDIENTE.
  */
-export function cancelarReporte(reporteId: number): Promise<ReporteResumen> {
-  return api.delete<ReporteResumen>(`/api/reportes/${reporteId}`);
+export async function cancelarReporte(reporteId: number): Promise<ReporteResumen> {
+  return conFotoAbsoluta(await api.delete<ReporteResumen>(`/api/reportes/${reporteId}`));
 }
 
 /**
