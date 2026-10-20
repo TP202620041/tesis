@@ -534,6 +534,22 @@ Central el 19/10/2026):
 Cambiar de librería es cambiar solo el adaptador: el resto del código usa el
 puerto.
 
+**Riesgo aceptado y mitigaciones.** La librería tiene un solo mantenedor y no
+tiene auditoría de seguridad pública. A favor: no implementa criptografía
+propia, sino que compone primitivas del JDK (ECDH, HKDF sobre HMAC-SHA-256,
+AES-GCM, ECDSA). Mitigaciones:
+
+- `WebPushInteroperabilidadTest` (Surefire, sin red) la contrasta con una
+  implementación independiente escrita solo con el JDK. Genera un par P-256
+  y un `auth` de «navegador», arma el pedido con la librería, **descifra** el
+  cuerpo `aes128gcm` (RFC 8291 / RFC 8188) y compara el texto. Además
+  **verifica** la firma ES256 del JWT de `Authorization: vapid t=…,k=…` con
+  la clave pública y sus claims `aud`, `sub` y `exp` (RFC 8292). También
+  comprueba que otro par de claves no puede descifrar el mensaje.
+- El puerto `EnviadorWebPush` permite cambiarla sin tocar el resto.
+- Versión fija (2.1.5, sin rangos). SHA-1 del jar en Maven Central:
+  `02fa1d9e72a281c25eac128b3a7a0633cc0d1395` (coincide con el descargado).
+
 **Claves VAPID por entorno, nunca en el repo.** `VAPID_PUBLIC_KEY`,
 `VAPID_PRIVATE_KEY` (base64url, el formato de `web-push`) y `VAPID_SUBJECT`
 (`mailto:…` o `https://…`). Para generarlas:
@@ -547,7 +563,14 @@ Sin las tres, o con claves inválidas, el adaptador queda **sin configurar**:
 la app arranca igual (lo deja en el log), el canal PUSH se reporta no
 disponible y el aviso cae a correo si hay permiso. Cambiar las claves invalida
 todas las suscripciones existentes (el navegador las creó con la pública
-anterior); los navegadores tienen que volver a suscribirse.
+anterior). Tras rotarlas, el servicio de push responde **401/403** a esas
+suscripciones y fallan (el aviso cae a correo si hay permiso) hasta que el
+navegador se vuelve a suscribir con la clave nueva. **401/403 no desactiva la
+suscripción**, a propósito: desde el servidor no se distingue una suscripción
+creada con la clave vieja de un error de configuración propio (sujeto, reloj,
+claves mal copiadas), y en ese caso se desactivarían las de todos los
+usuarios de una vez. Se registra un aviso en el log, y el frontend se vuelve a
+suscribir al iniciar sesión si la clave pública cambió (ver el handoff).
 
 **Clave pública:** `GET /api/notificaciones/vapid-public-key` →
 `{"clavePublica": "..."}`, o 404 si no hay claves. Es pública (ruta exacta y
@@ -561,14 +584,16 @@ payload es JSON:
 
 ```json
 {"titulo": "ViaSegura: su reporte esta en proceso",
- "cuerpo": "Su reporte #42 paso a EN_PROCESO.",
+ "cuerpo": "Su reporte #42 esta en proceso.",
  "url": "/mis-reportes/42", "reporteId": 42, "estado": "EN_PROCESO"}
 ```
 
 Solo datos del reporte del propio ciudadano: ninguna señal interna
 (reincidencia, prioridad) ni datos de otros usuarios. El cuerpo no lleva el
 comentario del municipio ni el distrito: una notificación se ve en la pantalla
-bloqueada, y el detalle está al abrir el reporte (el correo sí lo lleva). TTL
+bloqueada, y el detalle está al abrir el reporte (el correo sí lo lleva). El
+cuerpo dice el estado en palabras («esta en proceso», «fue resuelto»); el
+valor técnico viaja aparte en `estado`. TTL
 de 24 h (después el aviso pierde sentido) y tópico `reporte-{id}`: si hay un
 aviso pendiente del mismo reporte, el servicio de push lo reemplaza por el
 nuevo.
@@ -583,8 +608,42 @@ nuevo.
 - Cualquier otro error (red, timeout, 4xx/5xx): esa suscripción no se toca,
   porque puede ser transitorio. Si no se entregó a ninguna, el canal lanza,
   `NotificacionService` registra el push `FALLIDA` y cae a correo si hay
-  permiso. El cambio de estado nunca se ve afectado (el envío corre después
-  del commit, en su propia transacción).
+  permiso. El cambio de estado nunca se ve afectado.
+
+**Fuera del hilo del funcionario y fuera de la transacción.** El listener de
+notificaciones es `AFTER_COMMIT` + `@Async` en el executor acotado de
+`common/config/AsyncConfig` (ver abajo): el `PATCH …/estado` responde sin
+esperar al SMTP ni al servicio de push. `NotificacionService.notificarCambioEstado`
+no abre una transacción: las llamadas HTTP y SMTP corren sin retener una
+conexión a la base, y cada escritura (el registro en `notificacion`, la
+desactivación de una suscripción caducada) es una transacción corta del
+repositorio. Timeouts del push: 3 s de conexión y 5 s de pedido
+(`PUSH_TIMEOUT_CONEXION_SEGUNDOS`, `PUSH_TIMEOUT_PEDIDO_SEGUNDOS`).
+
+### Executor asíncrono (`AsyncConfig`)
+
+Uno solo, con nombre (`ejecutorAsincrono`, hilos `viasegura-async-*`), para
+reutilizar en todo trabajo posterior al commit: los avisos de hoy y la
+sugerencia de categoría de D-08 (`@Async(AsyncConfig.EJECUTOR)`).
+
+| Parámetro | Por defecto | Variable |
+|---|---|---|
+| Hilos base / máximo | 2 / 4 | `ASYNC_HILOS_BASE`, `ASYNC_HILOS_MAX` |
+| Cola | 100 tareas | `ASYNC_COLA` |
+| Cola llena | **se descarta la tarea y se registra** | — |
+| Apagado | espera hasta 10 s a las tareas en curso | — |
+
+Con la cola llena la tarea **nunca** corre en el hilo que la pidió
+(`CallerRunsPolicy`): eso le devolvería al funcionario la latencia de la red
+justo cuando el sistema está saturado. Perder un aviso en ese caso se acepta:
+el reporte y su historial no dependen de él. En el perfil `test` el bean real
+no existe (`@Profile("!test")`) y `support/EjecutorSincronoTestConfig`
+registra uno con el mismo nombre que corre cada tarea en un hilo nuevo y
+**espera a que termine**: los IT siguen siendo deterministas, sin esperas ni
+`Thread.sleep`. No es un `SyncTaskExecutor` (mismo hilo) porque en
+`AFTER_COMMIT` ese hilo todavía tiene ligada la transacción ya confirmada, y
+las escrituras "participarían" en ella sin confirmarse; un hilo aparte
+reproduce lo que pasa en producción.
 
 **Tests.** En todos los IT, `support/EnviadorWebPushFake` reemplaza al puerto
 (`@Primary`): registra lo que se habría enviado y responde lo que el test le
