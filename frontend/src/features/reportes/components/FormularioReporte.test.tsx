@@ -1,16 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { distritoPorCoordenadas } from '@/lib/api/catalogos';
+import { distritoPorCoordenadas, listarCategorias } from '@/lib/api/catalogos';
 import { NetworkError } from '@/lib/api/errors';
 import type { CategoriaDano, Distrito } from '@/lib/types/domain';
-import { crearReporte, listarCategorias } from '../api';
+import { crearReporte } from '../api';
 import { useEncolarReporte } from '../hooks/useColaOffline';
 import { FormularioReporte } from './FormularioReporte';
 
 vi.mock('next/dynamic', () => ({ default: () => () => null }));
-vi.mock('../api', () => ({ crearReporte: vi.fn(), listarCategorias: vi.fn() }));
-vi.mock('@/lib/api/catalogos', () => ({ distritoPorCoordenadas: vi.fn() }));
+vi.mock('../api', () => ({ crearReporte: vi.fn() }));
+vi.mock('@/lib/api/catalogos', () => ({ distritoPorCoordenadas: vi.fn(), listarCategorias: vi.fn() }));
 vi.mock('../hooks/useColaOffline', () => ({ useEncolarReporte: vi.fn() }));
 
 const encolar = vi.fn();

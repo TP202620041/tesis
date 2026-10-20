@@ -1,12 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { AlertaError, Boton } from '@/components/ui/form';
-import { ApiError, NetworkError } from '@/lib/api/client';
-import { cancelarReporte, editarReporte, listarCategorias } from '../api';
-import { cambiosDeEdicion, etiquetaDeOpcion, opcionesDeCategoria } from '../model/edicion';
+import { useEditarReporte } from '../hooks/useEditarReporte';
+import { etiquetaDeOpcion } from '../model/edicion';
 import type { ReporteResumen } from '../model/tipos';
-import type { CategoriaDano } from '@/lib/types/domain';
 
 /**
  * US-08: el creador edita o retira su reporte mientras sigue PENDIENTE.
@@ -22,77 +20,21 @@ export function EditarReporte({
   reporte: ReporteResumen;
   onActualizado: () => void;
 }) {
+  const { opciones, guardar: guardarCambios, retirar: retirarReporte, enviando, error } =
+    useEditarReporte(reporte);
   const [categoriaId, setCategoriaId] = useState<number | null>(reporte.categoriaId ?? null);
   const [descripcion, setDescripcion] = useState(reporte.descripcion ?? '');
-  const [categorias, setCategorias] = useState<CategoriaDano[]>([]);
-  const [enviando, setEnviando] = useState(false);
   const [confirmandoRetiro, setConfirmandoRetiro] = useState(false);
-  const [error, setError] = useState<{ mensaje: string; detalles: string[] } | null>(null);
-
-  // Categorias validas para el distrito del reporte (US-29): una
-  // personalizada de otro distrito seria rechazada con 409.
-  useEffect(() => {
-    let cancelado = false;
-    const cargar = async () => {
-      const lista = await listarCategorias(reporte.distritoId ?? null).catch(
-        () => [] as CategoriaDano[],
-      );
-      if (!cancelado) setCategorias(lista);
-    };
-    void cargar();
-    return () => {
-      cancelado = true;
-    };
-  }, [reporte.distritoId]);
-
-  // Una categoría desactivada (US-29) ya no viene en el catálogo, pero sigue
-  // siendo la del reporte: se muestra igual, seleccionada.
-  const opciones = opcionesDeCategoria(categorias, {
-    id: reporte.categoriaId ?? null,
-    nombre: reporte.categoriaNombre ?? null,
-  });
-
-  function manejarError(e: unknown) {
-    if (e instanceof NetworkError) {
-      setError({ mensaje: 'Sin conexión con el servidor.', detalles: [] });
-    } else if (e instanceof ApiError) {
-      setError({ mensaje: e.message, detalles: e.details });
-    } else {
-      setError({ mensaje: 'Ocurrió un error inesperado.', detalles: [] });
-    }
-  }
 
   async function guardar(evento: React.FormEvent) {
     evento.preventDefault();
-    setError(null);
-    setEnviando(true);
-    try {
-      // US-29: no se reenvía la categoría si no cambió (puede estar
-      // desactivada; el backend lo acepta, pero no hace falta).
-      await editarReporte(
-        reporte.id ?? 0,
-        cambiosDeEdicion(reporte.categoriaId ?? null, categoriaId, descripcion),
-      );
-      onActualizado();
-    } catch (e) {
-      manejarError(e);
-    } finally {
-      setEnviando(false);
-    }
+    if (await guardarCambios(categoriaId, descripcion)) onActualizado();
   }
 
   async function retirar() {
-    setError(null);
-    setEnviando(true);
-    try {
-      await cancelarReporte(reporte.id ?? 0);
-      onActualizado();
-    } catch (e) {
-      manejarError(e);
-    } finally {
-      setEnviando(false);
-      setConfirmandoRetiro(false);
-    }
+    const retirado = await retirarReporte();
+    setConfirmandoRetiro(false);
+    if (retirado) onActualizado();
   }
 
   return (
