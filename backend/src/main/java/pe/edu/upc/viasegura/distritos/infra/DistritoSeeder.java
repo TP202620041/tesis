@@ -10,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.locationtech.jts.geom.MultiPolygon;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 import pe.edu.upc.viasegura.common.geo.GeoJsonMultiPolygonReader;
@@ -26,9 +27,13 @@ import pe.edu.upc.viasegura.distritos.repository.DistritoRepository;
  * <p>Idempotente: si ya hay distritos cargados, no hace nada. Es
  * reference data, por eso se carga con un seeder de aplicacion y no con
  * una migracion Flyway de datos.</p>
+ *
+ * <p>Corre primero ({@code @Order(1)}): {@code MunicipalidadSeeder} necesita
+ * los distritos ya cargados.</p>
  */
 @Slf4j
 @Component
+@Order(1)
 @RequiredArgsConstructor
 public class DistritoSeeder implements ApplicationRunner {
 
