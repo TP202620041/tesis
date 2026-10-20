@@ -509,4 +509,13 @@ class ConsentimientoIT extends AbstractPostgisIT {
                 .filter(c -> c.getFinalidad() == FinalidadConsentimiento.NOTIFICACIONES_CORREO).count();
         assertThat(correo).isEqualTo(2);
     }
+
+    @Test
+    void ciudadanoConTerminos_enRutaDeFuncionario_403SinCodigo() throws Exception {
+        // El 403 por rol (@PreAuthorize) no se confunde con el de terminos pendientes.
+        mockMvc.perform(get("/api/reportes/bandeja").header("Authorization", token(usuarioConTerminos())))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message", is("Acceso denegado")))
+                .andExpect(jsonPath("$.codigo").doesNotExist());
+    }
 }

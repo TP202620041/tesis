@@ -2,7 +2,7 @@
 
 - **Estado:** pendiente <!-- pendiente | atendido -->
 - **Fecha:** 2026-10-19
-- **Origen:** backend, rama `feature/nc-07b-consentimiento`, commits `6a7e867` y las correcciones de revisión posteriores (PR por abrir contra `develop`)
+- **Origen:** backend, rama `feature/nc-07b-consentimiento`, commits `6a7e867` (implementación) y `e45268d` (correcciones de revisión: bloqueo por términos, permiso de correo y push al enviar, V14) (PR por abrir contra `develop`)
 - **Historia o tarea:** NC-07b (D-12), cambia US-01 (registro) y NC-07 (suscripción push)
 - **Atendido por:** _(frontend, rama y fecha)_
 

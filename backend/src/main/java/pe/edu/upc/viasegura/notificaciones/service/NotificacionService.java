@@ -73,8 +73,9 @@ public class NotificacionService {
     /**
      * Si el canal puede usarse con ese ciudadano: permiso vigente (D-12) y
      * canal disponible (suscripcion push activa, direccion de correo).
+     * Se usa dentro de {@link #notificarCambioEstado} (en su transaccion) y
+     * es publico solo para que los IT lo consulten directamente.
      */
-    @Transactional(readOnly = true)
     public boolean canalDisponible(Usuario destinatario, CanalNotificacion canal) {
         NotificacionCanalAdapter adapter = adapters.get(canal);
         return adapter != null
