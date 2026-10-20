@@ -3,6 +3,7 @@ package pe.edu.upc.viasegura.notificaciones.service;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import pe.edu.upc.viasegura.auth.domain.FinalidadConsentimiento;
 import pe.edu.upc.viasegura.auth.domain.Usuario;
@@ -125,11 +126,12 @@ public class SuscripcionPushService {
     }
 
     /**
-     * Borra todas las suscripciones del usuario. Lo invoca el listener de la
-     * revocacion de {@code NOTIFICACIONES_PUSH} (D-12) dentro de esa misma
-     * transaccion: sin permiso no se conservan las claves de envio.
+     * Borra todas las suscripciones del usuario. Lo invoca el listener
+     * {@code AFTER_COMMIT} de la revocacion de {@code NOTIFICACIONES_PUSH}
+     * (D-12), por eso abre su propia transaccion: sin permiso no se conservan
+     * las claves de envio.
      */
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public int eliminarTodasDelUsuario(Long usuarioId) {
         return suscripcionRepository.borrarDeUsuario(usuarioId);
     }

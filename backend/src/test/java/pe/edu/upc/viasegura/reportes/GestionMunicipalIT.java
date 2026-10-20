@@ -17,6 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
+import pe.edu.upc.viasegura.auth.domain.FinalidadConsentimiento;
 import pe.edu.upc.viasegura.auth.domain.Rol;
 import pe.edu.upc.viasegura.auth.domain.Usuario;
 import pe.edu.upc.viasegura.auth.repository.UsuarioRepository;
@@ -86,7 +87,7 @@ class GestionMunicipalIT extends AbstractPostgisMailIT {
     }
 
     private Usuario funcionario(Distrito distritoGestion) {
-        return usuarioRepository.save(Usuario.builder()
+        return guardarConTerminos(Usuario.builder()
                 .email("func-" + UUID.randomUUID() + "@muni.pe")
                 .passwordHash(passwordEncoder.encode("x"))
                 .nombre("Fabi").apellido("Municipal")
@@ -96,7 +97,7 @@ class GestionMunicipalIT extends AbstractPostgisMailIT {
     }
 
     private Usuario ciudadano() {
-        return usuarioRepository.save(Usuario.builder()
+        return guardarConTerminos(Usuario.builder()
                 .email("ciu-" + UUID.randomUUID() + "@lima.pe")
                 .passwordHash(passwordEncoder.encode("x"))
                 .nombre("Ana").apellido("Vecina")
@@ -167,7 +168,10 @@ class GestionMunicipalIT extends AbstractPostgisMailIT {
     @Test
     void cambioValido_registraHistorialConAutorYEstados() throws Exception {
         Usuario func = funcionario(distrito("Miraflores"));
-        Reporte reporte = reporte(distrito("Miraflores"), EstadoReporte.RECIBIDO, ciudadano());
+        Usuario ciudadano = ciudadano();
+        // D-12: el aviso por correo exige el consentimiento NOTIFICACIONES_CORREO.
+        otorgar(ciudadano, FinalidadConsentimiento.NOTIFICACIONES_CORREO);
+        Reporte reporte = reporte(distrito("Miraflores"), EstadoReporte.RECIBIDO, ciudadano);
 
         mockMvc.perform(patch("/api/reportes/{id}/estado", reporte.getId())
                         .contentType(MediaType.APPLICATION_JSON)

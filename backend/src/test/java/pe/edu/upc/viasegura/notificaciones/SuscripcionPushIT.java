@@ -21,9 +21,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import pe.edu.upc.viasegura.auth.domain.FinalidadConsentimiento;
 import pe.edu.upc.viasegura.auth.domain.Rol;
 import pe.edu.upc.viasegura.auth.domain.Usuario;
-import pe.edu.upc.viasegura.auth.dto.AceptarConsentimientoRequest;
 import pe.edu.upc.viasegura.auth.repository.UsuarioRepository;
-import pe.edu.upc.viasegura.auth.service.ConsentimientoService;
 import pe.edu.upc.viasegura.common.security.JwtService;
 import pe.edu.upc.viasegura.notificaciones.domain.CanalNotificacion;
 import pe.edu.upc.viasegura.notificaciones.domain.SuscripcionPush;
@@ -56,8 +54,6 @@ class SuscripcionPushIT extends AbstractPostgisIT {
     List<NotificacionCanalAdapter> adapters;
     @Autowired
     TransactionTemplate transactionTemplate;
-    @Autowired
-    ConsentimientoService consentimientoService;
 
     @BeforeEach
     void limpiarSuscripciones() {
@@ -70,12 +66,11 @@ class SuscripcionPushIT extends AbstractPostgisIT {
      * en {@code auth/ConsentimientoIT}.
      */
     private Usuario usuario(Rol rol) {
-        Usuario u = usuarioRepository.save(Usuario.builder()
+        Usuario u = guardarConTerminos(Usuario.builder()
                 .email("push-" + UUID.randomUUID() + "@lima.pe")
                 .passwordHash(passwordEncoder.encode("x"))
                 .nombre("Ana").apellido("Vecina").rol(rol).build());
-        consentimientoService.aceptar(u.getEmail(), new AceptarConsentimientoRequest(
-                FinalidadConsentimiento.NOTIFICACIONES_PUSH, "push-2026-10-v1"));
+        otorgar(u, FinalidadConsentimiento.NOTIFICACIONES_PUSH);
         return u;
     }
 

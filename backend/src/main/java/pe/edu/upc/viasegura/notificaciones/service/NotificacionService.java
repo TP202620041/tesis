@@ -8,9 +8,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import pe.edu.upc.viasegura.auth.domain.FinalidadConsentimiento;
 import pe.edu.upc.viasegura.auth.domain.PreferenciaNotificacion;
 import pe.edu.upc.viasegura.auth.domain.Usuario;
 import pe.edu.upc.viasegura.auth.repository.UsuarioRepository;
+import pe.edu.upc.viasegura.auth.service.ConsentimientoService;
 import pe.edu.upc.viasegura.notificaciones.domain.CanalNotificacion;
 import pe.edu.upc.viasegura.notificaciones.domain.EstadoEntrega;
 import pe.edu.upc.viasegura.notificaciones.domain.Notificacion;
@@ -31,6 +33,19 @@ import pe.edu.upc.viasegura.reportes.repository.ReporteRepository;
  * cada intento en {@code notificacion} con su {@link EstadoEntrega}. Aplica
  * el fallback push -> email de US-16 (Escenario 2): si el canal PUSH no esta
  * disponible o falla, entrega por EMAIL.</p>
+ *
+ * <p><b>El permiso manda (D-12).</b> Un canal solo se usa si el ciudadano
+ * tiene vigente su consentimiento: {@code NOTIFICACIONES_PUSH} para PUSH y
+ * {@code NOTIFICACIONES_CORREO} para EMAIL, tambien en el fallback. La
+ * preferencia elige entre los canales permitidos; nunca habilita uno sin
+ * permiso. Sin permiso el intento se registra {@code FALLIDA}, como un canal
+ * no disponible, sin error. Los correos de seguridad (recuperar contrasena)
+ * y la respuesta de soporte no pasan por aqui: los pidio el usuario y se
+ * envian siempre.</p>
+ *
+ * <p>La comprobacion vive aqui y no en {@code PushNotificacionAdapter}: un
+ * adaptador ({@code infra}) no puede llamar a un servicio (regla
+ * {@code capas}), y asi la regla queda en un solo lugar para ambos canales.</p>
  */
 @Slf4j
 @Service
@@ -41,15 +56,37 @@ public class NotificacionService {
     private final NotificacionRepository notificacionRepository;
     private final UsuarioRepository usuarioRepository;
     private final ReporteRepository reporteRepository;
+    private final ConsentimientoService consentimientoService;
 
     public NotificacionService(List<NotificacionCanalAdapter> adapterList,
                                NotificacionRepository notificacionRepository,
                                UsuarioRepository usuarioRepository,
-                               ReporteRepository reporteRepository) {
+                               ReporteRepository reporteRepository,
+                               ConsentimientoService consentimientoService) {
         adapterList.forEach(a -> adapters.put(a.canal(), a));
         this.notificacionRepository = notificacionRepository;
         this.usuarioRepository = usuarioRepository;
         this.reporteRepository = reporteRepository;
+        this.consentimientoService = consentimientoService;
+    }
+
+    /**
+     * Si el canal puede usarse con ese ciudadano: permiso vigente (D-12) y
+     * canal disponible (suscripcion push activa, direccion de correo).
+     */
+    @Transactional(readOnly = true)
+    public boolean canalDisponible(Usuario destinatario, CanalNotificacion canal) {
+        NotificacionCanalAdapter adapter = adapters.get(canal);
+        return adapter != null
+                && consentimientoService.tieneVigente(destinatario.getId(), finalidadDe(canal))
+                && adapter.estaDisponible(destinatario);
+    }
+
+    private static FinalidadConsentimiento finalidadDe(CanalNotificacion canal) {
+        return switch (canal) {
+            case PUSH -> FinalidadConsentimiento.NOTIFICACIONES_PUSH;
+            case EMAIL -> FinalidadConsentimiento.NOTIFICACIONES_CORREO;
+        };
     }
 
     /**
@@ -109,7 +146,7 @@ public class NotificacionService {
 
         NotificacionCanalAdapter adapter = adapters.get(canal);
         try {
-            if (adapter == null || !adapter.estaDisponible(destinatario)) {
+            if (!canalDisponible(destinatario, canal)) {
                 notificacion.setEstadoEntrega(EstadoEntrega.FALLIDA);
                 notificacionRepository.save(notificacion);
                 return false;

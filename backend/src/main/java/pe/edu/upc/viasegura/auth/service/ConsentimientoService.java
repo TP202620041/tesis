@@ -20,6 +20,7 @@ import pe.edu.upc.viasegura.auth.dto.ConsentimientosResponse;
 import pe.edu.upc.viasegura.auth.event.ConsentimientoRevocadoEvent;
 import pe.edu.upc.viasegura.auth.repository.ConsentimientoRepository;
 import pe.edu.upc.viasegura.common.exception.BusinessException;
+import pe.edu.upc.viasegura.common.security.VerificadorTerminosPendientes;
 
 /**
  * Consentimientos del usuario por finalidad y version (CONSENTIMIENTO, D-12;
@@ -34,10 +35,12 @@ import pe.edu.upc.viasegura.common.exception.BusinessException;
  * sin migrar datos.</p>
  *
  * <p>Es tambien la API publica de {@code auth} para que otros modulos
- * comprueben un permiso ({@link #tieneVigente}) sin tocar el repositorio.</p>
+ * comprueben un permiso ({@link #tieneVigente}) sin tocar el repositorio, y
+ * la implementacion de {@link VerificadorTerminosPendientes} que usa la
+ * cadena de seguridad para responder 403 {@code TERMINOS_PENDIENTES}.</p>
  */
 @Service
-public class ConsentimientoService {
+public class ConsentimientoService implements VerificadorTerminosPendientes {
 
     private final ConsentimientoRepository consentimientoRepository;
     private final UsuarioConsultaService usuarioConsultaService;
@@ -90,6 +93,17 @@ public class ConsentimientoService {
         }
     }
 
+    /**
+     * Guarda de seguridad (D-12): una sola consulta indexada por peticion
+     * privada, por correo, sin cargar el usuario.
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public boolean tieneTerminosPendientes(String email) {
+        return !consentimientoRepository.existeNoRevocadaPorEmail(
+                email, FinalidadConsentimiento.TERMINOS_Y_PRIVACIDAD, versionTerminos);
+    }
+
     /** {@code true} si el usuario no tiene aceptados los terminos vigentes (US-01, D-12). */
     @Transactional(readOnly = true)
     public boolean debeAceptarTerminos(Long usuarioId) {
@@ -135,10 +149,12 @@ public class ConsentimientoService {
     }
 
     /**
-     * Acepta una finalidad. Si ya esta vigente con la misma version, no crea
-     * otra fila (idempotente, 200): el historial registra decisiones, no
-     * clics repetidos. Una version distinta si deja fila nueva; la anterior
-     * queda en el historial como evidencia de lo que se acepto antes.
+     * Acepta una finalidad. Si ya hay una aceptacion sin revocar de la misma
+     * finalidad y version, no crea otra fila (200): el historial registra
+     * decisiones, no clics repetidos. Lo garantiza el indice unico parcial de
+     * V14 con {@code INSERT ... ON CONFLICT DO NOTHING}, tambien ante dos POST
+     * simultaneos. Una version distinta si deja fila nueva; la anterior queda
+     * en el historial como evidencia de lo que se acepto antes.
      */
     @Transactional
     public ResultadoAceptacion aceptar(String email, AceptarConsentimientoRequest req) {
@@ -146,19 +162,24 @@ public class ConsentimientoService {
             exigirVersionVigenteDeTerminos(req.version());
         }
         Usuario usuario = usuarioConsultaService.usuarioPorEmail(email);
-        Optional<Consentimiento> actual = ultimaNoRevocada(usuario.getId(), req.finalidad());
-        if (actual.isPresent() && actual.get().getVersionDocumento().equals(req.version())) {
-            return new ResultadoAceptacion(false, ConsentimientoResponse.desde(actual.get(), true));
-        }
-        Consentimiento nuevo = insertar(usuario, req.finalidad(), req.version());
-        return new ResultadoAceptacion(true, ConsentimientoResponse.desde(nuevo, true));
+        Optional<Consentimiento> creado = insertar(usuario, req.finalidad(), req.version());
+        Consentimiento fila = creado.orElseGet(() -> consentimientoRepository
+                .findFirstByUsuarioIdAndFinalidadAndVersionDocumentoAndRevocadoEnIsNull(
+                        usuario.getId(), req.finalidad(), req.version())
+                .orElseThrow(() -> new IllegalStateException("Conflicto sin fila vigente")));
+        boolean vigente = ultimaNoRevocada(usuario.getId(), req.finalidad())
+                .map(c -> c.getId().equals(fila.getId()) && esVigente(c))
+                .orElse(false);
+        return new ResultadoAceptacion(creado.isPresent(), ConsentimientoResponse.desde(fila, vigente));
     }
 
     /**
      * Revoca la finalidad: cierra todas sus aceptaciones no revocadas y
-     * publica {@link ConsentimientoRevocadoEvent} en la misma transaccion
-     * (por eso {@code notificaciones} borra las suscripciones push antes del
-     * commit). Es idempotente: revocar algo no autorizado deja el mismo
+     * publica {@link ConsentimientoRevocadoEvent}. {@code notificaciones} lo
+     * atiende despues del commit, en su propia transaccion: un fallo alli no
+     * puede impedir la revocacion (revocar debe ser simple, Ley N.° 29733), y
+     * aunque queden suscripciones, el envio exige el permiso vigente, asi que
+     * quedan inertes. Es idempotente: revocar algo no autorizado deja el mismo
      * estado (204) y vuelve a publicar el evento, que tambien limpia
      * suscripciones anteriores a NC-07b, creadas sin consentimiento.
      *
@@ -194,12 +215,10 @@ public class ConsentimientoService {
                 || versionTerminos.equals(c.getVersionDocumento());
     }
 
-    private Consentimiento insertar(Usuario usuario, FinalidadConsentimiento finalidad, String version) {
-        return consentimientoRepository.save(Consentimiento.builder()
-                .usuario(usuario)
-                .finalidad(finalidad)
-                .versionDocumento(version)
-                .aceptadoEn(Instant.now())
-                .build());
+    /** Inserta la aceptacion; vacio si ya habia una sin revocar de esa finalidad y version. */
+    private Optional<Consentimiento> insertar(Usuario usuario, FinalidadConsentimiento finalidad, String version) {
+        return consentimientoRepository.insertarSiNoExiste(usuario.getId(), finalidad.name(), version, Instant.now())
+                .stream().findFirst()
+                .flatMap(consentimientoRepository::findById);
     }
 }

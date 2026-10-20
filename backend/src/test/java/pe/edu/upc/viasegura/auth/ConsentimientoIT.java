@@ -8,6 +8,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -15,7 +16,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -89,6 +98,14 @@ class ConsentimientoIT extends AbstractPostgisIT {
                 .email(correo())
                 .passwordHash(passwordEncoder.encode("x"))
                 .nombre("Ana").apellido("Antigua").rol(Rol.CIUDADANO).build());
+    }
+
+    /** Usuario con los terminos aceptados (ruta normal), sin permisos de notificacion. */
+    private Usuario usuarioConTerminos() {
+        return guardarConTerminos(Usuario.builder()
+                .email(correo())
+                .passwordHash(passwordEncoder.encode("x"))
+                .nombre("Ana").apellido("Nueva").rol(Rol.CIUDADANO).build());
     }
 
     private String token(Usuario u) {
@@ -249,7 +266,7 @@ class ConsentimientoIT extends AbstractPostgisIT {
 
     @Test
     void revocarPush_borraLasSuscripciones_yLuegoSuscribirseDa409() throws Exception {
-        Usuario u = usuarioSinConsentimiento();
+        Usuario u = usuarioConTerminos();
         String endpoint = "https://fcm.googleapis.com/fcm/send/" + UUID.randomUUID();
 
         // Sin consentimiento push no hay suscripcion.
@@ -273,12 +290,13 @@ class ConsentimientoIT extends AbstractPostgisIT {
                 .andExpect(status().isNoContent());
 
         assertThat(suscripcionPushRepository.findByEndpoint(endpoint)).isEmpty();
-        List<Consentimiento> filas = consentimientoRepository.findByUsuarioIdOrderByAceptadoEnDescIdDesc(u.getId());
-        assertThat(filas).hasSize(1);
-        assertThat(filas.get(0).getRevocadoEn()).isNotNull();
+        List<Consentimiento> push = consentimientoRepository.findByUsuarioIdOrderByAceptadoEnDescIdDesc(u.getId())
+                .stream().filter(c -> c.getFinalidad() == FinalidadConsentimiento.NOTIFICACIONES_PUSH).toList();
+        assertThat(push).hasSize(1);
+        assertThat(push.get(0).getRevocadoEn()).isNotNull();
 
         mockMvc.perform(get(RUTA).header("Authorization", token(u)))
-                .andExpect(jsonPath("$.vigentes.length()", is(0)))
+                .andExpect(jsonPath("$.vigentes[*].finalidad", not(hasItem("NOTIFICACIONES_PUSH"))))
                 .andExpect(jsonPath("$.historial[0].finalidad", is("NOTIFICACIONES_PUSH")))
                 .andExpect(jsonPath("$.historial[0].revocadoEn", notNullValue()))
                 .andExpect(jsonPath("$.historial[0].vigente", is(false)));
@@ -295,8 +313,8 @@ class ConsentimientoIT extends AbstractPostgisIT {
 
     @Test
     void revocarPush_noTocaLasSuscripcionesDeOtroUsuario() throws Exception {
-        Usuario a = usuarioSinConsentimiento();
-        Usuario b = usuarioSinConsentimiento();
+        Usuario a = usuarioConTerminos();
+        Usuario b = usuarioConTerminos();
         String endpointB = "https://fcm.googleapis.com/fcm/send/" + UUID.randomUUID();
         for (Usuario u : List.of(a, b)) {
             mockMvc.perform(post(RUTA).header("Authorization", token(u))
@@ -379,5 +397,116 @@ class ConsentimientoIT extends AbstractPostgisIT {
                         .content(aceptar(FinalidadConsentimiento.NOTIFICACIONES_PUSH, "v1")))
                 .andExpect(status().isUnauthorized());
         mockMvc.perform(delete(RUTA + "/NOTIFICACIONES_PUSH")).andExpect(status().isUnauthorized());
+    }
+
+    // ------------------------------------------- bloqueo por terminos pendientes
+
+    @Test
+    void terminosPendientes_rutasPrivadas403ConCodigo() throws Exception {
+        Usuario u = usuarioSinConsentimiento();
+
+        mockMvc.perform(multipart("/api/reportes").header("Authorization", token(u)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.codigo", is("TERMINOS_PENDIENTES")))
+                .andExpect(jsonPath("$.status", is(403)));
+        mockMvc.perform(get("/api/reportes/mis-reportes").header("Authorization", token(u)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.codigo", is("TERMINOS_PENDIENTES")));
+        mockMvc.perform(get("/api/soporte/tickets/mis-tickets").header("Authorization", token(u)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.codigo", is("TERMINOS_PENDIENTES")));
+    }
+
+    @Test
+    void terminosPendientes_meConsentimientosYBajaPushSiguenAbiertas_yLasPublicasNoCambian() throws Exception {
+        Usuario u = usuarioSinConsentimiento();
+
+        mockMvc.perform(get("/api/auth/me").header("Authorization", token(u)))
+                .andExpect(status().isOk());
+        mockMvc.perform(get(RUTA).header("Authorization", token(u)))
+                .andExpect(status().isOk());
+        // Cerrar sesion: la baja de la suscripcion de este navegador no se bloquea.
+        mockMvc.perform(delete("/api/notificaciones/suscripciones").header("Authorization", token(u))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"endpoint\":\"https://fcm.googleapis.com/fcm/send/x\"}"))
+                .andExpect(status().isNotFound());
+        // Ruta publica con el token de un usuario pendiente: igual que anonima.
+        mockMvc.perform(get("/api/reportes").header("Authorization", token(u)))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/categorias").header("Authorization", token(u)))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void terminosPendientes_trasAceptarLaRutaRespondeNormal() throws Exception {
+        Usuario u = usuarioSinConsentimiento();
+        mockMvc.perform(get("/api/reportes/mis-reportes").header("Authorization", token(u)))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(post(RUTA).header("Authorization", token(u))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(aceptar(FinalidadConsentimiento.TERMINOS_Y_PRIVACIDAD, versionVigente)))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/reportes/mis-reportes").header("Authorization", token(u)))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void terminosPendientes_sinTokenSigueSiendo401() throws Exception {
+        mockMvc.perform(get("/api/reportes/mis-reportes"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.codigo").doesNotExist());
+    }
+
+    // ------------------------------------------------------- doble POST (V14)
+
+    @Test
+    void aceptacionesSimultaneas_unaSolaFila() throws Exception {
+        Usuario u = usuarioConTerminos();
+        int hilos = 4;
+        CountDownLatch salida = new CountDownLatch(1);
+        ExecutorService pool = Executors.newFixedThreadPool(hilos);
+        List<Integer> codigos = new ArrayList<>();
+        try {
+            Callable<Integer> pedido = () -> {
+                salida.await();
+                return mockMvc.perform(post(RUTA).header("Authorization", token(u))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(aceptar(FinalidadConsentimiento.NOTIFICACIONES_CORREO, "correo-v1")))
+                        .andReturn().getResponse().getStatus();
+            };
+            List<Future<Integer>> resultados = new ArrayList<>();
+            for (int i = 0; i < hilos; i++) {
+                resultados.add(pool.submit(pedido));
+            }
+            salida.countDown();
+            for (Future<Integer> f : resultados) {
+                codigos.add(f.get(30, TimeUnit.SECONDS));
+            }
+        } finally {
+            pool.shutdownNow();
+        }
+        assertThat(codigos).allMatch(c -> Set.of(200, 201).contains(c));
+        assertThat(codigos).containsOnlyOnce(201);
+        long correo = consentimientoRepository.findByUsuarioIdOrderByAceptadoEnDescIdDesc(u.getId()).stream()
+                .filter(c -> c.getFinalidad() == FinalidadConsentimiento.NOTIFICACIONES_CORREO).count();
+        assertThat(correo).isEqualTo(1);
+    }
+
+    @Test
+    void revocarYVolverAAceptarLaMismaVersion_dejaFilaNueva() throws Exception {
+        Usuario u = usuarioConTerminos();
+        for (int i = 0; i < 2; i++) {
+            mockMvc.perform(post(RUTA).header("Authorization", token(u))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(aceptar(FinalidadConsentimiento.NOTIFICACIONES_CORREO, "correo-v1")))
+                    .andExpect(status().isCreated());
+            mockMvc.perform(delete(RUTA + "/NOTIFICACIONES_CORREO").header("Authorization", token(u)))
+                    .andExpect(status().isNoContent());
+        }
+        long correo = consentimientoRepository.findByUsuarioIdOrderByAceptadoEnDescIdDesc(u.getId()).stream()
+                .filter(c -> c.getFinalidad() == FinalidadConsentimiento.NOTIFICACIONES_CORREO).count();
+        assertThat(correo).isEqualTo(2);
     }
 }

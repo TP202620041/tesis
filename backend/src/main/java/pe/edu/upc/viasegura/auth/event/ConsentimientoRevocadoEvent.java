@@ -4,7 +4,7 @@ import pe.edu.upc.viasegura.auth.domain.FinalidadConsentimiento;
 
 /**
  * Un usuario revoco su consentimiento para una finalidad (D-12). Lo publica
- * {@code ConsentimientoService} dentro de la transaccion de la revocacion
+ * {@code ConsentimientoService} al revocar; se atiende despues del commit
  * para que los modulos que dependen de ese permiso reaccionen sin que
  * {@code auth} los conozca: {@code notificaciones} borra las suscripciones
  * push al revocar {@code NOTIFICACIONES_PUSH}.

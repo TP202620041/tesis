@@ -35,8 +35,8 @@ class RutaNoEncontradaIT extends AbstractPostgisIT {
         MvcResult res = mockMvc.perform(post("/api/auth/registro")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"email":"r404-%s@lima.pe","password":"secreta123","nombre":"Ana","apellido":"Vecina","aceptaTerminos":true,"versionTerminos":"2026-10-v1"}
-                                """.formatted(UUID.randomUUID())))
+                                {"email":"r404-%s@lima.pe","password":"secreta123","nombre":"Ana","apellido":"Vecina","aceptaTerminos":true,"versionTerminos":"%s"}
+                                """.formatted(UUID.randomUUID(), versionTerminos)))
                 .andExpect(status().isCreated())
                 .andReturn();
         return objectMapper.readTree(res.getResponse().getContentAsString()).get("token").asText();
