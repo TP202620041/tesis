@@ -30,14 +30,17 @@ interface Props {
   filas: DesempenoDistrital[];
   orden: Orden;
   onOrdenar: (orden: Orden) => void;
+  /** US-19: distritos marcados para comparar. */
+  comparados: number[];
+  onAlternarComparacion: (distritoId: number) => void;
 }
 
-export function TablaDesempeno({ filas, orden, onOrdenar }: Props) {
+export function TablaDesempeno({ filas, orden, onOrdenar, comparados, onAlternarComparacion }: Props) {
   const ordenadas = ordenar(filas, orden);
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[42rem] border-collapse text-sm">
+      <table className="w-full min-w-[46rem] border-collapse text-sm">
         <caption className="sr-only">
           Ranking de distritos de Lima Metropolitana por tasa de resolución de reportes viales
         </caption>
@@ -45,6 +48,9 @@ export function TablaDesempeno({ filas, orden, onOrdenar }: Props) {
           <tr className="border-b border-slate-300 text-left dark:border-slate-600">
             <th scope="col" className="w-10 px-2 py-2 font-medium text-slate-500">
               #
+            </th>
+            <th scope="col" className="w-20 px-2 py-2 text-left font-medium text-slate-700 dark:text-slate-200">
+              Comparar
             </th>
             <Encabezado columna="distrito" orden={orden} onOrdenar={onOrdenar}>
               Distrito
@@ -70,6 +76,19 @@ export function TablaDesempeno({ filas, orden, onOrdenar }: Props) {
               className="border-b border-slate-200 last:border-0 dark:border-slate-700"
             >
               <td className="px-2 py-2 text-slate-500 tabular-nums">{indice + 1}</td>
+              <td className="px-2 py-2">
+                {/* No se deshabilita al llegar al maximo: al intentar marcar un quinto
+                    distrito se explica por que no se agrega (US-19). */}
+                <input
+                  type="checkbox"
+                  checked={fila.distritoId != null && comparados.includes(fila.distritoId)}
+                  onChange={() => {
+                    if (fila.distritoId != null) onAlternarComparacion(fila.distritoId);
+                  }}
+                  aria-label={`Comparar ${fila.distritoNombre ?? ''}`}
+                  className="size-4"
+                />
+              </td>
               <th scope="row" className="px-2 py-2 text-left font-medium text-slate-900 dark:text-slate-100">
                 {fila.distritoNombre}
               </th>
