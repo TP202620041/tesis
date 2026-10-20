@@ -1,6 +1,6 @@
 # Cambios
 
-Versiones de ViaSegura según GitFlow (`WORKFLOW.md` §8): cada sprint cierra con una versión minor en `main`. Plan: `project-context/decisions/plan-sprints.md`.
+Versiones de Ciudad Viva (antes ViaSegura) según GitFlow (`WORKFLOW.md` §8): cada sprint cierra con una versión minor en `main`. Plan: `project-context/decisions/plan-sprints.md`.
 
 ## v0.5.0 — Sprint 4 (2026-10-20)
 

@@ -1,4 +1,4 @@
-# PROJECT_CONTEXT — ViaSegura
+# PROJECT_CONTEXT — Ciudad Viva
 
 > Contexto para que una IA sin conocimiento previo pueda trabajar en este repositorio.
 > Derivado del código real a fecha 2026-10-03. Lo marcado **(no verificado)** no se comprobó en código.
@@ -6,7 +6,7 @@
 
 ## 1. Propósito
 
-ViaSegura es la tesis UPC *"Sistema de crowdsourcing geoespacial para el reporte ciudadano y la gestión municipal de infraestructura vial en Lima Metropolitana"*. El ciudadano reporta un daño vial con foto y GPS, y el sistema lo asigna automáticamente a uno de los 43 distritos de Lima por punto-en-polígono. Luego la municipalidad lo gestiona (estados, responsable, historial) y un índice público compara el desempeño de cada distrito.
+Ciudad Viva es la tesis UPC *"Sistema de crowdsourcing geoespacial para el reporte ciudadano y la gestión municipal de infraestructura vial en Lima Metropolitana"*. El ciudadano reporta un daño vial con foto y GPS, y el sistema lo asigna automáticamente a uno de los 43 distritos de Lima por punto-en-polígono. Luego la municipalidad lo gestiona (estados, responsable, historial) y un índice público compara el desempeño de cada distrito.
 
 Usuarios: ciudadanos (`CIUDADANO`), funcionarios municipales (`FUNCIONARIO_MUNICIPAL`, ligados a un distrito), administradores (`ADMIN`) y el público anónimo (mapa e índice).
 

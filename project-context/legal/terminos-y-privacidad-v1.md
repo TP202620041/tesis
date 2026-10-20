@@ -1,4 +1,4 @@
-# Términos de uso y política de privacidad de ViaSegura
+# Términos de uso y política de privacidad de Ciudad Viva
 
 > **BORRADOR para revisión** (versión `2026-10-v1`, 2026-10-19). Lo redactó la sesión coordinadora a partir de lo que la aplicación hace hoy (esquema de datos y endpoints del código en `develop`). **No es asesoría legal.** Antes de publicarlo debe revisarlo el usuario (o su asesor), en especial:
 > - lo marcado `[COMPLETAR]`;
@@ -9,7 +9,7 @@
 
 ## 1. Quiénes somos
 
-ViaSegura es una plataforma de reporte ciudadano de daños en la infraestructura vial de Lima Metropolitana. La desarrolla [COMPLETAR: nombres de los autores] como parte de una tesis de la Universidad Peruana de Ciencias Aplicadas (UPC).
+Ciudad Viva es una plataforma de reporte ciudadano de daños en la infraestructura vial de Lima Metropolitana. La desarrolla [COMPLETAR: nombres de los autores] como parte de una tesis de la Universidad Peruana de Ciencias Aplicadas (UPC).
 
 El titular del banco de datos personales es [COMPLETAR: persona natural o jurídica responsable, domicilio y correo de contacto]. Para cualquier consulta sobre tus datos puedes escribir a [COMPLETAR: correo de contacto] o usar la sección **Soporte** de la aplicación.
 
