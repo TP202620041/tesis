@@ -511,17 +511,18 @@ Verificado end-to-end contra el backend real:
 - **US-18/20** índice de desempeño (`/desempeno`), **público**: ranking de los
   43 distritos con tasa de resolución, tiempo promedio y satisfacción,
   ordenable por columna y filtrable por tipo de daño.
-
-Implementado y cubierto por tests, **pendiente de verificación en vivo**
-(contra el backend real; push con claves VAPID):
-
 - **NC-07b** consentimiento: aceptación de términos en el registro,
   `/privacidad`, pantalla `/aceptar-terminos` y «Privacidad y
   consentimientos» en el perfil (ver «Consentimiento» en Decisiones técnicas).
+  Verificado el 20/10 (v0.4.0): una cuenta anterior entra por la aceptación y
+  vuelve a su destino con los consentimientos guardados con su versión.
 - **US-21** notificaciones push: activar y desactivar en el perfil por
   navegador, re-registro al iniciar sesión (con rotación de claves VAPID),
   baja al cerrar sesión y avisos en el Service Worker (ver «Notificaciones
-  push» en Decisiones técnicas).
+  push» en Decisiones técnicas). Verificado el 20/10 (v0.4.0) con claves VAPID
+  de desarrollo y Chrome con perfil persistente: suscripción en FCM, aviso
+  real mostrado por el SW con la URL del reporte, baja al cerrar sesión y
+  re-registro al volver a entrar. Chrome no admite push en modo incógnito.
 
 ### `null` no es cero
 

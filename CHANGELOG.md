@@ -2,6 +2,60 @@
 
 Versiones de ViaSegura según GitFlow (`WORKFLOW.md` §8): cada sprint cierra con una versión minor en `main`. Plan: `project-context/decisions/plan-sprints.md`.
 
+## v0.4.0 — Sprint 3 (2026-10-20)
+
+### Historias de usuario
+- **NC-07b · Consentimiento por finalidad y versión** (D-12; #42 backend, #46 PWA):
+  - **Registro:** exige aceptar los términos `2026-10-v1`. Hay una página `/privacidad` con el borrador, que muestra el aviso «Borrador pendiente de revisión» y los `[COMPLETAR]` visibles.
+  - **Cuentas anteriores:** pasan por `/aceptar-terminos`. Mientras tanto, el API responde 403 `TERMINOS_PENDIENTES`, salvo en `/me`, los consentimientos y la baja de push.
+  - **Perfil:** nueva sección «Privacidad y consentimientos» para otorgar y retirar el consentimiento de correo y de push, con su historial.
+  - **Correos:** los avisos de estado por correo requieren el consentimiento de correo. Los correos que pide el propio usuario (contraseña, soporte) se envían siempre.
+- **US-21 · Notificaciones push reales** (#43 backend, #52 PWA):
+  - **Envío:** Web Push con VAPID por variables de entorno (nunca en el repo) y clave pública en `GET /api/notificaciones/vapid-public-key`. Se envía de forma asíncrona y fuera de la transacción (D-13). Una suscripción caducada (404/410) se desactiva.
+  - **En la PWA:** se activa por navegador desde el perfil y se vuelve a registrar al iniciar sesión, incluida la rotación de claves. La baja ocurre al cerrar sesión, antes de borrar el token; si falla, salvo por un 404, se cancela la suscripción local.
+  - **Al hacer clic:** el aviso solo abre rutas del mismo origen.
+- **US-06 · Cola offline de reportes** (#44): sin red o con el token vencido, el reporte se guarda en IndexedDB y se reenvía solo al recuperar la sesión, con la misma `Idempotency-Key` (límite de 48 h). Al cerrar sesión se puede conservar o descartar la cola. El 403 `TERMINOS_PENDIENTES` deja el reporte pendiente; no lo da por rechazado.
+
+### Seguridad
+- **Redirects abiertos:** el destino tras el login o la aceptación de términos y la ruta de un aviso push se validan después de parsear la URL. Se cierran los bypass con caracteres de control (`/\t/otro`) y con rutas que se normalizan a `//otro` (`/.//otro`).
+- **Push de quien salió:** un dispositivo compartido no sigue mostrando los avisos de quien cerró sesión, ni con el JWT vencido.
+- **SSRF:** la lista de hosts permitidos de push y el tope de 10 suscripciones por usuario se mantienen del S2.
+
+### Arquitectura y decisiones
+- **FE-05** (#41): hooks de carga y páginas como composición. Se anticipa `src/lib/api/catalogos.ts`.
+- **D-13** (#45): las notificaciones corren asíncronas y con la E/S de red fuera de la transacción (ARCHITECTURE.md §4.5).
+- **D-14** (#45): `src/lib/sesion/` coordina el cierre de sesión (`antesDeCerrarSesion`).
+- **Borrador legal** `project-context/legal/terminos-y-privacidad-v1.md` (#40), con `[COMPLETAR]` pendientes de los autores.
+- **Adelantos del S4:**
+  - **BE-10** (#48): el archivo subido llega a `service/` como `ArchivoSubido`, sin tipos de Spring Web.
+  - **BE-06** (#49, parcial): cada módulo usa la API pública de los demás, y ArchUnit baja de 48 a 3. Las 3 restantes esperan la propuesta `2026-10-20-asignacion-geo-en-distritos.md`.
+  - **US-11 backend** (#51): `GET /api/reportes/densidad`, público, con una grilla de ~110 m, sin señales internas, y ETag + `max-age=60`.
+
+### Cifras
+| Métrica | v0.3.0 | v0.4.0 |
+|---|---|---|
+| Tests de integración backend (Failsafe `completed`) | 238 | 284 |
+| Tests unitarios backend (Surefire) | 37 | 57 |
+| Violaciones congeladas de ArchUnit | 48 | 3 |
+| Tests frontend (archivos) | 232 (34) | 473 (67) |
+| Avisos de capas frontend | 44 | 18 |
+
+**Verificación en vivo** (20/10, sobre develop 8f56640, con claves VAPID de desarrollo):
+- **API:** 16 comprobaciones:
+  - registro sin aceptar → 400, con otra versión → 409, aceptando → 201;
+  - un usuario anterior recibe 403 `TERMINOS_PENDIENTES` hasta aceptar;
+  - suscribirse sin consentimiento push → 409;
+  - el cambio de estado intenta el push en segundo plano.
+- **Navegador (Chrome con perfil persistente):**
+  - el login de una cuenta anterior lleva a `/aceptar-terminos` con el borrador visible;
+  - al aceptar vuelve a `/mis-reportes`, con los consentimientos guardados con su versión;
+  - el perfil activa push en el navegador y la suscripción queda registrada en FCM;
+  - el funcionario cambia el estado y el Service Worker muestra «Su reporte #14 fue recibido.», con la URL `/mis-reportes/14`;
+  - al cerrar sesión, la suscripción se borra del servidor;
+  - al volver a entrar, se registra de nuevo.
+  
+  La consola quedó sin errores, salvo por un icono del manifest que falta (`/icons/icon-512.png`, pendiente para la sesión de diseño del S8).
+
 ## v0.3.0 — Sprint 2 (2026-10-19)
 
 ### Historias de usuario
