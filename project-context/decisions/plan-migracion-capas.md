@@ -310,12 +310,18 @@ Cierre (2026-10-20, rama `feature/fe-07-urls-de-fotos`).
 | Avisos de capas (`contar-capas.mjs`) | 0 en 0 archivos | 0 en 0 archivos |
 | Imports de `@/lib/api/client` fuera de `api.ts`, `lib/api` y tests | 2 (`map/MapaReportes`, `auth/fotoPerfil`) | 0 |
 
-### [ ] FE-08 · Dependencias entre features
+### [x] FE-08 · Dependencias entre features (2026-10-20)
 - `gestion` deja de importar `@/features/reportes/api`: usa `reportes/model/tipos` y su propio `api.ts`.
 - Catálogos compartidos: `listarDistritos`, `distritoPorCoordenadas` y `listarCategorias` → `src/lib/api/catalogos.ts`. Los hooks de cada feature lo usan.
   - **Hecho en FE-05 (2026-10-19)**, salvo la reexportación de `listarCategorias` en `reportes/api.ts` (la quitan los hooks de FE-06). Desde FE-05 `otraFeature` = 0.
 
 **Aceptación:** sin avisos `otraFeature`.
+
+Cierre (2026-10-20, rama `feature/fe-08-cierre`): no queda trabajo; solo se registra la evidencia, sobre `develop` en `1a46b48`.
+- `grep -rn "@/features/" src/features/gestion | grep -v /model`: sin resultados. `gestion` no importa nada de otra feature salvo `model/`.
+- `grep -rnE "from '@/features/[a-z]+/(api|hooks|components)"` en `src/features`, `src/map`, `src/lib`, `src/components` y `src/pwa` (sin tests): sin resultados.
+- `listarCategorias` solo se exporta desde `src/lib/api/catalogos.ts`. La reexportación de `reportes/api.ts` ya no existe (la quitó FE-06), y la usan los hooks `desempeno/useIndiceDesempeno`, `reportes/useCategoriasDeReporte`, `reportes/useCatalogosMapa` y `gestion/useBandeja`.
+- `contar-capas.mjs`: **0 avisos de capas en 0 archivos** (`otraFeature` = 0) y 0 avisos de lint que no son de capas.
 
 ### [ ] FE-09 · Cierre
 - `npm run lint` con 0 avisos de capas. El cambio de `SEVERIDAD` a `'error'` en `eslint.capas.mjs` lo hace la sesión de raíz, porque la guardia lo bloquea para el agente (WORKFLOW.md §5).
