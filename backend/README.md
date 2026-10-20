@@ -91,6 +91,7 @@ src/main/java/pe/edu/upc/viasegura/
 │   └── infra/         # LocalFotoStorageService (filesystem)
 ├── auth/              # US-01..US-04  (Usuario, login/registro, roles)
 ├── distritos/         # Distrito (límites GEOGRAPHY, base de asignación)
+├── municipalidades/   # Municipalidad (1:1 con distrito, D-09) y PeriodoGestion (NC-01)
 ├── reportes/          # Reporte + CategoriaDano, Adhesion, Historial, Asignacion,
 │                      #   Calificacion, ComentarioPublico  (+ port/ + infra/ para Strategy geo)
 ├── notificaciones/    # Notificacion  (+ port/ + infra/ para Strategy push/email)
@@ -860,6 +861,49 @@ la vez, el segundo espera al primero, no inserta y responde 200. Una versión
 revocada y aceptada otra vez sí deja fila nueva. Va en V14 porque V13 ya estaba
 aplicada.
 
+## Municipalidades y periodo de gestión (NC-01)
+
+**Una municipalidad por distrito (D-09).** `municipalidad.distrito_id` es
+`NOT NULL UNIQUE` y la geometría sigue solo en `distrito`. El reporte obtiene
+su distrito por punto en polígono y de ahí su municipalidad
+(`MunicipalidadService#deDistrito`). Son 43: 42 distritales más la
+Municipalidad Metropolitana de Lima, que gestiona Cercado de Lima (el
+distrito «Lima»). `correo_contacto` admite nulo: el seed no inventa canales
+oficiales.
+
+**Por qué el seed de municipalidades no es una migración.** Los distritos no
+los carga Flyway: los carga `DistritoSeeder`, un `ApplicationRunner` que corre
+*después* de las migraciones. En una base vacía, como la de un IT o un
+despliegue nuevo, una migración con `INSERT … SELECT FROM distrito` no
+encontraría distritos y sembraría cero filas sin avisar. Por eso las siembra
+`municipalidades/infra/MunicipalidadSeeder` (`@Order(2)`, después de
+`DistritoSeeder`, que tiene `@Order(1)`). Es idempotente: solo crea las
+municipalidades de los distritos que todavía no tienen una. Verificado en una
+base vacía: todas las migraciones, después 43 distritos y después 43 municipalidades.
+
+**Excepción deliberada: el seeder lee la tabla `distrito` con SQL nativo.** Un
+`infra` no puede usar el repositorio de otro módulo (§4.3,
+`soloApiPublicaDeOtrosModulos`) ni un `service` (regla `capas`: a la
+aplicación solo entra la presentación). Es el mismo cruce que obligó a mover la
+asignación geo en BE-06. La alternativa sería mover el seed a un servicio que se
+llame desde algún arranque fuera de `infra`, y eso no tiene lugar en las capas.
+Por eso lee la tabla con una consulta nativa de su propio repositorio
+(`MunicipalidadRepository#distritosSinMunicipalidad`). La dependencia ya existe
+en el esquema por la FK `municipalidad.distrito_id`, y ArchUnit no la ve porque
+es SQL.
+
+**Periodo de gestión.** `periodo_gestion` (fechas inclusivas) se siembra en la
+misma V15 con 2023-01-01 → 2026-12-31, porque no depende de otro dato.
+La restricción `EXCLUDE USING gist` sobre `daterange(fecha_inicio, fecha_fin, '[]')`
+de V16 impide que dos periodos se solapen. Así, cada fecha cae en un solo periodo.
+`MunicipalidadService#periodoVigente(fecha)` devuelve el periodo que contiene
+la fecha, o vacío fuera de todo periodo. Un reporte contará en el periodo de
+su fecha de creación (NC-02).
+
+**Pendiente.** GESTION_MUNICIPAL y REQUISITO_RECEPCION no se crean todavía:
+sus columnas no están definidas (propuesta
+`project-context/decisions/propuestas/2026-10-20-columnas-gestion-y-requisitos.md`).
+
 ## Deuda técnica conocida
 
 - **Testcontainers bloqueado por Docker 29 / docker-java 1.20.x.** Los tests
@@ -904,5 +948,6 @@ aplicada.
 (`GEOGRAPHY(MultiPolygon,4326)`) y `reporte.ubicacion`
 (`GEOGRAPHY(Point,4326)`), ambas con índice **GiST**. Ver
 `src/main/resources/db/migration/V1__init_schema.sql`. Las migraciones
-posteriores agregan tablas propias, como `suscripcion_push` (V12, NC-07) y
-`consentimiento` (V13 y V14, NC-07b).
+posteriores agregan tablas propias, como `suscripcion_push` (V12, NC-07),
+`consentimiento` (V13 y V14, NC-07b) y `municipalidad` y `periodo_gestion`
+(V15 y V16, NC-01).
