@@ -2,10 +2,13 @@
 
 import { EditarPerfil } from '@/features/auth/components/EditarPerfil';
 import { GuardiaDeRol } from '@/features/auth/components/GuardiaDeRol';
+import { TextoTerminosYPrivacidad } from '@/features/legal/components/TextoTerminosYPrivacidad';
 
 /** US-30: el ciudadano edita sus datos, su foto y como quiere recibir avisos. */
 export default function PerfilPage() {
   return (
-    <GuardiaDeRol rolesPermitidos={['CIUDADANO']}>{(u) => <EditarPerfil inicial={u} />}</GuardiaDeRol>
+    <GuardiaDeRol rolesPermitidos={['CIUDADANO']}>
+      {(u) => <EditarPerfil inicial={u} textoLegal={<TextoTerminosYPrivacidad conTitulo={false} />} />}
+    </GuardiaDeRol>
   );
 }
