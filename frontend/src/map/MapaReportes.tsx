@@ -3,8 +3,17 @@
 import 'leaflet/dist/leaflet.css';
 import { DivIcon, type LatLngBounds } from 'leaflet';
 import { useEffect, useMemo } from 'react';
-import { MapContainer, Marker, Popup, TileLayer, useMapEvents } from 'react-leaflet';
+import {
+  CircleMarker,
+  MapContainer,
+  Marker,
+  Popup,
+  TileLayer,
+  Tooltip,
+  useMapEvents,
+} from 'react-leaflet';
 import type { BoundingBox } from '@/features/reportes/model/bbox';
+import { estiloDeNivel, textoDeRango, type CeldaCalor } from '@/features/reportes/model/densidad';
 import { ESTADOS_EN_MAPA, estiloDeEstado } from '@/lib/types/estados';
 import type { ReporteResumen } from '@/features/reportes/model/tipos';
 import { urlDeFoto } from '@/lib/api/client';
@@ -73,11 +82,52 @@ function ObservarArea({ onAreaCambiada }: { onAreaCambiada: (b: BoundingBox) => 
   return null;
 }
 
+/**
+ * US-11: capa de calor. Cada celda de la grilla del backend se dibuja como un
+ * `CircleMarker` centrado en el nodo, sin plugins (p. ej. `leaflet.heat`):
+ *
+ * - Radio en PIXELES, no en metros: la celda mide ~110 m, que a la escala de
+ *   la ciudad (zoom 11-12) serian uno o dos pixeles. Con radio fijo por nivel
+ *   la capa se lee a cualquier zoom, y las celdas vecinas se funden en
+ *   manchas como en un mapa de calor.
+ * - Color y TAMANO crecen con el nivel (`model/densidad.ts`), asi que la
+ *   intensidad no depende solo del color, y la leyenda repite ambos.
+ * - Vectores en el `overlayPane`, por debajo de los marcadores
+ *   (`markerPane`): los marcadores siguen siendo clicables encima.
+ */
+function CapaCalor({ celdas }: { celdas: CeldaCalor[] }) {
+  return celdas.map((celda) => {
+    const estilo = estiloDeNivel(celda.nivel);
+    return (
+      <CircleMarker
+        key={`${celda.latitud},${celda.longitud}`}
+        center={[celda.latitud, celda.longitud]}
+        radius={estilo.radio}
+        pathOptions={{
+          color: estilo.color,
+          weight: 1,
+          opacity: 0.7,
+          fillColor: estilo.color,
+          fillOpacity: 0.55,
+        }}
+      >
+        <Tooltip>
+          {textoDeRango(celda.cantidad, celda.cantidad)} · densidad {estilo.etiqueta.toLowerCase()}
+        </Tooltip>
+      </CircleMarker>
+    );
+  });
+}
+
 interface Props {
   reportes: ReporteResumen[];
   onAreaCambiada: (bbox: BoundingBox) => void;
   onSeleccionar?: (reporte: ReporteResumen) => void;
   alto?: string;
+  /** `false` oculta los marcadores (la busqueda sigue: la usa la lista). */
+  mostrarMarcadores?: boolean;
+  /** Celdas de la capa de calor (US-11); vacia o ausente = capa apagada. */
+  celdasCalor?: CeldaCalor[];
 }
 
 export default function MapaReportes({
@@ -85,6 +135,8 @@ export default function MapaReportes({
   onAreaCambiada,
   onSeleccionar,
   alto = '100%',
+  mostrarMarcadores = true,
+  celdasCalor = [],
 }: Props) {
   // Un icono por color, no por marcador: con cientos de reportes, crear un
   // DivIcon por cada uno seria trabajo repetido para las pocas variantes
@@ -116,7 +168,9 @@ export default function MapaReportes({
       />
       <ObservarArea onAreaCambiada={onAreaCambiada} />
 
-      {reportes.map((reporte) => {
+      <CapaCalor celdas={celdasCalor} />
+
+      {mostrarMarcadores && reportes.map((reporte) => {
         const estilo = estiloDeEstado(reporte.estado ?? '');
         return (
           <Marker

@@ -3,6 +3,7 @@
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useState } from 'react';
+import { CapasDelMapa } from '@/features/reportes/components/CapasDelMapa';
 import { ListaReportes } from '@/features/reportes/components/ListaReportes';
 import { PanelFiltrosMapa } from '@/features/reportes/components/PanelFiltrosMapa';
 import {
@@ -11,6 +12,7 @@ import {
 } from '@/features/reportes/components/SelectorDeVista';
 import { useBusquedaMapa } from '@/features/reportes/hooks/useBusquedaMapa';
 import { useCatalogosMapa } from '@/features/reportes/hooks/useCatalogosMapa';
+import { useDensidadMapa } from '@/features/reportes/hooks/useDensidadMapa';
 import { FILTROS_VACIOS, MAXIMO_MARCADORES, type FiltrosMapa } from '@/features/reportes/model/bbox';
 
 const MapaReportes = dynamic(() => import('@/map/MapaReportes'), {
@@ -31,13 +33,20 @@ const MapaReportes = dynamic(() => import('@/map/MapaReportes'), {
  * reemplazarlo: el mapa sigue montado, conserva su encuadre y su area sigue
  * definiendo los resultados de las dos vistas. `z-0` encierra los z-index
  * de Leaflet (hasta 1000) en el panel del mapa, para que la lista lo tape.
+ *
+ * US-11: la capa de calor usa los mismos filtros y el area de la busqueda
+ * (solo para la escala de la vista; la densidad no se vuelve a pedir al
+ * mover el mapa). Se enciende y apaga junto a los marcadores.
  */
 export default function MapaPage() {
   const [filtros, setFiltros] = useState<FiltrosMapa>(FILTROS_VACIOS);
   const [vista, setVista] = useState<VistaResultados>('mapa');
+  const [marcadores, setMarcadores] = useState(true);
+  const [calor, setCalor] = useState(false);
   // Catalogos de los filtros: son estables, se piden una vez.
   const { distritos, categorias } = useCatalogosMapa();
   const busqueda = useBusquedaMapa(filtros);
+  const densidad = useDensidadMapa(filtros, calor, busqueda.area);
 
   return (
     <div className="flex h-dvh flex-col">
@@ -81,14 +90,27 @@ export default function MapaPage() {
           total={busqueda.total}
           cargando={busqueda.cargando}
           errorFiltros={busqueda.errorFiltros}
-        />
+        >
+          <CapasDelMapa
+            marcadores={marcadores}
+            onCambiarMarcadores={setMarcadores}
+            calor={calor}
+            onCambiarCalor={setCalor}
+            capaCalor={densidad}
+          />
+        </PanelFiltrosMapa>
 
         <div className="flex min-h-0 flex-1 flex-col">
           <SelectorDeVista vista={vista} onElegir={setVista} />
 
           <div className="relative min-h-96 flex-1">
             <div inert={vista !== 'mapa'} className="absolute inset-0 z-0">
-              <MapaReportes reportes={busqueda.reportes} onAreaCambiada={busqueda.alCambiarArea} />
+              <MapaReportes
+                reportes={busqueda.reportes}
+                onAreaCambiada={busqueda.alCambiarArea}
+                mostrarMarcadores={marcadores}
+                celdasCalor={densidad.celdas}
+              />
             </div>
             {vista === 'lista' && (
               <div className="absolute inset-0 z-10 overflow-y-auto bg-white dark:bg-slate-900">
