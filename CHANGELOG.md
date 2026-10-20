@@ -2,7 +2,34 @@
 
 Versiones de ViaSegura según GitFlow (`WORKFLOW.md` §8): cada sprint cierra con una versión minor en `main`. Plan: `project-context/decisions/plan-sprints.md`.
 
-## v0.4.0 — Sprint 3 (2026-10-20)
+## v0.5.0 — Sprint 4 (2026-10-20)
+
+### Historias de usuario
+- **US-11 · Mapa de calor** (#51 backend, ya en v0.4.0; #57 PWA):
+  - **Capas del mapa:** en `/mapa`, casillas separadas para marcadores y capa de calor, con los mismos filtros del panel.
+  - **Dibujo:** cada celda de ~110 m es un `CircleMarker` en un canvas compartido, sin plugin ni dependencias nuevas, debajo de los marcadores.
+  - **Escala:** 4 niveles relativos al máximo de la vista con piso de 4, para que un reporte aislado no se vea como «muy alta». Leyenda accesible.
+  - **Consultas:** solo con la capa encendida y al cambiar filtros (debounce de 400 ms); respeta ETag y `max-age=60`.
+- **US-01 · Términos sin pestaña nueva** (#59): en el registro y en el perfil, el texto de términos y privacidad se lee en un diálogo modal (`<dialog>` nativo, `components/ui/dialogo.tsx`) sin perder lo escrito. El enlace sigue apuntando a `/privacidad` para Ctrl/Cmd o sin JavaScript.
+
+### Arquitectura y decisiones
+- **BE-06 cerrada** (#58): se acepta la opción A de `propuestas/2026-10-20-asignacion-geo-en-distritos.md`. `GeoAssignmentStrategy` y `PointInPolygonAssignmentStrategy` pasan a `distritos/port` y `distritos/infra` (mismos nombres); `reportes` usa el puerto de `distritos`. `soloApiPublicaDeOtrosModulos` y el almacén de ArchUnit quedan en 0, sin recongelar.
+- **FE-06** (#55): las mutaciones de los componentes pasan a hooks de su feature; la `Idempotency-Key` de `FormularioReporte` vive en el hook.
+- **Diagramas de arquitectura** (#56): skill `/diagramas` y `docs/arquitectura/` (C4 de contexto y contenedores, capas, módulos y modelo de datos), regenerados tras BE-06.
+
+### Cifras
+| Métrica | v0.4.0 | v0.5.0 |
+|---|---|---|
+| Tests de integración backend (Failsafe `completed`) | 284 | 284 |
+| Tests unitarios backend (Surefire) | 57 | 57 |
+| Violaciones congeladas de ArchUnit | 3 | 0 |
+| Tests frontend (archivos) | 473 (67) | 547 (76) |
+| Avisos de capas frontend | 18 | 0 |
+
+**Verificación en vivo** (20/10, macOS con JDK 21, backend y PWA levantados):
+- **US-01:** Playwright en modo headed, 15/15: el diálogo abre y cierra con el botón y con Esc, conserva los valores, no abre otra pestaña y el registro responde 201.
+- **US-11 y desempeño:** con datos de prueba locales (166 reportes en 11 distritos), `/api/reportes/densidad` y `/api/desempeno/distritos` responden con datos y la PWA los consume sin errores de CORS.
+
 
 ### Historias de usuario
 - **NC-07b · Consentimiento por finalidad y versión** (D-12; #42 backend, #46 PWA):

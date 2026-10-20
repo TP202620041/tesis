@@ -90,11 +90,12 @@ Todo método `@TransactionalEventListener` o `@EventListener` debe vivir en `<mo
 **Aceptación:** la regla `manejadoresDeEventosEnListener` queda sin violaciones congeladas.
 **Cierre (2026-10-13, sin cambios de código):** la regla ya estaba en 0 desde BE-01 (su archivo del almacén está vacío). Solo hay 5 manejadores, todos `@TransactionalEventListener(AFTER_COMMIT)` y todos en `listener/`: 4 en `desempeno/listener/IndiceDesempenoRefreshListener` y 1 en `notificaciones/listener/ReporteEstadoCambiadoListener`. No hay `@EventListener` ni `ApplicationListener`. **Escritura en la base:** ningún listener escribe directamente; delegan en `DesempenoService.refrescarIndice()` (`REFRESH MATERIALIZED VIEW`) y `NotificacionService.notificarCambioEstado()` (inserta notificaciones), y **ambos métodos ya declaran `@Transactional(propagation = REQUIRES_NEW)`**. No se agregó `@Transactional` en los listeners: §4.5 deja `@Transactional` solo en `service`, y anotarlos abriría una transacción exterior extra (otra conexión del pool) que el servicio suspende de todos modos, sin cambiar lo que se confirma. Almacén **51 → 51** (`manejadoresDeEventosEnListener` 0 → 0, el resto igual). Failsafe `completed` 177 → 177 (0 errores, 0 fallos, 0 omitidos), Surefire 11.
 
-### [ ] BE-06 · API pública entre módulos
+### [x] BE-06 · API pública entre módulos (2026-10-20)
 Reemplazar cada uso de `repository/` (o `controller/`, `listener/`, `infra/`) de **otro** módulo por un método del `service` de ese módulo. Por ejemplo, si `reportes` usa `UsuarioRepository` o `DistritoRepository`, pasa a usar `AuthService#…` o `DistritoService#…` con métodos de consulta explícitos. La lista exacta sale de la regla `soloApiPublicaDeOtrosModulos` en el almacén.
 - Además (decisión del usuario, 13/10): `reportes/service/ReincidenciaDetector` → `reportes/domain/`, reemplazando `StringUtils.hasText(texto)` por `texto != null && !texto.isBlank()` (misma semántica, también con `null`), y moviendo `ReincidenciaDetectorTest`.
 **Aceptación:** esa regla queda sin violaciones congeladas, sin cambios en los IT.
 **Avance (2026-10-20, PR #49, anotado por el coordinador):** commits `a963487` y `b879cc9`. `UsuarioConsultaService` (`usuarioPorEmail`, `usuarioPorId`), `DistritoService#porId` y `reportes/service/ReporteConsultaService` reemplazan los repositorios ajenos; `ReincidenciaDetector` está en `reportes/domain/` (sigue como `@Component`). Almacén 48 → 3 sin recongelar (solo bajas). Failsafe 272 → 272, Surefire 57. **Queda abierta:** las 3 entradas de `reportes/infra/PointInPolygonAssignmentStrategy` → `DistritoRepository` dependen de la decisión del usuario en `propuestas/2026-10-20-asignacion-geo-en-distritos.md`. Para BE-08: actualizar en §4.3 que `notificaciones` y `desempeno` usan `reportes.service.ReporteConsultaService`, y decidir si `ReincidenciaDetector` se declara como `@Bean` para quitar Spring de `domain/`.
+**Cierre (2026-10-20, opción A de `propuestas/2026-10-20-asignacion-geo-en-distritos.md`, aceptada por el usuario):** `GeoAssignmentStrategy` → `distritos/port/`, `PointInPolygonAssignmentStrategy` → `distritos/infra/` (mismos nombres, `git mv`) y su IT → `distritos/infra/`; `ReporteService` importa el puerto de `distritos`. El adaptador usa el repositorio de su propio módulo. Sin recongelar: el almacén solo pierde las 3 entradas de `PointInPolygonAssignmentStrategy` y no gana ninguna. Almacén **3 → 0**: `soloApiPublicaDeOtrosModulos` 3 → 0, el resto 0 → 0. Failsafe `completed` 284 → 284 (0 errores, 0 fallos, 0 omitidos), Surefire 57 → 57. El IT solo cambia de paquete, sin cambios en sus casos. `backend/README.md` actualizado. Para BE-08: `backend/CLAUDE.md` (sección Geoespacial) sigue citando `reportes/port/` y `reportes/infra/` para el Strategy.
 
 ### [x] BE-07 · Ciclos entre módulos (2026-10-13, con BE-02 en `9a6974c`: `modulosSinCiclos` 1 → 0, su archivo del almacén quedó vacío)
 Resolver lo que reporte `modulosSinCiclos`. **Ciclo real (almacén del 04/10): `auth` ↔ `reportes`.** `auth` usa `reportes.storage.FotoStorageService` (fotos de perfil, en `AuthService` y `PerfilFotoService`), y `reportes.domain` referencia `auth.domain.Usuario`. La segunda dirección es legítima; la que hay que cortar es la de `auth` hacia `reportes`. **Decidido (D-11, 11/10):** el puerto de fotos pasa a `common`, y ese movimiento (primer commit de BE-02) corta el ciclo, porque esos dos imports son la única dependencia de `auth` hacia `reportes`. BE-07 se cierra al verificar que la regla queda en 0. Otro caso posible: `common.security` ↔ `auth`. Para cortarlo, `common.security` debe depender solo de la interfaz `UserDetailsService` de Spring; `auth` provee el bean. Si cortar un ciclo exige mover una clase entre módulos, proponerlo antes en `project-context/decisions/`.
@@ -103,6 +104,7 @@ Resolver lo que reporte `modulosSinCiclos`. **Ciclo real (almacén del 04/10): `
 ### [ ] BE-08 · Cierre
 - El almacén vacío, o con violaciones residuales que el arquitecto aceptó y que quedan listadas en `ARCHITECTURE.md` §9.
 - Actualizar la sección “Estructura del proyecto” de `backend/README.md` y la de arquitectura de `backend/CLAUDE.md`.
+- En `backend/CLAUDE.md` (sección Geoespacial), el Strategy pasa a `distritos/port/GeoAssignmentStrategy` → `distritos/infra/PointInPolygonAssignmentStrategy` (BE-06).
 
 ### [x] BE-10 · El archivo subido no llega como tipo de Spring Web a `service/` (2026-10-20, PR #48)
 Decisión del usuario (13/10), a partir de la observación del revisor en BE-04: `reportes/service/CrearReporteCommand` lleva un `MultipartFile` (Spring Web) hasta el servicio, y §4.2 no permite HTTP en `service/` (ninguna regla de ArchUnit lo detecta).
@@ -268,9 +270,27 @@ Cierre (2026-10-19, rama `feature/fe-05`, sobre `develop` v0.3.0).
 
 Los 24 restantes son de los 8 componentes de FE-06 (`FormularioLogin`, `FormularioRegistro`, `CambiarEstado`, `Responsable`, `Calificar`, `Comentarios`, `EditarReporte`, `FormularioReporte`). No hay avisos nuevos en los archivos que entraron a `hooks/` ni a `components/`.
 
-### [ ] FE-06 · Mutaciones en hooks
+### [x] FE-06 · Mutaciones en hooks (2026-10-20)
 Los componentes que hoy llaman al API pasan a usar un hook de su feature: `CambiarEstado`, `Responsable`, `Calificar`, `Comentarios`, `EditarReporte`, `FormularioReporte`, `FormularioLogin` y `FormularioRegistro`. El hook captura el error con `mensajeDeError`, y el componente ya no importa `ApiError` ni `NetworkError`. **Se conserva** la regla de `Idempotency-Key` de `FormularioReporte`: la clave vive en el hook y no se regenera en un reintento.
 - `EditarReporte` ganó lógica en US-29 (`reportes/model/edicion.ts`); migrar a `useEditarReporte`.
+
+Cierre (2026-10-20, rama `feature/fe-06-mutaciones-en-hooks`, sobre `develop` con NC-07b).
+- `FormularioLogin` y `FormularioRegistro` ya estaban resueltos por NC-07b (`useIniciarSesion`, `useRegistro`): sin avisos al empezar, no se tocaron.
+- **gestion:** `useCambiarEstado` (exige el motivo al rechazar antes de enviar) y `useResponsable` (consulta sobre `useCarga` con `[reporteId, estado]`; la asignación adopta la respuesta del servidor y vale solo para ese reporte y estado).
+- **reportes:** `useCalificar`, `useComentarios` (tras publicar, `recargar()` sin desmontar la lista), `useEditarReporte` (opciones con `opcionesDeCategoria` y cuerpo con `cambiosDeEdicion`), `useCategoriasDeReporte` (catálogo por distrito desde `lib/api/catalogos`) y `useCrearReporte`.
+- **`Idempotency-Key`:** vive en `useCrearReporte` (una por formulario montado); se conserva tras un error del backend, el 403 `TERMINOS_PENDIENTES` o la falta de IndexedDB, y solo se renueva tras crear o encolar el reporte. La cola de US-06 (`useEncolarReporte`, `SincronizadorDeReportes`) no cambia.
+- **FE-08:** se quita la reexportación de `listarCategorias` de `reportes/api.ts`.
+- Diferencias mínimas aceptadas: el aviso sin red pasa a ser el de `mensajeDeError` ("Sin conexión con el servidor. Revisa tu red."); en `FormularioReporte` una categoría que no existe en el distrito nuevo cuenta como no elegida (se deriva de la lista en vez de limpiarse en un efecto), y mientras se recarga el catálogo el selector queda vacío; en `Comentarios` la lista se conserva visible al recargar tras publicar.
+- Tests: 6 archivos nuevos (`useCambiarEstado`, `useResponsable`, `useCalificar`, `useComentarios`, `useEditarReporte`, `useCrearReporte`, 34 tests); `EditarReporte.test` y `FormularioReporte.test` mockean el catálogo en `@/lib/api/catalogos`. No se borró ningún test.
+
+| Métrica | Antes | Después |
+|---|---|---|
+| `npm run typecheck` | 0 errores | 0 errores |
+| `npm test` (con la guarda) | 400 tests en 62 archivos | 434 tests en 68 archivos |
+| `npm run lint`: código / avisos que no son de capas | 0 / 0 | 0 / 0 |
+| Avisos de capas (`contar-capas.mjs`) | **18 en 6 archivos** | **0 en 0 archivos** |
+| `gatewayDesdeUi` / `clienteHttp` | 12 / 6 | 0 / 0 |
+| `npm run build` | — | OK |
 
 ### [ ] FE-07 · URLs de fotos en el gateway
 `features/<f>/api.ts` devuelve `fotoUrl` ya absoluta (`urlDeFoto`). Las páginas y los componentes dejan de importar `@/lib/api/client`. La foto de perfil (que requiere token) se resuelve en un hook de auth que devuelve la URL `blob:`.

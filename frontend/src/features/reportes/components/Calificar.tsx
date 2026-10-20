@@ -1,9 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { AlertaError, Boton } from '@/components/ui/form';
-import { ApiError, NetworkError } from '@/lib/api/client';
-import { calificar, miCalificacion } from '../api';
+import { useCalificar } from '../hooks/useCalificar';
 import type { Calificacion } from '../model/tipos';
 
 /**
@@ -19,33 +18,9 @@ import type { Calificacion } from '../model/tipos';
  * es la senal de "todavia no calificaste".
  */
 export function Calificar({ reporteId }: { reporteId: number }) {
-  const [existente, setExistente] = useState<Calificacion | null>(null);
-  const [cargando, setCargando] = useState(true);
+  const { cargando, existente, enviar: calificar, enviando, error } = useCalificar(reporteId);
   const [estrellas, setEstrellas] = useState(0);
   const [comentario, setComentario] = useState('');
-  const [enviando, setEnviando] = useState(false);
-  const [error, setError] = useState<{ mensaje: string; detalles: string[] } | null>(null);
-
-  useEffect(() => {
-    let cancelado = false;
-    const cargar = async () => {
-      setCargando(true);
-      try {
-        const previa = await miCalificacion(reporteId);
-        if (!cancelado) setExistente(previa);
-      } catch {
-        // Un fallo al consultarla no debe impedir calificar: si ya lo hizo,
-        // el 409 del POST lo dira.
-        if (!cancelado) setExistente(null);
-      } finally {
-        if (!cancelado) setCargando(false);
-      }
-    };
-    void cargar();
-    return () => {
-      cancelado = true;
-    };
-  }, [reporteId]);
 
   if (cargando) {
     return <p className="text-sm text-slate-500">Cargando…</p>;
@@ -57,29 +32,7 @@ export function Calificar({ reporteId }: { reporteId: number }) {
 
   async function enviar(evento: React.FormEvent) {
     evento.preventDefault();
-    setError(null);
-    if (estrellas < 1) {
-      setError({ mensaje: 'Elige de 1 a 5 estrellas.', detalles: [] });
-      return;
-    }
-    setEnviando(true);
-    try {
-      const emitida = await calificar(reporteId, estrellas, comentario);
-      // Se adopta la respuesta del servidor, no lo escrito localmente: asi
-      // lo que se muestra es exactamente lo que quedo guardado.
-      setExistente(emitida);
-    } catch (e) {
-      if (e instanceof NetworkError) {
-        setError({ mensaje: 'Sin conexión con el servidor.', detalles: [] });
-      } else if (e instanceof ApiError) {
-        // 409 = ya calificaste, o el reporte no está resuelto.
-        setError({ mensaje: e.message, detalles: e.details });
-      } else {
-        setError({ mensaje: 'Ocurrió un error inesperado.', detalles: [] });
-      }
-    } finally {
-      setEnviando(false);
-    }
+    await calificar(estrellas, comentario);
   }
 
   return (

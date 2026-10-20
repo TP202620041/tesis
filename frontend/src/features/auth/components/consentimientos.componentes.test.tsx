@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { Usuario } from '@/lib/types/domain';
 import { useAceptarTerminos } from '../hooks/useAceptarTerminos';
@@ -39,6 +39,21 @@ const USUARIO: Usuario = {
   debeAceptarTerminos: true,
 };
 
+const TEXTO_LEGAL = <p>1. Quiénes somos</p>;
+
+// jsdom no implementa `showModal`/`close` de <dialog>: lo minimo del
+// navegador (el atributo `open` y el evento `close`, que tambien dispara Esc).
+beforeAll(() => {
+  HTMLDialogElement.prototype.showModal = function (this: HTMLDialogElement) {
+    this.setAttribute('open', '');
+  };
+  HTMLDialogElement.prototype.close = function (this: HTMLDialogElement) {
+    if (!this.open) return;
+    this.removeAttribute('open');
+    this.dispatchEvent(new Event('close'));
+  };
+});
+
 beforeEach(() => {
   parametros.valor = new URLSearchParams();
 });
@@ -71,7 +86,7 @@ describe('FormularioRegistro (NC-07b)', () => {
 
   it('sin marcar la casilla no envía y explica por qué', async () => {
     const enviar = conRegistro();
-    render(<FormularioRegistro />);
+    render(<FormularioRegistro textoLegal={TEXTO_LEGAL} />);
     const usuario = await llenar();
 
     await usuario.click(screen.getByRole('button', { name: 'Crear cuenta' }));
@@ -82,7 +97,7 @@ describe('FormularioRegistro (NC-07b)', () => {
 
   it('con la casilla marcada envía y enlaza a /privacidad', async () => {
     const enviar = conRegistro();
-    render(<FormularioRegistro />);
+    render(<FormularioRegistro textoLegal={TEXTO_LEGAL} />);
     const usuario = await llenar();
 
     expect(screen.getByRole('link', { name: /términos de uso y la política de privacidad/ })).toHaveAttribute(
@@ -101,6 +116,38 @@ describe('FormularioRegistro (NC-07b)', () => {
     expect(push).toHaveBeenCalledWith('/sesion');
   });
 
+  it('muestra los términos en un diálogo sin salir del formulario ni perder lo escrito', async () => {
+    const enviar = conRegistro();
+    render(<FormularioRegistro textoLegal={TEXTO_LEGAL} />);
+    const usuario = await llenar();
+    const enlace = screen.getByRole('link', { name: /términos de uso y la política de privacidad/ });
+    expect(enlace).not.toHaveAttribute('target');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    await usuario.click(enlace);
+    const dialogo = screen.getByRole('dialog', { name: 'Términos de uso y política de privacidad' });
+    expect(within(dialogo).getByText('1. Quiénes somos')).toBeInTheDocument();
+    // Leer el texto no marca la casilla ni envía el formulario.
+    await usuario.click(within(dialogo).getByText('1. Quiénes somos'));
+    await usuario.click(within(dialogo).getByRole('button', { name: 'Cerrar' }));
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('checkbox')).not.toBeChecked();
+    expect(enviar).not.toHaveBeenCalled();
+    expect(screen.getByLabelText('Nombre')).toHaveValue('Ana');
+    expect(screen.getByLabelText('Apellido')).toHaveValue('Ruiz');
+    expect(screen.getByLabelText('Correo electrónico')).toHaveValue('ana@lima.pe');
+    expect(screen.getByLabelText('Contraseña')).toHaveValue('secreta123');
+
+    // Esc: el navegador cierra el <dialog> y emite `close`. jsdom no tiene esa
+    // tecla, asi que se prueba el camino `close` → `alCerrar` (la tecla se
+    // verifico en Chrome).
+    await usuario.click(enlace);
+    (screen.getByRole('dialog') as HTMLDialogElement).close();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Nombre')).toHaveValue('Ana');
+  });
+
   it('con los términos desactualizados pide recargar', () => {
     vi.mocked(useRegistro).mockReturnValue({
       enviando: false,
@@ -108,7 +155,7 @@ describe('FormularioRegistro (NC-07b)', () => {
       terminosDesactualizados: true,
       enviar: vi.fn(),
     });
-    render(<FormularioRegistro />);
+    render(<FormularioRegistro textoLegal={TEXTO_LEGAL} />);
     expect(screen.getByRole('status')).toHaveTextContent(/no se creó la cuenta/);
     expect(screen.getByRole('status')).toHaveTextContent(/se está actualizando/);
     // Sin sesión ni términos aceptados no hay Soporte al que mandarlo.
@@ -258,7 +305,7 @@ describe('PrivacidadYConsentimientos (perfil)', () => {
 
   it('retira el correo vigente y otorga el push que falta', async () => {
     const c = estado();
-    render(<PrivacidadYConsentimientos consentimientos={c} />);
+    render(<PrivacidadYConsentimientos consentimientos={c} textoLegal={<p>Texto legal</p>} />);
     const usuario = userEvent.setup();
 
     await usuario.click(screen.getByRole('button', { name: 'Retirar consentimiento' }));
@@ -269,14 +316,26 @@ describe('PrivacidadYConsentimientos (perfil)', () => {
   });
 
   it('no ofrece revocar los términos y explica que es la baja de la cuenta', () => {
-    render(<PrivacidadYConsentimientos consentimientos={estado()} />);
+    render(<PrivacidadYConsentimientos consentimientos={estado()} textoLegal={<p>Texto legal</p>} />);
     // Solo dos botones: uno por aviso opcional.
     expect(screen.getAllByRole('button')).toHaveLength(2);
     expect(screen.getByText(/hay que cerrar la cuenta/)).toBeInTheDocument();
   });
 
+  it('«Leer el texto» abre los términos en un diálogo, sin otra pestaña', async () => {
+    render(<PrivacidadYConsentimientos consentimientos={estado()} textoLegal={<p>Texto legal</p>} />);
+    const enlace = screen.getByRole('link', { name: 'Leer el texto' });
+    expect(enlace).toHaveAttribute('href', '/privacidad');
+    expect(enlace).not.toHaveAttribute('target');
+
+    await userEvent.setup().click(enlace);
+
+    const dialogo = screen.getByRole('dialog', { name: 'Términos de uso y política de privacidad' });
+    expect(within(dialogo).getByText('Texto legal')).toBeInTheDocument();
+  });
+
   it('muestra el historial con las revocaciones', () => {
-    render(<PrivacidadYConsentimientos consentimientos={estado()} />);
+    render(<PrivacidadYConsentimientos consentimientos={estado()} textoLegal={<p>Texto legal</p>} />);
     expect(screen.getByText('Historial de consentimientos')).toBeInTheDocument();
     expect(screen.getByText(/Revocado/)).toBeInTheDocument();
   });

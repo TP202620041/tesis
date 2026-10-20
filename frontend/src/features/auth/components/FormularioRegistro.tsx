@@ -1,12 +1,13 @@
 'use client';
 
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
+import { EnlaceConDialogo } from '@/components/ui/dialogo';
 import { AlertaError, Boton, Campo } from '@/components/ui/form';
 import { useRegistro } from '../hooks/useRegistro';
 import { PASSWORD_MAX, PASSWORD_MIN } from '../model/password';
 import { RUTA_PRIVACIDAD } from '../model/rutas';
+import { TITULO_TERMINOS } from '../model/terminos';
 
 /**
  * US-01: registro de cuenta ciudadana.
@@ -19,8 +20,12 @@ import { RUTA_PRIVACIDAD } from '../model/rutas';
  * obligatorio. Sin la casilla marcada no se envia nada; el backend lo exige
  * igual (400) y guarda la aceptacion con su version en la misma transaccion
  * que crea la cuenta.
+ *
+ * El texto se lee en un dialogo sobre el mismo formulario, no en otra
+ * pestana ni navegando a `/privacidad`: asi no se pierde lo ya escrito.
+ * `textoLegal` lo compone la pagina porque es de la feature `legal`.
  */
-export function FormularioRegistro() {
+export function FormularioRegistro({ textoLegal }: { textoLegal: ReactNode }) {
   const router = useRouter();
   const { enviando, error, terminosDesactualizados, enviar } = useRegistro();
   const [campos, setCampos] = useState({ nombre: '', apellido: '', email: '', password: '' });
@@ -121,13 +126,14 @@ export function FormularioRegistro() {
           />
           <span>
             Acepto los{' '}
-            <Link
+            <EnlaceConDialogo
               href={RUTA_PRIVACIDAD}
-              target="_blank"
+              titulo={TITULO_TERMINOS}
+              contenido={textoLegal}
               className="font-medium text-sky-700 hover:underline dark:text-sky-400"
             >
               términos de uso y la política de privacidad
-            </Link>
+            </EnlaceConDialogo>
           </span>
         </label>
         {faltaAceptar && !acepta && (
