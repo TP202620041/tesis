@@ -22,7 +22,7 @@ public class EmailNotificacionAdapter implements NotificacionCanalAdapter {
 
     private final JavaMailSender mailSender;
 
-    @Value("${app.notificaciones.email-remitente:no-reply@viasegura.pe}")
+    @Value("${app.notificaciones.email-remitente:Ciudad Viva <no-reply@viasegura.pe>}")
     private String remitente;
 
     @Override

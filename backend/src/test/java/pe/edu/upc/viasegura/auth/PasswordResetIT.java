@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.icegreen.greenmail.util.GreenMailUtil;
+import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -74,6 +75,12 @@ class PasswordResetIT extends AbstractPostgisMailIT {
         MimeMessage[] recibidos = greenMail.getReceivedMessages();
         assertThat(recibidos).hasSize(1);
         assertThat(recibidos[0].getAllRecipients()[0].toString()).isEqualTo(usuario.getEmail());
+
+        // Marca visible: nombre del remitente y prefijo del asunto.
+        InternetAddress remitente = (InternetAddress) recibidos[0].getFrom()[0];
+        assertThat(remitente.getPersonal()).isEqualTo("Ciudad Viva");
+        assertThat(remitente.getAddress()).isEqualTo("no-reply@viasegura.pe");
+        assertThat(recibidos[0].getSubject()).isEqualTo("Ciudad Viva: recuperacion de contrasena");
 
         // El token persistido es el mismo que se envio por correo.
         var tokens = tokenRepository.findAll();

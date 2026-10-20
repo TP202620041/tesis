@@ -1,4 +1,4 @@
-# ViaSegura — Backend
+# Ciudad Viva — Backend
 
 Backend del **Sistema de crowdsourcing geoespacial para el reporte
 ciudadano y la gestión municipal de infraestructura vial en Lima
@@ -658,7 +658,7 @@ tiene el permiso `NOTIFICACIONES_PUSH` y su preferencia incluye PUSH. El
 payload es JSON:
 
 ```json
-{"titulo": "ViaSegura: su reporte esta en proceso",
+{"titulo": "Ciudad Viva: su reporte esta en proceso",
  "cuerpo": "Su reporte #42 esta en proceso.",
  "url": "/mis-reportes/42", "reporteId": 42, "estado": "EN_PROCESO"}
 ```
