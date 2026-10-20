@@ -6,16 +6,18 @@ Backend de **Ciudad Viva** (tesis UPC: crowdsourcing geoespacial de daños viale
 
 ## Entorno (no obvio)
 
-- El `mvn` global usa JDK 8 y **no compila Spring Boot 3**. Antes de cualquier comando Maven, apunta a JDK 21:
-  `export JAVA_HOME="C:/Cursos/SpringCloudKubernetes/jdk-21.0.2"`
-- El puerto 5432 lo ocupa otro Postgres local, así que la base de datos corre en el **5433**. Exporta `POSTGRES_PORT=5433` tanto para `docker compose` como para la app.
-- Para reiniciar la app, matar `spring-boot:run` no libera el 8080 (sigue vivo el proceso java hijo). Hay que matar el proceso que escucha en el puerto (`Get-NetTCPConnection -LocalPort 8080` → `Stop-Process`).
+- Máquina actual: **macOS**. El Java por defecto (24) no compila con el Lombok de Boot 3.4. Antes de cualquier comando Maven, apunta a JDK 21:
+  `export JAVA_HOME=/opt/homebrew/opt/openjdk@21`
+- La base de datos corre en el puerto por defecto **5432**. Los IT apuntan a 5433 por defecto (máquina Windows anterior): exporta `TEST_DB_URL=jdbc:postgresql://localhost:5432/viasegura_test`. En Windows se usaba `POSTGRES_PORT=5433`.
+- Para reiniciar la app, matar `spring-boot:run` no libera el 8080 (sigue vivo el proceso java hijo). Hay que matar el proceso que escucha en el puerto (`lsof -ti tcp:8080 | xargs kill`).
+- Para que la PWA de un worktree en :3001 hable con el API: `CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3001`.
+- Datos de prueba para la BD de desarrollo: `scripts/seed-datos-prueba.sql` (instrucciones en su cabecera).
 
 ## Comandos
 
 ```bash
-POSTGRES_PORT=5433 docker compose up -d        # PostGIS (viasegura-db) + Mailhog (UI :8025, SMTP :1025)
-POSTGRES_PORT=5433 mvn spring-boot:run         # API en :8080, Swagger en /swagger-ui.html, perfil 'local'
+docker compose up -d                           # PostGIS (viasegura-db) + Mailhog (UI :8025, SMTP :1025)
+mvn spring-boot:run                            # API en :8080, Swagger en /swagger-ui.html, perfil 'local'
 
 # Una sola vez, para crear la base de test (mismo contenedor):
 docker exec viasegura-db psql -U viasegura -d viasegura -c "CREATE DATABASE viasegura_test;"

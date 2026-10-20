@@ -29,26 +29,26 @@ Todo el código, comentarios, commits y docs están en **español**. Los commits
 - Los commits no llevan línea `Co-Authored-By` (decisión del usuario).
 - `/tarea <ID>` lleva una tarea del plan hasta el PR; `/verificar` mide la definición de terminado; `/revisar` pide revisión al subagente `revisor-arquitectura`; `/contrato` coordina cambios de API con un handoff escrito; `/propuesta` registra una duda de diseño en vez de resolverla.
 - El hook `.claude/hooks/guardia.mjs` bloquea escribir fuera de la carpeta propia, editar normas, generados o migraciones existentes, y operaciones git peligrosas. Si bloquea algo legítimo, dilo al usuario: no lo esquives con comandos de shell.
-- El PR lo fusiona el usuario.
+- El PR lo fusiona el usuario, o la sesión coordinadora con su autorización (20/10): siempre con merge commit y borrando la rama.
 
 
 ### Backend (`backend/`)
 
-El `mvn` global de esta máquina usa JDK 8 y no compila. Exportar antes:
-`export JAVA_HOME="C:/Cursos/SpringCloudKubernetes/jdk-21.0.2"`
+Máquina de desarrollo actual: **macOS**. El Java por defecto (24) no compila con el Lombok de Boot 3.4: exportar JDK 21 antes de `mvn`:
+`export JAVA_HOME=/opt/homebrew/opt/openjdk@21`
 
-El puerto 5432 está ocupado por otro Postgres: usar **5433**.
+PostgreSQL corre en el puerto por defecto **5432** (en la máquina Windows anterior se usaba 5433 con `POSTGRES_PORT=5433`).
 
 ```bash
-POSTGRES_PORT=5433 docker compose up -d          # PostGIS (+ Mailhog: SMTP 1025, UI 8025)
-POSTGRES_PORT=5433 mvn spring-boot:run           # API en :8080, Swagger en /swagger-ui.html
+docker compose up -d                             # PostGIS (+ Mailhog: SMTP 1025, UI 8025)
+mvn spring-boot:run                              # API en :8080, Swagger en /swagger-ui.html
 mvn clean verify                                 # todos los tests + JaCoCo (target/site/jacoco)
 mvn verify -Dit.test=GestionMunicipalIT          # un solo test de integración
 mvn test -Dtest=ReincidenciaDetectorTest         # un solo unit test
 ```
 
 - Los tests de integración son `*IT` y corren con **Failsafe** (`mvn verify`), no con `mvn test`. Solo los `*Test` puros corren en Surefire.
-- **Testcontainers no funciona aquí** (Docker 29). Los IT usan la BD persistente `viasegura_test` en el mismo contenedor (`viasegura-db`:5433), configurada en `support/AbstractPostgisIT` (override con `TEST_DB_URL`). Crearla una vez: `docker exec viasegura-db psql -U viasegura -d viasegura -c "CREATE DATABASE viasegura_test;"`.
+- **Testcontainers no funciona aquí** (Docker 29). Los IT usan la BD persistente `viasegura_test` en el mismo contenedor (`viasegura-db`), configurada en `support/AbstractPostgisIT`, que por defecto apunta a 5433: en esta máquina pasar `TEST_DB_URL=jdbc:postgresql://localhost:5432/viasegura_test`. Crearla una vez: `docker exec viasegura-db psql -U viasegura -d viasegura -c "CREATE DATABASE viasegura_test;"`.
 - Al reportar resultados, citar el conteo de `target/failsafe-reports/failsafe-summary.xml` (`completed`), no solo `BUILD SUCCESS` — un `-Dit.test` mal escrito pasa sin ejecutar nada. Medir cobertura siempre sobre `clean verify`.
 - Para reiniciar la app, matar el proceso por puerto 8080; matar Maven deja vivo el java hijo.
 
@@ -80,7 +80,7 @@ Flujo central y piezas que cruzan dominios:
 - **Idempotencia (US-06)**: header opcional `Idempotency-Key`, tabla `idempotency_key` escopada por (clave, usuario); se resuelve *antes* de la deduplicación. No confundir con el 409 de US-09.
 - **Máquina de estados** en `EstadoReporte.puedeTransicionarA` (PENDIENTE→RECIBIDO→EN_PROCESO→RESUELTO, RECHAZADO desde cualquiera no terminal; CANCELADO solo desde PENDIENTE y solo por el creador). Unidireccional porque alimenta métricas.
 - **Línea de tiempo única**: `historial_estado_reporte` guarda cambios de estado y asignaciones (`tipo_evento` CAMBIO_ESTADO | ASIGNACION). Al ciudadano se le redacta el detalle interno en el servidor.
-- **Eventos (Observer)**: `GestionReporteService` publica `ReporteEstadoCambiadoEvent`; listeners `@TransactionalEventListener(AFTER_COMMIT)` disparan notificaciones (`NotificacionService`, Strategy por canal: email real, push es stub que cae a email) y el `REFRESH MATERIALIZED VIEW CONCURRENTLY` de `mv_indice_desempeno_distrital` (`IndiceDesempenoRefreshListener`). Correos de seguridad/soporte usan `JavaMailSender` directo, no ese pipeline.
+- **Eventos (Observer)**: `GestionReporteService` publica `ReporteEstadoCambiadoEvent`; listeners `@TransactionalEventListener(AFTER_COMMIT)` disparan notificaciones (`NotificacionService`, Strategy por canal: email y Web Push real con VAPID, asíncrono fuera de la transacción, D-13) y el `REFRESH MATERIALIZED VIEW CONCURRENTLY` de `mv_indice_desempeno_distrital` (`IndiceDesempenoRefreshListener`). Correos de seguridad/soporte usan `JavaMailSender` directo, no ese pipeline.
 - **Autorización** en dos capas: `SecurityConfig` (rutas públicas **exactas**, nunca wildcards; solo `GET`) + `@PreAuthorize` por rol (CIUDADANO, FUNCIONARIO_MUNICIPAL, ADMIN) + chequeos de relación en el servicio (jurisdicción del funcionario = `Usuario.distrito`; creador/adherido). Denegación → `AccessDeniedException` → 403.
 - **Convención de errores**: precondición de estado/negocio → 409 (`BusinessException`), validación → 400, falta de relación/rol → 403.
 - **Fotos**: de reporte públicas en `/media/fotos/reportes/**`; de perfil solo al dueño vía `/api/perfiles/fotos/{uuid}` (requiere `Authorization`). `fotoUrl` se devuelve relativa.
@@ -102,7 +102,7 @@ Extienden `support/AbstractPostgisIT` (MockMvc + BD `viasegura_test`), o `Abstra
 - JWT en `localStorage`, tocado solo por `src/lib/auth/token-storage.ts`; la mitigación es la CSP estricta de `next.config.ts` (al añadir un origen externo, como tiles de mapa, hay que listarlo ahí).
 - `GuardiaDeRol` y `transiciones.ts`/`acciones.ts` son ayudas de UX que duplican reglas del backend a propósito; el backend sigue siendo la autoridad.
 - Leaflet está encapsulado en `src/map/` (cargado con `dynamic(..., { ssr: false })`); el resto de la app solo maneja `{latitud, longitud}`. No se testea Leaflet en jsdom: los tests cubren lógica pura y componentes sin mapa.
-- Vitest: `pool: 'threads'` y `fileParallelism: false` son necesarios en este Windows; `vitest.setup.ts` hace `afterEach(cleanup)` explícito.
+- Vitest: `pool: 'threads'` y `fileParallelism: false` se pusieron por la máquina Windows anterior y se conservan; `vitest.setup.ts` hace `afterEach(cleanup)` explícito.
 - Service Worker con Serwist en modo CLI (`serwist.config.mjs`), no el plugin de Next, porque el plugin inyecta config de webpack y rompe con Turbopack.
 
 ## Reglas del proyecto
