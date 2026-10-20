@@ -1,4 +1,4 @@
-# ViaSegura — Frontend (PWA)
+# Ciudad Viva — Frontend (PWA)
 
 Frontend del **Sistema de crowdsourcing geoespacial para el reporte ciudadano
 y la gestión municipal de infraestructura vial en Lima Metropolitana**

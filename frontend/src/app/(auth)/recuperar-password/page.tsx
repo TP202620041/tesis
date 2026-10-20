@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { RecuperarPassword } from '@/features/auth/components/RecuperarPassword';
 
 export const metadata: Metadata = {
-  title: 'Recuperar contraseña · ViaSegura',
+  title: 'Recuperar contraseña',
 };
 
 /** US-03: recuperación de contraseña con el token que llega por correo. */

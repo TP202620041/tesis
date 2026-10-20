@@ -111,7 +111,7 @@ export function AceptarTerminos({ usuario, texto }: Props) {
           Términos de uso y privacidad
         </h1>
         <p className="text-sm text-slate-600 dark:text-slate-400">
-          Para seguir usando ViaSegura, {usuario.nombre}, necesitamos que leas y aceptes la versión{' '}
+          Para seguir usando Ciudad Viva, {usuario.nombre}, necesitamos que leas y aceptes la versión{' '}
           <code className="font-mono">{version}</code> de los términos de uso y la política de
           privacidad.
         </p>

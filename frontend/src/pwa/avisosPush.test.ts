@@ -25,7 +25,7 @@ describe('leerAvisoPush', () => {
 
   it('completa lo que falte sin perder lo que vino', () => {
     expect(leerAvisoPush({ cuerpo: 'Su reporte fue resuelto.', reporteId: '7' })).toEqual({
-      titulo: 'ViaSegura',
+      titulo: 'Ciudad Viva',
       cuerpo: 'Su reporte fue resuelto.',
       url: '/mis-reportes',
       tag: undefined,

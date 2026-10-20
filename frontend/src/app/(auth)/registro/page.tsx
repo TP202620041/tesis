@@ -4,7 +4,7 @@ import { FormularioRegistro } from '@/features/auth/components/FormularioRegistr
 import { TextoTerminosYPrivacidad } from '@/features/legal/components/TextoTerminosYPrivacidad';
 
 export const metadata: Metadata = {
-  title: 'Crear cuenta · ViaSegura',
+  title: 'Crear cuenta',
 };
 
 /** US-01: registro de cuenta ciudadana. */

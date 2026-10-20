@@ -115,7 +115,7 @@ export function descripcionDeArea(rolesPermitidos: readonly Rol[]): string {
   if (solo('FUNCIONARIO_MUNICIPAL')) {
     return 'El área municipal es para funcionarios de una municipalidad distrital.';
   }
-  if (solo('ADMIN')) return 'El área de administración es para el equipo de soporte de ViaSegura.';
+  if (solo('ADMIN')) return 'El área de administración es para el equipo de soporte de Ciudad Viva.';
   if (solo('CIUDADANO')) return 'Esta sección es para ciudadanos que reportan daños viales.';
   return 'Esta sección no está disponible para tu tipo de cuenta.';
 }
