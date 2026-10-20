@@ -1,6 +1,6 @@
 # Propuesta: dónde vive la coordinación del cierre de sesión
 
-- **Estado:** abierta <!-- abierta | aceptada | rechazada -->
+- **Estado:** aceptada (2026-10-20) <!-- abierta | aceptada | rechazada -->
 - **Fecha:** 2026-10-20
 - **Origen:** agente de `frontend/`, tarea US-06 (cola offline), segunda revisión del coordinador
 - **Decide:** el usuario. Si se acepta, la sesión de raíz actualiza ARCHITECTURE.md (§5.3) o el plan.
@@ -34,3 +34,7 @@ Hay que decidir si la coordinación del cierre de sesión se queda en `lib/hooks
 ## Qué queda bloqueado mientras no se decida
 
 Nada. El módulo funciona en `lib/hooks/` (US-06 está implementada y probada). Si se elige B, se mueve en una tarea corta; el comentario de cabecera del archivo apunta a esta propuesta.
+
+## Decisión
+
+**`src/lib/sesion/`**, decidida por el usuario el 2026-10-20. Registrada como **D-14** en `ARCHITECTURE.md` (§5.3 y §9). El archivo se mueve en la tarea F3 del Sprint 3.
