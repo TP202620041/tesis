@@ -133,6 +133,11 @@ por defecto del framework, o compilar el SW como paso aparte. Se eligió lo
 segundo: Turbopack sigue siendo el bundler de la app y el SW deja de depender
 de su pipeline de bundling.
 
+`@serwist/cli` compila `src/pwa/sw.ts` con **esbuild**, pero lo declara como
+dependencia *peer* **opcional** (`>=0.25.0 <1.0.0`): npm no lo instala solo, y
+sin él `npm run build` falla en el paso `serwist build` («This command needs
+esbuild»). Por eso `esbuild` es una `devDependency` con versión exacta.
+
 **El API nunca se cachea** (`NetworkOnly` para `/api/**`, antes de
 `defaultCache`): su regla `cross-origin` guardaría respuestas que dependen del
 usuario (`/api/auth/me`, `mis-reportes`, `mi-distrito`) y el siguiente usuario
