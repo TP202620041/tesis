@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { ESTADOS_EN_MAPA, estiloDeEstado } from '@/lib/types/estados';
 import { FILTROS_VACIOS, hayFiltrosActivos, type FiltrosMapa } from '../model/bbox';
 import type { CategoriaDano, Distrito } from '@/lib/types/domain';
@@ -20,6 +21,8 @@ interface Props {
   cargando: boolean;
   /** Filtros que no se pueden consultar (p. ej. rango de fechas invertido). */
   errorFiltros?: string | null;
+  /** Controles extra entre los filtros y la leyenda de estados (las capas del mapa, US-11). */
+  children?: ReactNode;
 }
 
 export function PanelFiltrosMapa({
@@ -30,6 +33,7 @@ export function PanelFiltrosMapa({
   total,
   cargando,
   errorFiltros = null,
+  children,
 }: Props) {
   const hayFiltros = hayFiltrosActivos(filtros);
 
@@ -123,6 +127,8 @@ export function PanelFiltrosMapa({
           Limpiar filtros
         </button>
       )}
+
+      {children}
 
       <div className="mt-2 border-t border-slate-200 pt-4 dark:border-slate-700">
         <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Leyenda</h2>

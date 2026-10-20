@@ -388,6 +388,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/reportes/densidad": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["densidad"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/reportes/bandeja": {
         parameters: {
             query?: never;
@@ -791,32 +807,32 @@ export interface components {
             preferenciaNotificacion: "PUSH" | "EMAIL" | "AMBAS";
         };
         PageTicketAdminResponse: {
-            /** Format: int64 */
-            totalElements?: number;
             /** Format: int32 */
             totalPages?: number;
+            /** Format: int64 */
+            totalElements?: number;
             /** Format: int32 */
             size?: number;
             content?: components["schemas"]["TicketAdminResponse"][];
             /** Format: int32 */
             number?: number;
             sort?: components["schemas"]["SortObject"];
+            first?: boolean;
+            last?: boolean;
             /** Format: int32 */
             numberOfElements?: number;
             pageable?: components["schemas"]["PageableObject"];
-            first?: boolean;
-            last?: boolean;
             empty?: boolean;
         };
         PageableObject: {
             /** Format: int64 */
             offset?: number;
             sort?: components["schemas"]["SortObject"];
+            paged?: boolean;
             /** Format: int32 */
             pageNumber?: number;
             /** Format: int32 */
             pageSize?: number;
-            paged?: boolean;
             unpaged?: boolean;
         };
         SortObject: {
@@ -846,21 +862,21 @@ export interface components {
             sort?: string[];
         };
         PageReporteResumenResponse: {
-            /** Format: int64 */
-            totalElements?: number;
             /** Format: int32 */
             totalPages?: number;
+            /** Format: int64 */
+            totalElements?: number;
             /** Format: int32 */
             size?: number;
             content?: components["schemas"]["ReporteResumenResponse"][];
             /** Format: int32 */
             number?: number;
             sort?: components["schemas"]["SortObject"];
+            first?: boolean;
+            last?: boolean;
             /** Format: int32 */
             numberOfElements?: number;
             pageable?: components["schemas"]["PageableObject"];
-            first?: boolean;
-            last?: boolean;
             empty?: boolean;
         };
         HistorialEntradaResponse: {
@@ -873,6 +889,21 @@ export interface components {
             autor?: string;
             /** Format: date-time */
             fecha?: string;
+        };
+        CeldaDensidadResponse: {
+            /** Format: double */
+            latitud?: number;
+            /** Format: double */
+            longitud?: number;
+            /** Format: int64 */
+            cantidad?: number;
+        };
+        DensidadReportesResponse: {
+            /** Format: double */
+            celdaGrados?: number;
+            /** Format: int64 */
+            totalReportes?: number;
+            celdas?: components["schemas"]["CeldaDensidadResponse"][];
         };
         ClavePublicaVapidResponse: {
             clavePublica?: string;
@@ -1765,6 +1796,32 @@ export interface operations {
                 };
                 content: {
                     "*/*": string;
+                };
+            };
+        };
+    };
+    densidad: {
+        parameters: {
+            query?: {
+                distritoId?: number;
+                categoriaId?: number;
+                estado?: "PENDIENTE" | "RECIBIDO" | "EN_PROCESO" | "RESUELTO" | "RECHAZADO" | "CANCELADO";
+                fechaDesde?: string;
+                fechaHasta?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["DensidadReportesResponse"];
                 };
             };
         };

@@ -456,6 +456,64 @@ iconos rotos con bundlers y no obliga a abrir orígenes extra en la CSP.
 Los tiles de OpenStreetMap **sí** están listados en `img-src` de la CSP
 (hosts concretos, no `*`); sin eso el mapa se ve en blanco.
 
+### Mapa de calor (US-11): círculos de Leaflet, sin plugin
+
+La capa de calor de `/mapa` dibuja la grilla de `GET /api/reportes/densidad`
+con lo que Leaflet ya trae, **sin dependencias nuevas** (ni `leaflet.heat`
+ni similares) y sin tocar la CSP: no hay orígenes nuevos.
+
+- **Una celda = un `CircleMarker`** centrado en el nodo de la grilla (el
+  backend lleva cada reporte al nodo más cercano, así que el nodo es el
+  centro de la celda). El radio va en **píxeles**, no en metros: la celda
+  mide ~110 m, que a la escala de la ciudad serían uno o dos píxeles. Con un
+  radio fijo por nivel la capa se lee a cualquier zoom y las celdas vecinas
+  se funden en manchas, como en un mapa de calor. Se descartó el
+  `Rectangle` del tamaño real de la celda por eso mismo.
+- **Cuatro niveles relativos al máximo de la vista** (`nivelDeCalor`: el
+  cuartil de `cantidad / referencia`, ver el piso abajo), no al de toda Lima: al acercarse a un
+  distrito con pocos reportes se siguen distinguiendo sus zonas, en vez de
+  quedar todo en «Baja» por comparación con el centro. Al mover el mapa la
+  escala se recalcula en memoria con las celdas visibles (`capaDeCalor`).
+- **Con un piso de 4** (`UMBRAL_MINIMO_ESCALA`): el denominador es
+  `max(máximo visible, 4)`. Una escala puramente relativa engaña con pocos
+  datos: en la verificación en vivo, con todas las celdas en 1 reporte, todas
+  salían «Muy alta: 1 reporte». Con el piso, un reporte aislado es «Baja» y
+  hacen falta 4 en la misma zona para llegar a «Muy alta»; con más datos el
+  piso deja de actuar. La leyenda lo dice («con un mínimo de 4») y solo
+  muestra los niveles a los que llega alguna cantidad de la vista.
+- **No solo color:** cada nivel crece en color (rampa de violetas, de claro
+  a oscuro, que no se confunde con los colores de estado de los marcadores y
+  se ordena también en escala de grises) **y en tamaño**. La leyenda del
+  panel repite ambos y nombra cada nivel con su cantidad («Media: 3 a 5
+  reportes»), el máximo de referencia y el lado de la celda. Sin celdas en la
+  vista dice «Sin reportes en esta zona con estos filtros».
+- **Un solo `<canvas>` para toda la capa** (renderer `canvas()` compartido
+  por todos los `CircleMarker`), no un nodo SVG por celda: la capa no tiene
+  tope —la grilla cubre toda Lima con los filtros dados— y con miles de
+  celdas el SVG por defecto de Leaflet llenaría el DOM de nodos.
+- **Accesibilidad de la leyenda:** solo los cambios de estado («Calculando
+  densidad…», «Actualizando…», el estado vacío) van en la región
+  `aria-live`; el total «N reportes en la vista» va aparte, porque cambia con
+  cada gesto del mapa y anunciarlo sería ruido. Mientras llega una consulta
+  nueva la capa anterior sigue dibujada y se avisa «Actualizando…». El nivel
+  más oscuro lleva borde claro en la leyenda para verse en modo oscuro.
+- Los círculos van en el `overlayPane`, debajo de los marcadores, que siguen
+  siendo clicables. Las dos capas se encienden y apagan por separado
+  (casillas «Capas del mapa»); apagar los marcadores no detiene la búsqueda,
+  que sigue alimentando la lista.
+
+**Cuándo se consulta** (`useDensidadMapa`): la respuesta cubre toda Lima con
+los filtros dados, así que **mover o acercar el mapa no pide nada**; solo un
+cambio de filtros (con el mismo debounce de 400 ms que los marcadores) o
+encender la capa. Con la capa apagada no se pide nada, y con el rango de
+fechas invertido tampoco. Los filtros se traducen con la misma función que la
+búsqueda (`agregarFiltros` en `model/bbox.ts`), así que las dos capas no
+pueden filtrar distinto. La petición va sin token y sin `cache: 'no-store'`:
+el backend responde `Cache-Control: public, max-age=60` con `ETag`, y el
+navegador reutiliza o revalida (304) por su cuenta al repetir una consulta
+(el Service Worker deja el API en `NetworkOnly`, que respeta esa caché HTTP).
+Un reporte recién creado puede tardar hasta 60 s en aparecer en la capa.
+
 ## Estado actual
 
 Verificado end-to-end contra el backend real:
@@ -523,6 +581,16 @@ Verificado end-to-end contra el backend real:
   de desarrollo y Chrome con perfil persistente: suscripción en FCM, aviso
   real mostrado por el SW con la URL del reporte, baja al cerrar sesión y
   re-registro al volver a entrar. Chrome no admite push en modo incógnito.
+- **US-11** mapa de calor en `/mapa`: casillas «Capas del mapa» para
+  encender y apagar por separado los marcadores y la capa de calor, que usa
+  los mismos filtros del panel (distrito, categoría, estado y fechas) sobre
+  `GET /api/reportes/densidad`, con leyenda de cuatro niveles en texto y el
+  estado vacío «Sin reportes en esta zona con estos filtros» (ver «Mapa de
+  calor» en Decisiones técnicas). Cubierto por tests de la lógica
+  (`model/densidad.ts`), del hook y de la leyenda; Leaflet no se testea en
+  jsdom. Verificado el 20/10 contra el backend real: la capa dibuja los
+  círculos bajo los marcadores en un único canvas, y con un reporte por celda
+  la leyenda dice «Baja» (piso de 4 en la escala).
 
 ### `null` no es cero
 

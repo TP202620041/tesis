@@ -1,10 +1,10 @@
 # Handoff de contrato: densidad de reportes para el mapa de calor (US-11)
 
-- **Estado:** pendiente <!-- pendiente | atendido -->
+- **Estado:** atendido <!-- pendiente | atendido -->
 - **Fecha:** 2026-10-20
 - **Origen:** backend, rama `feature/us-11-densidad`, commit `f9eec1b` (PR contra `develop`)
 - **Historia o tarea:** US-11
-- **Atendido por:** _(frontend, rama y fecha)_
+- **Atendido por:** frontend, rama `feature/us-11-mapa-calor`, 2026-10-20. `npm run api:sync`; tipos `DensidadReportes`/`CeldaDensidad` en `features/reportes/model/tipos.ts` (todos los campos requeridos); llamada `densidadDeReportes` en `features/reportes/api.ts` (sin token, sin `no-store`); escala y consulta en `model/densidad.ts`; hook `useDensidadMapa`; dibujo en `src/map/MapaReportes.tsx` con `CircleMarker` (sin plugin, CSP sin cambios).
 
 ## Endpoints afectados
 | Método | Ruta | Cambio |

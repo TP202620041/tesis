@@ -21,6 +21,23 @@ export type ComentarioPublico = Schemas['ComentarioPublicoResponse'];
 
 export type Calificacion = Schemas['CalificacionResponse'];
 
+/**
+ * US-11: una celda de la grilla de densidad. Su punto es el CENTRO de la
+ * celda (el backend lleva cada reporte al nodo mas cercano con
+ * `ST_SnapToGrid`). Los tres campos son NOT NULL en el backend: springdoc los
+ * marca opcionales solo porque el record no lleva nulabilidad.
+ */
+export type CeldaDensidad = Required<Schemas['CeldaDensidadResponse']>;
+
+/**
+ * US-11: respuesta de `GET /api/reportes/densidad`. Cubre toda Lima con los
+ * filtros dados (no tiene area) y las celdas vienen de mayor a menor
+ * `cantidad`. Ningun campo es nulo; `celdas` puede venir vacia.
+ */
+export type DensidadReportes = Required<Omit<Schemas['DensidadReportesResponse'], 'celdas'>> & {
+  celdas: CeldaDensidad[];
+};
+
 export interface PaginaReportes {
   contenido: ReporteResumen[];
   /** Total que cumple los filtros, no solo los de esta pagina. */
