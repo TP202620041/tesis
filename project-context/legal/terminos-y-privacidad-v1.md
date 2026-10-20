@@ -47,7 +47,7 @@ Te pedimos un consentimiento separado para cada finalidad, y puedes revisarlos e
 
 1. **Términos de uso y privacidad:** obligatorio para usar la plataforma. Si cambia este documento, te pediremos aceptar la nueva versión al iniciar sesión.
 2. **Notificaciones push:** opcional. Puedes retirarlo cuando quieras; si lo haces, dejamos de enviarte push en todos tus navegadores.
-3. **Notificaciones por correo:** opcional. [COMPLETAR: confirmar si los correos de seguridad, como la recuperación de contraseña, se envían siempre, aun sin este consentimiento.]
+3. **Notificaciones por correo:** opcional. Sin este consentimiento no te enviamos avisos por correo sobre tus reportes. Los correos que **tú pediste**, como la recuperación de contraseña o la respuesta a una consulta de soporte, se envían siempre (decisión del 19/10).
 
 Retirar un consentimiento no invalida lo que hicimos antes con él. Para dejar de aceptar los términos de uso hay que cerrar la cuenta (ver §7).
 
