@@ -9,8 +9,10 @@ import {
   construirQueryDensidad,
   estiloDeNivel,
   ladoDeCeldaEnMetros,
+  UMBRAL_MINIMO_ESCALA,
   nivelDeCalor,
   rangoDeNivel,
+  referenciaDeEscala,
   textoDeRango,
 } from './densidad';
 import type { DensidadReportes } from './tipos';
@@ -78,13 +80,26 @@ describe('nivelDeCalor', () => {
     expect(nivelDeCalor(8, 8)).toBe(4);
   });
 
-  it('la celda más cargada siempre es el nivel máximo, aunque tenga un solo reporte', () => {
-    expect(nivelDeCalor(1, 1)).toBe(4);
+  it('con pocos datos compara contra el piso: un reporte aislado no es «muy alta»', () => {
+    expect(UMBRAL_MINIMO_ESCALA).toBe(4);
+    // Todas las celdas con 1 reporte: todas «Baja», no «Muy alta».
+    expect(nivelDeCalor(1, 1)).toBe(1);
+    expect(nivelDeCalor(2, 2)).toBe(2);
+    expect(nivelDeCalor(3, 3)).toBe(3);
+    // Hacen falta 4 en la misma zona para llegar al nivel máximo.
+    expect(nivelDeCalor(4, 4)).toBe(4);
+  });
+
+  it('por encima del piso la escala vuelve a ser relativa al máximo', () => {
+    expect(referenciaDeEscala(1)).toBe(4);
+    expect(referenciaDeEscala(4)).toBe(4);
+    expect(referenciaDeEscala(9)).toBe(9);
+    expect(nivelDeCalor(9, 9)).toBe(4);
   });
 
   it('no se sale del rango con valores fuera de lo esperado', () => {
     expect(nivelDeCalor(0, 5)).toBe(1);
-    expect(nivelDeCalor(3, 0)).toBe(1);
+    expect(nivelDeCalor(3, 0)).toBe(3);
     expect(nivelDeCalor(9, 5)).toBe(4);
   });
 });
@@ -101,9 +116,12 @@ describe('rangoDeNivel', () => {
     }
   });
 
-  it('deja vacíos los niveles a los que no llega ninguna cantidad', () => {
-    expect(rangoDeNivel(1, 1)).toBeNull();
-    expect(rangoDeNivel(4, 1)).toEqual({ desde: 1, hasta: 1 });
+  it('deja vacíos los niveles a los que no llega ninguna cantidad de la vista', () => {
+    expect(rangoDeNivel(1, 1)).toEqual({ desde: 1, hasta: 1 });
+    expect(rangoDeNivel(2, 1)).toBeNull();
+    expect(rangoDeNivel(4, 1)).toBeNull();
+    expect(rangoDeNivel(3, 3)).toEqual({ desde: 3, hasta: 3 });
+    expect(rangoDeNivel(4, 3)).toBeNull();
     expect(rangoDeNivel(1, 0)).toBeNull();
   });
 
@@ -177,6 +195,20 @@ describe('capaDeCalor', () => {
       ['Alta', '3 reportes'],
       ['Muy alta', '4 reportes'],
     ]);
+  });
+
+  it('si todas las celdas tienen 1 reporte, son «Baja» y la leyenda no ofrece «Muy alta»', () => {
+    const capa = capaDeCalor(
+      densidad([
+        { latitud: -12.12, longitud: -77.03, cantidad: 1 },
+        { latitud: -12.115, longitud: -77.025, cantidad: 1 },
+      ]),
+      AREA,
+    );
+    expect(capa.maximo).toBe(1);
+    expect(capa.celdas.map((c) => c.nivel)).toEqual([1, 1]);
+    expect(capa.celdas.map((c) => c.intensidad)).toEqual([0.25, 0.25]);
+    expect(capa.leyenda.map((n) => [n.etiqueta, n.texto])).toEqual([['Baja', '1 reporte']]);
   });
 
   it('sin celdas visibles queda vacía y sin leyenda', () => {

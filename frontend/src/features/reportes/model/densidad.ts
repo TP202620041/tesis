@@ -80,29 +80,48 @@ export function estiloDeNivel(nivel: NivelCalor): EstiloNivelCalor {
 }
 
 /**
- * Nivel de una celda respecto del maximo de la vista: el cuartil de
- * `cantidad / maximo` en que cae, redondeando hacia arriba. La celda mas
- * cargada siempre es «Muy alta», aunque tenga un solo reporte: la escala es
- * relativa, y la leyenda dice a cuantos reportes equivale cada nivel.
+ * Piso de la escala: con menos reportes que esto en la zona mas cargada de
+ * la vista, se compara contra este valor y no contra el maximo.
+ *
+ * Sin piso, una escala puramente relativa engaña con pocos datos: si todas
+ * las celdas visibles tienen 1 reporte, todas saldrian «Muy alta». Con 4 (uno
+ * por nivel), un reporte aislado es «Baja» y hacen falta 4 en la misma zona
+ * para llegar a «Muy alta». Con mas datos el piso deja de actuar y la escala
+ * vuelve a ser relativa al maximo de la vista.
+ */
+export const UMBRAL_MINIMO_ESCALA = 4;
+
+/** Denominador de la escala: el maximo de la vista, pero nunca menos que el piso. */
+export function referenciaDeEscala(maximo: number): number {
+  return Math.max(maximo, UMBRAL_MINIMO_ESCALA);
+}
+
+/**
+ * Nivel de una celda: el cuartil de `cantidad / referencia` en que cae,
+ * redondeando hacia arriba, con `referencia = max(maximo, piso)`. La escala
+ * es relativa a la vista, y la leyenda dice a cuantos reportes equivale cada
+ * nivel.
  */
 export function nivelDeCalor(cantidad: number, maximo: number): NivelCalor {
-  if (maximo <= 0 || cantidad <= 0) return 1;
-  const nivel = Math.ceil((cantidad * CANTIDAD_NIVELES) / maximo);
+  if (cantidad <= 0) return 1;
+  const nivel = Math.ceil((cantidad * CANTIDAD_NIVELES) / referenciaDeEscala(maximo));
   return Math.min(CANTIDAD_NIVELES, Math.max(1, nivel)) as NivelCalor;
 }
 
 /**
  * Cantidades enteras que caen en `nivel` con este maximo (inversa de
- * {@link nivelDeCalor}), o `null` si ninguna cae: con maximos chicos algunos
- * niveles quedan vacios (con maximo 1, solo existe «Muy alta»).
+ * {@link nivelDeCalor}), sin pasar del maximo de la vista, o `null` si
+ * ninguna cae: con maximos chicos algunos niveles quedan vacios (con maximo
+ * 1, solo existe «Baja»).
  */
 export function rangoDeNivel(
   nivel: NivelCalor,
   maximo: number,
 ): { desde: number; hasta: number } | null {
   if (maximo <= 0) return null;
-  const desde = Math.floor(((nivel - 1) * maximo) / CANTIDAD_NIVELES) + 1;
-  const hasta = Math.floor((nivel * maximo) / CANTIDAD_NIVELES);
+  const referencia = referenciaDeEscala(maximo);
+  const desde = Math.floor(((nivel - 1) * referencia) / CANTIDAD_NIVELES) + 1;
+  const hasta = Math.min(maximo, Math.floor((nivel * referencia) / CANTIDAD_NIVELES));
   return desde <= hasta ? { desde, hasta } : null;
 }
 
@@ -119,7 +138,7 @@ export function textoDeRango(desde: number, hasta: number): string {
 /** Celda lista para dibujar: su centro, su cantidad y su nivel en la vista. */
 export interface CeldaCalor extends CeldaDensidad {
   nivel: NivelCalor;
-  /** `cantidad / maximo` de la vista, en (0, 1]. */
+  /** `cantidad / referenciaDeEscala(maximo)` de la vista, en (0, 1]. */
   intensidad: number;
 }
 
@@ -159,7 +178,8 @@ export function celdaEnArea(celda: CeldaDensidad, area: BoundingBox, celdaGrados
  * La escala es relativa al maximo **de la vista**, no al de toda Lima: al
  * acercarse a un distrito con pocos reportes se siguen distinguiendo sus
  * zonas, en vez de quedar todo en «Baja» por comparacion con el centro de la
- * ciudad. Sin area (antes de que el mapa la informe) se usa toda la grilla.
+ * ciudad. Con pocos datos actua el piso {@link UMBRAL_MINIMO_ESCALA}. Sin
+ * area (antes de que el mapa la informe) se usa toda la grilla.
  */
 export function capaDeCalor(densidad: DensidadReportes, area: BoundingBox | null): CapaDeCalor {
   const visibles = area
@@ -173,7 +193,7 @@ export function capaDeCalor(densidad: DensidadReportes, area: BoundingBox | null
     .map((c) => ({
       ...c,
       nivel: nivelDeCalor(c.cantidad, maximo),
-      intensidad: c.cantidad / maximo,
+      intensidad: c.cantidad / referenciaDeEscala(maximo),
     }))
     .sort((a, b) => a.cantidad - b.cantidad);
 
