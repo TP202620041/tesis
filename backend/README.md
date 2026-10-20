@@ -270,8 +270,83 @@ distritos sin datos) rompería el selector si compartieran endpoint.
 
 `DistritoResponse` **no expone `limites`**: el MultiPolygon pesa miles de
 vértices y no sirve para poblar un `<select>`. Si el frontend llega a
-necesitar los polígonos (p. ej. el mapa de calor de US-11, pospuesto), eso
-amerita un endpoint propio con GeoJSON y su política de caché.
+necesitar los polígonos para dibujarlos, eso amerita un endpoint propio con
+GeoJSON y su política de caché. El mapa de calor (US-11) no los necesita:
+usa la densidad en grilla de la sección siguiente.
+
+## Mapa de calor (US-11)
+
+| Método | Ruta | Auth | Descripción |
+|---|---|---|---|
+| GET | `/api/reportes/densidad` | No | Reportes agrupados en una grilla fija para la capa de calor. Filtros opcionales `distritoId`, `categoriaId`, `estado`, `fechaDesde`, `fechaHasta`. |
+
+```json
+{"celdaGrados": 0.001, "totalReportes": 3,
+ "celdas": [{"latitud": -12.121, "longitud": -77.03, "cantidad": 2},
+            {"latitud": -12.086, "longitud": -76.976, "cantidad": 1}]}
+```
+
+**Grilla en la base, no puntos.** `ST_SnapToGrid` lleva cada reporte al nodo
+más cercano de una grilla de **0.001°** (≈111 m × 109 m en Lima) y se cuenta
+por nodo. La respuesta crece con las celdas ocupadas, no con los reportes, y
+el tamaño de celda es fijo en el servidor (no es un parámetro): el cliente no
+puede pedir una grilla tan fina que equivalga a la lista de puntos, y una
+misma URL siempre devuelve lo mismo, lo que la hace cacheable. A la escala
+de una ciudad, 100 m es menos que el radio con que se dibuja cada punto de
+calor.
+
+**Mismos filtros y misma visibilidad que la búsqueda pública** (US-10/US-12):
+sin `estado`, todo salvo `CANCELADO`; un rango de fechas invertido es 400
+(`RangoFechas`). La capa de calor se dibuja sobre el mismo mapa que los
+marcadores y con los mismos filtros, así que no puede contar otra cosa.
+
+**SEC-01: lo que hace la municipalidad no saca un reporte del mapa.** Por
+defecto cuentan `RECHAZADO` y `RESUELTO`. Si contaran solo los activos, una
+municipalidad podría «enfriar» su distrito rechazando reportes, y un actor
+cambiaría la métrica pública que lo expone. Quien quiera ver solo lo
+pendiente filtra por `estado`. La única salida es `CANCELADO`, que solo hace
+el ciudadano creador desde `PENDIENTE` (US-08).
+
+**Cada reporte pesa 1, no `totalAdhesiones`.** Las adhesiones (US-09) las
+suma cualquier ciudadano con un clic, y ponderar por ellas dejaría inflar la
+densidad de una zona sin reportar nada nuevo. Contar reportes no se infla
+con duplicados porque US-09 ya convierte en adhesión un reporte de la misma
+categoría a menos de 20 m de otro activo.
+
+**SEC-02: sin señales internas.** `DensidadReportesResponse` tiene
+`celdaGrados`, `totalReportes` y `celdas`; cada celda, `latitud`, `longitud`
+y `cantidad`. Nada más: ni ids, ni categoría, ni estado, ni
+`posibleReincidencia`, ni nada que dependa de quién consulta. Con o sin
+token, la respuesta es la misma. `DensidadReportesIT` lo comprueba campo por
+campo sobre un reporte marcado como posible reincidencia.
+
+### Política de caché
+
+Caché **HTTP**, sin caché en el servidor:
+
+- `Cache-Control: public, max-age=60`. Durante un minuto el navegador (o un
+  proxy o CDN) reutiliza la respuesta de esa URL sin llegar al backend.
+  `public` es correcto porque la respuesta no depende del usuario, aunque el
+  pedido lleve `Authorization`.
+- `ETag` fuerte (SHA-256 del contenido). Pasado el minuto, el cliente revalida
+  con `If-None-Match`, y si nada cambió recibe **304** sin cuerpo (lo resuelve
+  Spring MVC al ver el ETag en un GET). Las coordenadas se redondean al
+  decimal de la celda para que el mismo contenido dé siempre el mismo ETag.
+
+**Por qué 60 s y no la frescura de eventos del índice de desempeño.** El
+índice (US-18) es una métrica de desempeño y se refresca con cada evento que
+la cambia. El mapa de calor es una vista de contexto: un reporte nuevo
+aparece, como mucho, un minuto tarde, y a cambio un mapa que se reabre o se
+recarga no repite la agregación. **Sin caché en el servidor** (Spring Cache,
+vista materializada) a propósito: obligaría a invalidarla con los mismos
+eventos que el índice, y con varias instancias, a compartirla. La consulta
+usa los índices de `reporte` (`distrito_id`, `estado`, `categoria_id`) y
+agrega en la base; a la escala de la tesis no compensa. Si creciera, el paso
+siguiente es una vista materializada por celda refrescada por eventos, como
+`mv_indice_desempeno_distrital`.
+
+**Service Worker.** La PWA deja el API fuera de la caché del Service Worker
+(US-04). Esta política la aplica la caché HTTP del navegador, no el SW.
 
 ## Registro de hallazgos de seguridad
 

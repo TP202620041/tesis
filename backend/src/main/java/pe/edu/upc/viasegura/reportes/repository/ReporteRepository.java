@@ -238,4 +238,48 @@ public interface ReporteRepository extends JpaRepository<Reporte, Long> {
               AND r.updatedAt < :limite
             """)
     long countEstancados(@Param("distritoId") Long distritoId, @Param("limite") Instant limite);
+
+    /** Fila de {@link #densidadEnGrilla}: un punto de la grilla y cuantos reportes caen en el. */
+    interface CeldaDensidad {
+        double getLatitud();
+
+        double getLongitud();
+
+        long getCantidad();
+    }
+
+    /**
+     * US-11: reportes agrupados en una grilla de {@code celda} grados para el
+     * mapa de calor, con los MISMOS filtros y la misma regla de visibilidad
+     * que {@link #buscar} (sin {@code estado}, todo salvo CANCELADO).
+     *
+     * <p>{@code ST_SnapToGrid} sobre el {@code geometry} (lon/lat en grados)
+     * lleva cada punto al nodo mas cercano de la grilla, y se cuenta por nodo.
+     * Agrupar en la base, y no devolver los puntos, acota la respuesta al
+     * numero de celdas ocupadas. {@code celda} nunca es nulo, asi que
+     * Postgres infiere su tipo sin {@code CAST}; los filtros opcionales usan
+     * el mismo {@code CAST(:p AS tipo) IS NULL} que {@link #buscar}.</p>
+     */
+    @Query(value = """
+            SELECT ST_Y(g.punto) AS latitud, ST_X(g.punto) AS longitud, g.cantidad AS cantidad
+            FROM (
+                SELECT ST_SnapToGrid(r.ubicacion::geometry, :celda) AS punto, COUNT(*) AS cantidad
+                FROM reporte r
+                WHERE (CAST(:distritoId AS bigint) IS NULL OR r.distrito_id = :distritoId)
+                  AND (CAST(:categoriaId AS bigint) IS NULL OR r.categoria_id = :categoriaId)
+                  AND (CAST(:estado AS varchar) IS NULL OR r.estado = :estado)
+                  AND (CAST(:estado AS varchar) IS NOT NULL OR r.estado <> 'CANCELADO')
+                  AND (CAST(:fechaDesde AS timestamptz) IS NULL OR r.created_at >= :fechaDesde)
+                  AND (CAST(:fechaHasta AS timestamptz) IS NULL OR r.created_at <= :fechaHasta)
+                GROUP BY 1
+            ) g
+            ORDER BY g.cantidad DESC, latitud ASC, longitud ASC
+            """, nativeQuery = true)
+    List<CeldaDensidad> densidadEnGrilla(
+            @Param("celda") double celda,
+            @Param("distritoId") Long distritoId,
+            @Param("categoriaId") Long categoriaId,
+            @Param("estado") String estado,
+            @Param("fechaDesde") Instant fechaDesde,
+            @Param("fechaHasta") Instant fechaHasta);
 }
