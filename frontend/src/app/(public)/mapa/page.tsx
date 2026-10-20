@@ -55,7 +55,7 @@ export default function MapaPage() {
       <header className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-800">
         <div>
           <h1 className="text-lg font-bold text-sky-700 dark:text-sky-400">
-            <Link href="/">ViaSegura</Link> · Mapa de reportes
+            <Link href="/">Ciudad Viva</Link> · Mapa de reportes
           </h1>
           <p className="text-xs text-slate-600 dark:text-slate-400">
             Daños viales reportados por vecinos de Lima Metropolitana

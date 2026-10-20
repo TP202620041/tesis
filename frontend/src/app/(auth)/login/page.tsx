@@ -4,7 +4,7 @@ import type { Metadata } from 'next';
 import { FormularioLogin } from '@/features/auth/components/FormularioLogin';
 
 export const metadata: Metadata = {
-  title: 'Iniciar sesión · ViaSegura',
+  title: 'Iniciar sesión',
 };
 
 /** US-02: inicio de sesion de ciudadano o funcionario municipal. */

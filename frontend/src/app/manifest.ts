@@ -3,14 +3,14 @@ import type { MetadataRoute } from 'next';
 /**
  * Web App Manifest, via la convencion nativa de App Router.
  *
- * Es lo que permite instalar ViaSegura como PWA en el telefono, requisito de
+ * Es lo que permite instalar Ciudad Viva como PWA en el telefono, requisito de
  * base del proyecto: el ciudadano reporta desde la calle, sin instalar una
  * app de tienda (US-01) y con soporte offline (US-06).
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'ViaSegura — Reporte ciudadano de daños viales',
-    short_name: 'ViaSegura',
+    name: 'Ciudad Viva — Reporte ciudadano de daños viales',
+    short_name: 'Ciudad Viva',
     description:
       'Reporta baches, veredas dañadas y semáforos averiados en Lima Metropolitana, ' +
       'y consulta el desempeño de tu municipalidad distrital.',

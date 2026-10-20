@@ -21,7 +21,7 @@ export function TextoTerminosYPrivacidad({ conTitulo = true }: { conTitulo?: boo
     <article className="flex flex-col gap-4 text-sm leading-relaxed text-slate-700 dark:text-slate-300">
       {conTitulo && (
         <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-          Términos de uso y política de privacidad de ViaSegura
+          Términos de uso y política de privacidad de Ciudad Viva
         </h1>
       )}
 
@@ -38,7 +38,7 @@ export function TextoTerminosYPrivacidad({ conTitulo = true }: { conTitulo?: boo
 
       <Seccion titulo="1. Quiénes somos">
         <p>
-          ViaSegura es una plataforma de reporte ciudadano de daños en la infraestructura vial de
+          Ciudad Viva es una plataforma de reporte ciudadano de daños en la infraestructura vial de
           Lima Metropolitana. La desarrolla <Completar>nombres de los autores</Completar> como parte
           de una tesis de la Universidad Peruana de Ciencias Aplicadas (UPC).
         </p>
