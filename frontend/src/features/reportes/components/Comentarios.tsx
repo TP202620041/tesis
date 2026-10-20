@@ -1,10 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { AlertaError, Boton } from '@/components/ui/form';
-import { ApiError, NetworkError } from '@/lib/api/client';
-import { comentar, listarComentarios } from '../api';
-import type { ComentarioPublico } from '../model/tipos';
+import { useComentarios } from '../hooks/useComentarios';
 
 /**
  * US-27: comentarios publicos sobre un reporte resuelto.
@@ -31,54 +29,12 @@ export function Comentarios({
   /** `false` para visitantes sin sesion: ven los comentarios, no el formulario. */
   puedeComentar: boolean;
 }) {
-  const [comentarios, setComentarios] = useState<ComentarioPublico[]>([]);
-  const [cargando, setCargando] = useState(true);
+  const { cargando, comentarios, publicar, enviando, error } = useComentarios(reporteId);
   const [contenido, setContenido] = useState('');
-  const [enviando, setEnviando] = useState(false);
-  const [error, setError] = useState<{ mensaje: string; detalles: string[] } | null>(null);
-  const [recarga, setRecarga] = useState(0);
-
-  useEffect(() => {
-    let cancelado = false;
-    const cargar = async () => {
-      setCargando(true);
-      try {
-        const lista = await listarComentarios(reporteId);
-        if (!cancelado) setComentarios(lista);
-      } catch {
-        if (!cancelado) setComentarios([]);
-      } finally {
-        if (!cancelado) setCargando(false);
-      }
-    };
-    void cargar();
-    return () => {
-      cancelado = true;
-    };
-  }, [reporteId, recarga]);
 
   async function enviar(evento: React.FormEvent) {
     evento.preventDefault();
-    setError(null);
-    if (!contenido.trim()) return;
-
-    setEnviando(true);
-    try {
-      await comentar(reporteId, contenido);
-      setContenido('');
-      setRecarga((n) => n + 1);
-    } catch (e) {
-      if (e instanceof NetworkError) {
-        setError({ mensaje: 'Sin conexión con el servidor.', detalles: [] });
-      } else if (e instanceof ApiError) {
-        // 409 = el reporte no está resuelto; 401 = sesión vencida.
-        setError({ mensaje: e.message, detalles: e.details });
-      } else {
-        setError({ mensaje: 'Ocurrió un error inesperado.', detalles: [] });
-      }
-    } finally {
-      setEnviando(false);
-    }
+    if (await publicar(contenido)) setContenido('');
   }
 
   return (
