@@ -160,12 +160,12 @@ flowchart LR
   n_features_desempeno -->|"useCarga"| n_lib_hooks
   n_features_desempeno -->|"domain"| n_lib_types
   n_features_gestion -->|"LineaDeTiempo, ui/form"| n_components
-  n_features_gestion -.->|"catalogos, client, errors, generated/schema (fuera de §5)"| n_lib_api
+  n_features_gestion -->|"catalogos, client, errors, generated/schema"| n_lib_api
   n_features_gestion -->|"useCarga"| n_lib_hooks
   n_features_gestion -->|"domain, estados, fechas"| n_lib_types
   n_features_legal -->|"model"| n_features_auth
   n_features_reportes -->|"LineaDeTiempo, ui/form"| n_components
-  n_features_reportes -.->|"catalogos, client, errors, generated/schema (fuera de §5)"| n_lib_api
+  n_features_reportes -->|"catalogos, client, errors, generated/schema"| n_lib_api
   n_features_reportes -->|"token-storage"| n_lib_auth
   n_features_reportes -->|"useCarga"| n_lib_hooks
   n_features_reportes -->|"antesDeCerrarSesion"| n_lib_sesion
@@ -184,7 +184,6 @@ flowchart LR
   n_map -->|"client"| n_lib_api
   n_map -->|"estados"| n_lib_types
   n_pwa -->|"model"| n_features_reportes
-  linkStyle 13,18 stroke:#c62828,stroke-width:2px
 ```
 
 | Origen | Destino | Qué usa | ¿Permitido por §5? |
@@ -222,12 +221,12 @@ flowchart LR
 | `features/desempeno` | `lib/hooks` | `useCarga` | sí |
 | `features/desempeno` | `lib/types` | `domain` | sí |
 | `features/gestion` | `components` | `LineaDeTiempo`, `ui/form` | sí |
-| `features/gestion` | `lib/api` | `catalogos`, `client`, `errors`, `generated/schema` | **no** |
+| `features/gestion` | `lib/api` | `catalogos`, `client`, `errors`, `generated/schema` | sí |
 | `features/gestion` | `lib/hooks` | `useCarga` | sí |
 | `features/gestion` | `lib/types` | `domain`, `estados`, `fechas` | sí |
 | `features/legal` | `features/auth` | `model` | sí |
 | `features/reportes` | `components` | `LineaDeTiempo`, `ui/form` | sí |
-| `features/reportes` | `lib/api` | `catalogos`, `client`, `errors`, `generated/schema` | **no** |
+| `features/reportes` | `lib/api` | `catalogos`, `client`, `errors`, `generated/schema` | sí |
 | `features/reportes` | `lib/auth` | `token-storage` | sí |
 | `features/reportes` | `lib/hooks` | `useCarga` | sí |
 | `features/reportes` | `lib/sesion` | `antesDeCerrarSesion` | sí |
@@ -250,6 +249,4 @@ flowchart LR
 **Diferencias con §5** (se dibujan como son; la cifra oficial es la de `eslint.capas.mjs` en `/verificar`):
 
 - `features/auth/fotoPerfil.ts` está fuera de components/, hooks/, model/ y api.ts (§5.1).
-- `features/gestion` → `lib/api`: §5.2: components/ no usa el cliente HTTP (features/gestion/components/CambiarEstado.tsx, features/gestion/components/Responsable.tsx).
-- `features/reportes` → `lib/api`: §5.2: components/ no usa el cliente HTTP (features/reportes/components/Calificar.tsx, features/reportes/components/Comentarios.tsx, features/reportes/components/EditarReporte.tsx, features/reportes/components/FormularioReporte.tsx).
 <!-- generado:fin features-frontend -->
