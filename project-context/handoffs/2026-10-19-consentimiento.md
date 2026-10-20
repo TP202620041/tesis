@@ -2,7 +2,7 @@
 
 - **Estado:** pendiente <!-- pendiente | atendido -->
 - **Fecha:** 2026-10-19
-- **Origen:** backend, rama `feature/nc-07b-consentimiento`, commit `6a7e867` (PR por abrir contra `develop`)
+- **Origen:** backend, rama `feature/nc-07b-consentimiento`, commits `6a7e867` y las correcciones de revisión posteriores (PR por abrir contra `develop`)
 - **Historia o tarea:** NC-07b (D-12), cambia US-01 (registro) y NC-07 (suscripción push)
 - **Atendido por:** _(frontend, rama y fecha)_
 
@@ -15,6 +15,7 @@
 | POST | `/api/auth/me/consentimientos` | **Nuevo.** Acepta una finalidad. **201** si deja fila nueva, **200** si ya estaba vigente con esa versión. |
 | DELETE | `/api/auth/me/consentimientos/{finalidad}` | **Nuevo.** Revoca. **204**, idempotente. |
 | POST | `/api/notificaciones/suscripciones` | **Cambia.** Exige el consentimiento `NOTIFICACIONES_PUSH` vigente: sin él, **409**. |
+| _todas las privadas_ | salvo `GET /api/auth/me`, `/api/auth/me/consentimientos/**` y `DELETE /api/notificaciones/suscripciones` | **Cambia.** Con los términos pendientes responden **403** con `"codigo": "TERMINOS_PENDIENTES"`. Las públicas no cambian. |
 
 Los tres de consentimientos: cualquier rol autenticado y solo los del usuario del token (no hay id de usuario en la ruta). Sin token, **401**.
 
@@ -24,6 +25,7 @@ Los tres de consentimientos: cualquier rol autenticado y solo los del usuario de
 | `RegistroRequest` | `aceptaTerminos` | boolean | no (debe ser `true`) | nuevo | — (entrada) |
 | `RegistroRequest` | `versionTerminos` | string ≤ 40 | no | nuevo | — (entrada) |
 | `UsuarioResponse` | `debeAceptarTerminos` | boolean | no | nuevo | el propio usuario |
+| `ApiError` (todo error) | `codigo` | string | se **omite** del JSON si no hay | nuevo | quien recibe el error. Hoy solo `TERMINOS_PENDIENTES` |
 | `AceptarConsentimientoRequest` | `finalidad` | enum `FinalidadConsentimiento` | no | nuevo | — (entrada) |
 | `AceptarConsentimientoRequest` | `version` | string ≤ 40, no vacío | no | nuevo | — (entrada) |
 | `ConsentimientosResponse` | `versionTerminosVigente` | string | no | nuevo | el propio usuario |
@@ -88,14 +90,18 @@ Registro:
 |---|---|
 | 400 | Registro sin `aceptaTerminos`, con `aceptaTerminos: false` o sin `versionTerminos` (`details` nombra el campo). POST de consentimiento sin `finalidad`, con una finalidad desconocida o con `version` vacía. DELETE con una finalidad desconocida. |
 | 401 | Sin token o token inválido (consentimientos y suscripción). |
+| 403 | `codigo: "TERMINOS_PENDIENTES"`: cualquier ruta privada (salvo las tres de arriba) mientras `debeAceptarTerminos=true`. Un 403 sin `codigo` sigue siendo falta de rol o de relación. |
 | 409 | Registro con `versionTerminos` distinta de la vigente: **no se crea la cuenta**; el `message` incluye la versión vigente. POST de `TERMINOS_Y_PRIVACIDAD` con una versión no vigente. DELETE de `TERMINOS_Y_PRIVACIDAD` (no se revocan desde la app: retirarlos es la baja de la cuenta). `POST /api/notificaciones/suscripciones` sin el consentimiento `NOTIFICACIONES_PUSH` vigente. |
 
 ## Notas para el frontend
 - **Versión de los términos.** La vigente es `2026-10-v1` (`app.legal.version-terminos` del backend). La página `/privacidad` debe mostrar el texto de esa versión y el formulario de registro debe enviar el mismo valor. Si el registro devuelve 409 por versión, el texto del cliente quedó viejo: recargar y volver a mostrarlo. Con sesión, la vigente también llega en `versionTerminosVigente`.
 - **Registro:** casilla obligatoria «Acepto los términos y la política de privacidad» con enlace a `/privacidad`. Sin marcarla no se envía.
-- **Usuarios existentes (D-12):** si `usuario.debeAceptarTerminos` es `true` (tras login o en `/me`), mostrar una pantalla que bloquea hasta aceptar y, al aceptar, enviar `POST /api/auth/me/consentimientos` con `TERMINOS_Y_PRIVACIDAD` y la versión vigente. El backend **no** bloquea las demás rutas mientras tanto: el bloqueo es de interfaz.
+- **Usuarios existentes (D-12):** si `usuario.debeAceptarTerminos` es `true` (tras login o en `/me`), mostrar una pantalla que bloquea hasta aceptar y, al aceptar, enviar `POST /api/auth/me/consentimientos` con `TERMINOS_Y_PRIVACIDAD` y la versión vigente. En esa misma pantalla, ofrecer `NOTIFICACIONES_CORREO` y `NOTIFICACIONES_PUSH` (ver abajo).
+- **El backend también bloquea:** mientras falten los términos, toda ruta privada responde **403** con `codigo: "TERMINOS_PENDIENTES"`. Abiertas: `GET /api/auth/me`, `/api/auth/me/consentimientos/**` y `DELETE /api/notificaciones/suscripciones` (para cerrar sesión). En `apiFetch`, un 403 con ese código debe llevar a la pantalla de aceptación, no mostrarse como «acceso denegado». Las rutas públicas responden igual con o sin token.
+- **Correo:** los avisos de cambio de estado de los reportes **solo se envían con `NOTIFICACIONES_CORREO` vigente**, también como respaldo del push. Los usuarios existentes y los que no lo acepten dejan de recibirlos hasta aceptarlo. El correo de recuperación de contraseña y la respuesta de soporte se envían siempre.
 - **Push (US-21):** el orden es: 1) consentimiento `NOTIFICACIONES_PUSH` (POST de consentimientos, con la versión del texto del aviso que se mostró; para push y correo el backend guarda la versión tal cual, sin compararla), 2) permiso del navegador y `pushManager.subscribe`, 3) `POST /api/notificaciones/suscripciones`. Sin el paso 1, el paso 3 da 409.
 - **Desactivar push:** `DELETE /api/auth/me/consentimientos/NOTIFICACIONES_PUSH` borra en el servidor **todas** las suscripciones push del usuario, de todos sus navegadores. Conviene además `pushSubscription.unsubscribe()` en el navegador actual. El `DELETE /api/notificaciones/suscripciones` sigue sirviendo para dar de baja solo este navegador sin retirar el permiso.
-- `NOTIFICACIONES_CORREO` se registra y se puede revocar, pero el envío de correos todavía no lo consulta (queda para US-21/US-16).
+- Push: el envío también exige el consentimiento vigente; una suscripción sin él no recibe nada.
+- Aceptar dos veces la misma finalidad y versión (doble clic, reintento) no duplica: la segunda responde 200.
 - `preferenciaNotificacion` no cambia: es la **preferencia** de canal; el consentimiento es el **permiso**.
 - `npm run api:sync` con el backend de `develop` levantado generará `AceptarConsentimientoRequest`, `ConsentimientoResponse` y `ConsentimientosResponse`, y los campos nuevos de `RegistroRequest` y `UsuarioResponse`.

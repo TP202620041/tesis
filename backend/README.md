@@ -561,9 +561,39 @@ un dato del propio usuario, no una señal interna, y ese DTO no lo lee nadie má
 
 **Usuarios existentes.** La migración no les crea filas: D-12 prohíbe darlos
 por aceptados. Reciben `debeAceptarTerminos=true` y el frontend les muestra la
-pantalla de aceptación en su próximo inicio de sesión. El backend no bloquea
-las demás rutas mientras tanto: el bloqueo es de interfaz, y endurecerlo (un
-filtro que devuelva 403 hasta aceptar) queda como decisión aparte.
+pantalla de aceptación en su próximo inicio de sesión.
+
+**Bloqueo por términos pendientes (decisión del usuario).** Mientras
+`debeAceptarTerminos=true`, el backend responde **403** con
+`"codigo": "TERMINOS_PENDIENTES"` en el cuerpo de error (`ApiError.codigo`, que
+solo aparece cuando lo hay) en **toda ruta privada**, salvo:
+
+- `GET /api/auth/me` (saber quién es y que debe aceptar);
+- `/api/auth/me/consentimientos` y `/api/auth/me/consentimientos/{finalidad}`
+  (aceptar los términos y, de paso, correo y push);
+- `DELETE /api/notificaciones/suscripciones`: es lo único que hace falta para
+  cerrar sesión. No hay endpoint de logout (el JWT es stateless y el cliente
+  descarta el token), pero la PWA da de baja la suscripción push del navegador
+  antes de borrarlo.
+
+Las rutas públicas no cambian, aunque lleguen con el token de un usuario
+pendiente: se resuelven antes en `SecurityConfig`. Sin token sigue siendo 401.
+
+*Dónde vive.* En la cadena de seguridad, no en un interceptor de MVC: así
+nada de lo que está detrás (controladores, `@PreAuthorize`) llega a correr.
+`SecurityConfig` termina con `.anyRequest().access(TerminosAceptadosAuthorizationManager)`,
+que exige autenticación **y** términos aceptados; si faltan, marca la petición
+y `RestAccessDeniedHandler` arma el 403 con el código. Para no hacer depender a
+`common` de un módulo, la pregunta es la interfaz
+`common/security/VerificadorTerminosPendientes`, que implementa
+`auth/service/ConsentimientoService` (el grafo sigue siendo `common ← auth`).
+
+*Costo.* Una consulta por petición privada (`existeNoRevocadaPorEmail`: un
+`EXISTS` por correo, con el índice único de `usuario.email` y el parcial de
+`consentimiento`), sin cargar entidades. El filtro JWT ya hace otra para cargar
+el usuario. No se cachea: una caché obligaría a invalidarla al aceptar y, con
+varias instancias, a compartirla; a esta escala no compensa. Las rutas
+públicas no la pagan.
 
 **Los términos no se revocan desde la app (409).** Sin ellos no se puede usar el
 servicio; retirarlos equivale a la baja de la cuenta (derecho de cancelación de
@@ -573,19 +603,41 @@ la Ley N.° 29733), que es un caso de uso distinto y hoy no existe.
 publica `auth/event/ConsentimientoRevocadoEvent` y
 `notificaciones/listener/ConsentimientoRevocadoListener` borra las filas de
 `suscripcion_push` del usuario. Así `auth` no conoce a `notificaciones` (el
-grafo de módulos sigue sin ciclos). El listener corre en **`BEFORE_COMMIT`**,
-no `AFTER_COMMIT` como los demás, a propósito: revocación y borrado son
-atómicos. Con `AFTER_COMMIT`, un fallo del borrado dejaría la revocación
-confirmada y las claves de envío vivas, es decir, push sin permiso. Revocar es
-idempotente y siempre publica el evento, así que también limpia suscripciones
-creadas antes de NC-07b sin consentimiento.
+grafo de módulos sigue sin ciclos). El listener es `AFTER_COMMIT`, como los
+demás, y el borrado abre su propia transacción (`REQUIRES_NEW`, §4.5): la
+revocación se confirma aunque el borrado falle, porque revocar tiene que ser
+simple y no puede depender de otro módulo. Revocar es idempotente y siempre
+publica el evento, así que también limpia suscripciones creadas antes de
+NC-07b sin consentimiento.
 
-**Lo que queda para US-21.** El envío real debería comprobar también el
-consentimiento push al enviar (hoy basta con que la suscripción exista, y la
-revocación la borra). `NOTIFICACIONES_CORREO` se registra y se puede revocar,
-pero el pipeline de correo (US-16) todavía no lo consulta: conectarlo cambia
-quién recibe avisos y es una decisión de producto (¿los correos de seguridad,
-como la recuperación de contraseña, quedan fuera? deberían).
+**El permiso manda al enviar.** `NotificacionService.canalDisponible` exige el
+consentimiento vigente del canal antes de usarlo: `NOTIFICACIONES_PUSH` para
+PUSH y `NOTIFICACIONES_CORREO` para EMAIL. Así una suscripción sin permiso
+(anterior a NC-07b, o una que no se llegó a borrar al revocar) queda inerte. La
+comprobación está en el servicio y no en `PushNotificacionAdapter` porque un
+adaptador (`infra`) no puede llamar a un servicio (regla `capas`), y así vale
+para los dos canales en un solo lugar.
+
+**Correo (decisión del usuario).** Los **avisos de cambio de estado** (US-16:
+canal EMAIL y el fallback de push a email) solo salen con
+`NOTIFICACIONES_CORREO` vigente. Los correos de **seguridad** (recuperar la
+contraseña, US-03) y la **respuesta de soporte** (US-25, la pidió el usuario)
+se envían siempre: usan `JavaMailSender` directo y no pasan por
+`NotificacionService`. Si el usuario no autoriza ningún canal, cada intento se
+registra `FALLIDA`, como un canal no disponible, sin error: el cambio de estado
+se confirma igual.
+
+> **Consecuencia:** los usuarios existentes y los que se registren sin aceptar
+> correo **dejan de recibir avisos por correo** hasta que acepten
+> `NOTIFICACIONES_CORREO`. La pantalla de aceptación del frontend ofrece correo
+> y push junto con los términos.
+
+**Doble aceptación simultánea (V14).** Un índice único parcial
+`(usuario_id, finalidad, version_documento) WHERE revocado_en IS NULL` y un
+`INSERT … ON CONFLICT … DO NOTHING RETURNING id`: si dos POST iguales llegan a
+la vez, el segundo espera al primero, no inserta y responde 200. Una versión
+revocada y aceptada otra vez sí deja fila nueva. Va en V14 porque V13 ya estaba
+aplicada.
 
 ## Deuda técnica conocida
 
@@ -626,4 +678,4 @@ como la recuperación de contraseña, quedan fuera? deberían).
 (`GEOGRAPHY(Point,4326)`), ambas con índice **GiST**. Ver
 `src/main/resources/db/migration/V1__init_schema.sql`. Las migraciones
 posteriores agregan tablas propias, como `suscripcion_push` (V12, NC-07) y
-`consentimiento` (V13, NC-07b).
+`consentimiento` (V13 y V14, NC-07b).
