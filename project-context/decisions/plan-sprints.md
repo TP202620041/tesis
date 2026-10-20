@@ -34,10 +34,11 @@ Hay un carril de backend y uno de frontend en paralelo. En un mismo sprint el fr
 | S1 | BE-03 · BE-04 · BE-05 | US-03 · US-04 · US-28 · US-17 (sobre `/mi-distrito`) | v0.2.0 |
 | S2 | US-25 (listado del ADMIN) · US-29 (editar/desactivar) · NC-07 | US-25 · US-29 · US-12 · FE-03 · FE-04 | v0.3.0 |
 | S3 | NC-07b (consentimiento, D-12) · US-21 (adaptador Web Push + VAPID) | NC-07b (aceptación en registro e inicio de sesión, `/privacidad`) · US-21 (suscripción + `push` en el SW) · US-06 · FE-05 | v0.4.0 |
-| S4 | US-11 (endpoint de densidad) · BE-06 (incluye `ReincidenciaDetector` → `domain/`) · BE-10 | US-11 (capa de calor) · US-23 · US-24 · FE-06 | v0.5.0 |
+| S4 | US-11 (endpoint de densidad) · BE-06 (incluye `ReincidenciaDetector` → `domain/`) · BE-10 | US-11 (capa de calor) · FE-06 | v0.5.0 |
 | S5 | NC-01 · NC-02 | US-19 · FE-07 · FE-08 | v0.6.0 |
 | S6 | NC-05 · NC-06 · BE-08 | NC-06 (dashboard por periodo, reemplaza US-17 v1) · FE-09 | v0.7.0 |
-| S7 | NC-03 (`inferencia/`) · NC-04 (`clasificacion`) | NC-04 (vista previa al reportar) | v1.0.0 |
+| S7 | NC-03 (`inferencia/`) · NC-04 (`clasificacion`) | NC-04 (vista previa al reportar) | v0.8.0 |
+| S8 | Ajustes que pida el diseño | **Diseño de la interfaz**: sistema visual (tokens, tipografía y color), componentes, revisión de cada pantalla, US-23 (modo oscuro y alto contraste) y US-24 (guía de uso) | v1.0.0 |
 
 Ya hechas antes de S1: BE-01, BE-02, BE-07, FE-01 y FE-02.
 
@@ -62,3 +63,4 @@ Ya hechas antes de S1: BE-01, BE-02, BE-07, FE-01 y FE-02.
 
 - **S1 (2026-10-13):** fusionados BE-03, BE-04, BE-05 (#12–#14), el CORS de `Content-Disposition` (#15), US-03 (#16), US-04 (#17, con la caché del API fuera del Service Worker), US-28 (#18) y US-17 (#19). Almacén de ArchUnit 52 → 51; Failsafe 177 → 178; frontend 80 → 126 tests, avisos de capas 66 → 65. Decisiones del usuario: se acepta el cierre de BE-03; `ReincidenciaDetector` pasa a `domain/` en BE-06; nueva tarea BE-10 (sin `MultipartFile` en `service/`), en S4.
 - **S2 (2026-10-19, v0.3.0):** US-25 (#26, #36), US-29 (#27, #37), NC-07 (#33), US-12 (#30, #31), FE-03 (#29), FE-04 (#28), SEC-02 (#32, #35), D-12 (#25, #34), y el arreglo de la guardia (#24). Failsafe 178 → 238, Surefire 11 → 37, ArchUnit 51 → 48; frontend 136 → 232 tests, avisos de capas 64 → 44. Verificación en vivo: 27 comprobaciones del API y las pantallas nuevas en el navegador.
+- **Plan del S3 (2026-10-19):** backend B1 NC-07b consentimiento (D-12) → B2 US-21 push real (librería web-push, VAPID por variables de entorno); frontend F1 FE-05 → F2 US-06 cola offline (si el token venció, el reporte se conserva y se reenvía tras iniciar sesión) → F3 NC-07b en la PWA → F4 US-21 en la PWA. Coordinador: borrador del texto legal (`project-context/legal/terminos-y-privacidad-v1.md`). La sesión de diseño de la interfaz pasa a un **S8** propio antes de v1.0 (decisión del usuario), que absorbe US-23 y US-24; S7 cierra en v0.8.0.
