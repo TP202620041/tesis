@@ -7,7 +7,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
-import org.springframework.web.multipart.MultipartFile;
 import pe.edu.upc.viasegura.auth.domain.PreferenciaNotificacion;
 import pe.edu.upc.viasegura.auth.domain.Rol;
 import pe.edu.upc.viasegura.auth.domain.Usuario;
@@ -18,6 +17,7 @@ import pe.edu.upc.viasegura.auth.dto.UsuarioResponse;
 import pe.edu.upc.viasegura.auth.repository.UsuarioRepository;
 import pe.edu.upc.viasegura.common.exception.BusinessException;
 import pe.edu.upc.viasegura.common.exception.ResourceNotFoundException;
+import pe.edu.upc.viasegura.common.port.ArchivoSubido;
 import pe.edu.upc.viasegura.common.port.FotoStorageService;
 import pe.edu.upc.viasegura.common.security.JwtService;
 import pe.edu.upc.viasegura.distritos.domain.Distrito;
@@ -111,7 +111,7 @@ public class AuthService {
      */
     @Transactional
     public UsuarioResponse editarPerfil(String email, String nombre, String apellido,
-                                         Long distritoId, MultipartFile foto) {
+                                         Long distritoId, ArchivoSubido foto) {
         Usuario usuario = usuarioRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
 
@@ -132,7 +132,7 @@ public class AuthService {
                     .orElseThrow(() -> new ResourceNotFoundException("Distrito no encontrado: " + distritoId));
             usuario.setDistrito(distrito);
         }
-        if (foto != null && !foto.isEmpty()) {
+        if (foto != null && !foto.vacio()) {
             // Foto de perfil, no de reporte: se guarda aparte y su URL apunta
             // al endpoint autenticado, no al directorio publico (US-30).
             usuario.setFotoUrl(fotoStorageService.almacenarFotoPerfil(foto));

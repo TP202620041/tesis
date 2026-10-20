@@ -10,12 +10,12 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
-import org.springframework.web.multipart.MultipartFile;
 import pe.edu.upc.viasegura.auth.domain.Usuario;
 import pe.edu.upc.viasegura.auth.repository.UsuarioRepository;
 import pe.edu.upc.viasegura.common.exception.BusinessException;
 import pe.edu.upc.viasegura.common.exception.ResourceNotFoundException;
 import pe.edu.upc.viasegura.common.geo.GeometryUtils;
+import pe.edu.upc.viasegura.common.port.ArchivoSubido;
 import pe.edu.upc.viasegura.common.port.FotoStorageService;
 import pe.edu.upc.viasegura.distritos.domain.Distrito;
 import pe.edu.upc.viasegura.reportes.domain.AdhesionReporte;
@@ -120,8 +120,8 @@ public class ReporteService {
     private ReporteResponse crearNuevo(CrearReporteCommand cmd, Usuario ciudadano, CategoriaDano categoria,
                                         Distrito distrito, Point ubicacion) {
         String fotoUrl = null;
-        MultipartFile foto = cmd.foto();
-        if (foto != null && !foto.isEmpty()) {
+        ArchivoSubido foto = cmd.foto();
+        if (foto != null && !foto.vacio()) {
             fotoUrl = fotoStorageService.almacenarFotoReporte(foto);
         }
 
