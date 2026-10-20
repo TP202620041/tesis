@@ -1,9 +1,7 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
 import { BotonCerrarSesion } from '@/features/auth/components/BotonCerrarSesion';
-import { useSesion } from '@/features/auth/hooks';
+import { useSesionRequerida } from '@/features/auth/hooks/useSesionRequerida';
 
 /**
  * Pantalla de verificacion del vertical slice: confirma que el token emitido
@@ -15,12 +13,7 @@ import { useSesion } from '@/features/auth/hooks';
  * desaparece.
  */
 export default function SesionPage() {
-  const router = useRouter();
-  const sesion = useSesion();
-
-  useEffect(() => {
-    if (sesion.estado === 'anonimo') router.replace('/login');
-  }, [sesion.estado, router]);
+  const sesion = useSesionRequerida('/login');
 
   if (sesion.estado === 'cargando') {
     return <p className="p-8 text-slate-600 dark:text-slate-400">Verificando sesión…</p>;

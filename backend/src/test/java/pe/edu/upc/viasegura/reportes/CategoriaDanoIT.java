@@ -42,7 +42,7 @@ class CategoriaDanoIT extends AbstractPostgisIT {
     }
 
     private Usuario funcionario(Distrito distritoGestion) {
-        return usuarioRepository.save(Usuario.builder()
+        return guardarConTerminos(Usuario.builder()
                 .email("func-" + UUID.randomUUID() + "@muni.pe")
                 .passwordHash(passwordEncoder.encode("x"))
                 .nombre("Fabi").apellido("Municipal")
@@ -50,7 +50,7 @@ class CategoriaDanoIT extends AbstractPostgisIT {
     }
 
     private Usuario ciudadano() {
-        return usuarioRepository.save(Usuario.builder()
+        return guardarConTerminos(Usuario.builder()
                 .email("ciu-" + UUID.randomUUID() + "@lima.pe")
                 .passwordHash(passwordEncoder.encode("x"))
                 .nombre("Ana").apellido("Vecina").rol(Rol.CIUDADANO).build());
@@ -97,7 +97,7 @@ class CategoriaDanoIT extends AbstractPostgisIT {
 
     @Test
     void funcionarioSinDistritoAsignado_403() throws Exception {
-        Usuario funcSinDistrito = usuarioRepository.save(Usuario.builder()
+        Usuario funcSinDistrito = guardarConTerminos(Usuario.builder()
                 .email("func-sindistrito-" + UUID.randomUUID() + "@muni.pe")
                 .passwordHash(passwordEncoder.encode("x"))
                 .nombre("Fabi").apellido("SinDistrito").rol(Rol.FUNCIONARIO_MUNICIPAL).build());

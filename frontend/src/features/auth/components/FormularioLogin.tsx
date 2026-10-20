@@ -2,50 +2,34 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
-import { iniciarSesion } from '../api';
 import { AlertaError, Boton, Campo } from '@/components/ui/form';
-import { ApiError, NetworkError } from '@/lib/api/client';
-import { rutaInicialDe } from '../model/rutas';
+import { useIniciarSesion } from '../hooks/useIniciarSesion';
+import { destinoInterno, rutaAceptarTerminos, rutaInicialDe } from '../model/rutas';
 
 /** US-02: inicio de sesion para ciudadano y funcionario municipal. */
 export function FormularioLogin() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { enviando, error, enviar } = useIniciarSesion();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState<{ mensaje: string; detalles: string[] } | null>(null);
-  const [cargando, setCargando] = useState(false);
 
-  async function enviar(evento: React.FormEvent) {
+  async function alEnviar(evento: React.FormEvent) {
     evento.preventDefault();
-    setError(null);
-    setCargando(true);
-    try {
-      const sesion = await iniciarSesion({ email, password });
-      // Si llego aqui por un 401 o por la guardia de rol, se le devuelve a
-      // donde estaba; si no, a la puerta de entrada de su rol (el funcionario
-      // a su bandeja, el ciudadano al mapa).
-      const redirect = searchParams.get('redirect');
-      router.push(redirect ?? rutaInicialDe(sesion.usuario.rol));
-      router.refresh();
-    } catch (e) {
-      if (e instanceof NetworkError) {
-        setError({ mensaje: 'Sin conexión con el servidor. Revisa tu red.', detalles: [] });
-      } else if (e instanceof ApiError) {
-        // El backend responde 401 con "Credenciales invalidas" ante email
-        // inexistente o password incorrecta: no distingue cual de los dos,
-        // para no revelar que cuentas existen.
-        setError({ mensaje: e.message, detalles: e.details });
-      } else {
-        setError({ mensaje: 'Ocurrió un error inesperado.', detalles: [] });
-      }
-    } finally {
-      setCargando(false);
-    }
+    const sesion = await enviar({ email, password });
+    if (!sesion) return;
+    // Si llego aqui por un 401 o por la guardia de rol, se le devuelve a
+    // donde estaba; si no, a la puerta de entrada de su rol (el funcionario
+    // a su bandeja, el ciudadano a sus reportes).
+    const destino = destinoInterno(searchParams.get('redirect'), rutaInicialDe(sesion.usuario.rol));
+    // NC-07b (D-12): con los terminos vigentes sin aceptar, antes de nada la
+    // pantalla de aceptacion; al terminar sigue a ese mismo destino.
+    router.push(sesion.usuario.debeAceptarTerminos ? rutaAceptarTerminos(destino) : destino);
+    router.refresh();
   }
 
   return (
-    <form onSubmit={enviar} className="flex flex-col gap-4" noValidate>
+    <form onSubmit={alEnviar} className="flex flex-col gap-4" noValidate>
       {error && <AlertaError mensaje={error.mensaje} detalles={error.detalles} />}
       <Campo
         id="email"
@@ -65,7 +49,7 @@ export function FormularioLogin() {
         value={password}
         onChange={(e) => setPassword(e.target.value)}
       />
-      <Boton cargando={cargando}>Iniciar sesión</Boton>
+      <Boton cargando={enviando}>Iniciar sesión</Boton>
     </form>
   );
 }

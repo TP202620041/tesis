@@ -5,6 +5,8 @@ import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import pe.edu.upc.viasegura.common.exception.ResourceNotFoundException;
+import pe.edu.upc.viasegura.distritos.domain.Distrito;
 import pe.edu.upc.viasegura.distritos.dto.DistritoResponse;
 import pe.edu.upc.viasegura.distritos.repository.DistritoRepository;
 
@@ -26,6 +28,16 @@ public class DistritoService {
         return distritoRepository.findAllByOrderByNombreAsc().stream()
                 .map(DistritoResponse::from)
                 .toList();
+    }
+
+    /**
+     * Distrito por id, para otros modulos (BE-06: {@code auth} lo usa al
+     * editar el perfil en vez de {@link DistritoRepository}). Inexistente: 404.
+     */
+    @Transactional(readOnly = true)
+    public Distrito porId(Long id) {
+        return distritoRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Distrito no encontrado: " + id));
     }
 
     /**

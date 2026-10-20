@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   descripcionDeArea,
+  destinoInterno,
   puedeAcceder,
+  rutaAceptarTerminos,
   rutaInicialDe,
+  RUTA_ACEPTAR_TERMINOS,
   ROLES_AREA_ADMIN,
   ROLES_AREA_MUNICIPAL,
   ROLES_CON_SESION,
@@ -73,5 +76,51 @@ describe('descripcionDeArea', () => {
 
   it('usa un texto genérico para combinaciones sin área propia', () => {
     expect(descripcionDeArea(['CIUDADANO', 'ADMIN'])).toMatch(/no está disponible/);
+  });
+});
+
+describe('aceptación de términos (NC-07b)', () => {
+  it('la ruta coincide con la que usa el cliente HTTP ante el 403', () => {
+    expect(RUTA_ACEPTAR_TERMINOS).toBe('/aceptar-terminos');
+  });
+
+  it('rutaAceptarTerminos conserva el destino codificado', () => {
+    expect(rutaAceptarTerminos('/mis-reportes?p=2')).toBe(
+      '/aceptar-terminos?redirect=%2Fmis-reportes%3Fp%3D2',
+    );
+  });
+
+  it('destinoInterno acepta rutas internas', () => {
+    expect(destinoInterno('/bandeja/7?x=1', '/inicio')).toBe('/bandeja/7?x=1');
+  });
+
+  it.each([
+    null,
+    undefined,
+    '',
+    'mis-reportes',
+    '//evil.example',
+    'https://evil.example',
+    '/\\evil.example',
+    // El parser WHATWG quita \t, \n y \r: sin validar tras parsear, estos
+    // serian `//evil.example`.
+    '/\t/evil.example',
+    '/\n/evil.example',
+    '/\r/evil.example',
+    // La normalizacion de puntos tambien puede dejar `//evil.example`.
+    '/.//evil.example',
+    '/x/..//evil.example',
+    '/%2e//evil.example',
+  ])('destinoInterno rechaza %j (redirect abierto)', (valor) => {
+    expect(destinoInterno(valor, '/inicio')).toBe('/inicio');
+  });
+
+  it('destinoInterno conserva la consulta y el fragmento', () => {
+    expect(destinoInterno('/mapa?d=3#lista', '/inicio')).toBe('/mapa?d=3#lista');
+  });
+
+  it('destinoInterno no vuelve a la propia pantalla de aceptación', () => {
+    expect(destinoInterno('/aceptar-terminos', '/inicio')).toBe('/inicio');
+    expect(destinoInterno('/aceptar-terminos?redirect=%2Fx', '/inicio')).toBe('/inicio');
   });
 });

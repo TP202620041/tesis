@@ -11,7 +11,7 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import pe.edu.upc.viasegura.auth.domain.Usuario;
-import pe.edu.upc.viasegura.auth.repository.UsuarioRepository;
+import pe.edu.upc.viasegura.auth.service.UsuarioConsultaService;
 import pe.edu.upc.viasegura.common.exception.ResourceNotFoundException;
 import pe.edu.upc.viasegura.soporte.domain.EstadoTicket;
 import pe.edu.upc.viasegura.soporte.domain.TicketSoporte;
@@ -40,7 +40,7 @@ import pe.edu.upc.viasegura.soporte.repository.TicketSoporteRepository;
 public class TicketSoporteService {
 
     private final TicketSoporteRepository ticketRepository;
-    private final UsuarioRepository usuarioRepository;
+    private final UsuarioConsultaService usuarioConsultaService;
     private final JavaMailSender mailSender;
 
     /** Tope del {@code size} del listado del ADMIN (US-25). */
@@ -51,8 +51,7 @@ public class TicketSoporteService {
 
     @Transactional
     public TicketSoporteResponse crear(String email, CrearTicketRequest req) {
-        Usuario usuario = usuarioRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+        Usuario usuario = usuarioConsultaService.usuarioPorEmail(email);
 
         TicketSoporte ticket = ticketRepository.save(TicketSoporte.builder()
                 .usuario(usuario)
@@ -66,8 +65,7 @@ public class TicketSoporteService {
 
     @Transactional(readOnly = true)
     public List<TicketSoporteResponse> misTickets(String email) {
-        Usuario usuario = usuarioRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+        Usuario usuario = usuarioConsultaService.usuarioPorEmail(email);
         return ticketRepository.findByUsuarioIdOrderByCreatedAtDesc(usuario.getId()).stream()
                 .map(TicketSoporteResponse::from)
                 .toList();

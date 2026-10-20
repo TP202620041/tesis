@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.util.Set;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
@@ -13,8 +12,8 @@ import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
-import org.springframework.web.multipart.MultipartFile;
 import pe.edu.upc.viasegura.common.exception.BusinessException;
+import pe.edu.upc.viasegura.common.port.ArchivoSubido;
 import pe.edu.upc.viasegura.common.port.FotoStorageService;
 
 /**
@@ -57,12 +56,12 @@ public class LocalFotoStorageService implements FotoStorageService {
     }
 
     @Override
-    public String almacenarFotoReporte(MultipartFile foto) {
+    public String almacenarFotoReporte(ArchivoSubido foto) {
         return guardar(foto, directorioReportes, urlBaseReportes);
     }
 
     @Override
-    public String almacenarFotoPerfil(MultipartFile foto) {
+    public String almacenarFotoPerfil(ArchivoSubido foto) {
         return guardar(foto, directorioPerfiles, urlBasePerfiles);
     }
 
@@ -91,18 +90,18 @@ public class LocalFotoStorageService implements FotoStorageService {
         return new FileSystemResource(destino);
     }
 
-    private String guardar(MultipartFile foto, Path directorio, String urlBase) {
-        if (foto == null || foto.isEmpty()) {
+    private String guardar(ArchivoSubido foto, Path directorio, String urlBase) {
+        if (foto == null || foto.vacio()) {
             throw new BusinessException("La foto esta vacia");
         }
-        String extension = extensionValida(foto.getOriginalFilename());
+        String extension = extensionValida(foto.nombreOriginal());
         // El nombre lo genera el servidor (UUID): el nombre original del
         // cliente nunca llega al filesystem, solo se usa su extension.
         String nombreArchivo = UUID.randomUUID() + "." + extension;
         Path destino = directorio.resolve(nombreArchivo).normalize();
 
         try {
-            Files.copy(foto.getInputStream(), destino, StandardCopyOption.REPLACE_EXISTING);
+            Files.write(destino, foto.contenido());
         } catch (IOException e) {
             throw new BusinessException("No se pudo almacenar la foto");
         }

@@ -12,8 +12,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import pe.edu.upc.viasegura.auth.domain.Usuario;
-import pe.edu.upc.viasegura.auth.repository.UsuarioRepository;
-import pe.edu.upc.viasegura.common.exception.ResourceNotFoundException;
+import pe.edu.upc.viasegura.auth.service.UsuarioConsultaService;
 import pe.edu.upc.viasegura.distritos.domain.Distrito;
 import pe.edu.upc.viasegura.reportes.domain.EstadoReporte;
 import pe.edu.upc.viasegura.reportes.domain.RangoFechas;
@@ -43,16 +42,16 @@ public class ExportarReportesService {
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneOffset.UTC);
 
     private final ReporteRepository reporteRepository;
-    private final UsuarioRepository usuarioRepository;
+    private final UsuarioConsultaService usuarioConsultaService;
     private final AsignacionResponsableRepository asignacionRepository;
     private final Map<String, ExportadorReportes> exportadores;
 
     public ExportarReportesService(ReporteRepository reporteRepository,
-                                   UsuarioRepository usuarioRepository,
+                                   UsuarioConsultaService usuarioConsultaService,
                                    AsignacionResponsableRepository asignacionRepository,
                                    List<ExportadorReportes> exportadores) {
         this.reporteRepository = reporteRepository;
-        this.usuarioRepository = usuarioRepository;
+        this.usuarioConsultaService = usuarioConsultaService;
         this.asignacionRepository = asignacionRepository;
         this.exportadores = exportadores.stream()
                 .collect(Collectors.toMap(ExportadorReportes::extension, Function.identity()));
@@ -65,8 +64,7 @@ public class ExportarReportesService {
                                  Long categoriaId, EstadoReporte estado,
                                  Instant fechaDesde, Instant fechaHasta) {
         RangoFechas.validar(fechaDesde, fechaHasta);
-        Usuario funcionario = usuarioRepository.findByEmail(emailFuncionario)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+        Usuario funcionario = usuarioConsultaService.usuarioPorEmail(emailFuncionario);
         Distrito distrito = funcionario.getDistrito();
         if (distrito == null) {
             throw new AccessDeniedException("El funcionario no tiene un distrito de gestion asignado");

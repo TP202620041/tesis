@@ -1,10 +1,9 @@
-package pe.edu.upc.viasegura.reportes.service;
+package pe.edu.upc.viasegura.reportes.domain;
 
 import java.text.Normalizer;
 import java.util.List;
 import java.util.Locale;
 import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils;
 
 /**
  * Deteccion de "posible reincidencia" en un comentario ciudadano (US-27,
@@ -17,6 +16,10 @@ import org.springframework.util.StringUtils;
  * simplicidad y la explicabilidad frente a la exhaustividad: un funcionario
  * revisa el reporte marcado, asi que un falso negativo ocasional es
  * aceptable y preferible a un heuristico fragil que etiquete de mas.</p>
+ *
+ * <p>Regla pura sin I/O: vive en {@code domain/} (BE-06). Solo conserva
+ * {@code @Component} para que el servicio de comentarios la reciba
+ * inyectada.</p>
  */
 @Component
 public class ReincidenciaDetector {
@@ -42,7 +45,7 @@ public class ReincidenciaDetector {
             "no arreglaron");
 
     public boolean pareceReincidencia(String texto) {
-        if (!StringUtils.hasText(texto)) {
+        if (texto == null || texto.isBlank()) {
             return false;
         }
         String normalizado = normalizar(texto);

@@ -5,6 +5,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -18,6 +19,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.support.TransactionTemplate;
+import pe.edu.upc.viasegura.auth.domain.FinalidadConsentimiento;
 import pe.edu.upc.viasegura.auth.domain.Rol;
 import pe.edu.upc.viasegura.auth.domain.Usuario;
 import pe.edu.upc.viasegura.auth.repository.UsuarioRepository;
@@ -27,6 +29,7 @@ import pe.edu.upc.viasegura.notificaciones.domain.SuscripcionPush;
 import pe.edu.upc.viasegura.notificaciones.port.NotificacionCanalAdapter;
 import pe.edu.upc.viasegura.notificaciones.repository.SuscripcionPushRepository;
 import pe.edu.upc.viasegura.support.AbstractPostgisIT;
+import pe.edu.upc.viasegura.support.EnviadorWebPushFake;
 
 /**
  * Suscripciones Web Push del navegador (SUSCRIPCION_PUSH, NC-07).
@@ -59,11 +62,18 @@ class SuscripcionPushIT extends AbstractPostgisIT {
         suscripcionRepository.deleteAll();
     }
 
+    /**
+     * Usuario con el consentimiento NOTIFICACIONES_PUSH vigente, requisito
+     * para suscribirse desde NC-07b (D-12). El caso sin consentimiento esta
+     * en {@code auth/ConsentimientoIT}.
+     */
     private Usuario usuario(Rol rol) {
-        return usuarioRepository.save(Usuario.builder()
+        Usuario u = guardarConTerminos(Usuario.builder()
                 .email("push-" + UUID.randomUUID() + "@lima.pe")
                 .passwordHash(passwordEncoder.encode("x"))
                 .nombre("Ana").apellido("Vecina").rol(rol).build());
+        otorgar(u, FinalidadConsentimiento.NOTIFICACIONES_PUSH);
+        return u;
     }
 
     private String token(Usuario u) {
@@ -393,5 +403,44 @@ class SuscripcionPushIT extends AbstractPostgisIT {
                 .andExpect(status().isBadRequest());
 
         assertThat(suscripcionRepository.count()).isZero();
+    }
+
+    // ------------------------------------------- US-21: clave publica VAPID
+
+    @Test
+    void clavePublicaVapid_esPublica() throws Exception {
+        mockMvc.perform(get("/api/notificaciones/vapid-public-key"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.clavePublica", is(EnviadorWebPushFake.CLAVE_PUBLICA)));
+    }
+
+    @Test
+    void clavePublicaVapid_noLaBloqueanLosTerminosPendientes() throws Exception {
+        // Usuario sin terminos aceptados: la ruta es publica y responde igual.
+        Usuario sinTerminos = usuarioRepository.save(Usuario.builder()
+                .email("push-" + UUID.randomUUID() + "@lima.pe")
+                .passwordHash(passwordEncoder.encode("x"))
+                .nombre("Ana").apellido("Antigua").rol(Rol.CIUDADANO).build());
+        mockMvc.perform(get("/api/notificaciones/vapid-public-key").header("Authorization", token(sinTerminos)))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void clavePublicaVapid_sinClavesConfiguradas_404() throws Exception {
+        enviadorPush.setConfigurado(false);
+        mockMvc.perform(get("/api/notificaciones/vapid-public-key"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void sinClavesVapid_elCanalPushNoEstaDisponible() throws Exception {
+        Usuario ciu = usuario(Rol.CIUDADANO);
+        mockMvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON)
+                        .content(cuerpo(endpointNuevo(), "p256", "auth"))
+                        .header("Authorization", token(ciu)))
+                .andExpect(status().isCreated());
+        assertThat(push().estaDisponible(ciu)).isTrue();
+        enviadorPush.setConfigurado(false);
+        assertThat(push().estaDisponible(ciu)).isFalse();
     }
 }

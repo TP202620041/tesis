@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { apiDescargar, apiFetch } from './client';
+import { RUTA_ACEPTAR_TERMINOS, apiDescargar, apiFetch, conFotoAbsoluta } from './client';
 import { ApiError, NetworkError } from './errors';
 import { borrarToken, guardarToken, leerToken } from '@/lib/auth/token-storage';
 
@@ -92,6 +92,34 @@ describe.each([
 });
 
 describe('apiFetch', () => {
+  it('con redirigirEn401: false borra el token y lanza el 401, pero no navega', async () => {
+    const assign = vi.fn();
+    vi.stubGlobal('location', { pathname: '/mapa', search: '', assign });
+    fetchFalso.mockResolvedValue(new Response(null, { status: 401 }));
+
+    const fallo = apiFetch('/api/auth/me', { redirigirEn401: false });
+
+    await expect(fallo).rejects.toMatchObject({ status: 401 });
+    expect(leerToken()).toBeNull();
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  it('un 401 tardío de una sesión anterior no borra el token nuevo ni navega', async () => {
+    const assign = vi.fn();
+    vi.stubGlobal('location', { pathname: '/mis-reportes', search: '', assign });
+    let responder!: (r: Response) => void;
+    fetchFalso.mockReturnValue(new Promise((r) => (responder = r)));
+
+    const peticionVieja = apiFetch('/api/reportes/mis-reportes');
+    // Mientras esperaba, se cerro la sesion y entro otra persona.
+    guardarToken('token-de-otra-persona');
+    responder(new Response(null, { status: 401 }));
+
+    await expect(peticionVieja).rejects.toMatchObject({ status: 401 });
+    expect(leerToken()).toBe('token-de-otra-persona');
+    expect(assign).not.toHaveBeenCalled();
+  });
+
   it('sigue interpretando JSON tras extraer la ejecución común', async () => {
     fetchFalso.mockResolvedValue(Response.json({ id: 7 }));
     await expect(apiFetch<{ id: number }>('/api/auth/me')).resolves.toEqual({ id: 7 });
@@ -101,5 +129,81 @@ describe('apiFetch', () => {
   it('una respuesta 202 sin cuerpo devuelve undefined', async () => {
     fetchFalso.mockResolvedValue(new Response(null, { status: 202, headers: { 'Content-Length': '0' } }));
     await expect(apiFetch('/api/auth/recuperar-password', { method: 'POST' })).resolves.toBeUndefined();
+  });
+});
+
+describe('403 TERMINOS_PENDIENTES (NC-07b)', () => {
+  const terminosPendientes = () =>
+    Response.json(
+      { status: 403, message: 'Debes aceptar los terminos', codigo: 'TERMINOS_PENDIENTES' },
+      { status: 403 },
+    );
+
+  it('lleva a la pantalla de aceptación con la ruta actual, sin borrar el token', async () => {
+    const assign = vi.fn();
+    vi.stubGlobal('location', { pathname: '/mis-reportes', search: '?p=2', assign });
+    fetchFalso.mockResolvedValue(terminosPendientes());
+
+    const fallo = apiFetch('/api/reportes/mis-reportes');
+
+    await expect(fallo).rejects.toMatchObject({ status: 403, codigo: 'TERMINOS_PENDIENTES' });
+    expect(assign).toHaveBeenCalledWith(
+      `${RUTA_ACEPTAR_TERMINOS}?redirect=${encodeURIComponent('/mis-reportes?p=2')}`,
+    );
+    expect(leerToken()).toBe('token-de-prueba');
+  });
+
+  it('no navega si ya está en la pantalla de aceptación ni en segundo plano', async () => {
+    const assign = vi.fn();
+    vi.stubGlobal('location', { pathname: RUTA_ACEPTAR_TERMINOS, search: '', assign });
+    fetchFalso.mockResolvedValue(terminosPendientes());
+    await expect(apiFetch('/api/reportes/mis-reportes')).rejects.toBeInstanceOf(ApiError);
+
+    vi.stubGlobal('location', { pathname: '/mapa', search: '', assign });
+    fetchFalso.mockResolvedValue(terminosPendientes());
+    await expect(
+      apiFetch('/api/notificaciones/suscripciones', { redirigirEn401: false }),
+    ).rejects.toMatchObject({ esTerminosPendientes: true });
+
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  it('un 403 sin código sigue siendo falta de permiso: no navega', async () => {
+    const assign = vi.fn();
+    vi.stubGlobal('location', { pathname: '/bandeja', search: '', assign });
+    fetchFalso.mockResolvedValue(Response.json({ message: 'Sin permiso' }, { status: 403 }));
+
+    await expect(apiFetch('/api/reportes/bandeja')).rejects.toMatchObject({
+      status: 403,
+      codigo: null,
+      esTerminosPendientes: false,
+    });
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  it('la ruta coincide con la de la feature de auth', () => {
+    expect(RUTA_ACEPTAR_TERMINOS).toBe('/aceptar-terminos');
+  });
+});
+
+describe('conFotoAbsoluta', () => {
+  it('compone la URL absoluta de una foto relativa y conserva el resto', () => {
+    const reporte = { id: 7, fotoUrl: '/media/fotos/reportes/a.png' };
+
+    const resultado = conFotoAbsoluta(reporte);
+
+    expect(resultado.fotoUrl).toMatch(/^https?:\/\/.+\/media\/fotos\/reportes\/a\.png$/);
+    expect(resultado.id).toBe(7);
+    expect(reporte.fotoUrl).toBe('/media/fotos/reportes/a.png');
+  });
+
+  it('es idempotente y no toca una entidad sin foto', () => {
+    const absoluta = conFotoAbsoluta({ fotoUrl: '/media/x.png' });
+    const sinFoto = { id: 1, fotoUrl: null };
+
+    expect(conFotoAbsoluta(absoluta).fotoUrl).toBe(absoluta.fotoUrl);
+    expect(conFotoAbsoluta(sinFoto)).toBe(sinFoto);
+    const sinCampo: { id: number; fotoUrl?: string } = { id: 2 };
+    expect(conFotoAbsoluta(sinCampo).fotoUrl).toBeUndefined();
   });
 });

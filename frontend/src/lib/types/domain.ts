@@ -59,6 +59,25 @@ export function esEstadoTicket(valor: unknown): valor is EstadoTicket {
   return typeof valor === 'string' && (ESTADOS_TICKET as readonly string[]).includes(valor);
 }
 
+/**
+ * NC-07b (D-12): finalidad de un consentimiento
+ * (`auth/domain/FinalidadConsentimiento.java`). Cada una se acepta y se
+ * revoca por separado; los terminos no se revocan desde la app (es la baja
+ * de la cuenta).
+ */
+export const FINALIDADES_CONSENTIMIENTO = [
+  'TERMINOS_Y_PRIVACIDAD',
+  'NOTIFICACIONES_PUSH',
+  'NOTIFICACIONES_CORREO',
+] as const;
+export type FinalidadConsentimiento = (typeof FINALIDADES_CONSENTIMIENTO)[number];
+
+export function esFinalidadConsentimiento(valor: unknown): valor is FinalidadConsentimiento {
+  return (
+    typeof valor === 'string' && (FINALIDADES_CONSENTIMIENTO as readonly string[]).includes(valor)
+  );
+}
+
 /* -------------------------------------------------------------------------
  * Alias de dominio: campos siempre presentes + enums tipados
  * ---------------------------------------------------------------------- */
@@ -70,10 +89,12 @@ type Requerido<T, K extends keyof T> = Omit<T, K> & Required<Pick<T, K>>;
  * Usuario autenticado. `id`/`email`/`nombre`/`apellido`/`rol` siempre vienen:
  * son columnas NOT NULL en `usuario` y `UsuarioResponse.from` las mapea
  * directo. `distritoId`/`fotoUrl` si son genuinamente opcionales.
+ * `debeAceptarTerminos` (NC-07b) es un `boolean` primitivo en el record:
+ * siempre viene.
  */
 export type Usuario = Requerido<
   Omit<Schemas['UsuarioResponse'], 'rol' | 'preferenciaNotificacion'>,
-  'id' | 'email' | 'nombre' | 'apellido'
+  'id' | 'email' | 'nombre' | 'apellido' | 'debeAceptarTerminos'
 > & {
   rol: Rol;
   preferenciaNotificacion: PreferenciaNotificacion;
@@ -103,6 +124,8 @@ export interface ApiErrorBody {
   message: string;
   path: string;
   details: string[];
+  /** Codigo de maquina; el backend lo omite si no hay (hoy solo `TERMINOS_PENDIENTES`). */
+  codigo?: string;
 }
 
 /** Distrito como dato de referencia para selectores (US-05, US-10, US-12). */

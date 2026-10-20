@@ -2,8 +2,8 @@
 
 import dynamic from 'next/dynamic';
 import { useState } from 'react';
-import { distritoPorCoordenadas } from '@/features/distritos/api';
-import { useGeolocalizacion } from '../useGeolocalizacion';
+import { useDistritoDeUbicacion } from '../hooks/useDistritoDeUbicacion';
+import { useGeolocalizacion } from '../hooks/useGeolocalizacion';
 import type { Coordenadas } from '@/map/MapaSelectorUbicacion';
 import type { Distrito } from '@/lib/types/domain';
 
@@ -34,7 +34,7 @@ interface Props {
 export function CampoUbicacion({ valor, onCambiar }: Props) {
   const geo = useGeolocalizacion();
   const [mostrarMapa, setMostrarMapa] = useState(false);
-  const [resolviendo, setResolviendo] = useState(false);
+  const { resolviendo, resolver } = useDistritoDeUbicacion();
 
   /**
    * Pide el GPS y encadena la reaccion aqui mismo, en el manejador del
@@ -51,20 +51,10 @@ export function CampoUbicacion({ valor, onCambiar }: Props) {
   }
 
   async function aplicar(coordenadas: Coordenadas, manual: boolean) {
-    setResolviendo(true);
-    try {
-      // Se le pregunta al backend: es el mismo ST_Covers que usara al crear
-      // el reporte, asi que lo que se muestra aqui no puede discrepar de la
-      // asignacion real.
-      const distrito = await distritoPorCoordenadas(coordenadas.latitud, coordenadas.longitud);
-      onCambiar({ coordenadas, manual, distrito });
-    } catch {
-      // Un fallo de red al resolver el distrito no debe impedir reportar:
-      // el backend lo asignara igual al recibir el POST.
-      onCambiar({ coordenadas, manual, distrito: null });
-    } finally {
-      setResolviendo(false);
-    }
+    // `resolver` nunca rechaza: fuera de cobertura o sin red devuelve null
+    // (ver useDistritoDeUbicacion).
+    const distrito = await resolver(coordenadas);
+    onCambiar({ coordenadas, manual, distrito });
   }
 
   return (

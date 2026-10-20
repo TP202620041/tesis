@@ -55,9 +55,11 @@ Activar otro perfil: `SPRING_PROFILES_ACTIVE=dev mvn spring-boot:run`.
 
 | Método | Ruta                | Auth | Historia | Descripción |
 |--------|---------------------|------|----------|-------------|
-| POST   | `/api/auth/registro`| No   | US-01    | Registrar cuenta ciudadana |
+| POST   | `/api/auth/registro`| No   | US-01    | Registrar cuenta ciudadana (exige aceptar los términos vigentes, D-12) |
 | POST   | `/api/auth/login`   | No   | US-02    | Iniciar sesión (devuelve JWT) |
-| GET    | `/api/auth/me`      | Sí   | US-02    | Datos del usuario autenticado |
+| GET    | `/api/auth/me`      | Sí   | US-02    | Datos del usuario autenticado (con `debeAceptarTerminos`) |
+| GET/POST | `/api/auth/me/consentimientos` | Sí | NC-07b | Consentimientos propios: listar y aceptar (ver [Consentimiento](#consentimiento-d-12-nc-07b)) |
+| DELETE | `/api/auth/me/consentimientos/{finalidad}` | Sí | NC-07b | Revocar un consentimiento propio |
 
 ### Ejemplo rápido
 
@@ -65,7 +67,7 @@ Activar otro perfil: `SPRING_PROFILES_ACTIVE=dev mvn spring-boot:run`.
 # Registro
 curl -X POST http://localhost:8080/api/auth/registro \
   -H "Content-Type: application/json" \
-  -d '{"email":"vecino@lima.pe","password":"secreta123","nombre":"Ana","apellido":"Ruiz"}'
+  -d '{"email":"vecino@lima.pe","password":"secreta123","nombre":"Ana","apellido":"Ruiz","aceptaTerminos":true,"versionTerminos":"2026-10-v1"}'
 
 # Login
 curl -X POST http://localhost:8080/api/auth/login \
@@ -268,8 +270,83 @@ distritos sin datos) rompería el selector si compartieran endpoint.
 
 `DistritoResponse` **no expone `limites`**: el MultiPolygon pesa miles de
 vértices y no sirve para poblar un `<select>`. Si el frontend llega a
-necesitar los polígonos (p. ej. el mapa de calor de US-11, pospuesto), eso
-amerita un endpoint propio con GeoJSON y su política de caché.
+necesitar los polígonos para dibujarlos, eso amerita un endpoint propio con
+GeoJSON y su política de caché. El mapa de calor (US-11) no los necesita:
+usa la densidad en grilla de la sección siguiente.
+
+## Mapa de calor (US-11)
+
+| Método | Ruta | Auth | Descripción |
+|---|---|---|---|
+| GET | `/api/reportes/densidad` | No | Reportes agrupados en una grilla fija para la capa de calor. Filtros opcionales `distritoId`, `categoriaId`, `estado`, `fechaDesde`, `fechaHasta`. |
+
+```json
+{"celdaGrados": 0.001, "totalReportes": 3,
+ "celdas": [{"latitud": -12.121, "longitud": -77.03, "cantidad": 2},
+            {"latitud": -12.086, "longitud": -76.976, "cantidad": 1}]}
+```
+
+**Grilla en la base, no puntos.** `ST_SnapToGrid` lleva cada reporte al nodo
+más cercano de una grilla de **0.001°** (≈111 m × 109 m en Lima) y se cuenta
+por nodo. La respuesta crece con las celdas ocupadas, no con los reportes, y
+el tamaño de celda es fijo en el servidor (no es un parámetro): el cliente no
+puede pedir una grilla tan fina que equivalga a la lista de puntos, y una
+misma URL siempre devuelve lo mismo, lo que la hace cacheable. A la escala
+de una ciudad, 100 m es menos que el radio con que se dibuja cada punto de
+calor.
+
+**Mismos filtros y misma visibilidad que la búsqueda pública** (US-10/US-12):
+sin `estado`, todo salvo `CANCELADO`; un rango de fechas invertido es 400
+(`RangoFechas`). La capa de calor se dibuja sobre el mismo mapa que los
+marcadores y con los mismos filtros, así que no puede contar otra cosa.
+
+**SEC-01: lo que hace la municipalidad no saca un reporte del mapa.** Por
+defecto cuentan `RECHAZADO` y `RESUELTO`. Si contaran solo los activos, una
+municipalidad podría «enfriar» su distrito rechazando reportes, y un actor
+cambiaría la métrica pública que lo expone. Quien quiera ver solo lo
+pendiente filtra por `estado`. La única salida es `CANCELADO`, que solo hace
+el ciudadano creador desde `PENDIENTE` (US-08).
+
+**Cada reporte pesa 1, no `totalAdhesiones`.** Las adhesiones (US-09) las
+suma cualquier ciudadano con un clic, y ponderar por ellas dejaría inflar la
+densidad de una zona sin reportar nada nuevo. Contar reportes no se infla
+con duplicados porque US-09 ya convierte en adhesión un reporte de la misma
+categoría a menos de 20 m de otro activo.
+
+**SEC-02: sin señales internas.** `DensidadReportesResponse` tiene
+`celdaGrados`, `totalReportes` y `celdas`; cada celda, `latitud`, `longitud`
+y `cantidad`. Nada más: ni ids, ni categoría, ni estado, ni
+`posibleReincidencia`, ni nada que dependa de quién consulta. Con o sin
+token, la respuesta es la misma. `DensidadReportesIT` lo comprueba campo por
+campo sobre un reporte marcado como posible reincidencia.
+
+### Política de caché
+
+Caché **HTTP**, sin caché en el servidor:
+
+- `Cache-Control: public, max-age=60`. Durante un minuto el navegador (o un
+  proxy o CDN) reutiliza la respuesta de esa URL sin llegar al backend.
+  `public` es correcto porque la respuesta no depende del usuario, aunque el
+  pedido lleve `Authorization`.
+- `ETag` fuerte: SHA-256 del contenido, truncado a 128 bits. Pasado el minuto, el cliente revalida
+  con `If-None-Match`, y si nada cambió recibe **304** sin cuerpo (lo resuelve
+  Spring MVC al ver el ETag en un GET). Las coordenadas se redondean al
+  decimal de la celda para que el mismo contenido dé siempre el mismo ETag.
+
+**Por qué 60 s y no la frescura de eventos del índice de desempeño.** El
+índice (US-18) es una métrica de desempeño y se refresca con cada evento que
+la cambia. El mapa de calor es una vista de contexto: un reporte nuevo
+aparece, como mucho, un minuto tarde, y a cambio un mapa que se reabre o se
+recarga no repite la agregación. **Sin caché en el servidor** (Spring Cache,
+vista materializada) a propósito: obligaría a invalidarla con los mismos
+eventos que el índice, y con varias instancias, a compartirla. La consulta
+usa los índices de `reporte` (`distrito_id`, `estado`, `categoria_id`) y
+agrega en la base; a la escala de la tesis no compensa. Si creciera, el paso
+siguiente es una vista materializada por celda refrescada por eventos, como
+`mv_indice_desempeno_distrital`.
+
+**Service Worker.** La PWA deja el API fuera de la caché del Service Worker
+(US-04). Esta política la aplica la caché HTTP del navegador, no el SW.
 
 ## Registro de hallazgos de seguridad
 
@@ -509,12 +586,279 @@ DO UPDATE … RETURNING (xmax = 0)`: dos POST a la vez con el mismo endpoint
 nuevo ya no chocan con el `UNIQUE` (antes, `DataIntegrityViolationException`
 → 500); uno inserta (201) y el otro actualiza (200).
 
-**Efecto en las notificaciones.** `PushNotificacionAdapter#estaDisponible` ya
-es real: el canal PUSH está disponible si el usuario tiene al menos una
-suscripción activa. El envío sigue siendo un stub (US-21, Sprint 3) que lanza,
-y `NotificacionService` lo registra `FALLIDA` y cae a email, igual que cuando
-el canal no estaba disponible (`NotificacionIT` cubre PUSH y AMBAS con
-suscripción). El ciudadano no pierde avisos mientras tanto.
+**Efecto en las notificaciones.** Desde US-21 el envío es real: ver
+[Envío push real (US-21)](#envío-push-real-us-21).
+
+**Desde NC-07b, suscribirse exige el consentimiento `NOTIFICACIONES_PUSH`
+vigente** (409 si no lo hay), y revocarlo borra todas las suscripciones del
+usuario: ver la sección siguiente.
+
+## Envío push real (US-21)
+
+**Librería: `com.zerodeplibs:zerodep-web-push-java` 2.1.5** (MIT), detrás del
+puerto `notificaciones/port/EnviadorWebPush` con su adaptador
+`notificaciones/infra/ZerodepWebPushAdapter`. Se eligió así (revisado en Maven
+Central el 19/10/2026):
+
+| Librería | Última versión | Por qué sí / por qué no |
+|---|---|---|
+| `zerodep-web-push-java` | 2.1.5 (31/12/2025; 2.1.3 y 2.1.4 en nov. 2025) | **Elegida.** Mantenida, MIT, **sin dependencias en tiempo de ejecución**: VAPID (RFC 8292) y cifrado `aes128gcm` (RFC 8291) con la criptografía del JDK, y envío con `java.net.http.HttpClient`. No suma nada al classpath que pueda chocar con Spring Boot. |
+| `nl.martijndwars:web-push` | 5.1.2 (feb. 2025) | Descartada: arrastra `bcprov-jdk15on` 1.70 (el artefacto viejo de BouncyCastle, reemplazado por `jdk18on`), `httpasyncclient` 4.x y `async-http-client` 2.12. Más superficie de dependencias y de CVE para lo mismo. |
+| `com.interaso:webpush` | 1.3.0 (ene. 2026) | Mantenida, pero es Kotlin: suma el runtime de Kotlin a un backend Java. |
+
+Cambiar de librería es cambiar solo el adaptador: el resto del código usa el
+puerto.
+
+**Riesgo aceptado y mitigaciones.** La librería tiene un solo mantenedor y no
+tiene auditoría de seguridad pública. A favor: no implementa criptografía
+propia, sino que compone primitivas del JDK (ECDH, HKDF sobre HMAC-SHA-256,
+AES-GCM, ECDSA). Mitigaciones:
+
+- `WebPushInteroperabilidadTest` (Surefire, sin red) la contrasta con una
+  implementación independiente escrita solo con el JDK. Genera un par P-256
+  y un `auth` de «navegador», arma el pedido con la librería, **descifra** el
+  cuerpo `aes128gcm` (RFC 8291 / RFC 8188) y compara el texto. Además
+  **verifica** la firma ES256 del JWT de `Authorization: vapid t=…,k=…` con
+  la clave pública y sus claims `aud`, `sub` y `exp` (RFC 8292). También
+  comprueba que otro par de claves no puede descifrar el mensaje.
+- El puerto `EnviadorWebPush` permite cambiarla sin tocar el resto.
+- Versión fija (2.1.5, sin rangos). SHA-1 del jar en Maven Central:
+  `02fa1d9e72a281c25eac128b3a7a0633cc0d1395` (coincide con el descargado).
+
+**Claves VAPID por entorno, nunca en el repo.** `VAPID_PUBLIC_KEY`,
+`VAPID_PRIVATE_KEY` (base64url, el formato de `web-push`) y `VAPID_SUBJECT`
+(`mailto:…` o `https://…`). Para generarlas:
+
+```bash
+npx web-push generate-vapid-keys      # imprime Public Key y Private Key
+export VAPID_PUBLIC_KEY=...  VAPID_PRIVATE_KEY=...  VAPID_SUBJECT=mailto:soporte@viasegura.pe
+```
+
+Sin las tres, o con claves inválidas, el adaptador queda **sin configurar**:
+la app arranca igual (lo deja en el log), el canal PUSH se reporta no
+disponible y el aviso cae a correo si hay permiso. Cambiar las claves invalida
+todas las suscripciones existentes (el navegador las creó con la pública
+anterior). Tras rotarlas, el servicio de push responde **401/403** a esas
+suscripciones y fallan (el aviso cae a correo si hay permiso) hasta que el
+navegador se vuelve a suscribir con la clave nueva. **401/403 no desactiva la
+suscripción**, a propósito: desde el servidor no se distingue una suscripción
+creada con la clave vieja de un error de configuración propio (sujeto, reloj,
+claves mal copiadas), y en ese caso se desactivarían las de todos los
+usuarios de una vez. Se registra un aviso en el log, y el frontend se vuelve a
+suscribir al iniciar sesión si la clave pública cambió (ver el handoff).
+
+**Clave pública:** `GET /api/notificaciones/vapid-public-key` →
+`{"clavePublica": "..."}`, o 404 si no hay claves. Es pública (ruta exacta y
+solo GET en `SecurityConfig`; la guarda de términos no la toca), porque el
+navegador la necesita para `pushManager.subscribe` y no identifica a nadie.
+
+**Qué se envía.** Al cambiar el estado de un reporte, `PushNotificacionAdapter`
+envía a **todas** las suscripciones activas del ciudadano (móvil y PC), si
+tiene el permiso `NOTIFICACIONES_PUSH` y su preferencia incluye PUSH. El
+payload es JSON:
+
+```json
+{"titulo": "ViaSegura: su reporte esta en proceso",
+ "cuerpo": "Su reporte #42 esta en proceso.",
+ "url": "/mis-reportes/42", "reporteId": 42, "estado": "EN_PROCESO"}
+```
+
+Solo datos del reporte del propio ciudadano: ninguna señal interna
+(reincidencia, prioridad) ni datos de otros usuarios. El cuerpo no lleva el
+comentario del municipio ni el distrito: una notificación se ve en la pantalla
+bloqueada, y el detalle está al abrir el reporte (el correo sí lo lleva). El
+cuerpo dice el estado en palabras («esta en proceso», «fue resuelto»); el
+valor técnico viaja aparte en `estado`. TTL
+de 24 h (después el aviso pierde sentido) y tópico `reporte-{id}`: si hay un
+aviso pendiente del mismo reporte, el servicio de push lo reemplaza por el
+nuevo.
+
+**Respuestas del servicio de push.**
+
+- 2xx: entregado. Con al menos una entrega, la notificación queda `ENVIADA`.
+- **404/410: la suscripción queda `activa = false`** y no se vuelve a
+  intentar. Se conserva la fila, en vez de borrarla, porque el navegador puede
+  volver a suscribirse con el mismo endpoint y el upsert la reactiva; el tope
+  por usuario la desaloja con el tiempo.
+- Cualquier otro error (red, timeout, 4xx/5xx): esa suscripción no se toca,
+  porque puede ser transitorio. Si no se entregó a ninguna, el canal lanza,
+  `NotificacionService` registra el push `FALLIDA` y cae a correo si hay
+  permiso. El cambio de estado nunca se ve afectado.
+
+**Fuera del hilo del funcionario y fuera de la transacción.** El listener de
+notificaciones (`AFTER_COMMIT`) solo encola `NotificacionService.notificarCambioEstado`,
+que es `@Async` en el executor acotado de `common/config/AsyncConfig` (ver
+abajo): el `PATCH …/estado` responde sin esperar al SMTP ni al servicio de
+push. Ese método **no abre una transacción**: las llamadas HTTP y SMTP corren
+sin retener una conexión a la base, y cada escritura (el registro en
+`notificacion`, la desactivación de una suscripción caducada con `save`) es una
+transacción corta del repositorio. El `try` envuelve solo el envío: si guardar
+el registro falla después de un envío exitoso, se registra el error, pero no
+se cuenta como fallo de envío ni dispara el respaldo a correo. Esto se aparta
+de ARCHITECTURE.md §4.5 (`REQUIRES_NEW` en los listeners que escriben); la
+excepción está planteada en
+`project-context/decisions/propuestas/2026-10-20-notificaciones-fuera-de-transaccion.md`.
+Timeouts del push: 3 s de conexión y 5 s de pedido
+(`PUSH_TIMEOUT_CONEXION_SEGUNDOS`, `PUSH_TIMEOUT_PEDIDO_SEGUNDOS`).
+
+### Executor asíncrono (`AsyncConfig`)
+
+Uno solo, con nombre (`ejecutorAsincrono`, hilos `viasegura-async-*`), para
+reutilizar en todo trabajo posterior al commit: los avisos de hoy y la
+sugerencia de categoría de D-08 (`@Async(AsyncConfig.EJECUTOR)`). Reemplaza
+al `applicationTaskExecutor` de Spring Boot (Boot solo crea el suyo si no hay
+ningún `Executor`), así que también es el executor por defecto de cualquier
+`@Async` sin nombre.
+
+| Parámetro | Por defecto | Variable |
+|---|---|---|
+| Hilos base / máximo | 2 / 4 | `ASYNC_HILOS_BASE`, `ASYNC_HILOS_MAX` |
+| Cola | 100 tareas | `ASYNC_COLA` |
+| Cola llena | **se rechaza** (`TaskRejectedException`): quien encola registra qué se pierde y la descarta | — |
+| Apagado | espera hasta 10 s a las tareas en curso | — |
+
+Con la cola llena la tarea **nunca** corre en el hilo que la pidió (no se usa
+`CallerRunsPolicy`): eso le devolvería al funcionario la latencia de la red
+justo cuando el sistema está saturado. `ReporteEstadoCambiadoListener` atrapa
+el rechazo y deja un WARN con el reporte, el ciudadano y el estado del aviso
+perdido. Perder un aviso en ese caso se acepta: el reporte y su historial no
+dependen de él.
+
+**En los IT** el bean real no existe (`@Profile("!test")`) y
+`support/EjecutorSincronoTestConfig` registra uno con el mismo nombre que
+corre cada tarea en un hilo nuevo y **espera a que termine**: los IT siguen
+siendo deterministas, sin esperas ni `Thread.sleep`. No es un
+`SyncTaskExecutor` (mismo hilo) porque en `AFTER_COMMIT` ese hilo todavía
+tiene ligada la transacción ya confirmada, y las escrituras «participarían» en
+ella sin confirmarse; un hilo aparte reproduce lo que pasa en producción. La
+misma clase es el `AsyncConfigurer` del contexto de test: guarda la excepción
+que escape de un método `@Async`, y el `@AfterEach` de `AbstractPostgisIT` la
+relanza, para que un fallo en el hilo asíncrono haga fallar el test con su
+causa.
+
+**Tests.** En todos los IT, `support/EnviadorWebPushFake` reemplaza al puerto
+(`@Primary`): registra lo que se habría enviado y responde lo que el test le
+indique (entregado, 410, error, sin claves). Ningún test llama a un servicio de
+push real. `ZerodepWebPushAdapterTest` prueba el adaptador real sin red: carga
+de claves, arranque sin claves, firma y cifrado contra un puerto local cerrado,
+y clasificación de respuestas.
+
+## Consentimiento (D-12, NC-07b)
+
+La Ley N.° 29733 de Protección de Datos Personales pide un consentimiento
+previo, informado, expreso e inequívoco **para cada finalidad**, y que se pueda
+revocar. La tesis, además, tiene que poder mostrar **qué** aceptó cada usuario,
+**cuándo** y **qué versión** del texto. Por eso `consentimiento` (V13,
+`auth/domain/Consentimiento`) es un **historial**, no un flag en `usuario`:
+
+- cada aceptación es una fila (`usuario_id`, `finalidad`, `version_documento`,
+  `aceptado_en`); revocar llena `revocado_en`. Nada se sobrescribe ni se borra;
+- finalidades (`FinalidadConsentimiento`): `TERMINOS_Y_PRIVACIDAD`,
+  `NOTIFICACIONES_PUSH`, `NOTIFICACIONES_CORREO`;
+- **vigente** = la aceptación más reciente sin revocar de esa finalidad y, para
+  los términos, de la versión que la app exige hoy
+  (`app.legal.version-terminos`, variable `LEGAL_VERSION_TERMINOS`, por defecto
+  `2026-10-v1`). Publicar un texto nuevo es cambiar esa propiedad: todos pasan
+  a `debeAceptarTerminos=true` sin migrar datos, y la aceptación anterior queda
+  en el historial como evidencia.
+
+**Preferencia ≠ permiso.** `usuario.preferencia_notificacion` sigue siendo una
+**preferencia** (cómo quiere recibir los avisos: PUSH, EMAIL, AMBAS); el
+consentimiento es el **permiso** (si autoriza ese tratamiento). Tampoco el
+permiso del navegador para notificaciones reemplaza al consentimiento: es del
+dispositivo, no la autorización del titular de los datos.
+
+| Método | Ruta | Respuesta |
+|---|---|---|
+| POST | `/api/auth/registro` | Exige `aceptaTerminos: true` (ausente o `false` → **400**) y `versionTerminos` igual a la vigente (si no, **409**, y no se crea la cuenta). La fila `TERMINOS_Y_PRIVACIDAD` se crea en la misma transacción. |
+| GET | `/api/auth/me/consentimientos` | `versionTerminosVigente`, `debeAceptarTerminos`, `vigentes` (una por finalidad autorizada hoy) e `historial` (todas, de la más reciente a la más antigua, con `vigente` por fila). |
+| POST | `/api/auth/me/consentimientos` | `{finalidad, version}`. **201** si deja fila nueva; **200** si ya estaba vigente con esa versión (no duplica el historial). Términos con una versión que no es la vigente → **409**. |
+| DELETE | `/api/auth/me/consentimientos/{finalidad}` | **204**, idempotente. `TERMINOS_Y_PRIVACIDAD` → **409**. Finalidad desconocida → 400. |
+
+Cualquier rol autenticado y **solo los propios**: ninguna ruta lleva id de
+usuario, así que nadie lee ni revoca los de otro. Sin token, 401.
+`UsuarioResponse` (de `/me`, login y registro) suma `debeAceptarTerminos`. Es
+un dato del propio usuario, no una señal interna, y ese DTO no lo lee nadie más.
+
+**Usuarios existentes.** La migración no les crea filas: D-12 prohíbe darlos
+por aceptados. Reciben `debeAceptarTerminos=true` y el frontend les muestra la
+pantalla de aceptación en su próximo inicio de sesión.
+
+**Bloqueo por términos pendientes (decisión del usuario).** Mientras
+`debeAceptarTerminos=true`, el backend responde **403** con
+`"codigo": "TERMINOS_PENDIENTES"` en el cuerpo de error (`ApiError.codigo`, que
+solo aparece cuando lo hay) en **toda ruta privada**, salvo:
+
+- `GET /api/auth/me` (saber quién es y que debe aceptar);
+- `/api/auth/me/consentimientos` y `/api/auth/me/consentimientos/{finalidad}`
+  (aceptar los términos y, de paso, correo y push);
+- `DELETE /api/notificaciones/suscripciones`: es lo único que hace falta para
+  cerrar sesión. No hay endpoint de logout (el JWT es stateless y el cliente
+  descarta el token), pero la PWA da de baja la suscripción push del navegador
+  antes de borrarlo.
+
+Las rutas públicas no cambian, aunque lleguen con el token de un usuario
+pendiente: se resuelven antes en `SecurityConfig`. Sin token sigue siendo 401.
+
+*Dónde vive.* En la cadena de seguridad, no en un interceptor de MVC: así
+nada de lo que está detrás (controladores, `@PreAuthorize`) llega a correr.
+`SecurityConfig` termina con `.anyRequest().access(TerminosAceptadosAuthorizationManager)`,
+que exige autenticación **y** términos aceptados; si faltan, marca la petición
+y `RestAccessDeniedHandler` arma el 403 con el código. Para no hacer depender a
+`common` de un módulo, la pregunta es la interfaz
+`common/security/VerificadorTerminosPendientes`, que implementa
+`auth/service/ConsentimientoService` (el grafo sigue siendo `common ← auth`).
+
+*Costo.* Una consulta por petición privada (`existeNoRevocadaPorEmail`: un
+`EXISTS` por correo, con el índice único de `usuario.email` y el parcial de
+`consentimiento`), sin cargar entidades. El filtro JWT ya hace otra para cargar
+el usuario. No se cachea: una caché obligaría a invalidarla al aceptar y, con
+varias instancias, a compartirla; a esta escala no compensa. Las rutas
+públicas no la pagan.
+
+**Los términos no se revocan desde la app (409).** Sin ellos no se puede usar el
+servicio; retirarlos equivale a la baja de la cuenta (derecho de cancelación de
+la Ley N.° 29733), que es un caso de uso distinto y hoy no existe.
+
+**Revocar `NOTIFICACIONES_PUSH` borra las suscripciones.** `ConsentimientoService`
+publica `auth/event/ConsentimientoRevocadoEvent` y
+`notificaciones/listener/ConsentimientoRevocadoListener` borra las filas de
+`suscripcion_push` del usuario. Así `auth` no conoce a `notificaciones` (el
+grafo de módulos sigue sin ciclos). El listener es `AFTER_COMMIT`, como los
+demás, y el borrado abre su propia transacción (`REQUIRES_NEW`, §4.5): la
+revocación se confirma aunque el borrado falle, porque revocar tiene que ser
+simple y no puede depender de otro módulo. Revocar es idempotente y siempre
+publica el evento, así que también limpia suscripciones creadas antes de
+NC-07b sin consentimiento.
+
+**El permiso manda al enviar.** `NotificacionService.canalDisponible` exige el
+consentimiento vigente del canal antes de usarlo: `NOTIFICACIONES_PUSH` para
+PUSH y `NOTIFICACIONES_CORREO` para EMAIL. Así una suscripción sin permiso
+(anterior a NC-07b, o una que no se llegó a borrar al revocar) queda inerte. La
+comprobación está en el servicio y no en `PushNotificacionAdapter` porque un
+adaptador (`infra`) no puede llamar a un servicio (regla `capas`), y así vale
+para los dos canales en un solo lugar.
+
+**Correo (decisión del usuario).** Los **avisos de cambio de estado** (US-16:
+canal EMAIL y el fallback de push a email) solo salen con
+`NOTIFICACIONES_CORREO` vigente. Los correos de **seguridad** (recuperar la
+contraseña, US-03) y la **respuesta de soporte** (US-25, la pidió el usuario)
+se envían siempre: usan `JavaMailSender` directo y no pasan por
+`NotificacionService`. Si el usuario no autoriza ningún canal, cada intento se
+registra `FALLIDA`, como un canal no disponible, sin error: el cambio de estado
+se confirma igual.
+
+> **Consecuencia:** los usuarios existentes y los que se registren sin aceptar
+> correo **dejan de recibir avisos por correo** hasta que acepten
+> `NOTIFICACIONES_CORREO`. La pantalla de aceptación del frontend ofrece correo
+> y push junto con los términos.
+
+**Doble aceptación simultánea (V14).** Un índice único parcial
+`(usuario_id, finalidad, version_documento) WHERE revocado_en IS NULL` y un
+`INSERT … ON CONFLICT … DO NOTHING RETURNING id`: si dos POST iguales llegan a
+la vez, el segundo espera al primero, no inserta y responde 200. Una versión
+revocada y aceptada otra vez sí deja fila nueva. Va en V14 porque V13 ya estaba
+aplicada.
 
 ## Deuda técnica conocida
 
@@ -547,6 +891,12 @@ suscripción). El ciudadano no pierde avisos mientras tanto.
   asignación sobre 20k puntos). Suficiente para el MVP. El dataset detallado
   (66,753 vértices) está disponible si se requiere mayor precisión; el
   `DistritoSeeder` es agnóstico al archivo.
+- **Densidad del mapa de calor (US-11) sin caché en el servidor ni tope de
+  celdas.** Cada petición que no resuelve la caché HTTP agrega toda la tabla
+  `reporte` con los filtros dados, y la respuesta crece con las celdas
+  ocupadas. Siguiente paso, si el volumen lo pide: una vista materializada
+  por celda refrescada por eventos, como `mv_indice_desempeno_distrital`
+  (ver [Mapa de calor (US-11)](#mapa-de-calor-us-11)).
 
 ## Modelo de datos
 
@@ -554,4 +904,5 @@ suscripción). El ciudadano no pierde avisos mientras tanto.
 (`GEOGRAPHY(MultiPolygon,4326)`) y `reporte.ubicacion`
 (`GEOGRAPHY(Point,4326)`), ambas con índice **GiST**. Ver
 `src/main/resources/db/migration/V1__init_schema.sql`. Las migraciones
-posteriores agregan tablas propias, como `suscripcion_push` (V12, NC-07).
+posteriores agregan tablas propias, como `suscripcion_push` (V12, NC-07) y
+`consentimiento` (V13 y V14, NC-07b).

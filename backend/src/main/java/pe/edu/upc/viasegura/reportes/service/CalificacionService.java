@@ -9,7 +9,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import pe.edu.upc.viasegura.auth.domain.Usuario;
-import pe.edu.upc.viasegura.auth.repository.UsuarioRepository;
+import pe.edu.upc.viasegura.auth.service.UsuarioConsultaService;
 import pe.edu.upc.viasegura.common.exception.BusinessException;
 import pe.edu.upc.viasegura.common.exception.ResourceNotFoundException;
 import pe.edu.upc.viasegura.reportes.domain.Calificacion;
@@ -39,7 +39,7 @@ public class CalificacionService {
     private static final int DIAS_RECORDATORIO = 3;
 
     private final ReporteRepository reporteRepository;
-    private final UsuarioRepository usuarioRepository;
+    private final UsuarioConsultaService usuarioConsultaService;
     private final CalificacionRepository calificacionRepository;
     private final ApplicationEventPublisher eventPublisher;
 
@@ -51,8 +51,7 @@ public class CalificacionService {
      */
     @Transactional
     public CalificacionResponse calificar(String emailCiudadano, Long reporteId, CalificarRequest req) {
-        Usuario ciudadano = usuarioRepository.findByEmail(emailCiudadano)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+        Usuario ciudadano = usuarioConsultaService.usuarioPorEmail(emailCiudadano);
         Reporte reporte = reporteRepository.findById(reporteId)
                 .orElseThrow(() -> new ResourceNotFoundException("Reporte no encontrado: " + reporteId));
 
@@ -108,8 +107,7 @@ public class CalificacionService {
      */
     @Transactional(readOnly = true)
     public CalificacionResponse miCalificacion(String emailCiudadano, Long reporteId) {
-        Usuario ciudadano = usuarioRepository.findByEmail(emailCiudadano)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+        Usuario ciudadano = usuarioConsultaService.usuarioPorEmail(emailCiudadano);
         Reporte reporte = reporteRepository.findById(reporteId)
                 .orElseThrow(() -> new ResourceNotFoundException("Reporte no encontrado: " + reporteId));
 
@@ -129,8 +127,7 @@ public class CalificacionService {
      */
     @Transactional(readOnly = true)
     public List<ReporteResumenResponse> pendientesDeCalificacion(String emailCiudadano) {
-        Usuario ciudadano = usuarioRepository.findByEmail(emailCiudadano)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+        Usuario ciudadano = usuarioConsultaService.usuarioPorEmail(emailCiudadano);
         Instant limite = Instant.now().minus(DIAS_RECORDATORIO, ChronoUnit.DAYS);
         return reporteRepository.findPendientesDeCalificacion(ciudadano.getId(), limite).stream()
                 .map(ReporteResumenResponse::from)

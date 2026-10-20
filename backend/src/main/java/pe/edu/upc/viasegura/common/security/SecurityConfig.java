@@ -52,6 +52,8 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final UserDetailsService userDetailsService;
     private final RestAuthenticationEntryPoint authenticationEntryPoint;
+    private final RestAccessDeniedHandler accessDeniedHandler;
+    private final TerminosAceptadosAuthorizationManager terminosAceptados;
 
     /** Rutas publicas: registro, login, documentacion y consultas publicas. */
     private static final String[] RUTAS_PUBLICAS = {
@@ -129,6 +131,10 @@ public class SecurityConfig {
                         // literales hermanas /mis-reportes, /bandeja y /exportar,
                         // que son privadas.
                         .requestMatchers(HttpMethod.GET, "/api/reportes/{id:[0-9]+}").permitAll()
+                        // Densidad para el mapa de calor (US-11): agregado anonimo
+                        // de la misma informacion publica que la busqueda. Ruta
+                        // EXACTA y solo GET.
+                        .requestMatchers(HttpMethod.GET, "/api/reportes/densidad").permitAll()
                         // Catalogos de referencia para poblar selectores y filtros
                         // (crear reporte US-05, mapa US-10, busqueda US-12). Publicos
                         // por el mismo criterio que la busqueda: un filtro publico cuyo
@@ -150,8 +156,25 @@ public class SecurityConfig {
                         // estatico, sino por /api/perfiles/fotos/{archivo}, que
                         // verifica al dueno (PerfilFotoController).
                         .requestMatchers(HttpMethod.GET, "/media/fotos/reportes/**").permitAll()
-                        .anyRequest().authenticated())
-                .exceptionHandling(ex -> ex.authenticationEntryPoint(authenticationEntryPoint))
+                        // Clave publica VAPID (US-21): el navegador la necesita
+                        // para suscribirse a push; no identifica a nadie. Ruta
+                        // exacta y solo GET (el resto de /api/notificaciones es
+                        // privado).
+                        .requestMatchers(HttpMethod.GET, "/api/notificaciones/vapid-public-key").permitAll()
+                        // D-12: con los terminos pendientes solo se puede ver el
+                        // propio perfil, gestionar los consentimientos y dar de
+                        // baja la suscripcion push al cerrar sesion (el logout es
+                        // del cliente, no hay endpoint). Rutas exactas.
+                        .requestMatchers(HttpMethod.GET, "/api/auth/me").authenticated()
+                        .requestMatchers("/api/auth/me/consentimientos",
+                                "/api/auth/me/consentimientos/*").authenticated()
+                        .requestMatchers(HttpMethod.DELETE, "/api/notificaciones/suscripciones").authenticated()
+                        // Todo lo demas: autenticado y con los terminos vigentes
+                        // aceptados; si faltan, 403 TERMINOS_PENDIENTES.
+                        .anyRequest().access(terminosAceptados))
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(authenticationEntryPoint)
+                        .accessDeniedHandler(accessDeniedHandler))
                 .authenticationProvider(authenticationProvider())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();

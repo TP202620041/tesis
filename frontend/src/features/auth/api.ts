@@ -1,6 +1,14 @@
 import { api, apiFetch } from '@/lib/api/client';
+import { ApiError } from '@/lib/api/errors';
 import { borrarToken, guardarToken } from '@/lib/auth/token-storage';
+import type { components } from '@/lib/api/generated/schema';
+import {
+  desdeRespuestaDeConsentimientos,
+  type Consentimientos,
+  type FinalidadOpcional,
+} from './model/consentimientos';
 import type {
+  FinalidadConsentimiento,
   LoginRequest,
   PreferenciaNotificacion,
   RecuperarPasswordRequest,
@@ -61,6 +69,22 @@ export function obtenerUsuarioActual(): Promise<Usuario> {
   return api.get<Usuario>('/api/auth/me');
 }
 
+/**
+ * `GET /api/auth/me` para trabajo en segundo plano (la cola offline de
+ * US-06): con un token vencido (401) devuelve `null` y borra el token, pero
+ * no lleva al login (`redirigirEn401: false`). Cualquier otro fallo (red,
+ * 5xx) se LANZA: "no se pudo averiguar" no es "no hay sesion", y quien llama
+ * debe volver a intentarlo.
+ */
+export async function usuarioActualSinRedirigir(): Promise<Usuario | null> {
+  try {
+    return await api.get<Usuario>('/api/auth/me', { redirigirEn401: false });
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 401) return null;
+    throw e;
+  }
+}
+
 export interface CambiosDePerfil {
   nombre?: string;
   apellido?: string;
@@ -94,6 +118,97 @@ export function actualizarPreferenciaNotificacion(
   return api.patch<Usuario>('/api/auth/me/preferencia-notificacion', {
     preferenciaNotificacion,
   });
+}
+
+/** NC-07b: consentimientos vigentes, historial y version vigente de los terminos. */
+export async function obtenerConsentimientos(): Promise<Consentimientos> {
+  const r = await api.get<components['schemas']['ConsentimientosResponse']>(
+    '/api/auth/me/consentimientos',
+  );
+  return desdeRespuestaDeConsentimientos(r);
+}
+
+/**
+ * NC-07b: acepta una finalidad. Idempotente: si ya estaba vigente con esa
+ * version, el backend responde 200 sin duplicar. Para los terminos, una
+ * version que no es la vigente da 409.
+ */
+export async function aceptarConsentimiento(
+  finalidad: FinalidadConsentimiento,
+  version: string,
+): Promise<void> {
+  await api.post<unknown>('/api/auth/me/consentimientos', { finalidad, version });
+}
+
+/**
+ * NC-07b: revoca una finalidad (204, idempotente). Revocar
+ * `NOTIFICACIONES_PUSH` borra en el servidor TODAS las suscripciones push
+ * del usuario. Los terminos no se revocan (409): es la baja de la cuenta.
+ */
+export async function revocarConsentimiento(finalidad: FinalidadOpcional): Promise<void> {
+  await api.delete<void>(`/api/auth/me/consentimientos/${finalidad}`);
+}
+
+/**
+ * US-21: clave publica VAPID del servidor (base64url), o `null` si el
+ * servidor no tiene claves (404): entonces no se ofrece push. Es publica.
+ */
+export async function clavePublicaVapid(): Promise<string | null> {
+  try {
+    const r = await api.get<components['schemas']['ClavePublicaVapidResponse']>(
+      '/api/notificaciones/vapid-public-key',
+      { conAuth: false },
+    );
+    return r.clavePublica ?? null;
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) return null;
+    throw e;
+  }
+}
+
+/**
+ * Opciones de las llamadas de push que corren solas (al iniciar o cerrar
+ * sesion): `enSegundoPlano` evita navegar al login o a la pantalla de
+ * terminos por un 401/403 que el usuario no provoco.
+ */
+interface OpcionesPush {
+  enSegundoPlano?: boolean;
+}
+
+/**
+ * US-21 / NC-07: registra (o reasigna al usuario actual, y reactiva) la
+ * suscripcion de este navegador. Upsert por `endpoint`: 201 o 200. Sin el
+ * consentimiento `NOTIFICACIONES_PUSH` vigente, 409.
+ */
+export async function registrarSuscripcionPush(
+  suscripcion: PushSubscriptionJSON,
+  userAgent: string,
+  { enSegundoPlano = false }: OpcionesPush = {},
+): Promise<void> {
+  await api.post<unknown>(
+    '/api/notificaciones/suscripciones',
+    { ...suscripcion, userAgent },
+    { redirigirEn401: !enSegundoPlano },
+  );
+}
+
+/**
+ * US-21 / NC-07: da de baja SOLO este navegador (sin retirar el permiso).
+ * Un 404 (ya no existia, o es de otro usuario) cuenta como hecho.
+ */
+export async function darDeBajaSuscripcionPush(
+  endpoint: string,
+  { enSegundoPlano = false }: OpcionesPush = {},
+): Promise<void> {
+  try {
+    await api.delete<void>('/api/notificaciones/suscripciones', {
+      json: { endpoint },
+      redirigirEn401: !enSegundoPlano,
+    });
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) return;
+    throw e;
+  }
 }
 
 /**

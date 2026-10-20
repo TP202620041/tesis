@@ -64,7 +64,7 @@ class BusquedaReporteIT extends AbstractPostgisIT {
     }
 
     private Usuario ciudadano() {
-        return usuarioRepository.save(Usuario.builder()
+        return guardarConTerminos(Usuario.builder()
                 .email("ciu-" + UUID.randomUUID() + "@lima.pe")
                 .passwordHash(passwordEncoder.encode("x"))
                 .nombre("Ana").apellido("Vecina").rol(Rol.CIUDADANO).build());

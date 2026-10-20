@@ -58,6 +58,31 @@ app:
       # Tope de suscripciones por usuario: al superarlo se borra la menos
       # recientemente registrada.
       max-por-usuario: ${PUSH_MAX_POR_USUARIO:10}
+      # Envio Web Push real (US-21). Claves VAPID SOLO por entorno, nunca en
+      # el repo; formato base64url de `npx web-push generate-vapid-keys`.
+      # Sin ellas el canal PUSH queda no disponible y la app arranca igual.
+      vapid:
+        public-key: ${VAPID_PUBLIC_KEY:}
+        private-key: ${VAPID_PRIVATE_KEY:}
+        # mailto:... o https://...: contacto para el servicio de push.
+        subject: ${VAPID_SUBJECT:}
+      # Timeouts cortos: el envio corre en el executor asincrono acotado.
+      timeout-conexion-segundos: ${PUSH_TIMEOUT_CONEXION_SEGUNDOS:3}
+      timeout-pedido-segundos: ${PUSH_TIMEOUT_PEDIDO_SEGUNDOS:5}
+  # Consentimiento (D-12, Ley N.° 29733). Version de los terminos y la
+  # politica de privacidad que se exige hoy: el registro y POST
+  # /api/auth/me/consentimientos solo aceptan esta. Al publicar un texto
+  # nuevo se cambia aqui (y en /privacidad del frontend) y todos los
+  # usuarios pasan a debeAceptarTerminos=true sin migrar datos.
+  legal:
+    version-terminos: ${LEGAL_VERSION_TERMINOS:2026-10-v1}
+  # Executor asincrono acotado (AsyncConfig): avisos al ciudadano y, mas
+  # adelante, la sugerencia de categoria (D-08). Con la cola llena la tarea
+  # se descarta y se registra; nunca corre en el hilo de la peticion.
+  async:
+    hilos-base: ${ASYNC_HILOS_BASE:2}
+    hilos-max: ${ASYNC_HILOS_MAX:4}
+    cola: ${ASYNC_COLA:100}
   # CORS: el frontend es una PWA Next.js desplegada como proyecto
   # independiente, en otro origen. Lista de origenes permitidos separados
   # por coma; en dev, el servidor de desarrollo de Next (puerto 3000).

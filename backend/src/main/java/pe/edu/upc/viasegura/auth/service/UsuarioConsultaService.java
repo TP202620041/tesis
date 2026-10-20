@@ -1,5 +1,6 @@
 package pe.edu.upc.viasegura.auth.service;
 
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,9 +14,8 @@ import pe.edu.upc.viasegura.common.exception.ResourceNotFoundException;
  * de otro modulo solo se usa su {@code service}, {@code domain},
  * {@code event}, {@code port} o {@code dto}).
  *
- * <p>Es el punto de entrada del codigo nuevo desde el Sprint 2; los usos
- * previos de {@code UsuarioRepository} fuera de {@code auth} siguen
- * congelados en el almacen de ArchUnit hasta BE-06.</p>
+ * <p>Desde BE-06 es el unico camino de los demas modulos hacia los
+ * usuarios.</p>
  */
 @Service
 @RequiredArgsConstructor
@@ -36,5 +36,15 @@ public class UsuarioConsultaService {
     public Usuario usuarioPorEmail(String email) {
         return usuarioRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+    }
+
+    /**
+     * Usuario por id, o vacio si ya no existe. Lo usa quien recibe el id en un
+     * evento (p. ej. las notificaciones) y decide que hacer si falta, en vez
+     * de responder 404.
+     */
+    @Transactional(readOnly = true)
+    public Optional<Usuario> usuarioPorId(Long id) {
+        return usuarioRepository.findById(id);
     }
 }

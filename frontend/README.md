@@ -75,10 +75,11 @@ src/
 │   ├── (cuenta)/               # cualquier usuario con sesión — soporte
 │   └── (admin)/admin/          # rol ADMIN — soporte (bandeja de tickets)
 ├── features/                   # lógica por dominio, no por tipo de archivo
-│   ├── auth/  reportes/  distritos/  desempeno/  gestion/  soporte/
+│   ├── auth/  reportes/  desempeno/  gestion/  soporte/  legal/
 ├── lib/
-│   ├── api/                    # cliente HTTP tipado + tipos generados
+│   ├── api/                    # cliente HTTP tipado + tipos generados + catálogos compartidos
 │   ├── auth/                   # almacenamiento del token
+│   ├── sesion/                 # pasos que otras features registran antes del cierre de sesión (D-14)
 │   └── types/domain.ts         # uniones de enums y alias de dominio
 ├── components/ui/              # presentacionales compartidos
 ├── map/                        # cliente de mapas encapsulado (Leaflet)
@@ -121,8 +122,8 @@ El spec de springdoc tiene dos limitaciones que se corrigen en
 Se eligió **Serwist** y no `next-pwa`: este último quedó sin mantenimiento y
 no soporta bien App Router. La [guía oficial de PWA de Next.js 16](https://nextjs.org/docs/app/guides/progressive-web-apps)
 recomienda Serwist explícitamente para caching offline con Service Worker.
-Sobre Workbox, trae el `BackgroundSyncPlugin` que necesitará la cola de
-sincronización de US-06.
+Sobre Workbox, trae un `BackgroundSyncPlugin`, que al final no se usa para
+US-06 (ver "Cola offline").
 
 Se usa el **modo configurador** (`serwist.config.mjs` + `@serwist/cli`) en vez
 del plugin `withSerwistInit`: el plugin inyecta configuración de **webpack**, y
@@ -149,10 +150,10 @@ deliberado (ver la decisión de US-04 en el README del backend). Pasar a cookie
 `httpOnly` exigiría cambiar el backend y, como el frontend corre en otro
 origen, la cookie tendría que ser `SameSite=None; Secure` con
 `Access-Control-Allow-Credentials` — frágil de sostener en desarrollo. Además,
-el Service Worker de US-06 reintenta envíos en segundo plano: con bearer token
-adjunta el header explícitamente y controla el reintento; con cookie
-dependería de que el navegador la adjunte en contexto cross-origin, que es
-justo donde las políticas son más restrictivas.
+la cola offline de US-06 reenvía reportes por su cuenta: con bearer token
+adjunta el header explícitamente (el vigente, leído al enviar) y controla el
+reintento; con cookie dependería de que el navegador la adjunte en contexto
+cross-origin, que es justo donde las políticas son más restrictivas.
 
 **Lo que se pierde, sin adornos:** `localStorage` es legible por cualquier
 script de la página. Ante un XSS (por ejemplo una dependencia comprometida) el
@@ -172,6 +173,250 @@ probabilidad de que exista XSS y protege igual a cualquier modelo de
 almacenamiento. Complementos: el token se toca en un único módulo
 (`src/lib/auth/token-storage.ts`), nunca se registra en logs, y esa
 centralización es lo que haría barata una migración futura a `httpOnly`.
+
+### Cola offline (US-06): en la página, no en el Service Worker
+
+Un reporte que falla por `NetworkError` se guarda en **IndexedDB**
+(`src/pwa/colaReportes.ts`) con **su `Idempotency-Key`**, y la aplicación lo
+reenvía sola (`features/reportes/hooks/useColaOffline.ts`) al montarse, al
+volver la conexión (`online`), al volver a la pestaña y cada 30 s mientras
+quede algo pendiente. Lo dispara `app/SincronizadorDeReportes.tsx`, montado en
+el layout raíz: con la cola vacía no hace nada (ni consulta la sesión); con
+reportes en cola y token, pregunta `/me` **una vez por sesión** (no en cada
+navegación) para saber de quién son. Los hooks llegan al almacén a través de
+`features/reportes/api.ts`, que lo reexporta.
+
+**Por qué no un `BackgroundSyncPlugin` en el Service Worker** (lo que se
+planeaba): la cola de Serwist/Workbox guarda la *petición* completa y la
+repite tal cual, con su `Authorization` original. Si el token venció mientras
+el reporte esperaba (el backend lo expira a los 120 min), cada reintento daría
+401 para siempre. El SW tampoco puede leer el token nuevo: vive en
+`localStorage`, que no existe en un worker, y lo toca solo
+`lib/auth/token-storage.ts`. Se evaluaron dos salidas:
+
+| | (a) Cola en la página (elegida) | (b) Pasar el token al SW por `postMessage` |
+|---|---|---|
+| Token | Se lee al enviar, del único módulo que lo toca | Una segunda copia en el SW; para sobrevivir a que el SW se detenga habría que persistirla (IndexedDB): el JWT en reposo en otro lugar |
+| Token vencido | El reenvío usa el de la sesión nueva | Hay que sincronizar cada login/logout con el SW |
+| Norma de seguridad | Sin cambios | La rompe (JWT solo en `token-storage`) |
+| Envío sin pestaña abierta | No | Solo en Chromium (Background Sync no existe en Safari ni Firefox) |
+
+(b) solo gana en enviar con la app cerrada, y únicamente en Chromium, a
+cambio de duplicar el token; (a) es claramente mejor. Tampoco se usa
+Background Sync para "despertar" a la página: si no hay pestaña abierta no
+hay quien envíe, y si la hay, el evento `online` ya basta.
+
+Reglas de la cola:
+
+- **Nunca duplica**: el reenvío lleva la misma clave que el intento original,
+  así que si la primera petición sí llegó (y solo se perdió la respuesta) el
+  backend devuelve el reporte original. Dentro de una pestaña hay una sola
+  sincronización en curso por usuario. **Entre pestañas** puede haber una
+  carrera: las dos envían el mismo reporte con la misma clave, el backend crea
+  uno solo (restricción UNIQUE de la clave, ver `IdempotencyKeyService`) y la
+  que pierde recibe un **500**. Ese 500 se trata como transitorio: el reporte
+  queda pendiente en esa pestaña, no se duplica, y su siguiente intento recibe
+  la respuesta original (201) y lo quita, si la ganadora no lo quitó antes.
+  Ante otros errores, `marcarRechazado` lee y escribe en la misma transacción y
+  no resucita una clave que ya no está. Las pestañas se enteran de los cambios de la cola por
+  `BroadcastChannel('viasegura-cola')`.
+- **Nunca se pierde**: solo sale de la cola con una respuesta 2xx o si el
+  ciudadano lo descarta. Sin red, 5xx, 408 o 429, sigue pendiente.
+- **Nunca sale con la sesión de otro**: `token-storage` lleva una *generación
+  de sesión* que sube al guardar o borrar el token (también desde otra
+  pestaña, por el evento `storage`). `/me` se pregunta tomando antes la
+  generación, y el bucle de reenvío recibe esa generación (la de la sesión en
+  que se identificó al usuario) y la compara **al empezar** y antes de cada
+  envío; si cambió, o si la pantalla se desmontó (`AbortSignal`), se detiene
+  sin enviar nada más. Además cada reporte guarda quién lo creó y solo se
+  reenvía con la sesión de esa persona.
+- **Un 401 tardío no afecta a otra sesión**: el cliente HTTP toma la
+  generación antes del `fetch` y, ante un 401, borra el token (y redirige)
+  solo si la sesión sigue siendo la misma (`borrarTokenSi`). Un 401 de una
+  petición de la sesión anterior no cierra la de quien entró después.
+- **«No sé quién eres» no es «no hay sesión»**: si `/me` falla por red o 5xx,
+  el sincronizador no da la sesión por perdida; vuelve a preguntar al volver
+  la conexión o la pestaña. Solo un 401 cuenta como sesión inválida.
+- **Sesión vencida (decisión del usuario)**: un 401 conserva el reporte. El
+  trabajo en segundo plano **nunca lleva al login**: el `/me` del sincronizador
+  y el POST del reenvío usan `redirigirEn401: false` (el cliente borra el
+  token y lanza el 401, pero no navega; el 401 sigue centralizado en
+  `client.ts`). En su lugar aparece un aviso no modal: «Tienes N reportes
+  pendientes de envío: inicia sesión para enviarlos», con enlace a
+  `/login?redirect=<ruta actual>`. Al volver a iniciar sesión se reenvía con el
+  token nuevo; mientras tanto, `mis-reportes` lo muestra como **«Pendiente de
+  envío»**.
+- **Límite de 48 h**: la `Idempotency-Key` vale 48 h en el backend
+  (`IdempotencyKeyService.VIGENCIA_HORAS`). Pasado ese plazo el backend ya no
+  la reconoce: si la primera petición sí había llegado, reenviarla crearía un
+  duplicado (o una adhesión de US-09). Por eso un reporte con más de 48 h en
+  cola **no se reenvía a ciegas**: queda «Caducado: revisa Mis reportes antes de
+  reenviarlo», y el ciudadano puede reenviarlo con una clave nueva (es otro
+  intento lógico) o descartarlo, ambas cosas con confirmación.
+- **Rechazos de negocio** (otro 4xx, p. ej. fuera de cobertura): reintentar no
+  cambia la respuesta, así que queda «No se pudo enviar: <motivo>» con un
+  botón para descartarlo (con confirmación).
+- **Dispositivo compartido**: al cerrar sesión con reportes propios en cola se
+  pregunta «Tienes N reportes sin enviar en este dispositivo. Se enviarán
+  cuando vuelvas a entrar. [Conservar] [Descartarlos]». `auth` no conoce la
+  cola: quien compone la app registra ese paso en
+  `lib/sesion/antesDeCerrarSesion.ts` (D-14) y `useCerrarSesion` lo espera. El cierre
+  **nunca se cuelga**: Escape equivale a «Conservar»; si la pregunta queda
+  abierta y el componente se desmonta o la cola se vacía, se responde
+  «Conservar»; un segundo intento de cierre reutiliza la misma pregunta; y
+  `antesDeCerrarSesion` tiene un tope de espera (2 min) tras el cual cierra
+  igual. Los
+  rechazados y caducados se purgan solos a los 30 días. **Riesgo aceptado**: si
+  se elige «Conservar», los datos del reporte (ubicación, descripción y foto)
+  quedan en el IndexedDB del navegador hasta que su dueño vuelva a entrar o
+  pasen esos plazos; otra persona con acceso al dispositivo podría leerlos con
+  las herramientas del navegador. No se envían con la sesión de otro (ver
+  arriba), y el aviso sin sesión solo muestra la cantidad, no el contenido.
+- **La foto** se guarda como `ArrayBuffer` + nombre + tipo y se rearma como
+  `File` al reenviar: IndexedDB clona eso en todos los navegadores (Safari tuvo
+  fallos guardando `Blob`).
+- Si no hay IndexedDB (algún modo privado), el formulario avisa como antes y
+  conserva la clave para el reintento manual.
+- Tests: la lógica de la cola y el adaptador real de IndexedDB corren en jsdom
+  con **`fake-indexeddb`** (dependencia de desarrollo): jsdom no implementa
+  IndexedDB, y con un doble en memoria no se probaría el clonado de la foto ni
+  el reemplazo por clave.
+
+### Consentimiento (NC-07b, D-12)
+
+El consentimiento es un **permiso** por finalidad y versión
+(`TERMINOS_Y_PRIVACIDAD`, `NOTIFICACIONES_CORREO`, `NOTIFICACIONES_PUSH`); la
+`preferenciaNotificacion` del perfil sigue siendo solo la **preferencia** de
+canal. Dónde aparece:
+
+- **Registro (US-01):** casilla obligatoria «Acepto los términos de uso y la
+  política de privacidad» con enlace a `/privacidad`. Sin marcarla no se envía.
+  Viajan `aceptaTerminos: true` y `versionTerminos`.
+- **`/privacidad`** (pública): el texto del borrador
+  `project-context/legal/terminos-y-privacidad-v1.md` copiado en
+  `features/legal/components/TextoTerminosYPrivacidad.tsx`, con el aviso
+  visible «Borrador pendiente de revisión», la versión y los `[COMPLETAR]` del
+  original resaltados (no se inventan datos).
+- **Pantalla de aceptación** (`/aceptar-terminos`, cualquier rol con sesión)
+  para quien tiene `debeAceptarTerminos`: términos obligatorios y, solo para el
+  ciudadano, avisos por correo y push opcionales (para push, solo el
+  consentimiento; activar el navegador se hace en el perfil). Al terminar
+  vuelve a `?redirect=` (validado: solo rutas internas). Llegan aquí el login,
+  `GuardiaDeRol` y el cliente HTTP.
+- **403 `TERMINOS_PENDIENTES` centralizado:** igual que el 401, `client.ts`
+  lleva a esa pantalla (navegación dura, conserva el destino, **no** borra el
+  token) ante un 403 con `ApiError.codigo === 'TERMINOS_PENDIENTES'`. Un 403
+  sin código sigue siendo «sin permiso». El trabajo en segundo plano
+  (`redirigirEn401: false`) tampoco navega por esto. En la cola offline ese
+  403 cuenta como «sin sesión», no como rechazo: el reporte queda pendiente,
+  la sincronización se detiene y se reenvía tras aceptar. `GuardiaDeRol` y
+  `useSesionRequerida` llevan a la pantalla antes de pedir nada (sin bucle
+  en la propia `/aceptar-terminos`). El `redirect` se valida después de
+  parsear la URL (un `"/\t/otro"` o un `"/.//otro"` se convertirían en
+  `//otro`): se rechaza una ruta normalizada que empiece con `//` y se vuelve
+  a parsear lo que se devuelve.
+- **Perfil → «Privacidad y consentimientos»:** vigentes, historial (con
+  revocaciones) y otorgar/retirar correo y push. Los términos no se revocan:
+  es la baja de la cuenta (§5 y §7 del borrador), y el backend responde 409.
+
+**Versión de los términos.** El registro ocurre sin sesión y el contrato no
+expone la versión vigente en ninguna ruta pública (solo con sesión, en
+`ConsentimientosResponse.versionTerminosVigente`). Por eso el registro y
+`/privacidad` usan la constante `VERSION_TERMINOS`
+(`features/auth/model/terminos.ts`), y **`terminos.test.ts` la compara con
+`app.legal.version-terminos` del `application.yml` del backend**: si alguien
+cambia una sin la otra, la suite falla. Con sesión (pantalla de aceptación)
+se usa la versión del API; si no coincide con la del texto que trae la app,
+no se deja aceptar (no se acepta un texto que no se mostró). Si aun así el
+registro recibe 409 por versión, no se creó la cuenta: se desmarca la casilla
+y se pide volver a intentar en unos minutos. Publicar un texto nuevo =
+cambiar el texto, la constante y la propiedad del backend en la misma entrega.
+
+**No sobrescribir `LEGAL_VERSION_TERMINOS`** (la variable de entorno del
+backend que fija `app.legal.version-terminos`) sin publicar a la vez un
+frontend con ese mismo texto y esa misma versión. El test solo compara con
+el valor por defecto del `application.yml`: no ve lo que se configure en un
+entorno. Si el backend exige una versión que el frontend no trae, nadie
+puede registrarse (409) y quien deba aceptar no puede hacerlo (la pantalla
+no deja aceptar un texto que no muestra), ni escribir a Soporte, que también
+queda bloqueado sin los términos.
+
+Los avisos opcionales llevan su propia versión de texto
+(`push-2026-10-v1`, `correo-2026-10-v1`, en `model/consentimientos.ts`): el
+backend la guarda tal cual para saber qué texto vio el usuario.
+
+### Notificaciones push (US-21)
+
+Capas: reglas puras en `features/auth/model/push.ts` (base64url → bytes,
+comparar la clave VAPID, textos de estado); el navegador (Service Worker,
+`PushManager`, `Notification`) en el adaptador `src/pwa/push.ts`; la
+orquestación en `features/auth/hooks/push.ts`, que recibe navegador y API por
+parámetro y se prueba con dobles (en jsdom no hay push real). Vive en `auth`
+porque la usan el perfil, el inicio y el cierre de sesión y la aceptación de
+términos, todos de `auth`.
+
+- **Activar (perfil, solo este navegador):** requiere el consentimiento
+  `NOTIFICACIONES_PUSH`; si falta, el botón es «Otorgar consentimiento y
+  activar aquí» (sin él, el `POST` daría 409). Orden del handoff:
+  `GET /api/notificaciones/vapid-public-key` → `Notification.requestPermission()`
+  → `pushManager.subscribe({ userVisibleOnly: true, applicationServerKey })`
+  → `POST /api/notificaciones/suscripciones` con `subscription.toJSON()` +
+  `userAgent`. Estados en pantalla: no soportado (o sin Service Worker, como
+  en `next dev`), sin claves en el servidor (404: no se ofrece), permiso
+  bloqueado, inactivo y activo.
+- **Desactivar en este navegador:** `DELETE` de la suscripción +
+  `unsubscribe()`; el permiso sigue para los demás navegadores. **Retirar el
+  consentimiento** push borra en el servidor las suscripciones de todos los
+  navegadores; aquí además se cancela la local.
+- **Al iniciar sesión** (y al aceptar términos pendientes, porque con ellos el
+  backend responde 403): si el navegador ya tiene una suscripción con permiso
+  concedido, se vuelve a registrar para el usuario que entra; si se hizo con
+  otra clave VAPID (rotación: el servicio de push rechaza las viejas y el
+  backend no las desactiva), `unsubscribe()` + `subscribe()` con la nueva +
+  `POST`. Nunca pide permiso ni crea una suscripción por su cuenta. Corre en
+  segundo plano (sin navegar por un 401/403) y sin esperar. Si el navegador
+  no informa la clave de la suscripción, se trata como distinta.
+- **Al cerrar sesión:** el `DELETE` de la suscripción de este navegador va
+  dentro de `cerrar` (`useCerrarSesion`), después de las preguntas de
+  `antesDeCerrarSesion` y **antes** de `cerrarSesion()` (después sería 401).
+  Antes espera al re-registro de inicio de sesión si sigue en vuelo (si no,
+  ese `POST` podría llegar después de la baja y reasignar el navegador a
+  quien sale). Todo dentro de un tope de 3 s; pase lo que pase, el cierre
+  sigue. Si la baja responde bien, la suscripción del navegador se conserva:
+  si la misma persona vuelve a entrar, el inicio de sesión la registra otra
+  vez; si entra otra persona sin consentimiento push, el registro da 409 y no
+  recibe nada. Si la baja **falla** por cualquier motivo (red, 401 porque el
+  JWT venció con la PWA abierta, 5xx…), se hace `unsubscribe()` en el
+  navegador para que el dispositivo no siga mostrando los avisos de quien
+  salió. La única excepción es el 404: dice que el endpoint no es de quien
+  sale (puede ser de otra persona que usó el dispositivo antes, que perdería
+  su push); `darDeBajaSuscripcionPush` ya lo resuelve como éxito y la regla
+  es una segunda barrera. Agotar el tope no cuenta como fallo.
+- **Service Worker** (`sw.ts`): `push` muestra la notificación con el
+  payload del backend (`titulo`, `cuerpo`, `url`, `tag: 'reporte-<id>'`, así
+  un aviso nuevo del mismo reporte reemplaza al anterior; con un payload
+  ilegible muestra un aviso genérico, porque `userVisibleOnly` obliga a
+  mostrar algo); `notificationclick` enfoca la pestaña que ya está en esa
+  URL, o reutiliza otra de la app navegándola, o abre una nueva. Solo rutas
+  del mismo origen: una `url` absoluta o `//otro` cae a `/mis-reportes`. Se
+  valida después de parsear (con `\t`, `\n` o `\r`, `"/\t/otro"` sería
+  `//otro`, y lo mismo `"/.//otro"` por la normalización de puntos): se
+  rechaza una ruta normalizada que empiece con `//` y se vuelve a parsear lo
+  que se devuelve. El SW comprueba además el origen contra `self.location`
+  antes de `openWindow` o `navigate`; si no coincide, abre `/mis-reportes`. La lógica pura está en
+  `src/pwa/avisosPush.ts`, con tests. El SW sigue sin cachear `/api/`.
+- **CSP:** sin cambios. La suscripción y la entrega las hace el navegador con
+  su servicio de push, fuera de la CSP de la página; el SW no llama a otros
+  orígenes; la clave y el registro van al API, ya en `connect-src`.
+
+**Ver un push real en local:** el SW solo existe en el build
+(`npm run build && npm run start`, en `http://localhost:3000`, que el
+navegador trata como contexto seguro). El backend necesita claves VAPID por
+entorno (`npx web-push generate-vapid-keys`; luego `VAPID_PUBLIC_KEY`,
+`VAPID_PRIVATE_KEY` y `VAPID_SUBJECT=mailto:…` antes de
+`mvn spring-boot:run`, ver `backend/README.md`). Con un ciudadano: Perfil →
+«Otorgar consentimiento y activar aquí» → permitir; luego un funcionario del
+distrito cambia el estado de un reporte de ese ciudadano y llega el aviso.
 
 ### Fotos: dos visibilidades
 
@@ -266,6 +511,18 @@ Verificado end-to-end contra el backend real:
 - **US-18/20** índice de desempeño (`/desempeno`), **público**: ranking de los
   43 distritos con tasa de resolución, tiempo promedio y satisfacción,
   ordenable por columna y filtrable por tipo de daño.
+- **NC-07b** consentimiento: aceptación de términos en el registro,
+  `/privacidad`, pantalla `/aceptar-terminos` y «Privacidad y
+  consentimientos» en el perfil (ver «Consentimiento» en Decisiones técnicas).
+  Verificado el 20/10 (v0.4.0): una cuenta anterior entra por la aceptación y
+  vuelve a su destino con los consentimientos guardados con su versión.
+- **US-21** notificaciones push: activar y desactivar en el perfil por
+  navegador, re-registro al iniciar sesión (con rotación de claves VAPID),
+  baja al cerrar sesión y avisos en el Service Worker (ver «Notificaciones
+  push» en Decisiones técnicas). Verificado el 20/10 (v0.4.0) con claves VAPID
+  de desarrollo y Chrome con perfil persistente: suscripción en FCM, aviso
+  real mostrado por el SW con la URL del reporte, baja al cerrar sesión y
+  re-registro al volver a entrar. Chrome no admite push en modo incógnito.
 
 ### `null` no es cero
 
@@ -338,10 +595,9 @@ posterior a «hasta» no se consulta y el panel muestra el aviso.
   encuadre (y su área sigue definiendo los resultados) al volver a la
   pestaña Mapa. Mientras la lista está visible, el mapa queda `inert`.
 
-**La sincronización offline no está implementada** (es un slice propio de
-Service Worker con cola de reintentos). Hoy, sin conexión, el formulario
-avisa claramente y **conserva la clave de idempotencia**, de modo que el
-reintento manual del usuario no duplica el reporte.
+**Sincronización offline (US-06, implementada después):** sin conexión, el
+reporte queda en la cola de IndexedDB con su clave de idempotencia y se envía
+solo al volver la señal (ver "Cola offline" en Decisiones técnicas).
 
 Siguiente slice: **US-10** (mapa interactivo), que reutiliza el componente de
 mapa en modo lectura sobre `GET /api/reportes` con bounding box.

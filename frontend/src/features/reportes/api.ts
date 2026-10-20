@@ -1,6 +1,6 @@
-import { apiFetch, api } from '@/lib/api/client';
+import { apiFetch, api, conFotoAbsoluta, urlDeFoto } from '@/lib/api/client';
 import { ApiError } from '@/lib/api/errors';
-import type { CategoriaDano, HistorialEntrada } from '@/lib/types/domain';
+import type { HistorialEntrada } from '@/lib/types/domain';
 import type {
   Calificacion,
   ComentarioPublico,
@@ -12,17 +12,19 @@ import type {
 } from './model/tipos';
 
 /**
- * Categorias seleccionables (US-05, US-29).
- *
- * Sin `distritoId` el backend devuelve solo las 6 estandar; con el, agrega
- * las personalizadas de ese distrito. Por eso el formulario vuelve a
- * pedirlas cuando se resuelve la ubicacion: antes de conocer el distrito no
- * hay forma de saber que categorias propias ofrece esa municipalidad.
+ * Categorias seleccionables (US-05, US-29). El catalogo es compartido y vive
+ * en `lib/api/catalogos.ts` (FE-08, anticipado en FE-05); se reexporta aqui
+ * solo para `FormularioReporte` y `EditarReporte`, que todavia llaman a
+ * `../api` desde el componente (pasan a hooks en FE-06).
  */
-export function listarCategorias(distritoId?: number | null): Promise<CategoriaDano[]> {
-  const query = distritoId != null ? `?distritoId=${distritoId}` : '';
-  return api.get<CategoriaDano[]>(`/api/categorias${query}`, { conAuth: false });
-}
+export { listarCategorias } from '@/lib/api/catalogos';
+
+/**
+ * US-06: la cola offline en IndexedDB (adaptador en `src/pwa/`). Se expone
+ * por el gateway de la feature para que los hooks no dependan del adaptador
+ * directamente: `api.ts` sigue siendo la unica puerta de I/O de `reportes`.
+ */
+export { colaDeReportes, hayIndexedDb, type AlmacenDeCola } from '@/pwa/colaReportes';
 
 /**
  * US-10/US-12: busqueda publica de reportes. SIN token — el endpoint es
@@ -37,7 +39,7 @@ export async function buscarReportes(query: string): Promise<PaginaReportes> {
     { conAuth: false },
   );
   return {
-    contenido: pagina.content ?? [],
+    contenido: (pagina.content ?? []).map(conFotoAbsoluta),
     total: pagina.totalElements ?? 0,
   };
 }
@@ -53,8 +55,9 @@ export async function buscarReportes(query: string): Promise<PaginaReportes> {
  * tomada en el backend: "mis reportes" es mas estrecho que la matriz de
  * acceso de US-22, donde el adherido si puede ver el historial.
  */
-export function misReportes(): Promise<ReporteResumen[]> {
-  return api.get<ReporteResumen[]>('/api/reportes/mis-reportes');
+export async function misReportes(): Promise<ReporteResumen[]> {
+  const reportes = await api.get<ReporteResumen[]>('/api/reportes/mis-reportes');
+  return reportes.map(conFotoAbsoluta);
 }
 
 /**
@@ -62,8 +65,11 @@ export function misReportes(): Promise<ReporteResumen[]> {
  * sin calificar. El backend lo resuelve como consulta bajo demanda, no como
  * un job de recordatorios.
  */
-export function pendientesDeCalificacion(): Promise<ReporteResumen[]> {
-  return api.get<ReporteResumen[]>('/api/reportes/mis-reportes/pendientes-calificacion');
+export async function pendientesDeCalificacion(): Promise<ReporteResumen[]> {
+  const reportes = await api.get<ReporteResumen[]>(
+    '/api/reportes/mis-reportes/pendientes-calificacion',
+  );
+  return reportes.map(conFotoAbsoluta);
 }
 
 /** US-22: linea de tiempo del reporte. Al ciudadano le llega REDACTADA. */
@@ -98,7 +104,9 @@ export function cancelarReporte(reporteId: number): Promise<ReporteResumen> {
  */
 export async function reportePorId(reporteId: number): Promise<ReporteResumen | null> {
   try {
-    return await api.get<ReporteResumen>(`/api/reportes/${reporteId}`, { conAuth: false });
+    return conFotoAbsoluta(
+      await api.get<ReporteResumen>(`/api/reportes/${reporteId}`, { conAuth: false }),
+    );
   } catch (e) {
     if (e instanceof ApiError && e.status === 404) return null;
     throw e;
@@ -165,7 +173,10 @@ export function calificar(
  * las coordenadas. Es la restriccion clave del proyecto — el ciudadano no
  * tiene que saber ni elegir a que municipalidad pertenece el daño.
  */
-export async function crearReporte(datos: NuevoReporte): Promise<ReporteCreado> {
+export async function crearReporte(
+  datos: NuevoReporte,
+  opciones: { redirigirEn401?: boolean } = {},
+): Promise<ReporteCreado> {
   const cuerpo = new FormData();
   cuerpo.append('latitud', String(datos.latitud));
   cuerpo.append('longitud', String(datos.longitud));
@@ -184,6 +195,9 @@ export async function crearReporte(datos: NuevoReporte): Promise<ReporteCreado> 
     method: 'POST',
     body: cuerpo,
     idempotencyKey: datos.idempotencyKey,
+    // El reenvio de la cola offline (US-06) pasa `false`: un 401 en segundo
+    // plano no debe sacar al usuario de la pantalla.
+    redirigirEn401: opciones.redirigirEn401,
   });
 
   return {
@@ -192,6 +206,6 @@ export async function crearReporte(datos: NuevoReporte): Promise<ReporteCreado> 
     totalAdhesiones: creado.totalAdhesiones ?? 1,
     distritoNombre: creado.distritoNombre ?? null,
     categoriaNombre: creado.categoriaNombre ?? null,
-    fotoUrl: creado.fotoUrl ?? null,
+    fotoUrl: urlDeFoto(creado.fotoUrl),
   };
 }

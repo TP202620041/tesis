@@ -7,7 +7,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
-import org.springframework.web.multipart.MultipartFile;
 import pe.edu.upc.viasegura.auth.domain.PreferenciaNotificacion;
 import pe.edu.upc.viasegura.auth.domain.Rol;
 import pe.edu.upc.viasegura.auth.domain.Usuario;
@@ -18,10 +17,10 @@ import pe.edu.upc.viasegura.auth.dto.UsuarioResponse;
 import pe.edu.upc.viasegura.auth.repository.UsuarioRepository;
 import pe.edu.upc.viasegura.common.exception.BusinessException;
 import pe.edu.upc.viasegura.common.exception.ResourceNotFoundException;
+import pe.edu.upc.viasegura.common.port.ArchivoSubido;
 import pe.edu.upc.viasegura.common.port.FotoStorageService;
 import pe.edu.upc.viasegura.common.security.JwtService;
-import pe.edu.upc.viasegura.distritos.domain.Distrito;
-import pe.edu.upc.viasegura.distritos.repository.DistritoRepository;
+import pe.edu.upc.viasegura.distritos.service.DistritoService;
 
 /**
  * Casos de uso de acceso: registro (US-01) e inicio de sesion (US-02).
@@ -34,12 +33,18 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
-    private final DistritoRepository distritoRepository;
+    private final DistritoService distritoService;
     private final FotoStorageService fotoStorageService;
+    private final ConsentimientoService consentimientoService;
 
-    /** US-01: registra una cuenta ciudadana y devuelve un token de sesion. */
+    /**
+     * US-01: registra una cuenta ciudadana y devuelve un token de sesion.
+     * D-12: la aceptacion de los terminos vigentes se guarda en la misma
+     * transaccion; si la version no es la vigente, 409 y no se crea nada.
+     */
     @Transactional
     public AuthResponse registrar(RegistroRequest request) {
+        consentimientoService.exigirVersionVigenteDeTerminos(request.versionTerminos());
         if (usuarioRepository.existsByEmail(request.email())) {
             throw new BusinessException("El correo ya esta registrado");
         }
@@ -55,6 +60,7 @@ public class AuthService {
                 .build();
 
         Usuario guardado = usuarioRepository.save(usuario);
+        consentimientoService.registrarAceptacionDeTerminos(guardado, request.versionTerminos());
         return construirRespuesta(guardado);
     }
 
@@ -76,7 +82,7 @@ public class AuthService {
     public UsuarioResponse perfilActual(String email) {
         Usuario usuario = usuarioRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
-        return UsuarioResponse.from(usuario);
+        return respuesta(usuario);
     }
 
     /**
@@ -88,7 +94,7 @@ public class AuthService {
         Usuario usuario = usuarioRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
         usuario.setPreferenciaNotificacion(preferencia);
-        return UsuarioResponse.from(usuarioRepository.save(usuario));
+        return respuesta(usuarioRepository.save(usuario));
     }
 
     /**
@@ -104,7 +110,7 @@ public class AuthService {
      */
     @Transactional
     public UsuarioResponse editarPerfil(String email, String nombre, String apellido,
-                                         Long distritoId, MultipartFile foto) {
+                                         Long distritoId, ArchivoSubido foto) {
         Usuario usuario = usuarioRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
 
@@ -121,21 +127,24 @@ public class AuthService {
             usuario.setApellido(apellido);
         }
         if (distritoId != null) {
-            Distrito distrito = distritoRepository.findById(distritoId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Distrito no encontrado: " + distritoId));
-            usuario.setDistrito(distrito);
+            usuario.setDistrito(distritoService.porId(distritoId));
         }
-        if (foto != null && !foto.isEmpty()) {
+        if (foto != null && !foto.vacio()) {
             // Foto de perfil, no de reporte: se guarda aparte y su URL apunta
             // al endpoint autenticado, no al directorio publico (US-30).
             usuario.setFotoUrl(fotoStorageService.almacenarFotoPerfil(foto));
         }
 
-        return UsuarioResponse.from(usuarioRepository.save(usuario));
+        return respuesta(usuarioRepository.save(usuario));
     }
 
     private AuthResponse construirRespuesta(Usuario usuario) {
         String token = jwtService.generarToken(usuario.getEmail(), usuario.getRol().name());
-        return AuthResponse.of(token, jwtService.getExpirationMinutes(), UsuarioResponse.from(usuario));
+        return AuthResponse.of(token, jwtService.getExpirationMinutes(), respuesta(usuario));
+    }
+
+    /** Datos del propio usuario, con si le falta aceptar los terminos vigentes (D-12). */
+    private UsuarioResponse respuesta(Usuario usuario) {
+        return UsuarioResponse.from(usuario, consentimientoService.debeAceptarTerminos(usuario.getId()));
     }
 }

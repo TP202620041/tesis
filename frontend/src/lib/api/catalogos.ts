@@ -1,8 +1,13 @@
 import { api } from '@/lib/api/client';
 import { ApiError } from '@/lib/api/errors';
-import type { Distrito } from '@/lib/types/domain';
+import type { CategoriaDano, Distrito } from '@/lib/types/domain';
 
-/** Catalogo de distritos y resolucion geografica (endpoints publicos). */
+/**
+ * Catalogos compartidos (endpoints publicos): distritos y categorias de
+ * dano. Los usan varias features (reportes, gestion, desempeno, auth), asi
+ * que viven en `lib/` y no en el `api.ts` de una de ellas (ARCHITECTURE.md
+ * §5.3). Cada feature los consume desde sus hooks.
+ */
 
 /** Los 43 distritos de Lima Metropolitana, en orden alfabetico. */
 export function listarDistritos(): Promise<Distrito[]> {
@@ -36,4 +41,17 @@ export async function distritoPorCoordenadas(
     if (e instanceof ApiError && e.status === 404) return null;
     throw e;
   }
+}
+
+/**
+ * Categorias seleccionables (US-05, US-29).
+ *
+ * Sin `distritoId` el backend devuelve solo las 6 estandar; con el, agrega
+ * las personalizadas de ese distrito. Por eso el formulario vuelve a
+ * pedirlas cuando se resuelve la ubicacion: antes de conocer el distrito no
+ * hay forma de saber que categorias propias ofrece esa municipalidad.
+ */
+export function listarCategorias(distritoId?: number | null): Promise<CategoriaDano[]> {
+  const query = distritoId != null ? `?distritoId=${distritoId}` : '';
+  return api.get<CategoriaDano[]>(`/api/categorias${query}`, { conAuth: false });
 }

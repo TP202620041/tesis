@@ -32,8 +32,8 @@ class AuthControllerIT extends AbstractPostgisIT {
 
     private String registro(String email, String password) {
         return """
-                {"email":"%s","password":"%s","nombre":"Ana","apellido":"Ruiz"}
-                """.formatted(email, password);
+                {"email":"%s","password":"%s","nombre":"Ana","apellido":"Ruiz","aceptaTerminos":true,"versionTerminos":"%s"}
+                """.formatted(email, password, versionTerminos);
     }
 
     @Test

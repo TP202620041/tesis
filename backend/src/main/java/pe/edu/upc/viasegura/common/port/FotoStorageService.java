@@ -1,7 +1,6 @@
 package pe.edu.upc.viasegura.common.port;
 
 import org.springframework.core.io.Resource;
-import org.springframework.web.multipart.MultipartFile;
 
 /**
  * Abstraccion del almacenamiento de fotos (US-05 reportes, US-30 perfil).
@@ -23,6 +22,9 @@ import org.springframework.web.multipart.MultipartFile;
  * para la otra: o se filtran las caras de los ciudadanos, o el mapa publico
  * muestra imagenes rotas. Por eso son dos metodos distintos en vez de un
  * parametro: al escribir el codigo hay que decidir explicitamente cual es.</p>
+ *
+ * <p>El archivo llega como {@link ArchivoSubido}, no como el
+ * {@code MultipartFile} de Spring Web: el puerto no conoce HTTP (BE-10).</p>
  */
 public interface FotoStorageService {
 
@@ -31,7 +33,7 @@ public interface FotoStorageService {
      *
      * @return URL relativa <b>publica</b> de la foto almacenada
      */
-    String almacenarFotoReporte(MultipartFile foto);
+    String almacenarFotoReporte(ArchivoSubido foto);
 
     /**
      * Almacena la foto de perfil de un ciudadano (US-30).
@@ -39,7 +41,7 @@ public interface FotoStorageService {
      * @return URL relativa <b>autenticada</b>: apunta al endpoint que valida
      *         que quien la pide sea el dueno
      */
-    String almacenarFotoPerfil(MultipartFile foto);
+    String almacenarFotoPerfil(ArchivoSubido foto);
 
     /**
      * Carga una foto de perfil ya almacenada.
