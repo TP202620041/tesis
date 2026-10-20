@@ -8,7 +8,7 @@ flowchart TB
   funcionario(["Funcionario municipal"])
   admin(["ADMIN"])
 
-  subgraph viasegura["ViaSegura"]
+  subgraph viasegura["Ciudad Viva"]
     pwa["PWA<br/>Next.js 16 · React 19 · App Router<br/>frontend/"]
     sw["Service Worker<br/>Serwist: precache del App Shell (el API nunca se cachea)<br/>muestra los avisos push y abre la página al hacer clic"]
     api["API REST<br/>Spring Boot 3.4 · Java 21 · JWT<br/>backend/ · OpenAPI en /v3/api-docs<br/>GET públicos sin token: reportes, densidad del mapa de calor (US-11), catálogos, fotos"]

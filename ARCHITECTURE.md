@@ -1,4 +1,4 @@
-# Arquitectura de software — ViaSegura
+# Arquitectura de software — Ciudad Viva
 
 > **Documento normativo.** Define las capas, qué va en cada una y qué puede depender de qué, igual para `backend/`, `frontend/` y el futuro `inferencia/`. Los agentes de cada carpeta lo siguen; no lo modifican salvo pedido explícito (ver §10).
 > Versión 1.5 · 2026-10-20 (D-13 y D-14 decididas) · Plan de migración: `project-context/decisions/plan-migracion-capas.md`.

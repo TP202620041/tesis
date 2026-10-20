@@ -8,7 +8,7 @@ flowchart TB
   funcionario(["Funcionario municipal<br/>Gestiona la bandeja de su distrito: estados, responsable y categorías"])
   admin(["ADMIN<br/>Atiende los tickets de soporte y puede consultar cualquier reporte"])
 
-  viasegura["ViaSegura<br/>Crowdsourcing geoespacial de daños viales en Lima Metropolitana: asigna cada reporte a su distrito y publica un índice de desempeño"]
+  viasegura["Ciudad Viva<br/>Crowdsourcing geoespacial de daños viales en Lima Metropolitana: asigna cada reporte a su distrito y publica un índice de desempeño"]
 
   smtp["Servidor SMTP<br/>Correos de notificación, recuperación de contraseña y soporte"]
   push["Servicio Web Push del navegador<br/>FCM, Mozilla, WNS o Apple"]
@@ -31,4 +31,4 @@ flowchart TB
   class smtp,push,osm externo
 ```
 
-**Cómo leerlo.** Los tres actores usan ViaSegura desde el navegador; el sistema depende de tres servicios externos: un servidor SMTP para los correos, el servicio push de cada navegador para los avisos y OpenStreetMap para el mapa base. El mapa de reportes y el índice de desempeño también son públicos: cualquiera los consulta sin cuenta.
+**Cómo leerlo.** Los tres actores usan Ciudad Viva desde el navegador; el sistema depende de tres servicios externos: un servidor SMTP para los correos, el servicio push de cada navegador para los avisos y OpenStreetMap para el mapa base. El mapa de reportes y el índice de desempeño también son públicos: cualquiera los consulta sin cuenta.

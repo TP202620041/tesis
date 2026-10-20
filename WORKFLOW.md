@@ -1,4 +1,4 @@
-# Workflow de agentes de Claude — ViaSegura
+# Workflow de agentes de Claude — Ciudad Viva
 
 > **Documento normativo**, igual que `ARCHITECTURE.md`. Define quién hace qué, cómo avanza una tarea desde el plan hasta `develop` (y de ahí a una versión en `main`, con GitFlow) y qué lo hace cumplir automáticamente.
 > Versión 1.1 · 2026-10-11 (GitFlow). Configuración en `.claude/` (raíz) y en `backend/.claude/` y `frontend/.claude/`.

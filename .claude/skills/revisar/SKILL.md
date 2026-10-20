@@ -6,7 +6,7 @@ agent: revisor-arquitectura
 background: false
 ---
 
-Revisa el trabajo de la rama actual del monorepo ViaSegura contra `ARCHITECTURE.md`, el `CLAUDE.md` de la carpeta tocada y, si corresponde, los criterios de aceptación de la tarea en `project-context/decisions/plan-migracion-capas.md`.
+Revisa el trabajo de la rama actual del monorepo Ciudad Viva contra `ARCHITECTURE.md`, el `CLAUDE.md` de la carpeta tocada y, si corresponde, los criterios de aceptación de la tarea en `project-context/decisions/plan-migracion-capas.md`.
 
 Contexto adicional del autor (puede estar vacío): $ARGUMENTS
 

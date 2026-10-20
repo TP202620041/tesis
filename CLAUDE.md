@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Qué es
 
-Monorepo de la tesis UPC **ViaSegura**: crowdsourcing geoespacial de daños viales en Lima Metropolitana. El ciudadano reporta con foto + GPS, el reporte se asigna automáticamente al distrito por punto-en-polígono, y la municipalidad lo gestiona; un índice público mide el desempeño de cada distrito.
+Monorepo de la tesis UPC **Ciudad Viva** (antes ViaSegura; los identificadores técnicos `viasegura` —paquete Java, BD, contenedores— se conservan): crowdsourcing geoespacial de daños viales en Lima Metropolitana. El ciudadano reporta con foto + GPS, el reporte se asigna automáticamente al distrito por punto-en-polígono, y la municipalidad lo gestiona; un índice público mide el desempeño de cada distrito.
 
 - `backend/` — Spring Boot 3.4, Java 21, PostgreSQL 16 + PostGIS 3.4, Hibernate Spatial, Flyway, JWT stateless.
 - `frontend/` — PWA Next.js 16 (App Router, Turbopack), React 19, TS estricto, Tailwind 4, Serwist, Leaflet.
