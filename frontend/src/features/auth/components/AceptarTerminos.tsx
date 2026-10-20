@@ -123,7 +123,9 @@ export function AceptarTerminos({ usuario, texto }: Props) {
 
       {textoDesactualizado && (
         <AlertaError
-          mensaje={`La versión vigente (${version}) todavía no está disponible en esta versión de la aplicación. Recarga la página; si persiste, escríbenos desde Soporte.`}
+          // Sin «escríbenos desde Soporte»: Soporte también está bloqueado
+          // mientras falten los términos.
+          mensaje={`La versión vigente (${version}) todavía no está disponible en esta versión de la aplicación. La aplicación se está actualizando; vuelve a intentarlo en unos minutos.`}
         />
       )}
       {error && <AlertaError mensaje={error.mensaje} detalles={error.detalles} />}

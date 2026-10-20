@@ -109,8 +109,11 @@ describe('FormularioRegistro (NC-07b)', () => {
       enviar: vi.fn(),
     });
     render(<FormularioRegistro />);
-    expect(screen.getByRole('status')).toHaveTextContent(/No se creó la cuenta/);
-    expect(screen.getByRole('button', { name: 'recarga la página' })).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent(/no se creó la cuenta/);
+    expect(screen.getByRole('status')).toHaveTextContent(/se está actualizando/);
+    // Sin sesión ni términos aceptados no hay Soporte al que mandarlo.
+    expect(screen.getByRole('status')).not.toHaveTextContent(/Soporte/);
+    expect(screen.getByRole('button', { name: 'Volver a intentar' })).toBeInTheDocument();
   });
 });
 
@@ -169,6 +172,7 @@ describe('AceptarTerminos (D-12)', () => {
     render(<AceptarTerminos usuario={USUARIO} texto={null} />);
     expect(screen.getByRole('checkbox', { name: /Acepto los términos/ })).toBeDisabled();
     expect(screen.getByRole('alert')).toHaveTextContent(/todavía no está disponible/);
+    expect(screen.getByRole('alert')).not.toHaveTextContent(/Soporte/);
   });
 
   it('al funcionario no le ofrece avisos de reportes', () => {

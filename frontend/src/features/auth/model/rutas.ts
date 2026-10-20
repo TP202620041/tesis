@@ -47,16 +47,28 @@ export const RUTA_PRIVACIDAD = '/privacidad';
  * `porDefecto` si no es una ruta interna. Evita un redirect abierto: solo se
  * aceptan rutas relativas de esta app (`/algo`), nunca `//otro-sitio` ni
  * `https://…`, y nunca la propia pantalla de aceptacion (bucle).
+ *
+ * Se valida DESPUES de parsear (WHATWG), no sobre el texto: el parser quita
+ * tabuladores y saltos de linea y trata `\` como `/`, asi que
+ * `"/\t/evil.example"` pasaria un filtro de texto y terminaria siendo
+ * `//evil.example`. Se resuelve contra un origen ficticio y solo se acepta si
+ * sigue en ese origen.
  */
 export function destinoInterno(redirect: string | null | undefined, porDefecto: string): string {
-  if (!redirect || !redirect.startsWith('/') || redirect.startsWith('//') || redirect.includes('\\')) {
+  if (!redirect || !redirect.startsWith('/')) return porDefecto;
+  let url: URL;
+  try {
+    url = new URL(redirect, ORIGEN_FICTICIO);
+  } catch {
     return porDefecto;
   }
-  if (redirect === RUTA_ACEPTAR_TERMINOS || redirect.startsWith(`${RUTA_ACEPTAR_TERMINOS}?`)) {
-    return porDefecto;
-  }
-  return redirect;
+  if (url.origin !== ORIGEN_FICTICIO) return porDefecto;
+  if (url.pathname === RUTA_ACEPTAR_TERMINOS) return porDefecto;
+  return url.pathname + url.search + url.hash;
 }
+
+/** Origen que no existe, solo para resolver rutas relativas en {@link destinoInterno}. */
+const ORIGEN_FICTICIO = 'http://x.invalid';
 
 /** Ruta de la pantalla de aceptacion que, al terminar, vuelve a `destino`. */
 export function rutaAceptarTerminos(destino: string): string {

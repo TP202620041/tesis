@@ -28,6 +28,10 @@ describe('desenlaceDeEnvio', () => {
     expect(desenlaceDeEnvio(401)).toBe('sin-sesion');
   });
 
+  it('403 por términos pendientes conserva el reporte (NC-07b)', () => {
+    expect(desenlaceDeEnvio(403, { terminosPendientes: true })).toBe('sin-sesion');
+  });
+
   it('otro 4xx es un rechazo de negocio', () => {
     expect(desenlaceDeEnvio(400)).toBe('rechazado');
     expect(desenlaceDeEnvio(403)).toBe('rechazado');

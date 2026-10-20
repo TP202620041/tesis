@@ -307,7 +307,12 @@ canal. Dónde aparece:
   lleva a esa pantalla (navegación dura, conserva el destino, **no** borra el
   token) ante un 403 con `ApiError.codigo === 'TERMINOS_PENDIENTES'`. Un 403
   sin código sigue siendo «sin permiso». El trabajo en segundo plano
-  (`redirigirEn401: false`) tampoco navega por esto.
+  (`redirigirEn401: false`) tampoco navega por esto. En la cola offline ese
+  403 cuenta como «sin sesión», no como rechazo: el reporte queda pendiente,
+  la sincronización se detiene y se reenvía tras aceptar. `GuardiaDeRol` y
+  `useSesionRequerida` llevan a la pantalla antes de pedir nada (sin bucle
+  en la propia `/aceptar-terminos`). El `redirect` se valida después de
+  parsear la URL (un `"/\t/otro"` se convertiría en `//otro`).
 - **Perfil → «Privacidad y consentimientos»:** vigentes, historial (con
   revocaciones) y otorgar/retirar correo y push. Los términos no se revocan:
   es la baja de la cuenta (§5 y §7 del borrador), y el backend responde 409.
@@ -322,8 +327,17 @@ cambia una sin la otra, la suite falla. Con sesión (pantalla de aceptación)
 se usa la versión del API; si no coincide con la del texto que trae la app,
 no se deja aceptar (no se acepta un texto que no se mostró). Si aun así el
 registro recibe 409 por versión, no se creó la cuenta: se desmarca la casilla
-y se pide recargar. Publicar un texto nuevo = cambiar el texto, la constante y
-la propiedad del backend en la misma entrega.
+y se pide volver a intentar en unos minutos. Publicar un texto nuevo =
+cambiar el texto, la constante y la propiedad del backend en la misma entrega.
+
+**No sobrescribir `LEGAL_VERSION_TERMINOS`** (la variable de entorno del
+backend que fija `app.legal.version-terminos`) sin publicar a la vez un
+frontend con ese mismo texto y esa misma versión. El test solo compara con
+el valor por defecto del `application.yml`: no ve lo que se configure en un
+entorno. Si el backend exige una versión que el frontend no trae, nadie
+puede registrarse (409) y quien deba aceptar no puede hacerlo (la pantalla
+no deja aceptar un texto que no muestra), ni escribir a Soporte, que también
+queda bloqueado sin los términos.
 
 Los avisos opcionales llevan su propia versión de texto
 (`push-2026-10-v1`, `correo-2026-10-v1`, en `model/consentimientos.ts`): el

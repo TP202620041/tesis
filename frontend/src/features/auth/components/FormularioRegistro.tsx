@@ -56,15 +56,15 @@ export function FormularioRegistro() {
           role="status"
           className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-100"
         >
-          Los términos cambiaron desde que abriste esta página. No se creó la cuenta:{' '}
+          Los términos cambiaron y no se creó la cuenta. La aplicación se está actualizando;
+          vuelve a intentarlo en unos minutos y lee el texto nuevo antes de aceptar.{' '}
           <button
             type="button"
             onClick={() => window.location.reload()}
             className="font-medium underline"
           >
-            recarga la página
-          </button>{' '}
-          y vuelve a leerlos antes de aceptar.
+            Volver a intentar
+          </button>
         </p>
       )}
       <Campo

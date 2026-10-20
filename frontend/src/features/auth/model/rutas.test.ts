@@ -94,12 +94,26 @@ describe('aceptación de términos (NC-07b)', () => {
     expect(destinoInterno('/bandeja/7?x=1', '/inicio')).toBe('/bandeja/7?x=1');
   });
 
-  it.each([null, undefined, '', 'mis-reportes', '//evil.example', 'https://evil.example', '/\\evil'])(
-    'destinoInterno rechaza %s (redirect abierto)',
-    (valor) => {
-      expect(destinoInterno(valor, '/inicio')).toBe('/inicio');
-    },
-  );
+  it.each([
+    null,
+    undefined,
+    '',
+    'mis-reportes',
+    '//evil.example',
+    'https://evil.example',
+    '/\\evil.example',
+    // El parser WHATWG quita \t, \n y \r: sin validar tras parsear, estos
+    // serian `//evil.example`.
+    '/\t/evil.example',
+    '/\n/evil.example',
+    '/\r/evil.example',
+  ])('destinoInterno rechaza %j (redirect abierto)', (valor) => {
+    expect(destinoInterno(valor, '/inicio')).toBe('/inicio');
+  });
+
+  it('destinoInterno conserva la consulta y el fragmento', () => {
+    expect(destinoInterno('/mapa?d=3#lista', '/inicio')).toBe('/mapa?d=3#lista');
+  });
 
   it('destinoInterno no vuelve a la propia pantalla de aceptación', () => {
     expect(destinoInterno('/aceptar-terminos', '/inicio')).toBe('/inicio');

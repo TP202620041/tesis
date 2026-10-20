@@ -1,10 +1,22 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { esVersionDeTerminosNoVigente, VERSION_TERMINOS } from './terminos';
 
-/** `application.yml` del backend, en el mismo monorepo (Vitest corre desde `frontend/`). */
-const APPLICATION_YML = resolve(process.cwd(), '../backend/src/main/resources/application.yml');
+/**
+ * `application.yml` del backend, en el mismo monorepo, relativo a ESTE
+ * archivo (no al directorio desde el que se corre Vitest).
+ *
+ * No se escribe `new URL('…', import.meta.url)`: Vite reconoce ese patrón
+ * literal como un recurso y lo reescribe a `http://localhost:3000/…`, y
+ * `fileURLToPath` falla («The URL must be of scheme file»). Por eso se parte
+ * de la ruta de este archivo y se resuelve con `path`.
+ */
+const APPLICATION_YML = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  '../../../../../backend/src/main/resources/application.yml',
+);
 
 describe('VERSION_TERMINOS', () => {
   it('coincide con app.legal.version-terminos del backend (si no, el registro da 409)', () => {
