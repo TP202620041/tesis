@@ -12,7 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import pe.edu.upc.viasegura.auth.domain.Usuario;
-import pe.edu.upc.viasegura.auth.repository.UsuarioRepository;
+import pe.edu.upc.viasegura.auth.service.UsuarioConsultaService;
 import pe.edu.upc.viasegura.common.exception.BusinessException;
 import pe.edu.upc.viasegura.common.exception.OperacionNoPermitidaException;
 import pe.edu.upc.viasegura.common.exception.ResourceNotFoundException;
@@ -49,7 +49,7 @@ public class GestionReporteService {
     private final ReporteRepository reporteRepository;
     private final HistorialEstadoReporteRepository historialRepository;
     private final AsignacionResponsableRepository asignacionRepository;
-    private final UsuarioRepository usuarioRepository;
+    private final UsuarioConsultaService usuarioConsultaService;
     private final ApplicationEventPublisher eventPublisher;
 
     /** US-13: reportes del distrito del funcionario, con filtros opcionales. */
@@ -64,8 +64,7 @@ public class GestionReporteService {
     /** US-14: cambia el estado de un reporte con validaciones y auditoria. */
     @Transactional
     public ReporteGestionResponse cambiarEstado(String emailFuncionario, Long reporteId, CambiarEstadoRequest req) {
-        Usuario funcionario = usuarioRepository.findByEmail(emailFuncionario)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+        Usuario funcionario = usuarioConsultaService.usuarioPorEmail(emailFuncionario);
         Reporte reporte = reporteRepository.findById(reporteId)
                 .orElseThrow(() -> new ResourceNotFoundException("Reporte no encontrado: " + reporteId));
 
@@ -141,8 +140,7 @@ public class GestionReporteService {
     @Transactional
     public AsignacionResponsableResponse asignarResponsable(String emailFuncionario, Long reporteId,
                                                             AsignarResponsableRequest req) {
-        Usuario funcionario = usuarioRepository.findByEmail(emailFuncionario)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+        Usuario funcionario = usuarioConsultaService.usuarioPorEmail(emailFuncionario);
         Reporte reporte = reporteRepository.findById(reporteId)
                 .orElseThrow(() -> new ResourceNotFoundException("Reporte no encontrado: " + reporteId));
 
@@ -184,8 +182,7 @@ public class GestionReporteService {
     /** US-15: responsable vigente del reporte (con control de jurisdiccion). */
     @Transactional(readOnly = true)
     public AsignacionResponsableResponse responsableActivo(String emailFuncionario, Long reporteId) {
-        Usuario funcionario = usuarioRepository.findByEmail(emailFuncionario)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+        Usuario funcionario = usuarioConsultaService.usuarioPorEmail(emailFuncionario);
         Reporte reporte = reporteRepository.findById(reporteId)
                 .orElseThrow(() -> new ResourceNotFoundException("Reporte no encontrado: " + reporteId));
 
@@ -197,8 +194,7 @@ public class GestionReporteService {
     }
 
     private Distrito distritoDeGestion(String emailFuncionario) {
-        Usuario funcionario = usuarioRepository.findByEmail(emailFuncionario)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+        Usuario funcionario = usuarioConsultaService.usuarioPorEmail(emailFuncionario);
         if (funcionario.getDistrito() == null) {
             throw new AccessDeniedException("El funcionario no tiene un distrito de gestion asignado");
         }

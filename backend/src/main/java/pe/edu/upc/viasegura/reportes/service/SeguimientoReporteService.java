@@ -6,7 +6,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import pe.edu.upc.viasegura.auth.domain.Usuario;
-import pe.edu.upc.viasegura.auth.repository.UsuarioRepository;
+import pe.edu.upc.viasegura.auth.service.UsuarioConsultaService;
 import pe.edu.upc.viasegura.common.exception.ResourceNotFoundException;
 import pe.edu.upc.viasegura.distritos.domain.Distrito;
 import pe.edu.upc.viasegura.reportes.domain.HistorialEstadoReporte;
@@ -33,7 +33,7 @@ public class SeguimientoReporteService {
             "Se asigno un responsable para la atencion del reporte.";
 
     private final ReporteRepository reporteRepository;
-    private final UsuarioRepository usuarioRepository;
+    private final UsuarioConsultaService usuarioConsultaService;
     private final AdhesionReporteRepository adhesionRepository;
     private final HistorialEstadoReporteRepository historialRepository;
 
@@ -48,8 +48,7 @@ public class SeguimientoReporteService {
     public List<HistorialEntradaResponse> historial(String emailSolicitante, Long reporteId) {
         Reporte reporte = reporteRepository.findById(reporteId)
                 .orElseThrow(() -> new ResourceNotFoundException("Reporte no encontrado: " + reporteId));
-        Usuario solicitante = usuarioRepository.findByEmail(emailSolicitante)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+        Usuario solicitante = usuarioConsultaService.usuarioPorEmail(emailSolicitante);
 
         boolean vistaDetallada = autorizarYResolverVista(solicitante, reporte);
 

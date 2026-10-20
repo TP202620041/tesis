@@ -1,9 +1,8 @@
-package pe.edu.upc.viasegura.reportes;
+package pe.edu.upc.viasegura.reportes.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
-import pe.edu.upc.viasegura.reportes.service.ReincidenciaDetector;
 
 /** Unit test del detector de reincidencia (US-27); sin contexto de Spring. */
 class ReincidenciaDetectorTest {
@@ -26,5 +25,8 @@ class ReincidenciaDetectorTest {
         assertThat(detector.pareceReincidencia("Gracias a la municipalidad por resolverlo")).isFalse();
         assertThat(detector.pareceReincidencia("")).isFalse();
         assertThat(detector.pareceReincidencia(null)).isFalse();
+        // Solo espacios (incluidos tab y salto de linea): misma semantica que
+        // StringUtils.hasText, que se reemplazo al pasar a domain/ (BE-06).
+        assertThat(detector.pareceReincidencia(" \t\n ")).isFalse();
     }
 }

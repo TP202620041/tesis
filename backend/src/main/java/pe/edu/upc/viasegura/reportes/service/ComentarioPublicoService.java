@@ -5,11 +5,12 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import pe.edu.upc.viasegura.auth.domain.Usuario;
-import pe.edu.upc.viasegura.auth.repository.UsuarioRepository;
+import pe.edu.upc.viasegura.auth.service.UsuarioConsultaService;
 import pe.edu.upc.viasegura.common.exception.BusinessException;
 import pe.edu.upc.viasegura.common.exception.ResourceNotFoundException;
 import pe.edu.upc.viasegura.reportes.domain.ComentarioPublico;
 import pe.edu.upc.viasegura.reportes.domain.EstadoReporte;
+import pe.edu.upc.viasegura.reportes.domain.ReincidenciaDetector;
 import pe.edu.upc.viasegura.reportes.domain.Reporte;
 import pe.edu.upc.viasegura.reportes.dto.ComentarPublicoRequest;
 import pe.edu.upc.viasegura.reportes.dto.ComentarioPublicoResponse;
@@ -28,7 +29,7 @@ import pe.edu.upc.viasegura.reportes.repository.ReporteRepository;
 public class ComentarioPublicoService {
 
     private final ReporteRepository reporteRepository;
-    private final UsuarioRepository usuarioRepository;
+    private final UsuarioConsultaService usuarioConsultaService;
     private final ComentarioPublicoRepository comentarioRepository;
     private final ReincidenciaDetector reincidenciaDetector;
 
@@ -36,8 +37,7 @@ public class ComentarioPublicoService {
     @Transactional
     public ComentarioPublicoResponse comentar(String emailCiudadano, Long reporteId,
                                               ComentarPublicoRequest req) {
-        Usuario ciudadano = usuarioRepository.findByEmail(emailCiudadano)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+        Usuario ciudadano = usuarioConsultaService.usuarioPorEmail(emailCiudadano);
         Reporte reporte = reporteRepository.findById(reporteId)
                 .orElseThrow(() -> new ResourceNotFoundException("Reporte no encontrado: " + reporteId));
 

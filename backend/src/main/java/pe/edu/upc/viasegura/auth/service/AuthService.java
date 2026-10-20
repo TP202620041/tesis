@@ -20,8 +20,7 @@ import pe.edu.upc.viasegura.common.exception.ResourceNotFoundException;
 import pe.edu.upc.viasegura.common.port.ArchivoSubido;
 import pe.edu.upc.viasegura.common.port.FotoStorageService;
 import pe.edu.upc.viasegura.common.security.JwtService;
-import pe.edu.upc.viasegura.distritos.domain.Distrito;
-import pe.edu.upc.viasegura.distritos.repository.DistritoRepository;
+import pe.edu.upc.viasegura.distritos.service.DistritoService;
 
 /**
  * Casos de uso de acceso: registro (US-01) e inicio de sesion (US-02).
@@ -34,7 +33,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
-    private final DistritoRepository distritoRepository;
+    private final DistritoService distritoService;
     private final FotoStorageService fotoStorageService;
     private final ConsentimientoService consentimientoService;
 
@@ -128,9 +127,7 @@ public class AuthService {
             usuario.setApellido(apellido);
         }
         if (distritoId != null) {
-            Distrito distrito = distritoRepository.findById(distritoId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Distrito no encontrado: " + distritoId));
-            usuario.setDistrito(distrito);
+            usuario.setDistrito(distritoService.porId(distritoId));
         }
         if (foto != null && !foto.vacio()) {
             // Foto de perfil, no de reporte: se guarda aparte y su URL apunta
