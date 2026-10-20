@@ -92,6 +92,18 @@ describe.each([
 });
 
 describe('apiFetch', () => {
+  it('con redirigirEn401: false borra el token y lanza el 401, pero no navega', async () => {
+    const assign = vi.fn();
+    vi.stubGlobal('location', { pathname: '/mapa', search: '', assign });
+    fetchFalso.mockResolvedValue(new Response(null, { status: 401 }));
+
+    const fallo = apiFetch('/api/auth/me', { redirigirEn401: false });
+
+    await expect(fallo).rejects.toMatchObject({ status: 401 });
+    expect(leerToken()).toBeNull();
+    expect(assign).not.toHaveBeenCalled();
+  });
+
   it('sigue interpretando JSON tras extraer la ejecución común', async () => {
     fetchFalso.mockResolvedValue(Response.json({ id: 7 }));
     await expect(apiFetch<{ id: number }>('/api/auth/me')).resolves.toEqual({ id: 7 });

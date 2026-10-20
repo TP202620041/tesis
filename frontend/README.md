@@ -177,10 +177,13 @@ centralización es lo que haría barata una migración futura a `httpOnly`.
 
 Un reporte que falla por `NetworkError` se guarda en **IndexedDB**
 (`src/pwa/colaReportes.ts`) con **su `Idempotency-Key`**, y la aplicación lo
-reenvía sola (`features/reportes/hooks/colaDeReportes.ts`) al montarse, al
+reenvía sola (`features/reportes/hooks/useColaOffline.ts`) al montarse, al
 volver la conexión (`online`), al volver a la pestaña y cada 30 s mientras
 quede algo pendiente. Lo dispara `app/SincronizadorDeReportes.tsx`, montado en
-el layout raíz, que no hace nada mientras la cola esté vacía.
+el layout raíz: con la cola vacía no hace nada (ni consulta la sesión); con
+reportes en cola y token, pregunta `/me` **una vez por sesión** (no en cada
+navegación) para saber de quién son. Los hooks llegan al almacén a través de
+`features/reportes/api.ts`, que lo reexporta.
 
 **Por qué no un `BackgroundSyncPlugin` en el Service Worker** (lo que se
 planeaba): la cola de Serwist/Workbox guarda la *petición* completa y la
@@ -206,20 +209,54 @@ Reglas de la cola:
 
 - **Nunca duplica**: el reenvío lleva la misma clave que el intento original,
   así que si la primera petición sí llegó (y solo se perdió la respuesta) el
-  backend devuelve el reporte original. Dos pestañas sincronizando a la vez
-  tampoco duplican, por la misma razón; dentro de una pestaña hay una sola
-  sincronización en curso.
+  backend devuelve el reporte original. Dentro de una pestaña hay una sola
+  sincronización en curso por usuario. **Entre pestañas** puede haber una
+  carrera: las dos envían el mismo reporte con la misma clave, el backend crea
+  uno solo (restricción UNIQUE de la clave, ver `IdempotencyKeyService`) y la
+  que pierde recibe un **500**. Ese 500 se trata como transitorio: el reporte
+  queda pendiente en esa pestaña, no se duplica, y su siguiente intento recibe
+  la respuesta original (201) y lo quita, si la ganadora no lo quitó antes.
+  Ante otros errores, `marcarRechazado` lee y escribe en la misma transacción y
+  no resucita una clave que ya no está. Las pestañas se enteran de los cambios de la cola por
+  `BroadcastChannel('viasegura-cola')`.
 - **Nunca se pierde**: solo sale de la cola con una respuesta 2xx o si el
-  ciudadano lo descarta. Sin red o con 5xx, sigue pendiente.
+  ciudadano lo descarta. Sin red, 5xx, 408 o 429, sigue pendiente.
+- **Nunca sale con la sesión de otro**: `token-storage` lleva una *generación
+  de sesión* que sube al guardar o borrar el token (también desde otra
+  pestaña, por el evento `storage`). El bucle de reenvío la lee al empezar y
+  la compara antes de cada envío; si cambió, o si la pantalla se desmontó
+  (`AbortSignal`), se detiene sin enviar el resto. Además cada reporte guarda
+  quién lo creó y solo se reenvía con la sesión de esa persona.
 - **Sesión vencida (decisión del usuario)**: un 401 conserva el reporte. El
-  cliente HTTP lleva al login, como ante cualquier 401, y al volver a iniciar
-  sesión se reenvía con el token nuevo. Mientras tanto, `mis-reportes` lo
-  muestra como **«Pendiente de envío»**.
-- **Por usuario**: cada reporte guarda quién lo creó y solo se reenvía con la
-  sesión de esa persona (dispositivo compartido).
+  trabajo en segundo plano **nunca lleva al login**: el `/me` del sincronizador
+  y el POST del reenvío usan `redirigirEn401: false` (el cliente borra el
+  token y lanza el 401, pero no navega; el 401 sigue centralizado en
+  `client.ts`). En su lugar aparece un aviso no modal: «Tienes N reportes
+  pendientes de envío: inicia sesión para enviarlos», con enlace a
+  `/login?redirect=<ruta actual>`. Al volver a iniciar sesión se reenvía con el
+  token nuevo; mientras tanto, `mis-reportes` lo muestra como **«Pendiente de
+  envío»**.
+- **Límite de 48 h**: la `Idempotency-Key` vale 48 h en el backend
+  (`IdempotencyKeyService.VIGENCIA_HORAS`). Pasado ese plazo el backend ya no
+  la reconoce: si la primera petición sí había llegado, reenviarla crearía un
+  duplicado (o una adhesión de US-09). Por eso un reporte con más de 48 h en
+  cola **no se reenvía a ciegas**: queda «Caducado: revisa Mis reportes antes de
+  reenviarlo», y el ciudadano puede reenviarlo con una clave nueva (es otro
+  intento lógico) o descartarlo, ambas cosas con confirmación.
 - **Rechazos de negocio** (otro 4xx, p. ej. fuera de cobertura): reintentar no
   cambia la respuesta, así que queda «No se pudo enviar: <motivo>» con un
-  botón para descartarlo.
+  botón para descartarlo (con confirmación).
+- **Dispositivo compartido**: al cerrar sesión con reportes propios en cola se
+  pregunta «Tienes N reportes sin enviar en este dispositivo. Se enviarán
+  cuando vuelvas a entrar. [Conservar] [Descartarlos]». `auth` no conoce la
+  cola: quien compone la app registra ese paso en
+  `lib/hooks/antesDeCerrarSesion.ts` y `useCerrarSesion` lo espera. Los
+  rechazados y caducados se purgan solos a los 30 días. **Riesgo aceptado**: si
+  se elige «Conservar», los datos del reporte (ubicación, descripción y foto)
+  quedan en el IndexedDB del navegador hasta que su dueño vuelva a entrar o
+  pasen esos plazos; otra persona con acceso al dispositivo podría leerlos con
+  las herramientas del navegador. No se envían con la sesión de otro (ver
+  arriba), y el aviso sin sesión solo muestra la cantidad, no el contenido.
 - **La foto** se guarda como `ArrayBuffer` + nombre + tipo y se rearma como
   `File` al reenviar: IndexedDB clona eso en todos los navegadores (Safari tuvo
   fallos guardando `Blob`).

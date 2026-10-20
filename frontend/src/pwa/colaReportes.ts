@@ -16,13 +16,25 @@ import type { ReporteEnCola } from '@/features/reportes/model/colaOffline';
 const BASE = 'viasegura-offline';
 const VERSION = 1;
 const ALMACEN = 'reportes-pendientes';
+const CANAL = 'viasegura-cola';
 
 export interface AlmacenDeCola {
   listar(): Promise<ReporteEnCola[]>;
   /** Inserta o reemplaza (la clave es la `idempotencyKey`). */
   guardar(reporte: ReporteEnCola): Promise<void>;
   quitar(idempotencyKey: string): Promise<void>;
-  /** Avisa de cada cambio en esta pestaña. Devuelve la funcion para desuscribirse. */
+  /**
+   * Marca `rechazado` con su motivo, leyendo y escribiendo en la MISMA
+   * transaccion, y solo si la clave sigue en la cola: si otra pestaña ya lo
+   * envio o el ciudadano lo descarto, no se resucita.
+   */
+  marcarRechazado(idempotencyKey: string, motivo: string | null): Promise<void>;
+  /** Quita `idempotencyKey` y guarda `nuevo` en una sola transaccion. */
+  reemplazar(idempotencyKey: string, nuevo: ReporteEnCola): Promise<void>;
+  /**
+   * Avisa de cada cambio, en esta pestaña y en las demas del mismo origen
+   * (`BroadcastChannel`). Devuelve la funcion para desuscribirse.
+   */
   suscribir(alCambiar: () => void): () => void;
 }
 
@@ -66,8 +78,27 @@ async function enTransaccion<T>(
 
 const oyentes = new Set<() => void>();
 
-function avisar(): void {
+function avisarLocal(): void {
   for (const oyente of oyentes) oyente();
+}
+
+/** Canal entre pestañas; `null` donde no existe. */
+const canal: BroadcastChannel | null = (() => {
+  if (typeof BroadcastChannel === 'undefined') return null;
+  try {
+    const c = new BroadcastChannel(CANAL);
+    c.onmessage = avisarLocal;
+    // En Node (tests) el canal mantendria vivo el proceso.
+    (c as unknown as { unref?: () => void }).unref?.();
+    return c;
+  } catch {
+    return null;
+  }
+})();
+
+function avisar(): void {
+  avisarLocal();
+  canal?.postMessage('cambio');
 }
 
 export const colaDeReportes: AlmacenDeCola = {
@@ -88,6 +119,26 @@ export const colaDeReportes: AlmacenDeCola = {
     if (!hayIndexedDb()) return;
     await enTransaccion('readwrite', (a) => {
       a.delete(idempotencyKey);
+    });
+    avisar();
+  },
+
+  async marcarRechazado(idempotencyKey, motivo) {
+    if (!hayIndexedDb()) return;
+    await enTransaccion('readwrite', (a) => {
+      const lectura = a.get(idempotencyKey);
+      lectura.onsuccess = () => {
+        const actual = lectura.result as ReporteEnCola | undefined;
+        if (actual) a.put({ ...actual, estado: 'rechazado', motivo });
+      };
+    });
+    avisar();
+  },
+
+  async reemplazar(idempotencyKey, nuevo) {
+    await enTransaccion('readwrite', (a) => {
+      a.delete(idempotencyKey);
+      a.put(nuevo);
     });
     avisar();
   },

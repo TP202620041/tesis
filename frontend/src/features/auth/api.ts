@@ -61,6 +61,19 @@ export function obtenerUsuarioActual(): Promise<Usuario> {
   return api.get<Usuario>('/api/auth/me');
 }
 
+/**
+ * `GET /api/auth/me` para trabajo en segundo plano (la cola offline de
+ * US-06): con un token vencido devuelve `null` y borra el token, pero no
+ * lleva al login (`redirigirEn401: false`). Otro fallo (red) tambien es `null`.
+ */
+export async function usuarioActualSinRedirigir(): Promise<Usuario | null> {
+  try {
+    return await api.get<Usuario>('/api/auth/me', { redirigirEn401: false });
+  } catch {
+    return null;
+  }
+}
+
 export interface CambiosDePerfil {
   nombre?: string;
   apellido?: string;

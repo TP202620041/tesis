@@ -5,7 +5,11 @@ import { misReportes, pendientesDeCalificacion } from '../api';
 import type { ReporteResumen } from '../model/tipos';
 import { useMisReportes } from './useMisReportes';
 
-vi.mock('../api', () => ({ misReportes: vi.fn(), pendientesDeCalificacion: vi.fn() }));
+vi.mock('../api', () => ({
+  misReportes: vi.fn(),
+  pendientesDeCalificacion: vi.fn(),
+  colaDeReportes: { suscribir: () => () => {} },
+}));
 
 const PROPIO: ReporteResumen = { id: 1, estado: 'PENDIENTE', categoriaNombre: 'Bache' };
 const RESUELTO: ReporteResumen = { id: 2, estado: 'RESUELTO', categoriaNombre: 'Bache' };

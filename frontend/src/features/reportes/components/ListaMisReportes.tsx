@@ -80,7 +80,11 @@ export function ListaMisReportes({
         </p>
       )}
 
-      <PendientesDeEnvio pendientes={cola.pendientes} onDescartar={cola.descartar} />
+      <PendientesDeEnvio
+        pendientes={cola.pendientes}
+        onDescartar={(clave) => void cola.descartar(clave)}
+        onReenviarConClaveNueva={(r) => void cola.reenviarConClaveNueva(r)}
+      />
 
       {cargando && <p className="text-slate-600 dark:text-slate-400">Cargando…</p>}
 

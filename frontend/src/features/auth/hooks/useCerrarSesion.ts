@@ -2,6 +2,10 @@
 
 import { useRouter } from 'next/navigation';
 import { useCallback } from 'react';
+import {
+  antesDeCerrarSesion,
+  hayPasosAntesDeCerrarSesion,
+} from '@/lib/hooks/antesDeCerrarSesion';
 import { borrarCacheEntreOrigenes } from '@/pwa/cachesDeSesion';
 import { cerrarSesion } from '../api';
 
@@ -20,8 +24,15 @@ import { cerrarSesion } from '../api';
 export function useCerrarSesion(): () => void {
   const router = useRouter();
   return useCallback(() => {
-    cerrarSesion();
-    void borrarCacheEntreOrigenes();
-    router.replace('/login');
+    const cerrar = () => {
+      cerrarSesion();
+      void borrarCacheEntreOrigenes();
+      router.replace('/login');
+    };
+    // US-06: si otra parte de la app registro un paso previo (p. ej. preguntar
+    // por reportes sin enviar), se espera a que el usuario decida. Sin pasos
+    // previos el cierre es inmediato, como siempre.
+    if (hayPasosAntesDeCerrarSesion()) void antesDeCerrarSesion().then(cerrar);
+    else cerrar();
   }, [router]);
 }

@@ -2,8 +2,7 @@
 
 import { useEffect } from 'react';
 import { useCarga } from '@/lib/hooks/useCarga';
-import { colaDeReportes } from '@/pwa/colaReportes';
-import { misReportes, pendientesDeCalificacion } from '../api';
+import { colaDeReportes, misReportes, pendientesDeCalificacion } from '../api';
 import type { ReporteResumen } from '../model/tipos';
 
 export interface MisReportes {

@@ -1,34 +1,54 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import { useSesion } from '@/features/auth/hooks/useSesion';
+import { useHaySesion, useUsuarioEnSegundoPlano } from '@/features/auth/hooks/useSesionEnSegundoPlano';
 import {
-  useHayReportesEnCola,
+  AvisoPendientesSinSesion,
+  DialogoCierreConPendientes,
+} from '@/features/reportes/components/AvisosDeLaCola';
+import { useConfirmacionAlCerrarSesion } from '@/features/reportes/hooks/useConfirmacionAlCerrarSesion';
+import {
+  useResumenDeLaCola,
   useSincronizacionAutomatica,
 } from '@/features/reportes/hooks/useColaOffline';
 
 /**
- * US-06: reenvia los reportes guardados sin conexion, en cualquier pantalla.
+ * US-06: cola offline en cualquier pantalla. Solo compone (por eso vive en
+ * `app/`): junta la sesion de `auth` con la cola de `reportes`.
  *
- * Solo compone (por eso vive en `app/`: junta la sesion de `auth` con la cola
- * de `reportes`). Mientras la cola esta vacia no hace nada, ni siquiera
- * consulta la sesion. Si hay pendientes, averigua quien es el usuario (solo
- * se envian los reportes de ESE ciudadano) y activa el reenvio automatico.
- *
- * `key={pathname}`: tras iniciar sesion la app navega sin recargar, asi que
- * se vuelve a montar en cada navegacion para leer la sesion nueva.
+ * - Cola vacia: no hace nada, ni siquiera consulta la sesion.
+ * - Hay reenviables y no hay token: aviso no modal con enlace al login.
+ * - Hay token: averigua el usuario con `/me` UNA vez por sesion y sin
+ *   redirigir nunca (`useUsuarioEnSegundoPlano`). El reenvio automatico solo
+ *   arranca si hay reenviables de ESE usuario. Si `/me` da 401, el token se
+ *   borra y se vuelve al caso anterior (aviso).
+ * - Con sesion y reportes propios en cola: al cerrar sesion pregunta si se
+ *   conservan o se descartan (dispositivo compartido).
  */
 export function SincronizadorDeReportes() {
-  const hayEnCola = useHayReportesEnCola();
+  const cola = useResumenDeLaCola();
+  const haySesion = useHaySesion();
   const ruta = usePathname();
-  return hayEnCola ? <ConSesion key={ruta} /> : null;
+
+  if (cola.total === 0) return null;
+  if (!haySesion) return <AvisoPendientesSinSesion cantidad={cola.reenviables} ruta={ruta} />;
+  return <ConSesion />;
 }
 
 function ConSesion() {
-  const sesion = useSesion();
-  // Sin filtrar por rol: si alguien que no es ciudadano llego a encolar uno,
-  // el backend responde 403 y el reporte queda "rechazado" con el motivo.
-  const usuarioId = sesion.estado === 'autenticado' ? sesion.usuario.id : null;
-  useSincronizacionAutomatica(usuarioId);
-  return null;
+  const usuario = useUsuarioEnSegundoPlano();
+  useSincronizacionAutomatica(usuario?.id ?? null);
+  return usuario ? <ConfirmacionAlCerrar usuarioId={usuario.id} /> : null;
+}
+
+function ConfirmacionAlCerrar({ usuarioId }: { usuarioId: number }) {
+  const { preguntando, conservar, descartar } = useConfirmacionAlCerrarSesion(usuarioId);
+  if (preguntando === null) return null;
+  return (
+    <DialogoCierreConPendientes
+      cantidad={preguntando}
+      onConservar={conservar}
+      onDescartar={() => void descartar()}
+    />
+  );
 }

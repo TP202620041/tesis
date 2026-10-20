@@ -36,6 +36,14 @@ export interface OpcionesPeticion extends Omit<RequestInit, 'body'> {
    * JSON de texto plano.
    */
   comoBlob?: boolean;
+  /**
+   * `false` para trabajo en segundo plano (la cola offline de US-06): ante un
+   * 401 se borra el token igual y se lanza el `ApiError`, pero NO se navega
+   * al login. Una tarea que el usuario no inicio no debe sacarlo de la
+   * pantalla; la UI muestra un aviso para que inicie sesion cuando quiera.
+   * Por defecto `true`: el 401 sigue centralizado aqui.
+   */
+  redirigirEn401?: boolean;
 }
 
 /**
@@ -67,8 +75,16 @@ function manejarNoAutenticado(): void {
  */
 async function ejecutar(ruta: string, opciones: OpcionesPeticion): Promise<Response> {
   // `comoBlob` lo interpreta apiFetch al leer el cuerpo, no viaja en el fetch.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { json, conAuth = true, idempotencyKey, comoBlob, headers, ...resto } = opciones;
+  const {
+    json,
+    conAuth = true,
+    idempotencyKey,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    comoBlob,
+    redirigirEn401 = true,
+    headers,
+    ...resto
+  } = opciones;
 
   const cabeceras = new Headers(headers);
   if (json !== undefined) {
@@ -95,7 +111,8 @@ async function ejecutar(ruta: string, opciones: OpcionesPeticion): Promise<Respo
   }
 
   if (respuesta.status === 401) {
-    manejarNoAutenticado();
+    if (redirigirEn401) manejarNoAutenticado();
+    else borrarToken();
     throw await desdeRespuesta(respuesta);
   }
 

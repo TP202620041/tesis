@@ -1,18 +1,233 @@
 'use client';
 
 import { useCallback, useEffect } from 'react';
+import { ApiError, NetworkError } from '@/lib/api/errors';
+import { generacionDeSesion } from '@/lib/auth/token-storage';
 import { useCarga } from '@/lib/hooks/useCarga';
-import { colaDeReportes } from '@/pwa/colaReportes';
-import { pendientesDe, type ReporteEnCola } from '../model/colaOffline';
-import type { NuevoReporte } from '../model/tipos';
-import { descartarDeLaCola, encolarReporte, sincronizarCola } from './colaDeReportes';
+import { colaDeReportes, crearReporte, type AlmacenDeCola } from '../api';
+import {
+  debePurgarse,
+  desenlaceDeEnvio,
+  estadoVisible,
+  pendientesDe,
+  seReenviaSolo,
+  type DesenlaceDeEnvio,
+  type EstadoVisible,
+  type ReporteEnCola,
+} from '../model/colaOffline';
+import type { NuevoReporte, ReporteCreado } from '../model/tipos';
+
+/*
+ * US-06: cola offline (capa de aplicacion). Arriba, los casos de uso sin
+ * React (encolar, sincronizar, descartar, reenviar con clave nueva); abajo,
+ * los hooks que los exponen a la UI. Todo el I/O pasa por `../api`: el POST
+ * (`crearReporte`, que lee el token vigente al enviar) y el almacen de la
+ * cola (`colaDeReportes`, IndexedDB).
+ */
+
+export interface Dependencias {
+  almacen: AlmacenDeCola;
+  enviar: (nuevo: NuevoReporte) => Promise<ReporteCreado>;
+  ahora: () => Date;
+  /** Generacion de sesion de `token-storage`: si cambia, se corta el bucle. */
+  generacion: () => number;
+}
+
+const POR_DEFECTO: Dependencias = {
+  almacen: colaDeReportes,
+  // Un 401 en segundo plano no lleva al login: borra el token y lanza.
+  enviar: (nuevo) => crearReporte(nuevo, { redirigirEn401: false }),
+  ahora: () => new Date(),
+  generacion: generacionDeSesion,
+};
+
+/**
+ * Guarda en el dispositivo un reporte que no se pudo enviar por falta de
+ * red, CON SU `Idempotency-Key`. Si la primera peticion si llego al backend
+ * y solo se perdio la respuesta, el reenvio con la misma clave devuelve el
+ * reporte original en vez de crear otro.
+ */
+export async function encolarReporte(
+  nuevo: NuevoReporte,
+  usuarioId: number,
+  deps: Pick<Dependencias, 'almacen' | 'ahora'> = POR_DEFECTO,
+): Promise<void> {
+  const { foto, idempotencyKey, ...datos } = nuevo;
+  await deps.almacen.guardar({
+    idempotencyKey,
+    usuarioId,
+    creadoEn: deps.ahora().toISOString(),
+    datos,
+    foto: foto
+      ? { contenido: await foto.arrayBuffer(), nombre: foto.name, tipo: foto.type }
+      : null,
+    estado: 'pendiente',
+    motivo: null,
+  });
+}
+
+/** Reconstruye la peticion original a partir de lo guardado. */
+export function comoNuevoReporte(enCola: ReporteEnCola): NuevoReporte {
+  return {
+    ...enCola.datos,
+    idempotencyKey: enCola.idempotencyKey,
+    foto: enCola.foto
+      ? new File([enCola.foto.contenido], enCola.foto.nombre, { type: enCola.foto.tipo })
+      : null,
+  };
+}
+
+function statusDe(e: unknown): number | null {
+  if (e instanceof ApiError) return e.status;
+  if (e instanceof NetworkError) return null;
+  throw e;
+}
+
+export interface ResultadoDeSincronizacion {
+  enviados: ReporteCreado[];
+  /**
+   * Por que se detuvo antes de terminar: sin red, sin sesion (401), o porque
+   * la sesion cambio o el llamador cancelo (`interrumpida`).
+   */
+  detenidaPor: Extract<DesenlaceDeEnvio, 'sin-conexion' | 'sin-sesion'> | 'interrumpida' | null;
+}
+
+/** Una sincronizacion en curso por usuario (no global: no se mezclan sesiones). */
+const enCurso = new Map<number, { promesa: Promise<ResultadoDeSincronizacion>; senal?: AbortSignal }>();
+
+/**
+ * Reenvia, del mas antiguo al mas nuevo, los reportes de `usuarioId` que se
+ * reenvian solos (pendientes con la clave vigente).
+ *
+ * - Exito: se quita de la cola.
+ * - Sin red, 5xx, 408 o 429: se conserva y se detiene.
+ * - 401: se conserva y se detiene. El token ya quedo borrado (sin navegar);
+ *   la UI pide iniciar sesion y entonces se reenvia con el token nuevo.
+ * - Otro 4xx: se marca `rechazado` con el motivo y se sigue con el resto.
+ *
+ * **Nunca envia con la sesion de otro:** lee la generacion de sesion al
+ * empezar y la compara antes de CADA envio; si cambio (se cerro la sesion,
+ * entro otra persona, otra pestaña cambio el token) o `senal` se aborto, se
+ * detiene sin enviar el resto.
+ *
+ * Antes de empezar purga los rechazados/caducados de mas de 30 dias.
+ */
+export function sincronizarCola(
+  usuarioId: number,
+  senal?: AbortSignal,
+  deps: Dependencias = POR_DEFECTO,
+): Promise<ResultadoDeSincronizacion> {
+  const actual = enCurso.get(usuarioId);
+  if (actual && !actual.senal?.aborted) return actual.promesa;
+
+  // Si la anterior se cancelo, la nueva arranca cuando esa termine.
+  const previa = actual?.promesa.catch(() => undefined) ?? Promise.resolve();
+  const promesa = previa
+    .then(() => sincronizar(usuarioId, senal, deps))
+    .finally(() => {
+      if (enCurso.get(usuarioId)?.promesa === promesa) enCurso.delete(usuarioId);
+    });
+  enCurso.set(usuarioId, { promesa, senal });
+  return promesa;
+}
+
+async function sincronizar(
+  usuarioId: number,
+  senal: AbortSignal | undefined,
+  deps: Dependencias,
+): Promise<ResultadoDeSincronizacion> {
+  const generacion = deps.generacion();
+  const enviados: ReporteCreado[] = [];
+  const ahora = deps.ahora();
+  const cola = await deps.almacen.listar();
+
+  for (const viejo of cola.filter((r) => debePurgarse(r, ahora))) {
+    await deps.almacen.quitar(viejo.idempotencyKey);
+  }
+
+  const aEnviar = pendientesDe(cola, usuarioId).filter((r) => seReenviaSolo(r, ahora));
+  for (const enCola of aEnviar) {
+    if (senal?.aborted || deps.generacion() !== generacion) {
+      return { enviados, detenidaPor: 'interrumpida' };
+    }
+
+    let creado: ReporteCreado;
+    try {
+      creado = await deps.enviar(comoNuevoReporte(enCola));
+    } catch (e) {
+      const desenlace = desenlaceDeEnvio(statusDe(e));
+      if (desenlace === 'rechazado') {
+        await deps.almacen.marcarRechazado(
+          enCola.idempotencyKey,
+          e instanceof Error ? e.message : null,
+        );
+        continue;
+      }
+      if (desenlace === 'sin-conexion' || desenlace === 'sin-sesion') {
+        return { enviados, detenidaPor: desenlace };
+      }
+      continue;
+    }
+    await deps.almacen.quitar(enCola.idempotencyKey);
+    enviados.push(creado);
+  }
+  return { enviados, detenidaPor: null };
+}
+
+/** El ciudadano descarta un reporte de la cola (rechazado, caducado o al cerrar sesion). */
+export function descartarDeLaCola(
+  idempotencyKey: string,
+  deps: Pick<Dependencias, 'almacen'> = POR_DEFECTO,
+): Promise<void> {
+  return deps.almacen.quitar(idempotencyKey);
+}
+
+/** Descarta todos los reportes en cola de `usuarioId` (cerrar sesion en un dispositivo compartido). */
+export async function descartarTodosDe(
+  usuarioId: number,
+  deps: Pick<Dependencias, 'almacen'> = POR_DEFECTO,
+): Promise<void> {
+  for (const r of pendientesDe(await deps.almacen.listar(), usuarioId)) {
+    await deps.almacen.quitar(r.idempotencyKey);
+  }
+}
+
+/**
+ * Reenvia un reporte CADUCADO con una clave nueva: el ciudadano ya reviso
+ * "Mis reportes" y confirmo que no llego. Es un intento logico distinto, asi
+ * que vuelve a la cola como pendiente con clave y fecha nuevas.
+ */
+export async function reencolarConClaveNueva(
+  enCola: ReporteEnCola,
+  deps: Pick<Dependencias, 'almacen' | 'ahora'> & { nuevaClave: () => string } = {
+    ...POR_DEFECTO,
+    nuevaClave: () => crypto.randomUUID(),
+  },
+): Promise<void> {
+  await deps.almacen.reemplazar(enCola.idempotencyKey, {
+    ...enCola,
+    idempotencyKey: deps.nuevaClave(),
+    creadoEn: deps.ahora().toISOString(),
+    estado: 'pendiente',
+    motivo: null,
+  });
+}
+
+/* ------------------------------------------------------------------------
+ * Hooks
+ * --------------------------------------------------------------------- */
 
 /** Cada cuanto se reintenta mientras quedan reportes pendientes (ms). */
 export const INTERVALO_DE_REINTENTO = 30_000;
 
 const NINGUNO: ReporteEnCola[] = [];
 
-/** Lee la cola y la vuelve a leer en cada cambio (encolar, enviar, descartar). */
+/** Reporte en cola con lo que ve el ciudadano de el. */
+export interface ReporteEnColaVisible extends ReporteEnCola {
+  visible: EstadoVisible;
+}
+
+/** Lee la cola y la vuelve a leer en cada cambio (aqui o en otra pestaña). */
 function useCola<T>(seleccionar: (cola: ReporteEnCola[]) => T, dependencias: readonly unknown[]) {
   const carga = useCarga<T>(
     async () => seleccionar(await colaDeReportes.listar().catch(() => NINGUNO)),
@@ -25,17 +240,43 @@ function useCola<T>(seleccionar: (cola: ReporteEnCola[]) => T, dependencias: rea
 
 /**
  * US-06: reportes de `usuarioId` guardados en el dispositivo que todavia no
- * llegaron al backend ("Pendiente de envío"), y la accion de descartar uno.
+ * llegaron al backend, y las acciones sobre ellos.
  */
 export function useReportesEnCola(usuarioId: number) {
-  const pendientes = useCola((cola) => pendientesDe(cola, usuarioId), [usuarioId]) ?? NINGUNO;
+  const pendientes =
+    useCola(
+      (cola) => {
+        const ahora = new Date();
+        return pendientesDe(cola, usuarioId).map((r) => ({ ...r, visible: estadoVisible(r, ahora) }));
+      },
+      [usuarioId],
+    ) ?? (NINGUNO as ReporteEnColaVisible[]);
   const descartar = useCallback((clave: string) => descartarDeLaCola(clave), []);
-  return { pendientes, descartar };
+  const reenviarConClaveNueva = useCallback((r: ReporteEnCola) => reencolarConClaveNueva(r), []);
+  const descartarTodos = useCallback(() => descartarTodosDe(usuarioId), [usuarioId]);
+  return { pendientes, descartar, reenviarConClaveNueva, descartarTodos };
 }
 
-/** `true` si hay algun reporte en cola, de cualquier usuario del dispositivo. */
-export function useHayReportesEnCola(): boolean {
-  return useCola((cola) => cola.length > 0, []) ?? false;
+export interface ResumenDeLaCola {
+  /** Reportes en cola en el dispositivo, de cualquier usuario y estado. */
+  total: number;
+  /** De ellos, los que se reenviarian solos (pendientes con la clave vigente). */
+  reenviables: number;
+}
+
+const COLA_VACIA: ResumenDeLaCola = { total: 0, reenviables: 0 };
+
+/**
+ * Resumen de la cola de todo el dispositivo. Sirve para decidir si hace
+ * falta averiguar la sesion: con la cola vacia no se hace nada.
+ */
+export function useResumenDeLaCola(): ResumenDeLaCola {
+  return (
+    useCola((cola) => {
+      const ahora = new Date();
+      return { total: cola.length, reenviables: cola.filter((r) => seReenviaSolo(r, ahora)).length };
+    }, []) ?? COLA_VACIA
+  );
 }
 
 /** US-06: guarda un reporte que no se pudo enviar por falta de red. */
@@ -46,22 +287,26 @@ export function useEncolarReporte(usuarioId: number) {
 /**
  * US-06: reenvia sola la cola de `usuarioId` al montarse, al volver la
  * conexion (`online`), al volver a la pestaña y cada
- * {@link INTERVALO_DE_REINTENTO} mientras queden pendientes. Con `null` (sin
- * sesion de ciudadano) no hace nada.
+ * {@link INTERVALO_DE_REINTENTO} mientras queden reenviables. Con `null` (sin
+ * sesion) no hace nada. Al desmontarse (o cambiar de usuario) cancela el
+ * bucle en curso con un `AbortSignal`.
  */
 export function useSincronizacionAutomatica(usuarioId: number | null) {
-  const hayPendientes =
+  const hayReenviables =
     useCola(
-      (cola) =>
-        usuarioId != null &&
-        pendientesDe(cola, usuarioId).some((r) => r.estado === 'pendiente'),
+      (cola) => {
+        if (usuarioId == null) return false;
+        const ahora = new Date();
+        return pendientesDe(cola, usuarioId).some((r) => seReenviaSolo(r, ahora));
+      },
       [usuarioId],
     ) ?? false;
 
   useEffect(() => {
-    if (usuarioId == null || !hayPendientes) return;
+    if (usuarioId == null || !hayReenviables) return;
+    const control = new AbortController();
     const intentar = () => {
-      void sincronizarCola(usuarioId).catch(() => {
+      void sincronizarCola(usuarioId, control.signal).catch(() => {
         // Un fallo inesperado no debe romper la pantalla: se reintenta luego.
       });
     };
@@ -74,9 +319,10 @@ export function useSincronizacionAutomatica(usuarioId: number | null) {
     document.addEventListener('visibilitychange', alVolverALaPestana);
     const intervalo = window.setInterval(intentar, INTERVALO_DE_REINTENTO);
     return () => {
+      control.abort();
       window.removeEventListener('online', intentar);
       document.removeEventListener('visibilitychange', alVolverALaPestana);
       window.clearInterval(intervalo);
     };
-  }, [usuarioId, hayPendientes]);
+  }, [usuarioId, hayReenviables]);
 }
