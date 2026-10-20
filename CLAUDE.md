@@ -96,7 +96,7 @@ Extienden `support/AbstractPostgisIT` (MockMvc + BD `viasegura_test`), o `Abstra
 
 ## Arquitectura del frontend
 
-- `src/app/` solo enruta y compone, en grupos por audiencia: `(public)`, `(auth)`, `(ciudadano)`, `(municipal)`. La lógica vive en `src/features/<dominio>/`; ningún componente de `app/` llama al API directamente, pasa por `features/<dominio>/api.ts`.
+- `src/app/` solo enruta y compone, en grupos por audiencia: `(public)`, `(auth)`, `(ciudadano)`, `(municipal)`, `(cuenta)` (cualquier usuario con sesión, p. ej. `/soporte`) y `(admin)` (área del ADMIN bajo `/admin/…`; dos grupos no pueden resolver a la misma URL). La lógica vive en `src/features/<dominio>/`; ningún componente de `app/` llama al API directamente, pasa por `features/<dominio>/api.ts`.
 - `src/lib/api/client.ts`: wrapper de `fetch` nativo (`apiFetch`, `urlDeFoto`, `fotoRequiereAuth`, `comoBlob`). La foto de perfil se trae con `apiFetch` y se muestra como `blob:` porque `<img src>` no envía el token.
 - Tipos: `src/lib/api/generated/schema.ts` es generado (**no editar**). springdoc marca casi todo campo como opcional y los enums como `string`; los tipos reales con uniones literales están en `src/lib/types/domain.ts`. El API envía `null` (no `undefined`) y `null` ≠ 0 en métricas ("Sin datos").
 - JWT en `localStorage`, tocado solo por `src/lib/auth/token-storage.ts`; la mitigación es la CSP estricta de `next.config.ts` (al añadir un origen externo, como tiles de mapa, hay que listarlo ahí).

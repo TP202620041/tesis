@@ -61,3 +61,4 @@ Ya hechas antes de S1: BE-01, BE-02, BE-07, FE-01 y FE-02.
 ## Registro
 
 - **S1 (2026-10-13):** fusionados BE-03, BE-04, BE-05 (#12–#14), el CORS de `Content-Disposition` (#15), US-03 (#16), US-04 (#17, con la caché del API fuera del Service Worker), US-28 (#18) y US-17 (#19). Almacén de ArchUnit 52 → 51; Failsafe 177 → 178; frontend 80 → 126 tests, avisos de capas 66 → 65. Decisiones del usuario: se acepta el cierre de BE-03; `ReincidenciaDetector` pasa a `domain/` en BE-06; nueva tarea BE-10 (sin `MultipartFile` en `service/`), en S4.
+- **S2 (2026-10-19, v0.3.0):** US-25 (#26, #36), US-29 (#27, #37), NC-07 (#33), US-12 (#30, #31), FE-03 (#29), FE-04 (#28), SEC-02 (#32, #35), D-12 (#25, #34), y el arreglo de la guardia (#24). Failsafe 178 → 238, Surefire 11 → 37, ArchUnit 51 → 48; frontend 136 → 232 tests, avisos de capas 64 → 44. Verificación en vivo: 27 comprobaciones del API y las pantallas nuevas en el navegador.
