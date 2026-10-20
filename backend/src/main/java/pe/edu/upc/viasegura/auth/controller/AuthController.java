@@ -1,6 +1,7 @@
 package pe.edu.upc.viasegura.auth.controller;
 
 import jakarta.validation.Valid;
+import java.io.IOException;
 import java.security.Principal;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -25,6 +26,8 @@ import pe.edu.upc.viasegura.auth.dto.RestablecerPasswordRequest;
 import pe.edu.upc.viasegura.auth.dto.UsuarioResponse;
 import pe.edu.upc.viasegura.auth.service.AuthService;
 import pe.edu.upc.viasegura.auth.service.PasswordResetService;
+import pe.edu.upc.viasegura.common.exception.BusinessException;
+import pe.edu.upc.viasegura.common.port.ArchivoSubido;
 
 /**
  * API de acceso y autenticacion.
@@ -99,6 +102,23 @@ public class AuthController {
             @RequestPart(value = "foto", required = false) MultipartFile foto,
             Principal principal) {
         return ResponseEntity.ok(authService.editarPerfil(
-                principal.getName(), nombre, apellido, distritoId, foto));
+                principal.getName(), nombre, apellido, distritoId, archivoSubido(foto)));
+    }
+
+    /**
+     * Convierte la parte multipart en {@link ArchivoSubido} para que el
+     * servicio no reciba tipos de Spring Web (BE-10). Sin parte, {@code null};
+     * una parte vacia llega como archivo vacio y el servicio la ignora, igual
+     * que antes con {@code MultipartFile#isEmpty}.
+     */
+    private static ArchivoSubido archivoSubido(MultipartFile archivo) {
+        if (archivo == null) {
+            return null;
+        }
+        try {
+            return new ArchivoSubido(archivo.getBytes(), archivo.getContentType(), archivo.getOriginalFilename());
+        } catch (IOException e) {
+            throw new BusinessException("No se pudo leer la foto");
+        }
     }
 }

@@ -1,6 +1,7 @@
 package pe.edu.upc.viasegura.reportes.controller;
 
 import jakarta.validation.Valid;
+import java.io.IOException;
 import java.security.Principal;
 import java.time.Instant;
 import java.util.List;
@@ -24,6 +25,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import pe.edu.upc.viasegura.common.exception.BusinessException;
+import pe.edu.upc.viasegura.common.port.ArchivoSubido;
 import pe.edu.upc.viasegura.reportes.domain.EstadoReporte;
 import pe.edu.upc.viasegura.reportes.dto.CalificacionResponse;
 import pe.edu.upc.viasegura.reportes.dto.CalificarRequest;
@@ -121,7 +124,7 @@ public class ReporteController {
             Principal principal) {
 
         CrearReporteCommand cmd = new CrearReporteCommand(
-                latitud, longitud, categoriaId, descripcion, ubicacionManual, foto);
+                latitud, longitud, categoriaId, descripcion, ubicacionManual, archivoSubido(foto));
         ReporteResponse creado = reporteService.crear(principal.getName(), cmd, idempotencyKey);
         return ResponseEntity.status(HttpStatus.CREATED).body(creado);
     }
@@ -228,5 +231,22 @@ public class ReporteController {
     @GetMapping("/{id}/comentarios")
     public ResponseEntity<List<ComentarioPublicoResponse>> comentarios(@PathVariable("id") Long id) {
         return ResponseEntity.ok(comentarioPublicoService.listar(id));
+    }
+
+    /**
+     * Convierte la parte multipart en {@link ArchivoSubido} para que el
+     * servicio no reciba tipos de Spring Web (BE-10). Sin parte, {@code null};
+     * una parte vacia llega como archivo vacio y el servicio la ignora, igual
+     * que antes con {@code MultipartFile#isEmpty}.
+     */
+    private static ArchivoSubido archivoSubido(MultipartFile archivo) {
+        if (archivo == null) {
+            return null;
+        }
+        try {
+            return new ArchivoSubido(archivo.getBytes(), archivo.getContentType(), archivo.getOriginalFilename());
+        } catch (IOException e) {
+            throw new BusinessException("No se pudo leer la foto");
+        }
     }
 }
