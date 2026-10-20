@@ -45,7 +45,7 @@ import pe.edu.upc.viasegura.reportes.repository.ReporteRepository;
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-@Import(EnviadorWebPushFake.Config.class)
+@Import({EnviadorWebPushFake.Config.class, EjecutorSincronoTestConfig.class})
 public abstract class AbstractPostgisIT {
 
     /**

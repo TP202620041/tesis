@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 import pe.edu.upc.viasegura.notificaciones.domain.SuscripcionPush;
 
 public interface SuscripcionPushRepository extends JpaRepository<SuscripcionPush, Long> {
@@ -24,8 +25,10 @@ public interface SuscripcionPushRepository extends JpaRepository<SuscripcionPush
     /**
      * El servicio de push respondio 404/410 (US-21): no se vuelve a intentar.
      * Se conserva la fila; si el navegador se vuelve a suscribir, el upsert la
-     * reactiva.
+     * reactiva. Transaccion propia y corta: se llama despues del envio HTTP,
+     * fuera de cualquier otra transaccion.
      */
+    @Transactional
     @Modifying
     @Query("UPDATE SuscripcionPush s SET s.activa = false WHERE s.id = :id")
     int desactivar(@Param("id") Long id);

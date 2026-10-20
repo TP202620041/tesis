@@ -291,7 +291,8 @@ class NotificacionIT extends AbstractPostgisMailIT {
         assertThat(json.get("reporteId").asLong()).isEqualTo(reporte.getId());
         assertThat(json.get("estado").asText()).isEqualTo("EN_PROCESO");
         assertThat(json.get("titulo").asText()).isNotBlank();
-        assertThat(json.get("cuerpo").asText()).contains("EN_PROCESO");
+        // Cuerpo legible para el ciudadano; el valor tecnico va solo en "estado".
+        assertThat(json.get("cuerpo").asText()).contains("esta en proceso").doesNotContain("EN_PROCESO");
         // Solo esas cinco claves: ninguna senal interna ni datos de otros usuarios.
         assertThat(json.fieldNames()).toIterable()
                 .containsExactlyInAnyOrder("titulo", "cuerpo", "url", "reporteId", "estado");
@@ -317,6 +318,31 @@ class NotificacionIT extends AbstractPostgisMailIT {
             assertThat(n.getCanal()).isEqualTo(CanalNotificacion.PUSH);
             assertThat(n.getEstadoEntrega()).isEqualTo(EstadoEntrega.ENVIADA);
         });
+    }
+
+    @Test
+    void todasLasSuscripcionesResponden410_quedanInactivas_yCaeACorreo() throws Exception {
+        Usuario func = funcionario(distrito("Miraflores"));
+        Usuario ciudadano = ciudadano(PreferenciaNotificacion.PUSH);
+        String movil = suscribirPush(ciudadano);
+        String pc = guardarSuscripcion(ciudadano);
+        enviadorPush.responder(movil, ResultadoEnvioPush.SUSCRIPCION_CADUCADA);
+        enviadorPush.responder(pc, ResultadoEnvioPush.SUSCRIPCION_CADUCADA);
+        Reporte reporte = reporte(distrito("Miraflores"), EstadoReporte.RECIBIDO, ciudadano);
+
+        cambiarAEnProceso(func, reporte.getId());
+
+        assertThat(suscripcionPushRepository.findByEndpoint(movil).orElseThrow().isActiva()).isFalse();
+        assertThat(suscripcionPushRepository.findByEndpoint(pc).orElseThrow().isActiva()).isFalse();
+        List<Notificacion> notifs = notificacionRepository.findByReporteIdOrderByCreatedAtAsc(reporte.getId());
+        assertThat(notifs).hasSize(2);
+        assertThat(notifs).anyMatch(n ->
+                n.getCanal() == CanalNotificacion.PUSH && n.getEstadoEntrega() == EstadoEntrega.FALLIDA);
+        assertThat(notifs).anyMatch(n ->
+                n.getCanal() == CanalNotificacion.EMAIL && n.getEstadoEntrega() == EstadoEntrega.ENVIADA);
+        assertThat(greenMail.waitForIncomingEmail(3000, 1)).isTrue();
+        // Sin suscripciones activas, el canal ya no esta disponible para el proximo aviso.
+        assertThat(notificacionService.canalDisponible(ciudadano, CanalNotificacion.PUSH)).isFalse();
     }
 
     @Test

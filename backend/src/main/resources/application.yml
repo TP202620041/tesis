@@ -66,7 +66,9 @@ app:
         private-key: ${VAPID_PRIVATE_KEY:}
         # mailto:... o https://...: contacto para el servicio de push.
         subject: ${VAPID_SUBJECT:}
-      timeout-segundos: ${PUSH_TIMEOUT_SEGUNDOS:10}
+      # Timeouts cortos: el envio corre en el executor asincrono acotado.
+      timeout-conexion-segundos: ${PUSH_TIMEOUT_CONEXION_SEGUNDOS:3}
+      timeout-pedido-segundos: ${PUSH_TIMEOUT_PEDIDO_SEGUNDOS:5}
   # Consentimiento (D-12, Ley N.° 29733). Version de los terminos y la
   # politica de privacidad que se exige hoy: el registro y POST
   # /api/auth/me/consentimientos solo aceptan esta. Al publicar un texto
@@ -74,6 +76,13 @@ app:
   # usuarios pasan a debeAceptarTerminos=true sin migrar datos.
   legal:
     version-terminos: ${LEGAL_VERSION_TERMINOS:2026-10-v1}
+  # Executor asincrono acotado (AsyncConfig): avisos al ciudadano y, mas
+  # adelante, la sugerencia de categoria (D-08). Con la cola llena la tarea
+  # se descarta y se registra; nunca corre en el hilo de la peticion.
+  async:
+    hilos-base: ${ASYNC_HILOS_BASE:2}
+    hilos-max: ${ASYNC_HILOS_MAX:4}
+    cola: ${ASYNC_COLA:100}
   # CORS: el frontend es una PWA Next.js desplegada como proyecto
   # independiente, en otro origen. Lista de origenes permitidos separados
   # por coma; en dev, el servidor de desarrollo de Next (puerto 3000).

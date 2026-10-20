@@ -48,7 +48,7 @@ class ZerodepWebPushAdapterTest {
 
     @Test
     void sinClaves_noConfigurado_yArrancaIgual() {
-        ZerodepWebPushAdapter adapter = new ZerodepWebPushAdapter("", "", "", 5);
+        ZerodepWebPushAdapter adapter = new ZerodepWebPushAdapter("", "", "", 1, 5);
         assertThat(adapter.estaConfigurado()).isFalse();
         assertThat(adapter.clavePublica()).isEmpty();
         assertThat(adapter.enviar(new DestinoPush("https://fcm.googleapis.com/x", "a", "b"),
@@ -57,21 +57,21 @@ class ZerodepWebPushAdapterTest {
 
     @Test
     void clavesInvalidas_noConfigurado_sinExcepcion() {
-        assertThat(new ZerodepWebPushAdapter("no-es-una-clave", "tampoco", "mailto:a@b.pe", 5)
+        assertThat(new ZerodepWebPushAdapter("no-es-una-clave", "tampoco", "mailto:a@b.pe", 1, 5)
                 .estaConfigurado()).isFalse();
     }
 
     @Test
     void sujetoSinMailtoNiHttps_noConfigurado() throws Exception {
         String[] par = parP256();
-        assertThat(new ZerodepWebPushAdapter(par[0], par[1], "soporte@viasegura.pe", 5)
+        assertThat(new ZerodepWebPushAdapter(par[0], par[1], "soporte@viasegura.pe", 1, 5)
                 .estaConfigurado()).isFalse();
     }
 
     @Test
     void clavesValidas_configurado_yExponeLaPublica() throws Exception {
         String[] par = parP256();
-        ZerodepWebPushAdapter adapter = new ZerodepWebPushAdapter(par[0], par[1], "mailto:soporte@viasegura.pe", 5);
+        ZerodepWebPushAdapter adapter = new ZerodepWebPushAdapter(par[0], par[1], "mailto:soporte@viasegura.pe", 1, 5);
         assertThat(adapter.estaConfigurado()).isTrue();
         assertThat(adapter.clavePublica()).contains(par[0]);
     }
@@ -83,7 +83,7 @@ class ZerodepWebPushAdapterTest {
         String[] navegador = parP256();
         byte[] auth = new byte[16];
         new SecureRandom().nextBytes(auth);
-        ZerodepWebPushAdapter adapter = new ZerodepWebPushAdapter(vapid[0], vapid[1], "mailto:soporte@viasegura.pe", 2);
+        ZerodepWebPushAdapter adapter = new ZerodepWebPushAdapter(vapid[0], vapid[1], "mailto:soporte@viasegura.pe", 1, 2);
 
         ResultadoEnvioPush r = adapter.enviar(
                 new DestinoPush("https://127.0.0.1:9/push", navegador[0], B64.encodeToString(auth)),

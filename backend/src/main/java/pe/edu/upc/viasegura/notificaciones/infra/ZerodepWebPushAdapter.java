@@ -53,19 +53,25 @@ public class ZerodepWebPushAdapter implements EnviadorWebPush {
     private final String clavePublica;
     private final String sujeto;
     private final HttpClient httpClient;
-    private final Duration timeout;
+    private final Duration timeoutPedido;
 
+    /**
+     * Timeouts cortos (3 s de conexion, 5 s de pedido por defecto): el envio
+     * corre en el executor asincrono acotado, y un servicio de push lento no
+     * debe ocupar sus pocos hilos.
+     */
     public ZerodepWebPushAdapter(
             @Value("${app.notificaciones.push.vapid.public-key:}") String clavePublica,
             @Value("${app.notificaciones.push.vapid.private-key:}") String clavePrivada,
             @Value("${app.notificaciones.push.vapid.subject:}") String sujeto,
-            @Value("${app.notificaciones.push.timeout-segundos:10}") long timeoutSegundos) {
+            @Value("${app.notificaciones.push.timeout-conexion-segundos:3}") long timeoutConexionSegundos,
+            @Value("${app.notificaciones.push.timeout-pedido-segundos:5}") long timeoutPedidoSegundos) {
         this.sujeto = sujeto;
-        this.timeout = Duration.ofSeconds(timeoutSegundos);
+        this.timeoutPedido = Duration.ofSeconds(timeoutPedidoSegundos);
         this.claves = cargarClaves(clavePublica, clavePrivada, sujeto);
         this.clavePublica = claves != null ? clavePublica.trim() : null;
         this.httpClient = HttpClient.newBuilder()
-                .connectTimeout(timeout)
+                .connectTimeout(Duration.ofSeconds(timeoutConexionSegundos))
                 .followRedirects(HttpClient.Redirect.NEVER)
                 .build();
     }
@@ -121,27 +127,15 @@ public class ZerodepWebPushAdapter implements EnviadorWebPush {
             return ResultadoEnvioPush.ERROR;
         }
         try {
-            PushSubscription suscripcion = new PushSubscription();
-            suscripcion.setEndpoint(destino.endpoint());
-            PushSubscription.Keys llaves = new PushSubscription.Keys();
-            llaves.setP256dh(destino.p256dh());
-            llaves.setAuth(destino.auth());
-            suscripcion.setKeys(llaves);
-
-            HttpRequest pedido = StandardHttpClientRequestPreparer.getBuilder()
-                    .pushSubscription(suscripcion)
-                    .vapidJWTExpiresAfter(12, TimeUnit.HOURS)
-                    .vapidJWTSubject(sujeto)
-                    .pushMessage(payload)
-                    .ttl(TTL_HORAS, TimeUnit.HOURS)
-                    .urgencyNormal()
-                    .topic(topico)
-                    .build(claves)
-                    .toRequestBuilder()
-                    .timeout(timeout)
-                    .build();
-            int status = httpClient.send(pedido, HttpResponse.BodyHandlers.discarding()).statusCode();
-            return clasificar(status);
+            int status = httpClient.send(prepararPedido(destino, payload, topico),
+                    HttpResponse.BodyHandlers.discarding()).statusCode();
+            ResultadoEnvioPush resultado = clasificar(status);
+            if (status == 401 || status == 403) {
+                log.warn("El servicio de push {} rechazo la firma VAPID ({}): si se rotaron las claves, "
+                        + "esa suscripcion falla hasta que el navegador se vuelva a suscribir",
+                        host(destino.endpoint()), status);
+            }
+            return resultado;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return ResultadoEnvioPush.ERROR;
@@ -151,7 +145,47 @@ public class ZerodepWebPushAdapter implements EnviadorWebPush {
         }
     }
 
-    /** 2xx entregado; 404/410 suscripcion caducada; el resto, error. */
+    /**
+     * Arma el pedido firmado (VAPID) y cifrado ({@code aes128gcm}) sin
+     * enviarlo. Publico para el test de interoperabilidad criptografica, que
+     * lo descifra y verifica la firma solo con el JDK.
+     */
+    public HttpRequest prepararPedido(DestinoPush destino, byte[] payload, String topico) {
+        if (claves == null) {
+            throw new IllegalStateException("Web Push sin configurar");
+        }
+        PushSubscription suscripcion = new PushSubscription();
+        suscripcion.setEndpoint(destino.endpoint());
+        PushSubscription.Keys llaves = new PushSubscription.Keys();
+        llaves.setP256dh(destino.p256dh());
+        llaves.setAuth(destino.auth());
+        suscripcion.setKeys(llaves);
+
+        return StandardHttpClientRequestPreparer.getBuilder()
+                .pushSubscription(suscripcion)
+                .vapidJWTExpiresAfter(12, TimeUnit.HOURS)
+                .vapidJWTSubject(sujeto)
+                .pushMessage(payload)
+                .ttl(TTL_HORAS, TimeUnit.HOURS)
+                .urgencyNormal()
+                .topic(topico)
+                .build(claves)
+                .toRequestBuilder()
+                .timeout(timeoutPedido)
+                .build();
+    }
+
+    /**
+     * 2xx entregado; 404/410 suscripcion caducada; el resto, error.
+     *
+     * <p>401/403 (firma VAPID rechazada, p. ej. tras rotar las claves) se trata
+     * como ERROR y <b>no</b> desactiva la suscripcion: desde aqui no se
+     * distingue una suscripcion creada con la clave anterior de un error de
+     * configuracion del servidor (sujeto, reloj, claves mal copiadas), y en
+     * ese caso desactivaria las de todos los usuarios de una vez. El
+     * frontend se vuelve a suscribir al iniciar sesion si la clave publica
+     * cambio.</p>
+     */
     public static ResultadoEnvioPush clasificar(int status) {
         if (status >= 200 && status < 300) {
             return ResultadoEnvioPush.ENTREGADO;

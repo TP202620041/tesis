@@ -6,8 +6,6 @@ import java.util.List;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 import pe.edu.upc.viasegura.auth.domain.FinalidadConsentimiento;
 import pe.edu.upc.viasegura.auth.domain.PreferenciaNotificacion;
 import pe.edu.upc.viasegura.auth.domain.Usuario;
@@ -74,8 +72,8 @@ public class NotificacionService {
     /**
      * Si el canal puede usarse con ese ciudadano: permiso vigente (D-12) y
      * canal disponible (suscripcion push activa, direccion de correo).
-     * Se usa dentro de {@link #notificarCambioEstado} (en su transaccion) y
-     * es publico solo para que los IT lo consulten directamente.
+     * Lo usa {@link #notificarCambioEstado} y es publico solo para que los IT
+     * lo consulten directamente.
      */
     public boolean canalDisponible(Usuario destinatario, CanalNotificacion canal) {
         NotificacionCanalAdapter adapter = adapters.get(canal);
@@ -92,12 +90,16 @@ public class NotificacionService {
     }
 
     /**
-     * Notifica el cambio de estado. Se invoca desde el listener AFTER_COMMIT,
-     * por lo que abre su propia transaccion: un fallo de envio no puede
-     * revertir el cambio de estado (que ya se confirmo) y solo afecta el
-     * registro de la notificacion.
+     * Notifica el cambio de estado. Lo invoca el listener {@code AFTER_COMMIT}
+     * en el executor asincrono ({@code AsyncConfig}), asi que el cambio de
+     * estado ya esta confirmado y el funcionario no espera a la red.
+     *
+     * <p><b>Sin transaccion propia a proposito:</b> los envios (SMTP, HTTP al
+     * servicio de push) corren fuera de cualquier transaccion, sin retener
+     * una conexion a la base. Cada lectura y cada escritura (el registro de
+     * {@code notificacion}, la desactivacion de una suscripcion caducada) es
+     * una transaccion corta del repositorio.</p>
      */
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void notificarCambioEstado(ReporteEstadoCambiadoEvent evento) {
         TipoEvento tipo = tipoEventoDe(evento.nuevo());
         if (tipo == null) {
@@ -109,7 +111,7 @@ public class NotificacionService {
                     evento.reporteId(), evento.creadorId());
             return;
         }
-        // Referencia (proxy) para la FK; no se necesita cargar el reporte entero.
+        // Referencia (proxy) solo para la FK: se persiste con su id, sin cargarla.
         Reporte reporte = reporteRepository.getReferenceById(evento.reporteId());
         AvisoReporte aviso = new AvisoReporte(asuntoDe(tipo), componerMensaje(destinatario, evento),
                 componerResumen(evento), evento.reporteId(), evento.nuevo().name());
@@ -199,11 +201,24 @@ public class NotificacionService {
     }
 
     /**
-     * Texto corto del push (US-21): solo el estado nuevo, sin el comentario
-     * del municipio ni el distrito; el detalle se ve al abrir el reporte.
+     * Texto corto del push (US-21): solo el estado nuevo, en palabras, sin el
+     * comentario del municipio ni el distrito; el detalle se ve al abrir el
+     * reporte.
      */
     private String componerResumen(ReporteEstadoCambiadoEvent evento) {
-        return "Su reporte #" + evento.reporteId() + " paso a " + evento.nuevo() + ".";
+        return "Su reporte #" + evento.reporteId() + " " + etiquetaDe(evento.nuevo()) + ".";
+    }
+
+    /** El estado en palabras para el ciudadano; el valor tecnico va aparte en el payload. */
+    static String etiquetaDe(EstadoReporte estado) {
+        return switch (estado) {
+            case PENDIENTE -> "esta pendiente";
+            case RECIBIDO -> "fue recibido";
+            case EN_PROCESO -> "esta en proceso";
+            case RESUELTO -> "fue resuelto";
+            case RECHAZADO -> "fue rechazado";
+            case CANCELADO -> "fue cancelado";
+        };
     }
 
     /** Mensaje al ciudadano (<= 500 chars, ver columna notificacion.mensaje). */
