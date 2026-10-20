@@ -16,7 +16,7 @@ flowchart LR
   m_auth["auth<br/>controller · domain · dto · event · repository · service"]
   m_common["common<br/>config* · domain · exception* · geo* · infra · port · security*"]
   m_desempeno["desempeno<br/>controller · domain · dto · listener · repository · service"]
-  m_distritos["distritos<br/>controller · domain · dto · infra · repository · service"]
+  m_distritos["distritos<br/>controller · domain · dto · infra · port · repository · service"]
   m_notificaciones["notificaciones<br/>controller · domain · dto · infra · listener · port · repository · service"]
   m_reportes["reportes<br/>controller · domain · dto · event · infra · port · repository · service"]
   m_soporte["soporte<br/>controller · domain · dto · repository · service"]
@@ -31,12 +31,12 @@ flowchart LR
   m_notificaciones -.->|"domain, event, service (fuera de §4.3)"| m_reportes
   m_reportes -->|"domain, service"| m_auth
   m_reportes -->|"domain, exception, geo, port"| m_common
-  m_reportes -.->|"domain, repository (fuera de §4.3)"| m_distritos
+  m_reportes -->|"domain, port"| m_distritos
   m_soporte -->|"domain, service"| m_auth
   m_soporte -->|"domain, exception"| m_common
   classDef transversal fill:#eef2f7,stroke:#6b7a90,color:#1f2937
   class m_common transversal
-  linkStyle 2,4,8,11 stroke:#c62828,stroke-width:2px
+  linkStyle 2,4,8 stroke:#c62828,stroke-width:2px
 ```
 
 | Origen | Destino | Subpaquetes usados | ¿Prevista en §4.3? |
@@ -52,7 +52,7 @@ flowchart LR
 | `notificaciones` | `reportes` | `domain`, `event`, `service` | **no** |
 | `reportes` | `auth` | `domain`, `service` | sí |
 | `reportes` | `common` | `domain`, `exception`, `geo`, `port` | sí (common es transversal) |
-| `reportes` | `distritos` | `domain`, `repository` | **no** |
+| `reportes` | `distritos` | `domain`, `port` | sí |
 | `soporte` | `auth` | `domain`, `service` | sí |
 | `soporte` | `common` | `domain`, `exception` | sí (common es transversal) |
 
@@ -67,7 +67,6 @@ Módulos de §4.3 que todavía no existen en el código: `clasificacion` (nuevo)
 - `desempeno` → `reportes`: §4.3 limita desempeno → reportes a event y usa service (desempeno/service/DesempenoService.java).
 - `notificaciones` → `reportes`: §4.3 limita notificaciones → reportes a event y usa domain (notificaciones/domain/Notificacion.java, notificaciones/service/NotificacionService.java).
 - `notificaciones` → `reportes`: §4.3 limita notificaciones → reportes a event y usa service (notificaciones/service/NotificacionService.java).
-- `reportes` → `distritos`: usa distritos.repository, interno del módulo (reportes/infra/PointInPolygonAssignmentStrategy.java).
 <!-- generado:fin modulos-backend -->
 
 ## Frontend: features, compartidos y rutas
