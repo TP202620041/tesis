@@ -291,7 +291,8 @@ public class ReporteController {
     }
 
     /**
-     * ETag fuerte: SHA-256 del contenido. Los records tienen un
+     * ETag fuerte: SHA-256 del contenido, truncado a 128 bits (los primeros
+     * 16 bytes, en hexadecimal). Los records tienen un
      * {@code toString} determinista (mismos datos, mismo texto), y el
      * servicio redondea las coordenadas para que no haya ruido de coma
      * flotante entre corridas.

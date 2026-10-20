@@ -2,7 +2,7 @@
 
 - **Estado:** pendiente <!-- pendiente | atendido -->
 - **Fecha:** 2026-10-20
-- **Origen:** backend, rama `feature/us-11-densidad`, que sale de `feature/be-06-api-publica`. El PR de US-11 se abre después de que BE-06 esté en `develop` (BE-06 no cambia el contrato).
+- **Origen:** backend, rama `feature/us-11-densidad`, commit `f9eec1b` (PR contra `develop`)
 - **Historia o tarea:** US-11
 - **Atendido por:** _(frontend, rama y fecha)_
 

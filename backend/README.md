@@ -328,7 +328,7 @@ Caché **HTTP**, sin caché en el servidor:
   proxy o CDN) reutiliza la respuesta de esa URL sin llegar al backend.
   `public` es correcto porque la respuesta no depende del usuario, aunque el
   pedido lleve `Authorization`.
-- `ETag` fuerte (SHA-256 del contenido). Pasado el minuto, el cliente revalida
+- `ETag` fuerte: SHA-256 del contenido, truncado a 128 bits. Pasado el minuto, el cliente revalida
   con `If-None-Match`, y si nada cambió recibe **304** sin cuerpo (lo resuelve
   Spring MVC al ver el ETag en un GET). Las coordenadas se redondean al
   decimal de la celda para que el mismo contenido dé siempre el mismo ETag.
@@ -891,6 +891,12 @@ aplicada.
   asignación sobre 20k puntos). Suficiente para el MVP. El dataset detallado
   (66,753 vértices) está disponible si se requiere mayor precisión; el
   `DistritoSeeder` es agnóstico al archivo.
+- **Densidad del mapa de calor (US-11) sin caché en el servidor ni tope de
+  celdas.** Cada petición que no resuelve la caché HTTP agrega toda la tabla
+  `reporte` con los filtros dados, y la respuesta crece con las celdas
+  ocupadas. Siguiente paso, si el volumen lo pide: una vista materializada
+  por celda refrescada por eventos, como `mv_indice_desempeno_distrital`
+  (ver [Mapa de calor (US-11)](#mapa-de-calor-us-11)).
 
 ## Modelo de datos
 
