@@ -581,9 +581,6 @@ Verificado end-to-end contra el backend real:
   de desarrollo y Chrome con perfil persistente: suscripción en FCM, aviso
   real mostrado por el SW con la URL del reporte, baja al cerrar sesión y
   re-registro al volver a entrar. Chrome no admite push en modo incógnito.
-
-Implementado, **pendiente de verificación en vivo**:
-
 - **US-11** mapa de calor en `/mapa`: casillas «Capas del mapa» para
   encender y apagar por separado los marcadores y la capa de calor, que usa
   los mismos filtros del panel (distrito, categoría, estado y fechas) sobre
@@ -591,7 +588,9 @@ Implementado, **pendiente de verificación en vivo**:
   estado vacío «Sin reportes en esta zona con estos filtros» (ver «Mapa de
   calor» en Decisiones técnicas). Cubierto por tests de la lógica
   (`model/densidad.ts`), del hook y de la leyenda; Leaflet no se testea en
-  jsdom.
+  jsdom. Verificado el 20/10 contra el backend real: la capa dibuja los
+  círculos bajo los marcadores en un único canvas, y con un reporte por celda
+  la leyenda dice «Baja» (piso de 4 en la escala).
 
 ### `null` no es cero
 
