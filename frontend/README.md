@@ -312,7 +312,9 @@ canal. Dónde aparece:
   la sincronización se detiene y se reenvía tras aceptar. `GuardiaDeRol` y
   `useSesionRequerida` llevan a la pantalla antes de pedir nada (sin bucle
   en la propia `/aceptar-terminos`). El `redirect` se valida después de
-  parsear la URL (un `"/\t/otro"` se convertiría en `//otro`).
+  parsear la URL (un `"/\t/otro"` o un `"/.//otro"` se convertirían en
+  `//otro`): se rechaza una ruta normalizada que empiece con `//` y se vuelve
+  a parsear lo que se devuelve.
 - **Perfil → «Privacidad y consentimientos»:** vigentes, historial (con
   revocaciones) y otorgar/retirar correo y push. Los términos no se revocan:
   es la baja de la cuenta (§5 y §7 del borrador), y el backend responde 409.
@@ -342,6 +344,79 @@ queda bloqueado sin los términos.
 Los avisos opcionales llevan su propia versión de texto
 (`push-2026-10-v1`, `correo-2026-10-v1`, en `model/consentimientos.ts`): el
 backend la guarda tal cual para saber qué texto vio el usuario.
+
+### Notificaciones push (US-21)
+
+Capas: reglas puras en `features/auth/model/push.ts` (base64url → bytes,
+comparar la clave VAPID, textos de estado); el navegador (Service Worker,
+`PushManager`, `Notification`) en el adaptador `src/pwa/push.ts`; la
+orquestación en `features/auth/hooks/push.ts`, que recibe navegador y API por
+parámetro y se prueba con dobles (en jsdom no hay push real). Vive en `auth`
+porque la usan el perfil, el inicio y el cierre de sesión y la aceptación de
+términos, todos de `auth`.
+
+- **Activar (perfil, solo este navegador):** requiere el consentimiento
+  `NOTIFICACIONES_PUSH`; si falta, el botón es «Otorgar consentimiento y
+  activar aquí» (sin él, el `POST` daría 409). Orden del handoff:
+  `GET /api/notificaciones/vapid-public-key` → `Notification.requestPermission()`
+  → `pushManager.subscribe({ userVisibleOnly: true, applicationServerKey })`
+  → `POST /api/notificaciones/suscripciones` con `subscription.toJSON()` +
+  `userAgent`. Estados en pantalla: no soportado (o sin Service Worker, como
+  en `next dev`), sin claves en el servidor (404: no se ofrece), permiso
+  bloqueado, inactivo y activo.
+- **Desactivar en este navegador:** `DELETE` de la suscripción +
+  `unsubscribe()`; el permiso sigue para los demás navegadores. **Retirar el
+  consentimiento** push borra en el servidor las suscripciones de todos los
+  navegadores; aquí además se cancela la local.
+- **Al iniciar sesión** (y al aceptar términos pendientes, porque con ellos el
+  backend responde 403): si el navegador ya tiene una suscripción con permiso
+  concedido, se vuelve a registrar para el usuario que entra; si se hizo con
+  otra clave VAPID (rotación: el servicio de push rechaza las viejas y el
+  backend no las desactiva), `unsubscribe()` + `subscribe()` con la nueva +
+  `POST`. Nunca pide permiso ni crea una suscripción por su cuenta. Corre en
+  segundo plano (sin navegar por un 401/403) y sin esperar. Si el navegador
+  no informa la clave de la suscripción, se trata como distinta.
+- **Al cerrar sesión:** el `DELETE` de la suscripción de este navegador va
+  dentro de `cerrar` (`useCerrarSesion`), después de las preguntas de
+  `antesDeCerrarSesion` y **antes** de `cerrarSesion()` (después sería 401).
+  Antes espera al re-registro de inicio de sesión si sigue en vuelo (si no,
+  ese `POST` podría llegar después de la baja y reasignar el navegador a
+  quien sale). Todo dentro de un tope de 3 s; pase lo que pase, el cierre
+  sigue. Si la baja responde bien, la suscripción del navegador se conserva:
+  si la misma persona vuelve a entrar, el inicio de sesión la registra otra
+  vez; si entra otra persona sin consentimiento push, el registro da 409 y no
+  recibe nada. Si la baja **falla** por cualquier motivo (red, 401 porque el
+  JWT venció con la PWA abierta, 5xx…), se hace `unsubscribe()` en el
+  navegador para que el dispositivo no siga mostrando los avisos de quien
+  salió. La única excepción es el 404: dice que el endpoint no es de quien
+  sale (puede ser de otra persona que usó el dispositivo antes, que perdería
+  su push); `darDeBajaSuscripcionPush` ya lo resuelve como éxito y la regla
+  es una segunda barrera. Agotar el tope no cuenta como fallo.
+- **Service Worker** (`sw.ts`): `push` muestra la notificación con el
+  payload del backend (`titulo`, `cuerpo`, `url`, `tag: 'reporte-<id>'`, así
+  un aviso nuevo del mismo reporte reemplaza al anterior; con un payload
+  ilegible muestra un aviso genérico, porque `userVisibleOnly` obliga a
+  mostrar algo); `notificationclick` enfoca la pestaña que ya está en esa
+  URL, o reutiliza otra de la app navegándola, o abre una nueva. Solo rutas
+  del mismo origen: una `url` absoluta o `//otro` cae a `/mis-reportes`. Se
+  valida después de parsear (con `\t`, `\n` o `\r`, `"/\t/otro"` sería
+  `//otro`, y lo mismo `"/.//otro"` por la normalización de puntos): se
+  rechaza una ruta normalizada que empiece con `//` y se vuelve a parsear lo
+  que se devuelve. El SW comprueba además el origen contra `self.location`
+  antes de `openWindow` o `navigate`; si no coincide, abre `/mis-reportes`. La lógica pura está en
+  `src/pwa/avisosPush.ts`, con tests. El SW sigue sin cachear `/api/`.
+- **CSP:** sin cambios. La suscripción y la entrega las hace el navegador con
+  su servicio de push, fuera de la CSP de la página; el SW no llama a otros
+  orígenes; la clave y el registro van al API, ya en `connect-src`.
+
+**Ver un push real en local:** el SW solo existe en el build
+(`npm run build && npm run start`, en `http://localhost:3000`, que el
+navegador trata como contexto seguro). El backend necesita claves VAPID por
+entorno (`npx web-push generate-vapid-keys`; luego `VAPID_PUBLIC_KEY`,
+`VAPID_PRIVATE_KEY` y `VAPID_SUBJECT=mailto:…` antes de
+`mvn spring-boot:run`, ver `backend/README.md`). Con un ciudadano: Perfil →
+«Otorgar consentimiento y activar aquí» → permitir; luego un funcionario del
+distrito cambia el estado de un reporte de ese ciudadano y llega el aviso.
 
 ### Fotos: dos visibilidades
 
@@ -386,9 +461,6 @@ Los tiles de OpenStreetMap **sí** están listados en `img-src` de la CSP
 Verificado end-to-end contra el backend real:
 
 - **US-01** registro (`/registro`) · **US-02** login (`/login`).
-- **NC-07b** consentimiento: aceptación de términos en el registro,
-  `/privacidad`, pantalla `/aceptar-terminos` y «Privacidad y
-  consentimientos» en el perfil (ver «Consentimiento» en Decisiones técnicas).
 - `/sesion` — verificación de `GET /api/auth/me`. Andamiaje: desaparece
   cuando existan las landings por rol.
 - **US-05** crear reporte (`/reportar`): GPS con fallback a marcar en el mapa
@@ -439,6 +511,17 @@ Verificado end-to-end contra el backend real:
 - **US-18/20** índice de desempeño (`/desempeno`), **público**: ranking de los
   43 distritos con tasa de resolución, tiempo promedio y satisfacción,
   ordenable por columna y filtrable por tipo de daño.
+
+Implementado y cubierto por tests, **pendiente de verificación en vivo**
+(contra el backend real; push con claves VAPID):
+
+- **NC-07b** consentimiento: aceptación de términos en el registro,
+  `/privacidad`, pantalla `/aceptar-terminos` y «Privacidad y
+  consentimientos» en el perfil (ver «Consentimiento» en Decisiones técnicas).
+- **US-21** notificaciones push: activar y desactivar en el perfil por
+  navegador, re-registro al iniciar sesión (con rotación de claves VAPID),
+  baja al cerrar sesión y avisos en el Service Worker (ver «Notificaciones
+  push» en Decisiones técnicas).
 
 ### `null` no es cero
 

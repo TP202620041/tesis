@@ -16,6 +16,12 @@ const TILE_HOSTS = 'https://tile.openstreetmap.org https://*.tile.openstreetmap.
  *
  * `connect-src` incluye el origen del API porque el backend se despliega
  * aparte; sin eso la propia CSP bloquearia las llamadas.
+ *
+ * Web Push (US-21) no necesita ningun origen nuevo: `pushManager.subscribe`
+ * y la entrega de avisos los hace el propio navegador con su servicio de
+ * push (FCM, Mozilla, WNS, Apple), fuera de la CSP de la pagina; el Service
+ * Worker solo muestra la notificacion y abre rutas de este origen; y la
+ * clave VAPID y el registro de la suscripcion van al API, ya listado.
  */
 const csp = [
   "default-src 'self'",

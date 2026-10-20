@@ -11,11 +11,20 @@ import {
   TEXTO_DE_FINALIDAD,
   TEXTO_TERMINOS_NO_REVOCABLES,
   vigenteDe,
+  type FinalidadOpcional,
 } from '../model/consentimientos';
 import { RUTA_PRIVACIDAD } from '../model/rutas';
 
 interface Props {
   consentimientos: EstadoConsentimientos;
+  /**
+   * Revocar en lugar de `consentimientos.revocar`. US-21: el perfil lo usa
+   * para que retirar el consentimiento push cancele tambien la suscripcion
+   * de este navegador.
+   */
+  revocar?: (finalidad: FinalidadOpcional) => Promise<unknown>;
+  /** Contenido bajo una finalidad (US-21: activar push en este navegador). */
+  extra?: Partial<Record<FinalidadOpcional, ReactNode>>;
 }
 
 /**
@@ -23,8 +32,9 @@ interface Props {
  * acciones de otorgar y revocar los avisos opcionales (correo y push). Los
  * terminos no se revocan aqui: retirarlos es la baja de la cuenta.
  */
-export function PrivacidadYConsentimientos({ consentimientos }: Props) {
-  const { carga, procesando, error, otorgar, revocar } = consentimientos;
+export function PrivacidadYConsentimientos({ consentimientos, revocar: revocarOtro, extra = {} }: Props) {
+  const { carga, procesando, error, otorgar } = consentimientos;
+  const revocar = revocarOtro ?? consentimientos.revocar;
 
   return (
     <section
@@ -82,6 +92,7 @@ export function PrivacidadYConsentimientos({ consentimientos }: Props) {
                     {ocupado ? 'Guardando…' : vigente ? 'Retirar consentimiento' : 'Otorgar consentimiento'}
                   </button>
                 </div>
+                {extra[finalidad]}
               </Fila>
             );
           })}
