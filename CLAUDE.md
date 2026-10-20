@@ -34,21 +34,24 @@ Todo el código, comentarios, commits y docs están en **español**. Los commits
 
 ### Backend (`backend/`)
 
-Máquina de desarrollo actual: **macOS**. El Java por defecto (24) no compila con el Lombok de Boot 3.4: exportar JDK 21 antes de `mvn`:
-`export JAVA_HOME=/opt/homebrew/opt/openjdk@21`
+El usuario trabaja en **dos máquinas**. Antes de correr Maven, comprobar en cuál se está (`uname` o la ruta del repo):
 
-PostgreSQL corre en el puerto por defecto **5432** (en la máquina Windows anterior se usaba 5433 con `POSTGRES_PORT=5433`).
+| | Windows | macOS |
+|---|---|---|
+| JDK 21 | `export JAVA_HOME="C:/Cursos/SpringCloudKubernetes/jdk-21.0.2"` (el `mvn` global usa JDK 8) | `export JAVA_HOME=/opt/homebrew/opt/openjdk@21` (el Java por defecto, 24, no compila con el Lombok de Boot 3.4) |
+| Puerto de PostgreSQL | **5433** (el 5432 lo ocupa otro Postgres): `POSTGRES_PORT=5433` en `docker compose` y en la app | **5432** (por defecto); los IT necesitan `TEST_DB_URL=jdbc:postgresql://localhost:5432/viasegura_test` |
+| Liberar el 8080 | `Get-NetTCPConnection -LocalPort 8080` → `Stop-Process` | `lsof -ti tcp:8080 \| xargs kill` |
 
 ```bash
-docker compose up -d                             # PostGIS (+ Mailhog: SMTP 1025, UI 8025)
-mvn spring-boot:run                              # API en :8080, Swagger en /swagger-ui.html
+[POSTGRES_PORT=5433] docker compose up -d        # PostGIS (+ Mailhog: SMTP 1025, UI 8025)
+[POSTGRES_PORT=5433] mvn spring-boot:run         # API en :8080, Swagger en /swagger-ui.html
 mvn clean verify                                 # todos los tests + JaCoCo (target/site/jacoco)
 mvn verify -Dit.test=GestionMunicipalIT          # un solo test de integración
 mvn test -Dtest=ReincidenciaDetectorTest         # un solo unit test
 ```
 
 - Los tests de integración son `*IT` y corren con **Failsafe** (`mvn verify`), no con `mvn test`. Solo los `*Test` puros corren en Surefire.
-- **Testcontainers no funciona aquí** (Docker 29). Los IT usan la BD persistente `viasegura_test` en el mismo contenedor (`viasegura-db`), configurada en `support/AbstractPostgisIT`, que por defecto apunta a 5433: en esta máquina pasar `TEST_DB_URL=jdbc:postgresql://localhost:5432/viasegura_test`. Crearla una vez: `docker exec viasegura-db psql -U viasegura -d viasegura -c "CREATE DATABASE viasegura_test;"`.
+- **Testcontainers no funciona aquí** (Docker 29). Los IT usan la BD persistente `viasegura_test` en el mismo contenedor (`viasegura-db`), configurada en `support/AbstractPostgisIT`, que por defecto apunta a 5433 (Windows); en macOS pasar `TEST_DB_URL=jdbc:postgresql://localhost:5432/viasegura_test`. Crearla una vez: `docker exec viasegura-db psql -U viasegura -d viasegura -c "CREATE DATABASE viasegura_test;"`.
 - Al reportar resultados, citar el conteo de `target/failsafe-reports/failsafe-summary.xml` (`completed`), no solo `BUILD SUCCESS` — un `-Dit.test` mal escrito pasa sin ejecutar nada. Medir cobertura siempre sobre `clean verify`.
 - Para reiniciar la app, matar el proceso por puerto 8080; matar Maven deja vivo el java hijo.
 
@@ -102,7 +105,7 @@ Extienden `support/AbstractPostgisIT` (MockMvc + BD `viasegura_test`), o `Abstra
 - JWT en `localStorage`, tocado solo por `src/lib/auth/token-storage.ts`; la mitigación es la CSP estricta de `next.config.ts` (al añadir un origen externo, como tiles de mapa, hay que listarlo ahí).
 - `GuardiaDeRol` y `transiciones.ts`/`acciones.ts` son ayudas de UX que duplican reglas del backend a propósito; el backend sigue siendo la autoridad.
 - Leaflet está encapsulado en `src/map/` (cargado con `dynamic(..., { ssr: false })`); el resto de la app solo maneja `{latitud, longitud}`. No se testea Leaflet en jsdom: los tests cubren lógica pura y componentes sin mapa.
-- Vitest: `pool: 'threads'` y `fileParallelism: false` se pusieron por la máquina Windows anterior y se conservan; `vitest.setup.ts` hace `afterEach(cleanup)` explícito.
+- Vitest: `pool: 'threads'` y `fileParallelism: false` son necesarios en Windows (se mantienen también en macOS); `vitest.setup.ts` hace `afterEach(cleanup)` explícito.
 - Service Worker con Serwist en modo CLI (`serwist.config.mjs`), no el plugin de Next, porque el plugin inyecta config de webpack y rompe con Turbopack.
 
 ## Reglas del proyecto
