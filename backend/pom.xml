@@ -119,6 +119,17 @@
             <version>${poi.version}</version>
         </dependency>
 
+        <!-- Web Push real (US-21): VAPID (RFC 8292) y cifrado del mensaje
+             (RFC 8291) sin dependencias en tiempo de ejecucion; usa la
+             criptografia del JDK y java.net.http.HttpClient. Va detras del
+             puerto notificaciones/port/EnviadorWebPush. Por que esta y no
+             nl.martijndwars:web-push: ver README, "Envio push real". -->
+        <dependency>
+            <groupId>com.zerodeplibs</groupId>
+            <artifactId>zerodep-web-push-java</artifactId>
+            <version>2.1.5</version>
+        </dependency>
+
         <!-- Testing -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

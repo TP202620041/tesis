@@ -152,6 +152,11 @@ public class SecurityConfig {
                         // estatico, sino por /api/perfiles/fotos/{archivo}, que
                         // verifica al dueno (PerfilFotoController).
                         .requestMatchers(HttpMethod.GET, "/media/fotos/reportes/**").permitAll()
+                        // Clave publica VAPID (US-21): el navegador la necesita
+                        // para suscribirse a push; no identifica a nadie. Ruta
+                        // exacta y solo GET (el resto de /api/notificaciones es
+                        // privado).
+                        .requestMatchers(HttpMethod.GET, "/api/notificaciones/vapid-public-key").permitAll()
                         // D-12: con los terminos pendientes solo se puede ver el
                         // propio perfil, gestionar los consentimientos y dar de
                         // baja la suscripcion push al cerrar sesion (el logout es

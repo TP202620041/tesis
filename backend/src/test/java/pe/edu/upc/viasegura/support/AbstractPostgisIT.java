@@ -1,10 +1,12 @@
 package pe.edu.upc.viasegura.support;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -44,6 +46,7 @@ import pe.edu.upc.viasegura.reportes.repository.ReporteRepository;
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
+@Import({EnviadorWebPushFake.Config.class, EjecutorSincronoTestConfig.class})
 public abstract class AbstractPostgisIT {
 
     /**
@@ -57,6 +60,20 @@ public abstract class AbstractPostgisIT {
     private UsuarioRepository usuarioRepositoryBase;
     @Autowired
     private ConsentimientoService consentimientoServiceBase;
+
+    /** Puerto de envio push falso (US-21): nunca se llama a un servicio real. */
+    @Autowired
+    protected EnviadorWebPushFake enviadorPush;
+
+    /** Executor de test: guarda los errores de los metodos @Async. */
+    @Autowired
+    private EjecutorSincronoTestConfig asincrono;
+
+    /** Un fallo en el hilo asincrono hace fallar el test con su causa. */
+    @AfterEach
+    void fallarSiHuboErrorAsincrono() {
+        asincrono.relanzarSiHuboError();
+    }
 
     /**
      * Guarda el usuario y le registra la aceptacion de los terminos vigentes,
@@ -112,6 +129,8 @@ public abstract class AbstractPostgisIT {
      */
     @BeforeEach
     void limpiezaFkSafe() {
+        enviadorPush.reiniciar();
+        asincrono.reiniciar();
         if (notificacionRepository != null) {
             notificacionRepository.deleteAll();
         }

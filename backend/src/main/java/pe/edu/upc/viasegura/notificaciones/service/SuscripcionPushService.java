@@ -13,8 +13,10 @@ import pe.edu.upc.viasegura.common.exception.BusinessException;
 import pe.edu.upc.viasegura.common.exception.ResourceNotFoundException;
 import pe.edu.upc.viasegura.notificaciones.domain.PoliticaEndpointPush;
 import pe.edu.upc.viasegura.notificaciones.domain.SuscripcionPush;
+import pe.edu.upc.viasegura.notificaciones.dto.ClavePublicaVapidResponse;
 import pe.edu.upc.viasegura.notificaciones.dto.SuscripcionPushRequest;
 import pe.edu.upc.viasegura.notificaciones.dto.SuscripcionPushResponse;
+import pe.edu.upc.viasegura.notificaciones.port.EnviadorWebPush;
 import pe.edu.upc.viasegura.notificaciones.repository.SuscripcionPushRepository;
 
 /**
@@ -30,6 +32,7 @@ public class SuscripcionPushService {
     private final SuscripcionPushRepository suscripcionRepository;
     private final UsuarioConsultaService usuarioConsultaService;
     private final ConsentimientoService consentimientoService;
+    private final EnviadorWebPush enviadorWebPush;
     private final List<String> hostsPermitidos;
     private final int maxPorUsuario;
 
@@ -37,6 +40,7 @@ public class SuscripcionPushService {
             SuscripcionPushRepository suscripcionRepository,
             UsuarioConsultaService usuarioConsultaService,
             ConsentimientoService consentimientoService,
+            EnviadorWebPush enviadorWebPush,
             @Value("${app.notificaciones.push.hosts-permitidos}") List<String> hostsPermitidos,
             @Value("${app.notificaciones.push.max-por-usuario:10}") int maxPorUsuario) {
         if (maxPorUsuario < 1) {
@@ -45,6 +49,7 @@ public class SuscripcionPushService {
         this.suscripcionRepository = suscripcionRepository;
         this.usuarioConsultaService = usuarioConsultaService;
         this.consentimientoService = consentimientoService;
+        this.enviadorWebPush = enviadorWebPush;
         this.hostsPermitidos = List.copyOf(hostsPermitidos);
         this.maxPorUsuario = maxPorUsuario;
     }
@@ -134,5 +139,18 @@ public class SuscripcionPushService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public int eliminarTodasDelUsuario(Long usuarioId) {
         return suscripcionRepository.borrarDeUsuario(usuarioId);
+    }
+
+    /**
+     * Clave publica VAPID para {@code pushManager.subscribe} (US-21). Es
+     * publica por definicion: el navegador la necesita antes de suscribirse.
+     * Si el servidor no tiene claves configuradas, 404: el frontend no ofrece
+     * push.
+     */
+    public ClavePublicaVapidResponse clavePublicaVapid() {
+        return enviadorWebPush.clavePublica()
+                .map(ClavePublicaVapidResponse::new)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Las notificaciones push no estan configuradas en este servidor"));
     }
 }
