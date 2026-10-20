@@ -104,7 +104,7 @@ Resolver lo que reporte `modulosSinCiclos`. **Ciclo real (almacén del 04/10): `
 ### [ ] BE-08 · Cierre
 - El almacén vacío, o con violaciones residuales que el arquitecto aceptó y que quedan listadas en `ARCHITECTURE.md` §9.
 - Actualizar la sección “Estructura del proyecto” de `backend/README.md` y la de arquitectura de `backend/CLAUDE.md`.
-- En `backend/CLAUDE.md` (sección Geoespacial), el Strategy pasa a `distritos/port/GeoAssignmentStrategy` → `distritos/infra/PointInPolygonAssignmentStrategy` (BE-06).
+- En `backend/CLAUDE.md` (sección Geoespacial), el Strategy pasa a `distritos/port/GeoAssignmentStrategy` → `distritos/infra/PointInPolygonAssignmentStrategy` (BE-06). **Hecho** (2026-10-20, junto con la marca Ciudad Viva).
 
 ### [x] BE-10 · El archivo subido no llega como tipo de Spring Web a `service/` (2026-10-20, PR #48)
 Decisión del usuario (13/10), a partir de la observación del revisor en BE-04: `reportes/service/CrearReporteCommand` lleva un `MultipartFile` (Spring Web) hasta el servicio, y §4.2 no permite HTTP en `service/` (ninguna regla de ArchUnit lo detecta).

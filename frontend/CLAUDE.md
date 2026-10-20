@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 @AGENTS.md
 
-PWA de **ViaSegura**. El `CLAUDE.md` de la raíz del monorepo ya cubre el stack, los comandos y la arquitectura general del frontend; aquí va solo lo específico de trabajar dentro de `frontend/`. Código, comentarios y textos de UI en español. Las decisiones de diseño (con su justificación ante el jurado) están en `README.md`: revisarlo antes de "corregir" algo que parezca raro.
+PWA de **Ciudad Viva**. El `CLAUDE.md` de la raíz del monorepo ya cubre el stack, los comandos y la arquitectura general del frontend; aquí va solo lo específico de trabajar dentro de `frontend/`. Código, comentarios y textos de UI en español. Las decisiones de diseño (con su justificación ante el jurado) están en `README.md`: revisarlo antes de "corregir" algo que parezca raro.
 
 ## Capas (obligatorio — ver `../ARCHITECTURE.md` §5)
 
