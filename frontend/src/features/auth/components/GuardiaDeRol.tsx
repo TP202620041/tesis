@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, type ReactNode } from 'react';
-import { useSesion } from '../hooks';
+import { useSesion } from '../hooks/useSesion';
 import { descripcionDeArea, puedeAcceder, rutaInicialDe } from '../model/rutas';
 import type { Rol, Usuario } from '@/lib/types/domain';
 

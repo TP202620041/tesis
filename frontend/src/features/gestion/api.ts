@@ -1,4 +1,4 @@
-import { api, apiDescargar } from '@/lib/api/client';
+import { api, apiDescargar, conFotoAbsoluta } from '@/lib/api/client';
 import { ApiError } from '@/lib/api/errors';
 import type { HistorialEntrada } from '@/lib/types/domain';
 import {
@@ -46,7 +46,7 @@ export async function bandeja(filtros: FiltrosBandeja): Promise<ReporteGestion[]
   const reportes = await api.get<ReporteGestion[]>(
     `/api/reportes/bandeja${query ? `?${query}` : ''}`,
   );
-  return filtrarPorFecha(reportes, filtros);
+  return filtrarPorFecha(reportes, filtros).map(conFotoAbsoluta);
 }
 
 function filtrarPorFecha(reportes: ReporteGestion[], filtros: FiltrosBandeja): ReporteGestion[] {

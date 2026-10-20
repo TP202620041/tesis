@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { apiDescargar, apiFetch } from './client';
+import { apiDescargar, apiFetch, conFotoAbsoluta } from './client';
 import { ApiError, NetworkError } from './errors';
 import { borrarToken, guardarToken, leerToken } from '@/lib/auth/token-storage';
 
@@ -101,5 +101,27 @@ describe('apiFetch', () => {
   it('una respuesta 202 sin cuerpo devuelve undefined', async () => {
     fetchFalso.mockResolvedValue(new Response(null, { status: 202, headers: { 'Content-Length': '0' } }));
     await expect(apiFetch('/api/auth/recuperar-password', { method: 'POST' })).resolves.toBeUndefined();
+  });
+});
+
+describe('conFotoAbsoluta', () => {
+  it('compone la URL absoluta de una foto relativa y conserva el resto', () => {
+    const reporte = { id: 7, fotoUrl: '/media/fotos/reportes/a.png' };
+
+    const resultado = conFotoAbsoluta(reporte);
+
+    expect(resultado.fotoUrl).toMatch(/^https?:\/\/.+\/media\/fotos\/reportes\/a\.png$/);
+    expect(resultado.id).toBe(7);
+    expect(reporte.fotoUrl).toBe('/media/fotos/reportes/a.png');
+  });
+
+  it('es idempotente y no toca una entidad sin foto', () => {
+    const absoluta = conFotoAbsoluta({ fotoUrl: '/media/x.png' });
+    const sinFoto = { id: 1, fotoUrl: null };
+
+    expect(conFotoAbsoluta(absoluta).fotoUrl).toBe(absoluta.fotoUrl);
+    expect(conFotoAbsoluta(sinFoto)).toBe(sinFoto);
+    const sinCampo: { id: number; fotoUrl?: string } = { id: 2 };
+    expect(conFotoAbsoluta(sinCampo).fotoUrl).toBeUndefined();
   });
 });
