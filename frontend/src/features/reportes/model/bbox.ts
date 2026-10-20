@@ -133,10 +133,21 @@ export function construirQuery(
     maxLon: String(bbox.maxLon),
     size: String(size),
   });
+  agregarFiltros(params, filtros);
+  return params.toString();
+}
+
+/**
+ * Agrega a `params` los filtros del panel, omitiendo los nulos.
+ *
+ * Unica traduccion de {@link FiltrosMapa} a parametros: la comparten la
+ * busqueda (`construirQuery`) y la densidad del mapa de calor (US-11,
+ * `densidad.ts`), para que las dos capas del mapa no puedan filtrar distinto.
+ */
+export function agregarFiltros(params: URLSearchParams, filtros: FiltrosMapa): void {
   if (filtros.distritoId != null) params.set('distritoId', String(filtros.distritoId));
   if (filtros.categoriaId != null) params.set('categoriaId', String(filtros.categoriaId));
   if (filtros.estado) params.set('estado', filtros.estado);
   if (esDiaValido(filtros.fechaDesde)) params.set('fechaDesde', inicioDelDiaLocal(filtros.fechaDesde));
   if (esDiaValido(filtros.fechaHasta)) params.set('fechaHasta', finDelDiaLocal(filtros.fechaHasta));
-  return params.toString();
 }
