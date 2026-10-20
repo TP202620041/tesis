@@ -150,6 +150,68 @@ export async function revocarConsentimiento(finalidad: FinalidadOpcional): Promi
 }
 
 /**
+ * US-21: clave publica VAPID del servidor (base64url), o `null` si el
+ * servidor no tiene claves (404): entonces no se ofrece push. Es publica.
+ */
+export async function clavePublicaVapid(): Promise<string | null> {
+  try {
+    const r = await api.get<components['schemas']['ClavePublicaVapidResponse']>(
+      '/api/notificaciones/vapid-public-key',
+      { conAuth: false },
+    );
+    return r.clavePublica ?? null;
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) return null;
+    throw e;
+  }
+}
+
+/**
+ * Opciones de las llamadas de push que corren solas (al iniciar o cerrar
+ * sesion): `enSegundoPlano` evita navegar al login o a la pantalla de
+ * terminos por un 401/403 que el usuario no provoco.
+ */
+interface OpcionesPush {
+  enSegundoPlano?: boolean;
+}
+
+/**
+ * US-21 / NC-07: registra (o reasigna al usuario actual, y reactiva) la
+ * suscripcion de este navegador. Upsert por `endpoint`: 201 o 200. Sin el
+ * consentimiento `NOTIFICACIONES_PUSH` vigente, 409.
+ */
+export async function registrarSuscripcionPush(
+  suscripcion: PushSubscriptionJSON,
+  userAgent: string,
+  { enSegundoPlano = false }: OpcionesPush = {},
+): Promise<void> {
+  await api.post<unknown>(
+    '/api/notificaciones/suscripciones',
+    { ...suscripcion, userAgent },
+    { redirigirEn401: !enSegundoPlano },
+  );
+}
+
+/**
+ * US-21 / NC-07: da de baja SOLO este navegador (sin retirar el permiso).
+ * Un 404 (ya no existia, o es de otro usuario) cuenta como hecho.
+ */
+export async function darDeBajaSuscripcionPush(
+  endpoint: string,
+  { enSegundoPlano = false }: OpcionesPush = {},
+): Promise<void> {
+  try {
+    await api.delete<void>('/api/notificaciones/suscripciones', {
+      json: { endpoint },
+      redirigirEn401: !enSegundoPlano,
+    });
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) return;
+    throw e;
+  }
+}
+
+/**
  * US-04: cerrar sesion es puramente del lado del cliente — se descarta el
  * token. El backend no tiene blacklist a proposito (decision documentada en
  * su README); el token sigue siendo valido hasta que expira.
