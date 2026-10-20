@@ -8,7 +8,9 @@ import { ListaMisReportes } from '@/features/reportes/components/ListaMisReporte
 export default function MisReportesPage() {
   return (
     <GuardiaDeRol rolesPermitidos={['CIUDADANO']}>
-      {() => <ListaMisReportes cierreDeSesion={<BotonCerrarSesion />} />}
+      {(usuario) => (
+        <ListaMisReportes usuarioId={usuario.id} cierreDeSesion={<BotonCerrarSesion />} />
+      )}
     </GuardiaDeRol>
   );
 }

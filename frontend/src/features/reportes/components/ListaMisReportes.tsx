@@ -3,7 +3,9 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { estiloDeEstado } from '@/lib/types/estados';
+import { useReportesEnCola } from '../hooks/useColaOffline';
 import { useMisReportes } from '../hooks/useMisReportes';
+import { PendientesDeEnvio } from './PendientesDeEnvio';
 
 /**
  * US-07: los reportes que el ciudadano envio, con su estado actual.
@@ -11,8 +13,15 @@ import { useMisReportes } from '../hooks/useMisReportes';
  * `cierreDeSesion` es el boton de cerrar sesion (feature `auth`): lo pasa la
  * pagina, porque una feature no importa componentes de otra.
  */
-export function ListaMisReportes({ cierreDeSesion }: { cierreDeSesion: ReactNode }) {
+export function ListaMisReportes({
+  usuarioId,
+  cierreDeSesion,
+}: {
+  usuarioId: number;
+  cierreDeSesion: ReactNode;
+}) {
   const carga = useMisReportes();
+  const cola = useReportesEnCola(usuarioId);
   const cargando = carga.estado === 'cargando';
   const error = carga.estado === 'error' ? 'No se pudieron cargar tus reportes.' : null;
   const reportes = carga.datos?.reportes ?? [];
@@ -71,9 +80,11 @@ export function ListaMisReportes({ cierreDeSesion }: { cierreDeSesion: ReactNode
         </p>
       )}
 
+      <PendientesDeEnvio pendientes={cola.pendientes} onDescartar={cola.descartar} />
+
       {cargando && <p className="text-slate-600 dark:text-slate-400">Cargando…</p>}
 
-      {!cargando && reportes.length === 0 && !error && (
+      {!cargando && reportes.length === 0 && cola.pendientes.length === 0 && !error && (
         <div className="flex flex-col items-start gap-3 rounded-md border border-dashed border-slate-300 p-8 dark:border-slate-600">
           <p className="text-slate-600 dark:text-slate-400">
             Todavía no has enviado ningún reporte.
