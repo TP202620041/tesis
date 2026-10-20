@@ -4,6 +4,7 @@ import type { HistorialEntrada } from '@/lib/types/domain';
 import type {
   Calificacion,
   ComentarioPublico,
+  DensidadReportes,
   NuevoReporte,
   PaginaReportes,
   ReporteCreado,
@@ -34,6 +35,22 @@ export async function buscarReportes(query: string): Promise<PaginaReportes> {
     contenido: (pagina.content ?? []).map(conFotoAbsoluta),
     total: pagina.totalElements ?? 0,
   };
+}
+
+/**
+ * US-11: densidad de reportes para el mapa de calor. **Publica**, SIN token,
+ * igual que la busqueda.
+ *
+ * `query` la construye `construirQueryDensidad` (solo filtros, sin area).
+ * No se fuerza `cache: 'no-store'`: el backend responde con
+ * `Cache-Control: public, max-age=60` y `ETag`, y el navegador reutiliza su
+ * copia o revalida (304) por su cuenta cuando la misma consulta se repite
+ * (p. ej. al apagar y volver a encender la capa).
+ */
+export function densidadDeReportes(query: string): Promise<DensidadReportes> {
+  return api.get<DensidadReportes>(`/api/reportes/densidad${query ? `?${query}` : ''}`, {
+    conAuth: false,
+  });
 }
 
 /* -------------------------------------------------------------------------

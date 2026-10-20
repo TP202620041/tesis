@@ -77,6 +77,8 @@ export function useBusquedaMapa(filtros: FiltrosMapa) {
     errorFiltros,
     /** Cambia con cada consulta nueva: sirve de `key` para reiniciar la paginacion de la lista. */
     claveConsulta: consulta ?? '',
+    /** Area visible adoptada (ya pasada por `requiereNuevaConsulta`); `null` hasta que el mapa la informe. */
+    area,
     alCambiarArea,
   };
 }
