@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { estiloDeEstado } from '@/lib/types/estados';
-import type { ReporteResumen } from '@/features/reportes/api';
+import type { ReporteGestion } from '../model/tipos';
 
 /** Criterios de orden de la bandeja. */
 export type OrdenBandeja = 'apoyos' | 'recientes';
@@ -15,7 +15,7 @@ export type OrdenBandeja = 'apoyos' | 'recientes';
  * LISTA COMPLETA del distrito, no una pagina — ordenar una pagina en el
  * cliente si habria sido enganoso.
  */
-export function ordenar(reportes: ReporteResumen[], orden: OrdenBandeja): ReporteResumen[] {
+export function ordenar(reportes: ReporteGestion[], orden: OrdenBandeja): ReporteGestion[] {
   const copia = [...reportes];
   if (orden === 'recientes') {
     return copia.sort((a, b) => fecha(b) - fecha(a));
@@ -27,12 +27,12 @@ export function ordenar(reportes: ReporteResumen[], orden: OrdenBandeja): Report
   );
 }
 
-function fecha(r: ReporteResumen): number {
+function fecha(r: ReporteGestion): number {
   return r.createdAt ? new Date(r.createdAt).getTime() : 0;
 }
 
 interface Props {
-  reportes: ReporteResumen[];
+  reportes: ReporteGestion[];
   orden: OrdenBandeja;
   onOrdenar: (orden: OrdenBandeja) => void;
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { descargarFotoDePerfil } from '@/features/auth/fotoPerfil';
+import { descargarFotoDePerfil } from '../fotoPerfil';
 
 /**
  * Muestra la foto de perfil, que NO se puede poner directo en un `<img src>`.

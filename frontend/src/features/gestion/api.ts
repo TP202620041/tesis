@@ -1,17 +1,24 @@
 import { api, apiDescargar } from '@/lib/api/client';
 import { ApiError } from '@/lib/api/errors';
-import type { components } from '@/lib/api/generated/schema';
-import type { ReporteResumen } from '@/features/reportes/api';
+import type { HistorialEntrada } from '@/lib/types/domain';
 import {
   nombreDeArchivo,
   parametrosDeExportacion,
   type FiltrosExportacion,
   type FormatoExportacion,
 } from './model/exportacion';
-
-type Schemas = components['schemas'];
-export type HistorialEntrada = Schemas['HistorialEntradaResponse'];
-export type AsignacionResponsable = Schemas['AsignacionResponsableResponse'];
+import {
+  cuerpoDeCategoria,
+  type CategoriaGestion,
+  type CategoriaGestionResponse,
+  type DatosCategoria,
+} from './model/categorias';
+import type {
+  AsignacionResponsable,
+  FiltrosBandeja,
+  ReporteGestion,
+  ReportesExportados,
+} from './model/tipos';
 
 /**
  * API de gestion municipal (US-13, US-14, US-15, US-22, US-28).
@@ -20,21 +27,6 @@ export type AsignacionResponsable = Schemas['AsignacionResponsableResponse'];
  * que el reporte pertenezca al distrito del funcionario (403 si no). Por eso
  * NINGUNA lleva `conAuth: false`.
  */
-
-export interface FiltrosBandeja {
-  estado: string | null;
-  categoriaId: number | null;
-  /** Filtro por fecha, aplicado en el cliente (ver `bandeja`). */
-  fechaDesde: string | null;
-  fechaHasta: string | null;
-}
-
-export const FILTROS_BANDEJA_VACIOS: FiltrosBandeja = {
-  estado: null,
-  categoriaId: null,
-  fechaDesde: null,
-  fechaHasta: null,
-};
 
 /**
  * US-13: reportes del distrito del funcionario.
@@ -45,19 +37,19 @@ export const FILTROS_BANDEJA_VACIOS: FiltrosBandeja = {
  * la bandeja devuelve la LISTA COMPLETA del distrito, no una pagina: no hay
  * riesgo de filtrar solo sobre un subconjunto.
  */
-export async function bandeja(filtros: FiltrosBandeja): Promise<ReporteResumen[]> {
+export async function bandeja(filtros: FiltrosBandeja): Promise<ReporteGestion[]> {
   const params = new URLSearchParams();
   if (filtros.estado) params.set('estado', filtros.estado);
   if (filtros.categoriaId != null) params.set('categoriaId', String(filtros.categoriaId));
 
   const query = params.toString();
-  const reportes = await api.get<ReporteResumen[]>(
+  const reportes = await api.get<ReporteGestion[]>(
     `/api/reportes/bandeja${query ? `?${query}` : ''}`,
   );
   return filtrarPorFecha(reportes, filtros);
 }
 
-function filtrarPorFecha(reportes: ReporteResumen[], filtros: FiltrosBandeja): ReporteResumen[] {
+function filtrarPorFecha(reportes: ReporteGestion[], filtros: FiltrosBandeja): ReporteGestion[] {
   if (!filtros.fechaDesde && !filtros.fechaHasta) return reportes;
   // `fechaHasta` incluye el dia completo: quien filtra "hasta el 5" espera
   // ver lo reportado el 5, no solo hasta su medianoche inicial.
@@ -78,8 +70,8 @@ export function cambiarEstado(
   reporteId: number,
   estado: string,
   comentario?: string,
-): Promise<ReporteResumen> {
-  return api.patch<ReporteResumen>(`/api/reportes/${reporteId}/estado`, {
+): Promise<ReporteGestion> {
+  return api.patch<ReporteGestion>(`/api/reportes/${reporteId}/estado`, {
     estado,
     comentario: comentario?.trim() || undefined,
   });
@@ -124,12 +116,6 @@ export function asignarResponsable(
   });
 }
 
-/** Archivo exportado, listo para guardarse con su nombre. */
-export interface ReportesExportados {
-  contenido: Blob;
-  nombreArchivo: string;
-}
-
 /**
  * US-28: exporta los reportes del distrito del funcionario con los filtros
  * activos de la bandeja. Se trae como `Blob` porque la descarga exige token.
@@ -145,4 +131,53 @@ export async function exportarReportes(
     contenido: archivo.contenido,
     nombreArchivo: nombreDeArchivo(archivo.contentDisposition, formato),
   };
+}
+
+/* -------------------------------------------------------------------------
+ * US-29: categorías personalizadas del distrito del funcionario
+ * ---------------------------------------------------------------------- */
+
+export function aCategoriaGestion(c: CategoriaGestionResponse): CategoriaGestion {
+  return {
+    id: c.id ?? 0,
+    nombre: c.nombre ?? '',
+    descripcion: c.descripcion ?? null,
+    esEstandar: c.esEstandar ?? false,
+    activo: c.activo ?? false,
+    distritoId: c.distritoId ?? null,
+    distritoNombre: c.distritoNombre ?? null,
+  };
+}
+
+/**
+ * Estándar + personalizadas del distrito, **incluidas las inactivas** (el
+ * catálogo público solo trae las activas). Orden del backend: primero las
+ * estándar y luego las propias, cada grupo por nombre.
+ */
+export async function categoriasDeGestion(): Promise<CategoriaGestion[]> {
+  const lista = await api.get<CategoriaGestionResponse[]>('/api/categorias/gestion');
+  return lista.map(aCategoriaGestion);
+}
+
+/** Crea una personalizada en el distrito del funcionario. 409 = nombre repetido o de una estándar. */
+export async function crearCategoria(datos: DatosCategoria): Promise<void> {
+  await api.post('/api/categorias', cuerpoDeCategoria(datos));
+}
+
+/** Reemplaza nombre y descripción (se envían siempre los dos). 403 = estándar o de otro distrito. */
+export async function editarCategoria(id: number, datos: DatosCategoria): Promise<CategoriaGestion> {
+  const c = await api.patch<CategoriaGestionResponse>(
+    `/api/categorias/${id}`,
+    cuerpoDeCategoria(datos),
+  );
+  return aCategoriaGestion(c);
+}
+
+/** Activa o desactiva: desactivar solo deja de ofrecerla al reportar. */
+export async function cambiarActivaCategoria(
+  id: number,
+  activa: boolean,
+): Promise<CategoriaGestion> {
+  const c = await api.patch<CategoriaGestionResponse>(`/api/categorias/${id}/activa`, { activa });
+  return aCategoriaGestion(c);
 }

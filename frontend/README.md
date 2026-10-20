@@ -71,7 +71,9 @@ src/
 │   ├── (public)/               # sin login — mapa, desempeño, guía
 │   ├── (auth)/                 # login, registro, recuperar-password
 │   ├── (ciudadano)/            # rol CIUDADANO — mis-reportes, reportar, perfil
-│   └── (municipal)/            # rol FUNCIONARIO_MUNICIPAL — bandeja, dashboard
+│   ├── (municipal)/            # rol FUNCIONARIO_MUNICIPAL — bandeja, dashboard
+│   ├── (cuenta)/               # cualquier usuario con sesión — soporte
+│   └── (admin)/admin/          # rol ADMIN — soporte (bandeja de tickets)
 ├── features/                   # lógica por dominio, no por tipo de archivo
 │   ├── auth/  reportes/  distritos/  desempeno/  gestion/  soporte/
 ├── lib/
@@ -223,10 +225,44 @@ Verificado end-to-end contra el backend real:
 - **US-10** mapa interactivo (`/mapa`), **público**: marcadores por estado con
   leyenda, filtros de distrito/categoría/estado con conteo de resultados, y
   popup con el resumen del reporte.
+- **US-12** búsqueda en `/mapa`: rango de fechas desde/hasta en el panel y
+  pestaña **Lista** con los mismos resultados del mapa, paginada, con enlace
+  al detalle (`/reportes/[id]`).
 - **US-13/14/15/22** bandeja municipal (`/bandeja`, `/bandeja/[id]`), rol
   `FUNCIONARIO_MUNICIPAL`: lista del distrito con filtros y orden, cambio de
   estado por la máquina de transiciones, asignación de responsable interno e
-  historial unificado sin redactar.
+  historial unificado sin redactar. La bandeja trabaja con su propio tipo,
+  `ReporteGestion` (`gestion/model/tipos.ts`), que es el único que trae la
+  señal interna `posibleReincidencia` (SEC-02 del backend): el
+  `ReporteResumen` del mapa, del detalle público y de «mis reportes» ya no la
+  tipa, así que una vista pública no puede leerla ni por descuido.
+- **US-25** soporte. `/soporte` (grupo `(cuenta)`, cualquier usuario con
+  sesión: la guardia admite todos los roles) para abrir un ticket y ver los
+  propios con su estado y la respuesta; enlazada desde «mis reportes», la
+  bandeja y el dashboard. El ADMIN aterriza en `/admin/soporte`: bandeja
+  paginada en el servidor, filtro por estado y respuesta en línea (al
+  responder se recarga la página actual sin desmontar la lista: `useCarga`
+  conserva los datos y marca `recargando` cuando se recarga con las mismas
+  dependencias). Va bajo `/admin/` y no en
+  `(admin)/soporte` porque dos grupos de rutas no pueden resolver a la misma
+  URL, y `/soporte` ya es la del usuario. El correo y el nombre del autor
+  solo existen en el tipo `TicketAdmin`, que solo usa el área ADMIN.
+  `GuardiaDeRol` explica el acceso denegado según el área
+  (`descripcionDeArea` en `auth/model/rutas.ts`).
+- **US-29** gestión de categorías (`/categorias`, rol
+  `FUNCIONARIO_MUNICIPAL`, enlazada desde la bandeja y el dashboard): las 6
+  estándar de solo lectura y las propias del distrito, activas e inactivas
+  con su estado escrito, para crear, editar y activar/desactivar.
+  Desactivar solo deja de ofrecerla al reportar; se puede reactivar. Dos
+  detalles de contrato:
+  - El `PATCH /api/categorias/{id}` **reemplaza** nombre y descripción (al
+    revés que el `PATCH` de reporte de US-08, que es parcial). El formulario
+    parte de los valores actuales y envía siempre los dos
+    (`gestion/model/categorias.ts`); borrar la descripción la deja en `null`.
+  - En «editar mi reporte» (US-08), si la categoría del reporte se desactivó
+    ya no viene en el catálogo: se agrega igual al selector, seleccionada y
+    marcada «ya no se ofrece», y la petición solo lleva `categoriaId` si el
+    ciudadano eligió otra (`reportes/model/edicion.ts`).
 - **US-18/20** índice de desempeño (`/desempeno`), **público**: ranking de los
   43 distritos con tasa de resolución, tiempo promedio y satisfacción,
   ordenable por columna y filtrable por tipo de daño.
@@ -282,6 +318,25 @@ Dos criterios que se complementan, uno temporal y otro espacial:
 
 El `maxAge` del CORS ahorra el *preflight*, no la consulta: sin esto, cada
 gesto seguiría siendo una petición real.
+
+Ambos viven en `features/reportes/hooks/useBusquedaMapa.ts` (sobre
+`useCarga`), que es también donde se valida el rango de fechas: con «desde»
+posterior a «hasta» no se consulta y el panel muestra el aviso.
+
+### Búsqueda por fechas y vista de lista (US-12)
+
+- **Día local, igual que la bandeja.** `<input type="date">` da un día sin
+  zona; el backend espera instantes. `lib/types/fechas.ts` convierte «desde»
+  a las 00:00 locales y «hasta» a las 23:59:59.999 locales (incluye el día
+  completo). La exportación de la bandeja (US-28) usa la misma función, así
+  que un rango significa lo mismo en las dos pantallas.
+- **La lista pagina en el cliente sobre los resultados del mapa** (hasta 300
+  del área visible), en vez de hacer otra consulta paginada: lista y mapa no
+  pueden contradecirse, y no hay una segunda petición por gesto. Si el área
+  supera el límite, el mismo aviso invita a acercar el mapa o filtrar.
+- **La lista se dibuja encima del mapa**, que sigue montado: conserva su
+  encuadre (y su área sigue definiendo los resultados) al volver a la
+  pestaña Mapa. Mientras la lista está visible, el mapa queda `inert`.
 
 **La sincronización offline no está implementada** (es un slice propio de
 Service Worker con cola de reintentos). Hoy, sin conexión, el formulario

@@ -4,6 +4,7 @@
  * Puro: arma los parámetros de `GET /api/reportes/exportar` y decide el
  * nombre del archivo. La descarga en sí la hace el hook.
  */
+import { finDelDiaLocal, inicioDelDiaLocal } from '@/lib/types/fechas';
 
 /** Formatos que acepta el backend (`FormatoExportacion`). */
 export const FORMATOS_EXPORTACION = ['CSV', 'XLSX'] as const;
@@ -31,7 +32,8 @@ export interface FiltrosExportacion {
  * Las fechas: la bandeja filtra en el cliente por día local, con
  * `fechaHasta` incluyendo el día completo. El backend espera instantes
  * (`Instant`), así que se convierten con la misma semántica: desde las 00:00
- * del primer día hasta las 23:59:59.999 del último, en la zona del navegador.
+ * del primer día hasta las 23:59:59.999 del último, en la zona del navegador
+ * (`lib/types/fechas`, la misma conversión que usa el mapa público).
  */
 export function parametrosDeExportacion(
   filtros: FiltrosExportacion,
@@ -40,12 +42,8 @@ export function parametrosDeExportacion(
   const params = new URLSearchParams({ formato });
   if (filtros.estado) params.set('estado', filtros.estado);
   if (filtros.categoriaId != null) params.set('categoriaId', String(filtros.categoriaId));
-  if (filtros.fechaDesde) {
-    params.set('fechaDesde', new Date(`${filtros.fechaDesde}T00:00:00`).toISOString());
-  }
-  if (filtros.fechaHasta) {
-    params.set('fechaHasta', new Date(`${filtros.fechaHasta}T23:59:59.999`).toISOString());
-  }
+  if (filtros.fechaDesde) params.set('fechaDesde', inicioDelDiaLocal(filtros.fechaDesde));
+  if (filtros.fechaHasta) params.set('fechaHasta', finDelDiaLocal(filtros.fechaHasta));
   return params;
 }
 

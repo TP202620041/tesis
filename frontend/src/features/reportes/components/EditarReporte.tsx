@@ -3,7 +3,9 @@
 import { useEffect, useState } from 'react';
 import { AlertaError, Boton } from '@/components/ui/form';
 import { ApiError, NetworkError } from '@/lib/api/client';
-import { cancelarReporte, editarReporte, listarCategorias, type ReporteResumen } from '@/features/reportes/api';
+import { cancelarReporte, editarReporte, listarCategorias } from '../api';
+import { cambiosDeEdicion, etiquetaDeOpcion, opcionesDeCategoria } from '../model/edicion';
+import type { ReporteResumen } from '../model/tipos';
 import type { CategoriaDano } from '@/lib/types/domain';
 
 /**
@@ -43,6 +45,13 @@ export function EditarReporte({
     };
   }, [reporte.distritoId]);
 
+  // Una categoría desactivada (US-29) ya no viene en el catálogo, pero sigue
+  // siendo la del reporte: se muestra igual, seleccionada.
+  const opciones = opcionesDeCategoria(categorias, {
+    id: reporte.categoriaId ?? null,
+    nombre: reporte.categoriaNombre ?? null,
+  });
+
   function manejarError(e: unknown) {
     if (e instanceof NetworkError) {
       setError({ mensaje: 'Sin conexión con el servidor.', detalles: [] });
@@ -58,10 +67,12 @@ export function EditarReporte({
     setError(null);
     setEnviando(true);
     try {
-      await editarReporte(reporte.id ?? 0, {
-        categoriaId: categoriaId ?? undefined,
-        descripcion,
-      });
+      // US-29: no se reenvía la categoría si no cambió (puede estar
+      // desactivada; el backend lo acepta, pero no hace falta).
+      await editarReporte(
+        reporte.id ?? 0,
+        cambiosDeEdicion(reporte.categoriaId ?? null, categoriaId, descripcion),
+      );
       onActualizado();
     } catch (e) {
       manejarError(e);
@@ -102,9 +113,9 @@ export function EditarReporte({
             onChange={(e) => setCategoriaId(e.target.value ? Number(e.target.value) : null)}
             className="rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
           >
-            {categorias.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.nombre}
+            {opciones.map((o) => (
+              <option key={o.id} value={o.id}>
+                {etiquetaDeOpcion(o)}
               </option>
             ))}
           </select>

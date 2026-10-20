@@ -24,4 +24,16 @@ public interface CategoriaDanoRepository extends JpaRepository<CategoriaDano, Lo
 
     /** Categorias personalizadas activas de un distrito concreto (US-29). */
     List<CategoriaDano> findByActivoTrueAndDistritoIdOrderByNombreAsc(Long distritoId);
+
+    /** Gestion (US-29): todas las estandar, sin filtrar por {@code activo}. */
+    List<CategoriaDano> findByEsEstandarTrueOrderByNombreAsc();
+
+    /** Gestion (US-29): todas las personalizadas del distrito, incluidas las inactivas. */
+    List<CategoriaDano> findByDistritoIdOrderByNombreAsc(Long distritoId);
+
+    /** US-29: una personalizada no puede llamarse igual que una estandar. */
+    boolean existsByNombreIgnoreCaseAndEsEstandarTrue(String nombre);
+
+    /** US-29, edicion: duplicado en el distrito sin contar la propia categoria. */
+    boolean existsByNombreIgnoreCaseAndDistritoIdAndIdNot(String nombre, Long distritoId, Long id);
 }

@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import pe.edu.upc.viasegura.common.exception.ResourceNotFoundException;
 import pe.edu.upc.viasegura.reportes.domain.EstadoReporte;
+import pe.edu.upc.viasegura.reportes.domain.RangoFechas;
 import pe.edu.upc.viasegura.reportes.domain.Reporte;
 import pe.edu.upc.viasegura.reportes.dto.ReporteResumenResponse;
 import pe.edu.upc.viasegura.reportes.repository.ReporteRepository;
@@ -23,8 +24,10 @@ import pe.edu.upc.viasegura.reportes.repository.ReporteRepository;
  * de uso distinto -- ver {@link ReporteRepository#buscar}.
  *
  * <p>Publica sin autenticacion, igual que el indice de desempeno (US-18):
- * {@link ReporteResumenResponse} ya no expone identidad del creador (nace
- * de la bandeja municipal US-13), asi que reusarla aqui no filtra PII.</p>
+ * {@link ReporteResumenResponse} no expone identidad del creador ni senales
+ * internas como {@code posibleReincidencia}, que solo van en el
+ * {@code ReporteGestionResponse} de la bandeja (SEC-02), asi que reusarla
+ * aqui no filtra PII ni deja sondear los detectores.</p>
  */
 @Service
 @RequiredArgsConstructor
@@ -64,6 +67,7 @@ public class ReporteBusquedaService {
             Pageable pageable) {
 
         validarBbox(minLat, minLon, maxLat, maxLon);
+        RangoFechas.validar(fechaDesde, fechaHasta);
 
         // La consulta es NATIVA con ORDER BY fijo (created_at DESC): un
         // Pageable con Sort haria que Spring Data intente anexar su propio

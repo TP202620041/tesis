@@ -1,3 +1,10 @@
+import {
+  esDiaValido,
+  finDelDiaLocal,
+  inicioDelDiaLocal,
+  rangoDeDiasInvertido,
+} from '@/lib/types/fechas';
+
 /**
  * Area rectangular visible del mapa (US-10).
  *
@@ -52,25 +59,67 @@ export function requiereNuevaConsulta(
   );
 }
 
-/** Filtros del panel lateral (US-10, escenario 2). */
+/**
+ * Cuantos reportes pedir por area visible.
+ *
+ * El endpoint pagina con 20 por defecto, que en un mapa dejaria zonas
+ * densas a medio dibujar. Se sube el tamano en vez de paginar porque un
+ * mapa no tiene "siguiente pagina": o el marcador esta o no esta. El
+ * `totalElements` de la respuesta permite avisar si el area supera el
+ * limite. La vista de lista (US-12) pagina en el cliente sobre estos MISMOS
+ * resultados, para que lista y mapa muestren siempre lo mismo.
+ */
+export const MAXIMO_MARCADORES = 300;
+
+/** Filtros del panel lateral (US-10, escenario 2; fechas de US-12). */
 export interface FiltrosMapa {
   distritoId: number | null;
   categoriaId: number | null;
   estado: string | null;
+  /** Dia local `AAAA-MM-DD`, como lo da `<input type="date">`. */
+  fechaDesde: string | null;
+  /** Dia local `AAAA-MM-DD`; incluye el dia completo. */
+  fechaHasta: string | null;
 }
 
+/** Filtros sin aplicar: unica fuente para el estado inicial, `hayFiltrosActivos` y «Limpiar». */
 export const FILTROS_VACIOS: FiltrosMapa = {
   distritoId: null,
   categoriaId: null,
   estado: null,
+  fechaDesde: null,
+  fechaHasta: null,
 };
+
+/** `true` si algun filtro difiere de {@link FILTROS_VACIOS}. */
+export function hayFiltrosActivos(filtros: FiltrosMapa): boolean {
+  return (Object.keys(FILTROS_VACIOS) as (keyof FiltrosMapa)[]).some(
+    (clave) => filtros[clave] !== FILTROS_VACIOS[clave],
+  );
+}
+
+export const MENSAJE_RANGO_INVERTIDO =
+  'La fecha «desde» no puede ser posterior a la fecha «hasta».';
+
+/**
+ * Valida los filtros antes de consultar. Devuelve el mensaje a mostrar, o
+ * `null` si se puede consultar. Con un rango invertido no se consulta: el
+ * resultado seria vacio y parecería que no hay reportes, cuando en realidad
+ * el filtro es imposible (el backend ademas lo rechaza con 400).
+ */
+export function validarFiltrosMapa(filtros: FiltrosMapa): string | null {
+  return rangoDeDiasInvertido(filtros.fechaDesde, filtros.fechaHasta)
+    ? MENSAJE_RANGO_INVERTIDO
+    : null;
+}
 
 /**
  * Query string para `GET /api/reportes`.
  *
  * Los filtros nulos se omiten en vez de enviarse vacios: el backend
  * interpreta "parametro ausente" como "no filtrar", y mandar `estado=`
- * lo haria fallar al convertirlo al enum.
+ * lo haria fallar al convertirlo al enum. Las fechas viajan como instantes
+ * ISO con semantica de dia local (`lib/types/fechas`, igual que la bandeja).
  */
 export function construirQuery(
   bbox: BoundingBox,
@@ -87,5 +136,7 @@ export function construirQuery(
   if (filtros.distritoId != null) params.set('distritoId', String(filtros.distritoId));
   if (filtros.categoriaId != null) params.set('categoriaId', String(filtros.categoriaId));
   if (filtros.estado) params.set('estado', filtros.estado);
+  if (esDiaValido(filtros.fechaDesde)) params.set('fechaDesde', inicioDelDiaLocal(filtros.fechaDesde));
+  if (esDiaValido(filtros.fechaHasta)) params.set('fechaHasta', finDelDiaLocal(filtros.fechaHasta));
   return params.toString();
 }

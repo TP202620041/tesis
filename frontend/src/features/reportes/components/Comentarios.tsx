@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { AlertaError, Boton } from '@/components/ui/form';
 import { ApiError, NetworkError } from '@/lib/api/client';
-import { comentar, listarComentarios, type ComentarioPublico } from '@/features/reportes/api';
+import { comentar, listarComentarios } from '../api';
+import type { ComentarioPublico } from '../model/tipos';
 
 /**
  * US-27: comentarios publicos sobre un reporte resuelto.

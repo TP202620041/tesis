@@ -3,18 +3,18 @@
 import { useState } from 'react';
 import { AlertaError, Boton } from '@/components/ui/form';
 import { ApiError, NetworkError } from '@/lib/api/client';
-import { cambiarEstado } from '@/features/gestion/api';
+import { cambiarEstado } from '../api';
 import { esTerminal, exigeComentario, transicionesDesde } from '../model/transiciones';
 import { estiloDeEstado } from '@/lib/types/estados';
-import type { ReporteResumen } from '@/features/reportes/api';
+import type { ReporteGestion } from '../model/tipos';
 
 /** US-14: el funcionario mueve el reporte por la maquina de estados. */
 export function CambiarEstado({
   reporte,
   onCambiado,
 }: {
-  reporte: ReporteResumen;
-  onCambiado: (actualizado: ReporteResumen) => void;
+  reporte: ReporteGestion;
+  onCambiado: (actualizado: ReporteGestion) => void;
 }) {
   const actual = reporte.estado ?? '';
   const opciones = transicionesDesde(actual);

@@ -51,6 +51,14 @@ export type CanalNotificacion = (typeof CANALES_NOTIFICACION)[number];
 export const TIPOS_EVENTO_HISTORIAL = ['CAMBIO_ESTADO', 'ASIGNACION'] as const;
 export type TipoEventoHistorial = (typeof TIPOS_EVENTO_HISTORIAL)[number];
 
+/** US-25: estado de un ticket de soporte (`soporte/domain/EstadoTicket.java`). */
+export const ESTADOS_TICKET = ['ABIERTO', 'EN_PROCESO', 'CERRADO'] as const;
+export type EstadoTicket = (typeof ESTADOS_TICKET)[number];
+
+export function esEstadoTicket(valor: unknown): valor is EstadoTicket {
+  return typeof valor === 'string' && (ESTADOS_TICKET as readonly string[]).includes(valor);
+}
+
 /* -------------------------------------------------------------------------
  * Alias de dominio: campos siempre presentes + enums tipados
  * ---------------------------------------------------------------------- */
@@ -105,6 +113,14 @@ export type CategoriaDano = Requerido<
   Schemas['CategoriaDanoResponse'],
   'id' | 'nombre' | 'esEstandar'
 >;
+
+/**
+ * US-22: una fila de la linea de tiempo del reporte (cambio de estado o
+ * asignacion). Vive aqui y no en una feature porque la usan `reportes`
+ * (vista del ciudadano), `gestion` (vista del funcionario) y el componente
+ * compartido `LineaDeTiempo`, que no puede depender de features.
+ */
+export type HistorialEntrada = Schemas['HistorialEntradaResponse'];
 
 export function esRol(valor: unknown): valor is Rol {
   return typeof valor === 'string' && (ROLES as readonly string[]).includes(valor);

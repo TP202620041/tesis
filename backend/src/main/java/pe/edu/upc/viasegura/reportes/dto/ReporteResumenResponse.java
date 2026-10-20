@@ -4,8 +4,15 @@ import java.time.Instant;
 import pe.edu.upc.viasegura.reportes.domain.Reporte;
 
 /**
- * Representacion resumida de un reporte para la bandeja municipal y el
- * resultado de un cambio de estado (US-13, US-14).
+ * Representacion resumida de un reporte para quien solo consulta: la
+ * busqueda y el detalle publicos (US-10, US-12, US-27) y las vistas del
+ * ciudadano (mis reportes, editar, cancelar, pendientes de calificar; US-07,
+ * US-08, US-26).
+ *
+ * <p><b>No lleva senales internas</b> (detecciones, priorizacion, marcas
+ * para la municipalidad): las lee cualquiera, incluso sin autenticarse.
+ * La bandeja municipal usa {@link ReporteGestionResponse}, que agrega
+ * {@code posibleReincidencia} (US-27). Ver SEC-02 en el README.</p>
  */
 public record ReporteResumenResponse(
         Long id,
@@ -20,8 +27,7 @@ public record ReporteResumenResponse(
         String distritoNombre,
         int totalAdhesiones,
         Instant createdAt,
-        Instant resolvedAt,
-        boolean posibleReincidencia
+        Instant resolvedAt
 ) {
     public static ReporteResumenResponse from(Reporte r) {
         return new ReporteResumenResponse(
@@ -37,7 +43,6 @@ public record ReporteResumenResponse(
                 r.getDistrito() != null ? r.getDistrito().getNombre() : null,
                 r.getTotalAdhesiones(),
                 r.getCreatedAt(),
-                r.getResolvedAt(),
-                r.isPosibleReincidencia());
+                r.getResolvedAt());
     }
 }

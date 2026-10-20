@@ -175,6 +175,24 @@ porque el caso de uso real de US-06 es la resincronización diferida de un
 Service Worker (reintento secuencial tras timeout), no requests
 concurrentes.
 
+## Parámetros mal tipados y rango de fechas (US-12)
+
+Un parámetro de query o de ruta que no se puede convertir a su tipo
+(`fechaDesde=ayer`, `estado=ARREGLADO`, `distritoId=abc`) responde **400**
+con el nombre del parámetro y el formato esperado (fecha ISO-8601 en UTC,
+valores del enum o número), sin repetir el valor recibido. Antes caía en el
+manejador genérico y respondía **500**, como si el servidor hubiera fallado.
+Lo resuelve `GlobalExceptionHandler` para `MethodArgumentTypeMismatchException`,
+así que aplica a todos los endpoints (también al filtro `estado` de los
+tickets de soporte).
+
+En `GET /api/reportes` y en la exportación municipal (`GET /api/reportes/exportar`),
+`fechaDesde > fechaHasta` es **400** (regla única en `reportes/domain/RangoFechas`): un rango
+invertido no puede tener resultados y una página vacía escondería el error
+del cliente. Ambos bordes son inclusivos (`created_at >= fechaDesde` y
+`<= fechaHasta`), así que `fechaDesde == fechaHasta` es válido. Las fechas son
+instantes UTC: convertir el "día local" a instantes es tarea del cliente.
+
 ## Catálogos de referencia (descubribilidad)
 
 Dos endpoints **públicos** de solo lectura que existen para que un cliente
@@ -201,6 +219,35 @@ distritos dejaría elegir una que el `POST /api/reportes` rechaza con 409. Con
 `distritoId` se devuelve exactamente lo válido ahí. Así, **todo lo que este
 endpoint devuelve es siempre seleccionable** (también se filtran las
 `activo = false`, que el POST igualmente rechazaría).
+
+### Gestión de categorías personalizadas (US-29)
+
+| Método | Ruta | Rol | Descripción |
+|---|---|---|---|
+| GET | `/api/categorias/gestion` | FUNCIONARIO_MUNICIPAL | Estándar + personalizadas de su distrito, **incluidas las inactivas**, con `activo` (`CategoriaGestionResponse`). |
+| PATCH | `/api/categorias/{id}` | FUNCIONARIO_MUNICIPAL | Edita `nombre` y `descripcion` de una personalizada de su distrito. |
+| PATCH | `/api/categorias/{id}/activa` | FUNCIONARIO_MUNICIPAL | `{ "activa": bool }`: desactiva o reactiva una personalizada de su distrito. |
+
+- **Desactivar solo deja de ofrecerla** (decisión del usuario, 13/10): sale
+  del catálogo público y no se puede elegir para un reporte nuevo ni al
+  *cambiar* la categoría de uno existente (409). Los reportes que ya la usan
+  quedan intactos y siguen editables: `ReporteService#editar` solo valida la
+  categoría cuando cambia, así que reenviar la actual o editar solo la
+  descripción funciona aunque esté inactiva. Es reversible y no cambia
+  ningún KPI (el desglose de US-20 agrupa por la categoría que ya tiene cada
+  reporte), por eso no publica evento.
+- **Las estándar no se gestionan**: se listan en la vista de gestión pero
+  editarlas o desactivarlas da 403 (`OperacionNoPermitidaException`, con
+  mensaje). Una personalizada de otro distrito también da 403; una
+  inexistente, 404.
+- **Nombre único** sin distinguir mayúsculas dentro del distrito **y frente a
+  las estándar** (409), al crear y al editar: dos opciones iguales en el
+  mismo selector serían ambiguas.
+- `activo` solo aparece en el DTO de gestión; el `GET /api/categorias`
+  público sigue sin exponerlo.
+- El servicio obtiene al funcionario con `auth.service.UsuarioConsultaService`
+  (API pública de `auth`), no con `UsuarioRepository`; eso retiró 3
+  violaciones congeladas de ArchUnit.
 
 ### ¿Por qué `/api/distritos` si `/api/desempeno/distritos` ya devuelve los 43?
 
@@ -286,6 +333,51 @@ un "Acceso denegado" fijo (correcto: esa excepción también la lanza Spring
 Security desde `@PreAuthorize` y sus textos internos no son para el usuario
 final), pero aquí el mensaje era la parte útil.
 
+### SEC-02 — La señal de reincidencia llegaba al mapa público y al ciudadano
+
+**Detectado:** 2026-10-13, en la revisión del Sprint 2 (B5).
+**Estado:** corregido y cubierto por regresión.
+
+**El problema.** `posibleReincidencia` (US-27) la marca el `ReincidenciaDetector`
+cuando un comentario público sugiere que el daño reapareció, y sirve para
+**resaltar el reporte en la bandeja municipal**. El campo vivía en
+`ReporteResumenResponse`, un DTO que nació para la bandeja y que después se
+reutilizó para la búsqueda y el detalle públicos (`GET /api/reportes`,
+`GET /api/reportes/{id}`, sin autenticación) y para las vistas del ciudadano
+(`mis-reportes`, `pendientes-calificacion`, editar y cancelar). En
+`ComentarioPublicoResponse` ya se había quitado el flag por esta razón, pero
+el mismo dato seguía saliendo por el resumen del reporte: se revisó la ruta,
+no el campo.
+
+**Por qué importaba.** Con el flag visible, cualquiera puede comentar,
+consultar el reporte y ver si el detector se disparó: probando redacciones
+reconstruye su lista de palabras clave. Y como el flag decide qué reportes
+resalta la bandeja, sondearlo es poder **manipular en qué se fija el
+municipio** (o evitar que se fije en algo).
+
+**La corrección.** Dos DTOs con los mismos nombres de campo:
+
+| DTO | Lleva el flag | Endpoints |
+|---|---|---|
+| `ReporteResumenResponse` | **no** | `GET /api/reportes`, `GET /api/reportes/{id}`, `GET /mis-reportes`, `GET /mis-reportes/pendientes-calificacion`, `PATCH /api/reportes/{id}`, `DELETE /api/reportes/{id}` |
+| `ReporteGestionResponse` | sí | `GET /api/reportes/bandeja`, `PATCH /api/reportes/{id}/estado` (rol `FUNCIONARIO_MUNICIPAL`, acotados a su distrito) |
+
+`ReporteResponse` (crear o adherirse) nunca lo llevó. Se prefirió un DTO
+aparte y no `@JsonView` ni un campo `null` según el rol: el contrato queda
+explícito en el tipo, OpenAPI genera dos esquemas distintos para el
+frontend, y una señal operativa nueva tiene un único lugar donde ir. El
+detalle de gestión del frontend ya se arma desde la bandeja, así que no
+hizo falta un endpoint nuevo.
+
+**Regresión:** `SenalInternaFueraDeDtosPublicosIT`. Cada caso usa un reporte
+**con el flag en `true`** (un campo ausente en un reporte sin marcar no
+probaría nada) y afirma primero que el reporte está en la respuesta, para que
+el `doesNotExist` no pase sobre una lista vacía. Cubre los siete endpoints
+públicos y del ciudadano (la búsqueda por filtros y por área, que son dos
+queries), el `POST` de crear/adherirse, y que la bandeja y el cambio de estado
+**sí** lo devuelven. Con el DTO anterior fallan exactamente los siete casos
+públicos y del ciudadano.
+
 ## Frescura del índice de desempeño
 
 El índice público (US-18/US-20) se sirve desde una vista materializada que se
@@ -361,6 +453,69 @@ contención de ruta como segunda barrera.
 desviación deliberada del criterio general del proyecto, porque un 403
 confirmaría que ese archivo existe y se trata de fotos de personas.
 
+## Suscripciones push (NC-07)
+
+La PWA registra cada navegador suscrito con la Push API en `suscripcion_push`
+(V12): el `endpoint` del servicio de push y las claves `p256dh`/`auth` con las
+que se cifra el mensaje, tal como las entrega `PushSubscription.toJSON()`.
+
+| Método | Ruta | Respuesta |
+|---|---|---|
+| POST | `/api/notificaciones/suscripciones` | 201 si es nueva, 200 si el endpoint ya existía |
+| DELETE | `/api/notificaciones/suscripciones` (cuerpo `{endpoint}`) | 204, o 404 si no es del usuario |
+
+Cualquier rol autenticado; sin token, 401.
+
+**Upsert por endpoint, con reasignación.** El `endpoint` identifica al
+*navegador*, no a la persona, por eso es `UNIQUE`. Si llega uno que ya está
+registrado, se actualizan las claves (el navegador puede rotarlas), se
+reactiva y **pasa al usuario autenticado aunque fuera de otro**: en ese
+navegador inició sesión otra persona, y los avisos de la anterior no deben
+seguir apareciendo ahí. La alternativa (rechazar con 409) dejaría al nuevo
+usuario sin push en su propio dispositivo hasta que el anterior se diera de
+baja, cosa que normalmente no hace. Reclamar un endpoint ajeno exige
+conocerlo, y es una URL de capacidad que el servicio de push genera al azar
+para ese navegador.
+
+**La baja borra la fila** (no la marca inactiva): no hay razón para conservar
+las claves de un navegador que se dio de baja. Una ajena responde **404**,
+como una inexistente: lo que protege es que nadie borre lo ajeno, no el
+secreto de que el endpoint existe (eso ya lo delata el POST con 200 frente a
+201, y el endpoint solo lo conoce quien tiene el navegador). `activa = false`
+queda para US-21, cuando el servicio de push responda que una suscripción
+caducó. La respuesta nunca devuelve las claves.
+
+**Lista blanca de servicios de push (contra SSRF).** Con el envío real
+(US-21) el servidor hará peticiones al `endpoint` que manda el cliente; sin
+control, un usuario podría registrar `https://169.254.169.254/…` o una IP
+interna y usar el backend como proxy. `notificaciones/domain/PoliticaEndpointPush`
+solo admite los hosts de `app.notificaciones.push.hosts-permitidos` (por
+defecto `fcm.googleapis.com`, `*.push.services.mozilla.com`,
+`*.notify.windows.com`, `web.push.apple.com`; variable `PUSH_HOSTS_PERMITIDOS`).
+El host sale de parsear la URL con `java.net.URI`, no de una regex sobre la
+cadena, y además se exigen `https`, sin `usuario@`, puerto por defecto y que no
+sea una IP literal; así fallan `fcm.googleapis.com.evil.com`,
+`fcm.googleapis.com@evil.com` o `evil.com/fcm.googleapis.com`. Fuera de la
+lista: **400**.
+
+**Tope por usuario** (`app.notificaciones.push.max-por-usuario`, 10 por
+defecto). Al superarlo se **borran las menos recientemente registradas** (cada
+POST refresca `updated_at`), en vez de responder 409: el usuario no puede dar
+de baja a mano las de navegadores que ya no usa (no tiene su endpoint), así
+que un 409 lo dejaría sin push en el dispositivo nuevo.
+
+**Altas simultáneas.** El upsert es un único `INSERT … ON CONFLICT (endpoint)
+DO UPDATE … RETURNING (xmax = 0)`: dos POST a la vez con el mismo endpoint
+nuevo ya no chocan con el `UNIQUE` (antes, `DataIntegrityViolationException`
+→ 500); uno inserta (201) y el otro actualiza (200).
+
+**Efecto en las notificaciones.** `PushNotificacionAdapter#estaDisponible` ya
+es real: el canal PUSH está disponible si el usuario tiene al menos una
+suscripción activa. El envío sigue siendo un stub (US-21, Sprint 3) que lanza,
+y `NotificacionService` lo registra `FALLIDA` y cae a email, igual que cuando
+el canal no estaba disponible (`NotificacionIT` cubre PUSH y AMBAS con
+suscripción). El ciudadano no pierde avisos mientras tanto.
+
 ## Deuda técnica conocida
 
 - **Testcontainers bloqueado por Docker 29 / docker-java 1.20.x.** Los tests
@@ -398,4 +553,5 @@ confirmaría que ese archivo existe y se trata de fotos de personas.
 12 entidades con soporte geoespacial en `distrito.limites`
 (`GEOGRAPHY(MultiPolygon,4326)`) y `reporte.ubicacion`
 (`GEOGRAPHY(Point,4326)`), ambas con índice **GiST**. Ver
-`src/main/resources/db/migration/V1__init_schema.sql`.
+`src/main/resources/db/migration/V1__init_schema.sql`. Las migraciones
+posteriores agregan tablas propias, como `suscripcion_push` (V12, NC-07).

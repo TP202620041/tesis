@@ -4,7 +4,8 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { BotonCerrarSesion } from '@/features/auth/components/BotonCerrarSesion';
 import { GuardiaDeRol } from '@/features/auth/components/GuardiaDeRol';
-import { misReportes, pendientesDeCalificacion, type ReporteResumen } from '@/features/reportes/api';
+import { misReportes, pendientesDeCalificacion } from '@/features/reportes/api';
+import type { ReporteResumen } from '@/features/reportes/model/tipos';
 import { estiloDeEstado } from '@/lib/types/estados';
 import { urlDeFoto } from '@/lib/api/client';
 
@@ -75,6 +76,12 @@ function MisReportes() {
             className="rounded-md bg-sky-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-sky-700"
           >
             Reportar un daño
+          </Link>
+          <Link
+            href="/soporte"
+            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm dark:border-slate-600 dark:text-slate-200"
+          >
+            Soporte
           </Link>
           <BotonCerrarSesion />
         </nav>

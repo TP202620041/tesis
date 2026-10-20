@@ -8,13 +8,18 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import pe.edu.upc.viasegura.reportes.dto.CambiarActivaCategoriaRequest;
 import pe.edu.upc.viasegura.reportes.dto.CategoriaDanoResponse;
+import pe.edu.upc.viasegura.reportes.dto.CategoriaGestionResponse;
 import pe.edu.upc.viasegura.reportes.dto.CrearCategoriaRequest;
+import pe.edu.upc.viasegura.reportes.dto.EditarCategoriaRequest;
 import pe.edu.upc.viasegura.reportes.service.CategoriaDanoService;
 
 /** API de categorias de dano (US-29). */
@@ -40,6 +45,36 @@ public class CategoriaDanoController {
     public ResponseEntity<List<CategoriaDanoResponse>> listar(
             @RequestParam(value = "distritoId", required = false) Long distritoId) {
         return ResponseEntity.ok(categoriaDanoService.listarDisponibles(distritoId));
+    }
+
+    /**
+     * US-29: vista de gestion del funcionario. Estandar + personalizadas de
+     * su distrito, incluidas las inactivas, con {@code activo}. No es publica
+     * ({@code SecurityConfig} solo abre la ruta exacta {@code GET /api/categorias}).
+     */
+    @GetMapping("/gestion")
+    @PreAuthorize("hasRole('FUNCIONARIO_MUNICIPAL')")
+    public ResponseEntity<List<CategoriaGestionResponse>> listarParaGestion(Principal principal) {
+        return ResponseEntity.ok(categoriaDanoService.listarParaGestion(principal.getName()));
+    }
+
+    /** US-29: edita nombre y descripcion de una personalizada de su distrito. */
+    @PatchMapping("/{id}")
+    @PreAuthorize("hasRole('FUNCIONARIO_MUNICIPAL')")
+    public ResponseEntity<CategoriaGestionResponse> editar(
+            @PathVariable("id") Long id, @Valid @RequestBody EditarCategoriaRequest request,
+            Principal principal) {
+        return ResponseEntity.ok(categoriaDanoService.editar(principal.getName(), id, request));
+    }
+
+    /** US-29: activa o desactiva una personalizada de su distrito. */
+    @PatchMapping("/{id}/activa")
+    @PreAuthorize("hasRole('FUNCIONARIO_MUNICIPAL')")
+    public ResponseEntity<CategoriaGestionResponse> cambiarActiva(
+            @PathVariable("id") Long id, @Valid @RequestBody CambiarActivaCategoriaRequest request,
+            Principal principal) {
+        return ResponseEntity.ok(
+                categoriaDanoService.cambiarActiva(principal.getName(), id, request.activa()));
     }
 
     /** US-29: el funcionario crea una categoria propia de su distrito. */

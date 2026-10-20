@@ -77,6 +77,62 @@ describe('useCarga', () => {
     await waitFor(() => expect(result.current.datos).toBe(2));
   });
 
+  it('recargar conserva los datos visibles y marca recargando', async () => {
+    const segunda = diferida<number>();
+    const cargar = vi.fn().mockResolvedValueOnce(1).mockReturnValueOnce(segunda.promesa);
+    const { result } = renderHook(() => useCarga<number>(cargar, []));
+    await waitFor(() => expect(result.current.datos).toBe(1));
+
+    act(() => result.current.recargar());
+
+    // Mientras llega la respuesta, sigue en `listo` con los datos anteriores.
+    await waitFor(() => expect(result.current.recargando).toBe(true));
+    expect(result.current.estado).toBe('listo');
+    expect(result.current.datos).toBe(1);
+
+    await act(async () => {
+      segunda.resolver(2);
+    });
+    expect(result.current.datos).toBe(2);
+    expect(result.current.recargando).toBe(false);
+  });
+
+  it('si cambian las dependencias vuelve a cargando (los datos ya no corresponden)', async () => {
+    const lenta = diferida<string>();
+    const cargar = vi.fn((id: number) => (id === 1 ? Promise.resolve('uno') : lenta.promesa));
+    const { result, rerender } = renderHook(({ id }) => useCarga(() => cargar(id), [id]), {
+      initialProps: { id: 1 },
+    });
+    await waitFor(() => expect(result.current.datos).toBe('uno'));
+
+    rerender({ id: 2 });
+
+    await waitFor(() => expect(result.current.estado).toBe('cargando'));
+    expect(result.current.recargando).toBe(false);
+    await act(async () => {
+      lenta.resolver('dos');
+    });
+    expect(result.current.datos).toBe('dos');
+  });
+
+  it('reintentar desde un error pasa por cargando', async () => {
+    const reintento = diferida<string>();
+    const cargar = vi
+      .fn()
+      .mockRejectedValueOnce(new ApiError(500, 'Fallo'))
+      .mockReturnValueOnce(reintento.promesa);
+    const { result } = renderHook(() => useCarga<string>(cargar, []));
+    await waitFor(() => expect(result.current.estado).toBe('error'));
+
+    act(() => result.current.recargar());
+
+    await waitFor(() => expect(result.current.estado).toBe('cargando'));
+    await act(async () => {
+      reintento.resolver('ok');
+    });
+    expect(result.current.datos).toBe('ok');
+  });
+
   it('no escribe estado tras desmontarse', async () => {
     const lenta = diferida<string>();
     const errorDeConsola = vi.spyOn(console, 'error').mockImplementation(() => {});

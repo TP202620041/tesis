@@ -50,6 +50,14 @@ app:
   # Notificaciones al ciudadano (US-16/US-21).
   notificaciones:
     email-remitente: ${NOTIF_FROM:no-reply@viasegura.pe}
+    # Suscripciones Web Push (NC-07).
+    push:
+      # Lista blanca de servicios de push (contra SSRF cuando haya envio
+      # real, US-21), separados por coma. "*.dominio" admite subdominios.
+      hosts-permitidos: ${PUSH_HOSTS_PERMITIDOS:fcm.googleapis.com,*.push.services.mozilla.com,*.notify.windows.com,web.push.apple.com}
+      # Tope de suscripciones por usuario: al superarlo se borra la menos
+      # recientemente registrada.
+      max-por-usuario: ${PUSH_MAX_POR_USUARIO:10}
   # CORS: el frontend es una PWA Next.js desplegada como proyecto
   # independiente, en otro origen. Lista de origenes permitidos separados
   # por coma; en dev, el servidor de desarrollo de Next (puerto 3000).

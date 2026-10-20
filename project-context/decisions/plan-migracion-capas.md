@@ -186,14 +186,42 @@ Cierre (2026-10-13, rama `feature/fe-02`). Se movieron 6 de los 7 archivos con `
 
 No hay avisos en los archivos que entraron a `model/` ni en `lib/types/estados.ts`, así que no aparece ningún aviso antes no medido que haya que listar (§5.4). Las referencias a `features/gestion/transiciones.ts` en `frontend/CLAUDE.md` y `frontend/README.md` ya apuntan a `model/`. El ejemplo del `CLAUDE.md` raíz (`npx vitest run src/features/reportes/acciones.test.ts`) ya apunta a `model/` (corregido por el coordinador en esta misma rama).
 
-### [ ] FE-03 · Tipos en `model/`
-Crear `features/<f>/model/tipos.ts` con los alias sobre `generated/schema` (`ReporteResumen`, `HistorialEntrada`, `AsignacionResponsable`…). `api.ts`, los hooks y los componentes importan los tipos desde ahí. `components/LineaDeTiempo.tsx` y `desempeno/formato.ts` dejan de importar `generated/schema`.
-**Aceptación:**
-- `git grep -l "lib/api/generated" -- frontend/src ':!frontend/src/lib/api/generated'` solo devuelve archivos de `features/*/model/**`, `features/*/api.ts` y `lib/types/**`. Hoy devuelve 5: `components/LineaDeTiempo.tsx` y `desempeno/formato.ts` (fuera de lugar) y `gestion/api.ts`, `reportes/api.ts`, `lib/types/domain.ts` (permitidos).
+### [x] FE-03 · Tipos en `model/` (2026-10-13)
+Crear `features/<f>/model/tipos.ts` con los alias sobre `generated/schema` (`ReporteResumen`, `HistorialEntrada`, `AsignacionResponsable`…). `api.ts`, los hooks y los componentes importan los tipos desde ahí. `components/LineaDeTiempo.tsx` deja de importar `generated/schema`.
+**Aceptación** (corregida el 13/10: desde FE-02, `desempeno/formato.ts` ya está en `model/`, donde el schema está permitido):
+- `git grep -l "lib/api/generated" -- frontend/src ':!frontend/src/lib/api/generated'` solo devuelve archivos de `features/*/model/**`, `features/*/api.ts` y `lib/types/**`. Al abrir la tarea devolvía 6: `components/LineaDeTiempo.tsx` (el único fuera de lugar) y `desempeno/model/{dashboard,formato}.ts`, `gestion/api.ts`, `reportes/api.ts`, `lib/types/domain.ts` (permitidos).
 - El mensaje `schema` de `contar-capas.mjs` queda en 0 (hoy 1, el de `LineaDeTiempo` en `capas/compartidos-ui`).
 
-### [ ] FE-04 · Imports internos relativos
+Cierre (2026-10-13, rama `feature/fe-03`, sobre `feature/fe-04`).
+- `features/reportes/model/tipos.ts`: `ReporteResponse`, `ReporteResumen`, `ComentarioPublico`, `Calificacion` (alias del schema) y `PaginaReportes`, `ReporteCreado`, `NuevoReporte` (formas de datos que antes declaraba `api.ts`).
+- `features/gestion/model/tipos.ts`: `AsignacionResponsable`, `FiltrosBandeja`, `FILTROS_BANDEJA_VACIOS` y `ReportesExportados`.
+- `HistorialEntrada` (estaba duplicado en los dos `api.ts`) pasa a `lib/types/domain.ts`: lo usan `reportes`, `gestion` y `components/LineaDeTiempo`, que no puede depender de features (§5.3).
+- Componentes, páginas de `app/` y `map/MapaReportes` importan los tipos desde `model/tipos` (los de otra feature por alias, que §5.3 permite). Efecto lateral: desaparecen 4 avisos `otraFeature` de FE-08 que eran solo de tipos (`CambiarEstado`, `TablaBandeja`, `gestion/api.ts` y `MapaReportes` → `reportes/api`) y 4 `gatewayDesdeUi` de imports que solo traían tipos. Para FE-08 queda un único cruce: `CampoUbicacion` → `distritos/api`.
+- `git grep` devuelve 5 archivos, todos permitidos: `desempeno/model/{dashboard,formato}.ts`, `gestion/model/tipos.ts`, `reportes/model/tipos.ts` y `lib/types/domain.ts`. Ningún `api.ts` importa ya el schema.
+
+| Métrica | Antes | Después |
+|---|---|---|
+| `npm run typecheck` | 0 errores | 0 errores |
+| `npm test` (con la guarda) | 136 tests en 19 archivos | 136 tests en 19 archivos |
+| `npm run lint`: código / avisos que no son de capas | 0 / 0 | 0 / 0 |
+| Avisos de capas (`contar-capas.mjs`) | **53 en 22 archivos** | **44 en 18 archivos** |
+| `schema` | 1 | 0 |
+| `otraFeature` | 5 | 1 (`CampoUbicacion` → `distritos/api`, FE-08) |
+| `gatewayDesdeUi` / `clienteHttp` | 33 / 14 | 29 / 14 |
+
+### [x] FE-04 · Imports internos relativos (2026-10-13)
 Dentro de cada feature, cambiar `@/features/<misma>/…` por imports relativos. Casos detectados: `FormularioReporte` → `CampoFoto`/`CampoUbicacion` y `GuardiaDeRol` → `auth/hooks`.
+
+Cierre (2026-10-13, rama `feature/fe-04`). 14 imports en 12 archivos: los 11 con aviso `otraFeature` (`auth/components/{FormularioLogin,FormularioRegistro,GuardiaDeRol}`, `gestion/components/{CambiarEstado,Responsable}`, `reportes/components/{Calificar,Comentarios,EditarReporte}` y los 3 de `FormularioReporte`) y 3 sin aviso (`CampoUbicacion` → `../useGeolocalizacion`, `FotoDePerfil` → `../fotoPerfil`, `auth/hooks.ts` → `./api`). `GuardiaDeRol` importa `../hooks`, que resuelve al **archivo** `auth/hooks.ts` igual que el alias (comprobado con `tsc --traceResolution`; la carpeta `hooks/` no tiene `index.ts`). La unificación de `hooks.ts` y `hooks/` sigue en FE-05. Los `gatewayDesdeUi` de esos componentes se mantienen (FE-06).
+
+| Métrica | Antes | Después |
+|---|---|---|
+| `npm run typecheck` | 0 errores | 0 errores |
+| `npm test` (con la guarda) | 136 tests en 19 archivos | 136 tests en 19 archivos |
+| `npm run lint`: código / avisos que no son de capas | 0 / 0 | 0 / 0 |
+| Avisos de capas (`contar-capas.mjs`) | **64 en 23 archivos** | **53 en 22 archivos** |
+| `otraFeature` | 16 | 5 (los cruces reales de FE-08) |
+| `gatewayDesdeUi` / `clienteHttp` / `schema` | 33 / 14 / 1 | 33 / 14 / 1 |
 
 ### [ ] FE-05 · Hooks de carga y páginas como composición
 1. ~~Crear `src/lib/hooks/useCarga.ts` con el patrón de `ARCHITECTURE.md` §5.5, con tests de la cancelación.~~ **Hecho en US-17 (Sprint 1, PR #18):** 6 tests de cancelación, respuesta vieja descartada, recarga y desmontaje.
@@ -205,6 +233,7 @@ Dentro de cada feature, cambiar `@/features/<misma>/…` por imports relativos. 
 
 ### [ ] FE-06 · Mutaciones en hooks
 Los componentes que hoy llaman al API pasan a usar un hook de su feature: `CambiarEstado`, `Responsable`, `Calificar`, `Comentarios`, `EditarReporte`, `FormularioReporte`, `FormularioLogin` y `FormularioRegistro`. El hook captura el error con `mensajeDeError`, y el componente ya no importa `ApiError` ni `NetworkError`. **Se conserva** la regla de `Idempotency-Key` de `FormularioReporte`: la clave vive en el hook y no se regenera en un reintento.
+- `EditarReporte` ganó lógica en US-29 (`reportes/model/edicion.ts`); migrar a `useEditarReporte`.
 
 ### [ ] FE-07 · URLs de fotos en el gateway
 `features/<f>/api.ts` devuelve `fotoUrl` ya absoluta (`urlDeFoto`). Las páginas y los componentes dejan de importar `@/lib/api/client`. La foto de perfil (que requiere token) se resuelve en un hook de auth que devuelve la URL `blob:`.

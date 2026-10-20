@@ -3,8 +3,8 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, type ReactNode } from 'react';
-import { useSesion } from '@/features/auth/hooks';
-import { puedeAcceder, rutaInicialDe } from '../model/rutas';
+import { useSesion } from '../hooks';
+import { descripcionDeArea, puedeAcceder, rutaInicialDe } from '../model/rutas';
 import type { Rol, Usuario } from '@/lib/types/domain';
 
 /**
@@ -42,21 +42,27 @@ export function GuardiaDeRol({ rolesPermitidos, children }: Props) {
   if (sesion.estado === 'anonimo') return null;
 
   if (!puedeAcceder(sesion.usuario.rol, rolesPermitidos)) {
-    return <AccesoDenegado usuario={sesion.usuario} />;
+    return <AccesoDenegado usuario={sesion.usuario} rolesPermitidos={rolesPermitidos} />;
   }
 
   return <>{children(sesion.usuario)}</>;
 }
 
-function AccesoDenegado({ usuario }: { usuario: Usuario }) {
+function AccesoDenegado({
+  usuario,
+  rolesPermitidos,
+}: {
+  usuario: Usuario;
+  rolesPermitidos: readonly Rol[];
+}) {
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center gap-4 px-4">
       <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
         Esta sección no es para tu cuenta
       </h1>
       <p className="text-slate-600 dark:text-slate-400">
-        La bandeja municipal es para funcionarios de una municipalidad distrital. Tu cuenta está
-        registrada como <strong>{etiquetaDeRol(usuario.rol)}</strong>.
+        {descripcionDeArea(rolesPermitidos)} Tu cuenta está registrada como{' '}
+        <strong>{etiquetaDeRol(usuario.rol)}</strong>.
       </p>
       <Link
         href={rutaInicialDe(usuario.rol)}
