@@ -611,39 +611,55 @@ nuevo.
   permiso. El cambio de estado nunca se ve afectado.
 
 **Fuera del hilo del funcionario y fuera de la transacción.** El listener de
-notificaciones es `AFTER_COMMIT` + `@Async` en el executor acotado de
-`common/config/AsyncConfig` (ver abajo): el `PATCH …/estado` responde sin
-esperar al SMTP ni al servicio de push. `NotificacionService.notificarCambioEstado`
-no abre una transacción: las llamadas HTTP y SMTP corren sin retener una
-conexión a la base, y cada escritura (el registro en `notificacion`, la
-desactivación de una suscripción caducada) es una transacción corta del
-repositorio. Timeouts del push: 3 s de conexión y 5 s de pedido
+notificaciones (`AFTER_COMMIT`) solo encola `NotificacionService.notificarCambioEstado`,
+que es `@Async` en el executor acotado de `common/config/AsyncConfig` (ver
+abajo): el `PATCH …/estado` responde sin esperar al SMTP ni al servicio de
+push. Ese método **no abre una transacción**: las llamadas HTTP y SMTP corren
+sin retener una conexión a la base, y cada escritura (el registro en
+`notificacion`, la desactivación de una suscripción caducada con `save`) es una
+transacción corta del repositorio. El `try` envuelve solo el envío: si guardar
+el registro falla después de un envío exitoso, se registra el error, pero no
+se cuenta como fallo de envío ni dispara el respaldo a correo. Esto se aparta
+de ARCHITECTURE.md §4.5 (`REQUIRES_NEW` en los listeners que escriben); la
+excepción está planteada en
+`project-context/decisions/propuestas/2026-10-20-notificaciones-fuera-de-transaccion.md`.
+Timeouts del push: 3 s de conexión y 5 s de pedido
 (`PUSH_TIMEOUT_CONEXION_SEGUNDOS`, `PUSH_TIMEOUT_PEDIDO_SEGUNDOS`).
 
 ### Executor asíncrono (`AsyncConfig`)
 
 Uno solo, con nombre (`ejecutorAsincrono`, hilos `viasegura-async-*`), para
 reutilizar en todo trabajo posterior al commit: los avisos de hoy y la
-sugerencia de categoría de D-08 (`@Async(AsyncConfig.EJECUTOR)`).
+sugerencia de categoría de D-08 (`@Async(AsyncConfig.EJECUTOR)`). Reemplaza
+al `applicationTaskExecutor` de Spring Boot (Boot solo crea el suyo si no hay
+ningún `Executor`), así que también es el executor por defecto de cualquier
+`@Async` sin nombre.
 
 | Parámetro | Por defecto | Variable |
 |---|---|---|
 | Hilos base / máximo | 2 / 4 | `ASYNC_HILOS_BASE`, `ASYNC_HILOS_MAX` |
 | Cola | 100 tareas | `ASYNC_COLA` |
-| Cola llena | **se descarta la tarea y se registra** | — |
+| Cola llena | **se rechaza** (`TaskRejectedException`): quien encola registra qué se pierde y la descarta | — |
 | Apagado | espera hasta 10 s a las tareas en curso | — |
 
-Con la cola llena la tarea **nunca** corre en el hilo que la pidió
-(`CallerRunsPolicy`): eso le devolvería al funcionario la latencia de la red
-justo cuando el sistema está saturado. Perder un aviso en ese caso se acepta:
-el reporte y su historial no dependen de él. En el perfil `test` el bean real
-no existe (`@Profile("!test")`) y `support/EjecutorSincronoTestConfig`
-registra uno con el mismo nombre que corre cada tarea en un hilo nuevo y
-**espera a que termine**: los IT siguen siendo deterministas, sin esperas ni
-`Thread.sleep`. No es un `SyncTaskExecutor` (mismo hilo) porque en
-`AFTER_COMMIT` ese hilo todavía tiene ligada la transacción ya confirmada, y
-las escrituras "participarían" en ella sin confirmarse; un hilo aparte
-reproduce lo que pasa en producción.
+Con la cola llena la tarea **nunca** corre en el hilo que la pidió (no se usa
+`CallerRunsPolicy`): eso le devolvería al funcionario la latencia de la red
+justo cuando el sistema está saturado. `ReporteEstadoCambiadoListener` atrapa
+el rechazo y deja un WARN con el reporte, el ciudadano y el estado del aviso
+perdido. Perder un aviso en ese caso se acepta: el reporte y su historial no
+dependen de él.
+
+**En los IT** el bean real no existe (`@Profile("!test")`) y
+`support/EjecutorSincronoTestConfig` registra uno con el mismo nombre que
+corre cada tarea en un hilo nuevo y **espera a que termine**: los IT siguen
+siendo deterministas, sin esperas ni `Thread.sleep`. No es un
+`SyncTaskExecutor` (mismo hilo) porque en `AFTER_COMMIT` ese hilo todavía
+tiene ligada la transacción ya confirmada, y las escrituras «participarían» en
+ella sin confirmarse; un hilo aparte reproduce lo que pasa en producción. La
+misma clase es el `AsyncConfigurer` del contexto de test: guarda la excepción
+que escape de un método `@Async`, y el `@AfterEach` de `AbstractPostgisIT` la
+relanza, para que un fallo en el hilo asíncrono haga fallar el test con su
+causa.
 
 **Tests.** En todos los IT, `support/EnviadorWebPushFake` reemplaza al puerto
 (`@Primary`): registra lo que se habría enviado y responde lo que el test le
