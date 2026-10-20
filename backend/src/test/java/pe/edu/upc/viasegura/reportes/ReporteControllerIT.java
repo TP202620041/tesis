@@ -64,8 +64,8 @@ class ReporteControllerIT extends AbstractPostgisIT {
     private String tokenCiudadano() throws Exception {
         String correo = "reportero-" + UUID.randomUUID() + "@lima.pe";
         String registro = """
-                {"email":"%s","password":"secreta123","nombre":"Ciro","apellido":"Vecino"}
-                """.formatted(correo);
+                {"email":"%s","password":"secreta123","nombre":"Ciro","apellido":"Vecino","aceptaTerminos":true,"versionTerminos":"%s"}
+                """.formatted(correo, versionTerminos);
         MvcResult res = mockMvc.perform(post("/api/auth/registro")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(registro))

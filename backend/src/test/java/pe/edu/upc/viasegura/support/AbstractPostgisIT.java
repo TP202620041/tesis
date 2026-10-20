@@ -2,11 +2,17 @@ package pe.edu.upc.viasegura.support;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import pe.edu.upc.viasegura.auth.domain.FinalidadConsentimiento;
+import pe.edu.upc.viasegura.auth.domain.Usuario;
+import pe.edu.upc.viasegura.auth.dto.AceptarConsentimientoRequest;
+import pe.edu.upc.viasegura.auth.repository.UsuarioRepository;
+import pe.edu.upc.viasegura.auth.service.ConsentimientoService;
 import pe.edu.upc.viasegura.notificaciones.repository.NotificacionRepository;
 import pe.edu.upc.viasegura.reportes.repository.AdhesionReporteRepository;
 import pe.edu.upc.viasegura.reportes.repository.IdempotencyKeyRepository;
@@ -39,6 +45,39 @@ import pe.edu.upc.viasegura.reportes.repository.ReporteRepository;
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 public abstract class AbstractPostgisIT {
+
+    /**
+     * Version vigente de los terminos (D-12), leida de la configuracion y no
+     * fija en cada test: al publicar un texto nuevo los IT no cambian.
+     */
+    @Value("${app.legal.version-terminos}")
+    protected String versionTerminos;
+
+    @Autowired
+    private UsuarioRepository usuarioRepositoryBase;
+    @Autowired
+    private ConsentimientoService consentimientoServiceBase;
+
+    /**
+     * Guarda el usuario y le registra la aceptacion de los terminos vigentes,
+     * como si se hubiera registrado por {@code POST /api/auth/registro}. Desde
+     * NC-07b, sin ella toda ruta privada responde 403
+     * {@code TERMINOS_PENDIENTES}; los casos sin terminos estan en
+     * {@code auth/ConsentimientoIT}. Idempotente: no duplica la aceptacion.
+     */
+    protected Usuario guardarConTerminos(Usuario usuario) {
+        Usuario guardado = usuarioRepositoryBase.save(usuario);
+        if (consentimientoServiceBase.debeAceptarTerminos(guardado.getId())) {
+            consentimientoServiceBase.registrarAceptacionDeTerminos(guardado, versionTerminos);
+        }
+        return guardado;
+    }
+
+    /** Otorga un consentimiento de notificaciones (push o correo) al usuario. */
+    protected void otorgar(Usuario usuario, FinalidadConsentimiento finalidad) {
+        consentimientoServiceBase.aceptar(usuario.getEmail(),
+                new AceptarConsentimientoRequest(finalidad, "test-" + finalidad.name().toLowerCase()));
+    }
 
     // Repositorios de reportes: usados solo para la limpieza FK-safe comun.
     // Opcionales (required=false) para no exigir el contexto de reportes en

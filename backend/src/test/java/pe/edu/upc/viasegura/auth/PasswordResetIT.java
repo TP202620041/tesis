@@ -41,8 +41,13 @@ class PasswordResetIT extends AbstractPostgisMailIT {
         tokenRepository.deleteAll();
     }
 
+    /**
+     * Solo con los terminos: <b>sin</b> el consentimiento NOTIFICACIONES_CORREO,
+     * a proposito (D-12): el correo de recuperacion es de seguridad y se envia siempre, asi que estos IT prueban que no depende de ese
+     * permiso.
+     */
     private Usuario ciudadano() {
-        return usuarioRepository.save(Usuario.builder()
+        return guardarConTerminos(Usuario.builder()
                 .email("ciu-" + UUID.randomUUID() + "@lima.pe")
                 .passwordHash(passwordEncoder.encode("original123"))
                 .nombre("Ana").apellido("Vecina").rol(Rol.CIUDADANO).build());

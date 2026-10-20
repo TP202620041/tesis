@@ -18,6 +18,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.support.TransactionTemplate;
+import pe.edu.upc.viasegura.auth.domain.FinalidadConsentimiento;
 import pe.edu.upc.viasegura.auth.domain.Rol;
 import pe.edu.upc.viasegura.auth.domain.Usuario;
 import pe.edu.upc.viasegura.auth.repository.UsuarioRepository;
@@ -59,11 +60,18 @@ class SuscripcionPushIT extends AbstractPostgisIT {
         suscripcionRepository.deleteAll();
     }
 
+    /**
+     * Usuario con el consentimiento NOTIFICACIONES_PUSH vigente, requisito
+     * para suscribirse desde NC-07b (D-12). El caso sin consentimiento esta
+     * en {@code auth/ConsentimientoIT}.
+     */
     private Usuario usuario(Rol rol) {
-        return usuarioRepository.save(Usuario.builder()
+        Usuario u = guardarConTerminos(Usuario.builder()
                 .email("push-" + UUID.randomUUID() + "@lima.pe")
                 .passwordHash(passwordEncoder.encode("x"))
                 .nombre("Ana").apellido("Vecina").rol(rol).build());
+        otorgar(u, FinalidadConsentimiento.NOTIFICACIONES_PUSH);
+        return u;
     }
 
     private String token(Usuario u) {

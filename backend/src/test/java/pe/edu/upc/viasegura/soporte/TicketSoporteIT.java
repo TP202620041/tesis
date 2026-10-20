@@ -48,22 +48,27 @@ class TicketSoporteIT extends AbstractPostgisMailIT {
         ticketRepository.deleteAll();
     }
 
+    /**
+     * Solo con los terminos: <b>sin</b> el consentimiento NOTIFICACIONES_CORREO,
+     * a proposito (D-12): la respuesta de soporte la pidio el usuario y se envia siempre, asi que estos IT prueban que no depende de ese
+     * permiso.
+     */
     private Usuario ciudadano() {
-        return usuarioRepository.save(Usuario.builder()
+        return guardarConTerminos(Usuario.builder()
                 .email("ciu-" + UUID.randomUUID() + "@lima.pe")
                 .passwordHash(passwordEncoder.encode("x"))
                 .nombre("Ana").apellido("Vecina").rol(Rol.CIUDADANO).build());
     }
 
     private Usuario funcionario() {
-        return usuarioRepository.save(Usuario.builder()
+        return guardarConTerminos(Usuario.builder()
                 .email("func-" + UUID.randomUUID() + "@muni.pe")
                 .passwordHash(passwordEncoder.encode("x"))
                 .nombre("Fabi").apellido("Municipal").rol(Rol.FUNCIONARIO_MUNICIPAL).build());
     }
 
     private Usuario admin() {
-        return usuarioRepository.save(Usuario.builder()
+        return guardarConTerminos(Usuario.builder()
                 .email("admin-" + UUID.randomUUID() + "@viasegura.pe")
                 .passwordHash(passwordEncoder.encode("x"))
                 .nombre("Admin").apellido("Plataforma").rol(Rol.ADMIN).build());

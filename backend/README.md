@@ -55,9 +55,11 @@ Activar otro perfil: `SPRING_PROFILES_ACTIVE=dev mvn spring-boot:run`.
 
 | Método | Ruta                | Auth | Historia | Descripción |
 |--------|---------------------|------|----------|-------------|
-| POST   | `/api/auth/registro`| No   | US-01    | Registrar cuenta ciudadana |
+| POST   | `/api/auth/registro`| No   | US-01    | Registrar cuenta ciudadana (exige aceptar los términos vigentes, D-12) |
 | POST   | `/api/auth/login`   | No   | US-02    | Iniciar sesión (devuelve JWT) |
-| GET    | `/api/auth/me`      | Sí   | US-02    | Datos del usuario autenticado |
+| GET    | `/api/auth/me`      | Sí   | US-02    | Datos del usuario autenticado (con `debeAceptarTerminos`) |
+| GET/POST | `/api/auth/me/consentimientos` | Sí | NC-07b | Consentimientos propios: listar y aceptar (ver [Consentimiento](#consentimiento-d-12-nc-07b)) |
+| DELETE | `/api/auth/me/consentimientos/{finalidad}` | Sí | NC-07b | Revocar un consentimiento propio |
 
 ### Ejemplo rápido
 
@@ -65,7 +67,7 @@ Activar otro perfil: `SPRING_PROFILES_ACTIVE=dev mvn spring-boot:run`.
 # Registro
 curl -X POST http://localhost:8080/api/auth/registro \
   -H "Content-Type: application/json" \
-  -d '{"email":"vecino@lima.pe","password":"secreta123","nombre":"Ana","apellido":"Ruiz"}'
+  -d '{"email":"vecino@lima.pe","password":"secreta123","nombre":"Ana","apellido":"Ruiz","aceptaTerminos":true,"versionTerminos":"2026-10-v1"}'
 
 # Login
 curl -X POST http://localhost:8080/api/auth/login \
@@ -516,6 +518,127 @@ y `NotificacionService` lo registra `FALLIDA` y cae a email, igual que cuando
 el canal no estaba disponible (`NotificacionIT` cubre PUSH y AMBAS con
 suscripción). El ciudadano no pierde avisos mientras tanto.
 
+**Desde NC-07b, suscribirse exige el consentimiento `NOTIFICACIONES_PUSH`
+vigente** (409 si no lo hay), y revocarlo borra todas las suscripciones del
+usuario: ver la sección siguiente.
+
+## Consentimiento (D-12, NC-07b)
+
+La Ley N.° 29733 de Protección de Datos Personales pide un consentimiento
+previo, informado, expreso e inequívoco **para cada finalidad**, y que se pueda
+revocar. La tesis, además, tiene que poder mostrar **qué** aceptó cada usuario,
+**cuándo** y **qué versión** del texto. Por eso `consentimiento` (V13,
+`auth/domain/Consentimiento`) es un **historial**, no un flag en `usuario`:
+
+- cada aceptación es una fila (`usuario_id`, `finalidad`, `version_documento`,
+  `aceptado_en`); revocar llena `revocado_en`. Nada se sobrescribe ni se borra;
+- finalidades (`FinalidadConsentimiento`): `TERMINOS_Y_PRIVACIDAD`,
+  `NOTIFICACIONES_PUSH`, `NOTIFICACIONES_CORREO`;
+- **vigente** = la aceptación más reciente sin revocar de esa finalidad y, para
+  los términos, de la versión que la app exige hoy
+  (`app.legal.version-terminos`, variable `LEGAL_VERSION_TERMINOS`, por defecto
+  `2026-10-v1`). Publicar un texto nuevo es cambiar esa propiedad: todos pasan
+  a `debeAceptarTerminos=true` sin migrar datos, y la aceptación anterior queda
+  en el historial como evidencia.
+
+**Preferencia ≠ permiso.** `usuario.preferencia_notificacion` sigue siendo una
+**preferencia** (cómo quiere recibir los avisos: PUSH, EMAIL, AMBAS); el
+consentimiento es el **permiso** (si autoriza ese tratamiento). Tampoco el
+permiso del navegador para notificaciones reemplaza al consentimiento: es del
+dispositivo, no la autorización del titular de los datos.
+
+| Método | Ruta | Respuesta |
+|---|---|---|
+| POST | `/api/auth/registro` | Exige `aceptaTerminos: true` (ausente o `false` → **400**) y `versionTerminos` igual a la vigente (si no, **409**, y no se crea la cuenta). La fila `TERMINOS_Y_PRIVACIDAD` se crea en la misma transacción. |
+| GET | `/api/auth/me/consentimientos` | `versionTerminosVigente`, `debeAceptarTerminos`, `vigentes` (una por finalidad autorizada hoy) e `historial` (todas, de la más reciente a la más antigua, con `vigente` por fila). |
+| POST | `/api/auth/me/consentimientos` | `{finalidad, version}`. **201** si deja fila nueva; **200** si ya estaba vigente con esa versión (no duplica el historial). Términos con una versión que no es la vigente → **409**. |
+| DELETE | `/api/auth/me/consentimientos/{finalidad}` | **204**, idempotente. `TERMINOS_Y_PRIVACIDAD` → **409**. Finalidad desconocida → 400. |
+
+Cualquier rol autenticado y **solo los propios**: ninguna ruta lleva id de
+usuario, así que nadie lee ni revoca los de otro. Sin token, 401.
+`UsuarioResponse` (de `/me`, login y registro) suma `debeAceptarTerminos`. Es
+un dato del propio usuario, no una señal interna, y ese DTO no lo lee nadie más.
+
+**Usuarios existentes.** La migración no les crea filas: D-12 prohíbe darlos
+por aceptados. Reciben `debeAceptarTerminos=true` y el frontend les muestra la
+pantalla de aceptación en su próximo inicio de sesión.
+
+**Bloqueo por términos pendientes (decisión del usuario).** Mientras
+`debeAceptarTerminos=true`, el backend responde **403** con
+`"codigo": "TERMINOS_PENDIENTES"` en el cuerpo de error (`ApiError.codigo`, que
+solo aparece cuando lo hay) en **toda ruta privada**, salvo:
+
+- `GET /api/auth/me` (saber quién es y que debe aceptar);
+- `/api/auth/me/consentimientos` y `/api/auth/me/consentimientos/{finalidad}`
+  (aceptar los términos y, de paso, correo y push);
+- `DELETE /api/notificaciones/suscripciones`: es lo único que hace falta para
+  cerrar sesión. No hay endpoint de logout (el JWT es stateless y el cliente
+  descarta el token), pero la PWA da de baja la suscripción push del navegador
+  antes de borrarlo.
+
+Las rutas públicas no cambian, aunque lleguen con el token de un usuario
+pendiente: se resuelven antes en `SecurityConfig`. Sin token sigue siendo 401.
+
+*Dónde vive.* En la cadena de seguridad, no en un interceptor de MVC: así
+nada de lo que está detrás (controladores, `@PreAuthorize`) llega a correr.
+`SecurityConfig` termina con `.anyRequest().access(TerminosAceptadosAuthorizationManager)`,
+que exige autenticación **y** términos aceptados; si faltan, marca la petición
+y `RestAccessDeniedHandler` arma el 403 con el código. Para no hacer depender a
+`common` de un módulo, la pregunta es la interfaz
+`common/security/VerificadorTerminosPendientes`, que implementa
+`auth/service/ConsentimientoService` (el grafo sigue siendo `common ← auth`).
+
+*Costo.* Una consulta por petición privada (`existeNoRevocadaPorEmail`: un
+`EXISTS` por correo, con el índice único de `usuario.email` y el parcial de
+`consentimiento`), sin cargar entidades. El filtro JWT ya hace otra para cargar
+el usuario. No se cachea: una caché obligaría a invalidarla al aceptar y, con
+varias instancias, a compartirla; a esta escala no compensa. Las rutas
+públicas no la pagan.
+
+**Los términos no se revocan desde la app (409).** Sin ellos no se puede usar el
+servicio; retirarlos equivale a la baja de la cuenta (derecho de cancelación de
+la Ley N.° 29733), que es un caso de uso distinto y hoy no existe.
+
+**Revocar `NOTIFICACIONES_PUSH` borra las suscripciones.** `ConsentimientoService`
+publica `auth/event/ConsentimientoRevocadoEvent` y
+`notificaciones/listener/ConsentimientoRevocadoListener` borra las filas de
+`suscripcion_push` del usuario. Así `auth` no conoce a `notificaciones` (el
+grafo de módulos sigue sin ciclos). El listener es `AFTER_COMMIT`, como los
+demás, y el borrado abre su propia transacción (`REQUIRES_NEW`, §4.5): la
+revocación se confirma aunque el borrado falle, porque revocar tiene que ser
+simple y no puede depender de otro módulo. Revocar es idempotente y siempre
+publica el evento, así que también limpia suscripciones creadas antes de
+NC-07b sin consentimiento.
+
+**El permiso manda al enviar.** `NotificacionService.canalDisponible` exige el
+consentimiento vigente del canal antes de usarlo: `NOTIFICACIONES_PUSH` para
+PUSH y `NOTIFICACIONES_CORREO` para EMAIL. Así una suscripción sin permiso
+(anterior a NC-07b, o una que no se llegó a borrar al revocar) queda inerte. La
+comprobación está en el servicio y no en `PushNotificacionAdapter` porque un
+adaptador (`infra`) no puede llamar a un servicio (regla `capas`), y así vale
+para los dos canales en un solo lugar.
+
+**Correo (decisión del usuario).** Los **avisos de cambio de estado** (US-16:
+canal EMAIL y el fallback de push a email) solo salen con
+`NOTIFICACIONES_CORREO` vigente. Los correos de **seguridad** (recuperar la
+contraseña, US-03) y la **respuesta de soporte** (US-25, la pidió el usuario)
+se envían siempre: usan `JavaMailSender` directo y no pasan por
+`NotificacionService`. Si el usuario no autoriza ningún canal, cada intento se
+registra `FALLIDA`, como un canal no disponible, sin error: el cambio de estado
+se confirma igual.
+
+> **Consecuencia:** los usuarios existentes y los que se registren sin aceptar
+> correo **dejan de recibir avisos por correo** hasta que acepten
+> `NOTIFICACIONES_CORREO`. La pantalla de aceptación del frontend ofrece correo
+> y push junto con los términos.
+
+**Doble aceptación simultánea (V14).** Un índice único parcial
+`(usuario_id, finalidad, version_documento) WHERE revocado_en IS NULL` y un
+`INSERT … ON CONFLICT … DO NOTHING RETURNING id`: si dos POST iguales llegan a
+la vez, el segundo espera al primero, no inserta y responde 200. Una versión
+revocada y aceptada otra vez sí deja fila nueva. Va en V14 porque V13 ya estaba
+aplicada.
+
 ## Deuda técnica conocida
 
 - **Testcontainers bloqueado por Docker 29 / docker-java 1.20.x.** Los tests
@@ -554,4 +677,5 @@ suscripción). El ciudadano no pierde avisos mientras tanto.
 (`GEOGRAPHY(MultiPolygon,4326)`) y `reporte.ubicacion`
 (`GEOGRAPHY(Point,4326)`), ambas con índice **GiST**. Ver
 `src/main/resources/db/migration/V1__init_schema.sql`. Las migraciones
-posteriores agregan tablas propias, como `suscripcion_push` (V12, NC-07).
+posteriores agregan tablas propias, como `suscripcion_push` (V12, NC-07) y
+`consentimiento` (V13 y V14, NC-07b).

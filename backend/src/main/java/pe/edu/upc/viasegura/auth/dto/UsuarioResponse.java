@@ -5,6 +5,11 @@ import pe.edu.upc.viasegura.auth.domain.Usuario;
 /**
  * Representacion publica de un usuario (sin credenciales). DTO separado de
  * la entidad JPA para no exponer el hash de contrasena ni relaciones lazy.
+ *
+ * <p>Solo lo recibe el propio usuario ({@code /me}, login y registro), por
+ * eso puede llevar {@code debeAceptarTerminos} (D-12): es un dato suyo, no
+ * una senal interna. {@code true} si no tiene aceptada la version vigente de
+ * los terminos; el frontend muestra entonces la pantalla de aceptacion.</p>
  */
 public record UsuarioResponse(
         Long id,
@@ -15,9 +20,10 @@ public record UsuarioResponse(
         String preferenciaNotificacion,
         String fotoUrl,
         Long distritoId,
-        String distritoNombre
+        String distritoNombre,
+        boolean debeAceptarTerminos
 ) {
-    public static UsuarioResponse from(Usuario u) {
+    public static UsuarioResponse from(Usuario u, boolean debeAceptarTerminos) {
         return new UsuarioResponse(
                 u.getId(),
                 u.getEmail(),
@@ -27,6 +33,7 @@ public record UsuarioResponse(
                 u.getPreferenciaNotificacion().name(),
                 u.getFotoUrl(),
                 u.getDistrito() != null ? u.getDistrito().getId() : null,
-                u.getDistrito() != null ? u.getDistrito().getNombre() : null);
+                u.getDistrito() != null ? u.getDistrito().getNombre() : null,
+                debeAceptarTerminos);
     }
 }

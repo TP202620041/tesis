@@ -85,14 +85,14 @@ class DesempenoIT extends AbstractPostgisMailIT {
     }
 
     private Usuario ciudadano() {
-        return usuarioRepository.save(Usuario.builder()
+        return guardarConTerminos(Usuario.builder()
                 .email("ciu-" + UUID.randomUUID() + "@lima.pe")
                 .passwordHash(passwordEncoder.encode("x"))
                 .nombre("Ana").apellido("Vecina").rol(Rol.CIUDADANO).build());
     }
 
     private Usuario funcionario(Distrito distritoGestion) {
-        return usuarioRepository.save(Usuario.builder()
+        return guardarConTerminos(Usuario.builder()
                 .email("func-" + UUID.randomUUID() + "@muni.pe")
                 .passwordHash(passwordEncoder.encode("x"))
                 .nombre("Fabi").apellido("Municipal")

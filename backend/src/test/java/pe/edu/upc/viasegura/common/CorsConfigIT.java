@@ -116,11 +116,11 @@ class CorsConfigIT extends AbstractPostgisIT {
         Distrito miraflores = distritoRepository.findByNombre("Miraflores").orElseThrow();
         CategoriaDano categoria = categoriaRepository.findAll().stream()
                 .filter(CategoriaDano::isEsEstandar).findFirst().orElseThrow();
-        Usuario ciudadano = usuarioRepository.save(Usuario.builder()
+        Usuario ciudadano = guardarConTerminos(Usuario.builder()
                 .email("ciu-" + UUID.randomUUID() + "@lima.pe")
                 .passwordHash(passwordEncoder.encode("x"))
                 .nombre("Ana").apellido("Vecina").rol(Rol.CIUDADANO).build());
-        Usuario funcionario = usuarioRepository.save(Usuario.builder()
+        Usuario funcionario = guardarConTerminos(Usuario.builder()
                 .email("func-" + UUID.randomUUID() + "@muni.pe")
                 .passwordHash(passwordEncoder.encode("x"))
                 .nombre("Fabi").apellido("Municipal")

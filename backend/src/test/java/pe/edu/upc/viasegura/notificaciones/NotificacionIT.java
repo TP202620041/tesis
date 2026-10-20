@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
+import pe.edu.upc.viasegura.auth.domain.FinalidadConsentimiento;
 import pe.edu.upc.viasegura.auth.domain.PreferenciaNotificacion;
 import pe.edu.upc.viasegura.auth.domain.Rol;
 import pe.edu.upc.viasegura.auth.domain.Usuario;
@@ -27,6 +28,7 @@ import pe.edu.upc.viasegura.notificaciones.domain.SuscripcionPush;
 import pe.edu.upc.viasegura.notificaciones.domain.TipoEvento;
 import pe.edu.upc.viasegura.notificaciones.repository.NotificacionRepository;
 import pe.edu.upc.viasegura.notificaciones.repository.SuscripcionPushRepository;
+import pe.edu.upc.viasegura.notificaciones.service.NotificacionService;
 import pe.edu.upc.viasegura.reportes.domain.CategoriaDano;
 import pe.edu.upc.viasegura.reportes.domain.EstadoReporte;
 import pe.edu.upc.viasegura.reportes.domain.Reporte;
@@ -75,7 +77,7 @@ class NotificacionIT extends AbstractPostgisMailIT {
     }
 
     private Usuario funcionario(Distrito distritoGestion) {
-        return usuarioRepository.save(Usuario.builder()
+        return guardarConTerminos(Usuario.builder()
                 .email("func-" + UUID.randomUUID() + "@muni.pe")
                 .passwordHash(passwordEncoder.encode("x"))
                 .nombre("Fabi").apellido("Municipal")
@@ -84,7 +86,18 @@ class NotificacionIT extends AbstractPostgisMailIT {
                 .build());
     }
 
+    /**
+     * Ciudadano con el consentimiento de correo vigente: desde NC-07b (D-12)
+     * los avisos de cambio de estado solo salen por correo con ese permiso.
+     */
     private Usuario ciudadano(PreferenciaNotificacion preferencia) {
+        Usuario u = ciudadanoSinPermisos(preferencia);
+        otorgar(u, FinalidadConsentimiento.NOTIFICACIONES_CORREO);
+        return u;
+    }
+
+    /** Solo con los terminos aceptados: sin permiso de correo ni de push. */
+    private Usuario ciudadanoSinPermisos(PreferenciaNotificacion preferencia) {
         Usuario.UsuarioBuilder builder = Usuario.builder()
                 .email("ciu-" + UUID.randomUUID() + "@lima.pe")
                 .passwordHash(passwordEncoder.encode("x"))
@@ -93,7 +106,7 @@ class NotificacionIT extends AbstractPostgisMailIT {
         if (preferencia != null) {
             builder.preferenciaNotificacion(preferencia);
         }
-        return usuarioRepository.save(builder.build());
+        return guardarConTerminos(builder.build());
     }
 
     private Reporte reporte(Distrito distrito, EstadoReporte estado, Usuario creador) {
@@ -167,8 +180,17 @@ class NotificacionIT extends AbstractPostgisMailIT {
                 .isEqualTo(ciudadano.getEmail());
     }
 
-    /** Suscripcion push activa (NC-07): el canal PUSH pasa a estar disponible. */
+    /**
+     * Suscripcion push activa (NC-07) con su consentimiento (D-12): el canal
+     * PUSH pasa a estar disponible.
+     */
     private void suscribirPush(Usuario usuario) {
+        otorgar(usuario, FinalidadConsentimiento.NOTIFICACIONES_PUSH);
+        guardarSuscripcion(usuario);
+    }
+
+    /** Fila de suscripcion sin consentimiento, como las anteriores a NC-07b. */
+    private void guardarSuscripcion(Usuario usuario) {
         suscripcionPushRepository.save(SuscripcionPush.builder()
                 .usuario(usuario)
                 .endpoint("https://fcm.googleapis.com/fcm/send/" + UUID.randomUUID())
@@ -257,5 +279,68 @@ class NotificacionIT extends AbstractPostgisMailIT {
                 n.getCanal() == CanalNotificacion.EMAIL && n.getEstadoEntrega() == EstadoEntrega.ENVIADA))
                 .isTrue();
         assertThat(greenMail.waitForIncomingEmail(3000, 1)).isTrue();
+    }
+
+    // ---------------------------------------------------- D-12: el permiso manda
+
+    @Autowired
+    NotificacionService notificacionService;
+
+    @Test
+    void suscripcionSinConsentimientoPush_elCanalPushNoEstaDisponible() {
+        // Suscripcion previa a NC-07b (o que no se pudo borrar al revocar):
+        // queda inerte porque falta el permiso.
+        Usuario ciudadano = ciudadano(PreferenciaNotificacion.PUSH);
+        guardarSuscripcion(ciudadano);
+        assertThat(notificacionService.canalDisponible(ciudadano, CanalNotificacion.PUSH)).isFalse();
+
+        otorgar(ciudadano, FinalidadConsentimiento.NOTIFICACIONES_PUSH);
+        assertThat(notificacionService.canalDisponible(ciudadano, CanalNotificacion.PUSH)).isTrue();
+    }
+
+    @Test
+    void preferenciaEmail_sinConsentimientoDeCorreo_noEnviaYRegistraFallida() throws Exception {
+        Usuario func = funcionario(distrito("Miraflores"));
+        Usuario ciudadano = ciudadanoSinPermisos(PreferenciaNotificacion.EMAIL);
+        Reporte reporte = reporte(distrito("Miraflores"), EstadoReporte.RECIBIDO, ciudadano);
+
+        cambiarAEnProceso(func, reporte.getId());
+
+        List<Notificacion> notifs = notificacionRepository.findByReporteIdOrderByCreatedAtAsc(reporte.getId());
+        assertThat(notifs).hasSize(1);
+        assertThat(notifs.get(0).getCanal()).isEqualTo(CanalNotificacion.EMAIL);
+        assertThat(notifs.get(0).getEstadoEntrega()).isEqualTo(EstadoEntrega.FALLIDA);
+        assertThat(greenMail.waitForIncomingEmail(1500, 1)).isFalse();
+    }
+
+    @Test
+    void preferenciaPush_sinConsentimientoDeCorreo_elFallbackNoEnviaCorreo() throws Exception {
+        Usuario func = funcionario(distrito("Miraflores"));
+        Usuario ciudadano = ciudadanoSinPermisos(PreferenciaNotificacion.PUSH);
+        suscribirPush(ciudadano);
+        Reporte reporte = reporte(distrito("Miraflores"), EstadoReporte.RECIBIDO, ciudadano);
+
+        cambiarAEnProceso(func, reporte.getId());
+
+        List<Notificacion> notifs = notificacionRepository.findByReporteIdOrderByCreatedAtAsc(reporte.getId());
+        assertThat(notifs).hasSize(2);
+        assertThat(notifs).allMatch(n -> n.getEstadoEntrega() == EstadoEntrega.FALLIDA);
+        assertThat(greenMail.waitForIncomingEmail(1500, 1)).isFalse();
+    }
+
+    @Test
+    void sinNingunPermiso_ningunCanal_registraFallidasSinError() throws Exception {
+        Usuario func = funcionario(distrito("Miraflores"));
+        Usuario ciudadano = ciudadanoSinPermisos(PreferenciaNotificacion.AMBAS);
+        guardarSuscripcion(ciudadano);
+        Reporte reporte = reporte(distrito("Miraflores"), EstadoReporte.RECIBIDO, ciudadano);
+
+        // El cambio de estado se confirma igual (200): el aviso no lo bloquea.
+        cambiarAEnProceso(func, reporte.getId());
+
+        List<Notificacion> notifs = notificacionRepository.findByReporteIdOrderByCreatedAtAsc(reporte.getId());
+        assertThat(notifs).hasSize(2);
+        assertThat(notifs).allMatch(n -> n.getEstadoEntrega() == EstadoEntrega.FALLIDA);
+        assertThat(greenMail.waitForIncomingEmail(1500, 1)).isFalse();
     }
 }

@@ -52,6 +52,8 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final UserDetailsService userDetailsService;
     private final RestAuthenticationEntryPoint authenticationEntryPoint;
+    private final RestAccessDeniedHandler accessDeniedHandler;
+    private final TerminosAceptadosAuthorizationManager terminosAceptados;
 
     /** Rutas publicas: registro, login, documentacion y consultas publicas. */
     private static final String[] RUTAS_PUBLICAS = {
@@ -150,8 +152,20 @@ public class SecurityConfig {
                         // estatico, sino por /api/perfiles/fotos/{archivo}, que
                         // verifica al dueno (PerfilFotoController).
                         .requestMatchers(HttpMethod.GET, "/media/fotos/reportes/**").permitAll()
-                        .anyRequest().authenticated())
-                .exceptionHandling(ex -> ex.authenticationEntryPoint(authenticationEntryPoint))
+                        // D-12: con los terminos pendientes solo se puede ver el
+                        // propio perfil, gestionar los consentimientos y dar de
+                        // baja la suscripcion push al cerrar sesion (el logout es
+                        // del cliente, no hay endpoint). Rutas exactas.
+                        .requestMatchers(HttpMethod.GET, "/api/auth/me").authenticated()
+                        .requestMatchers("/api/auth/me/consentimientos",
+                                "/api/auth/me/consentimientos/*").authenticated()
+                        .requestMatchers(HttpMethod.DELETE, "/api/notificaciones/suscripciones").authenticated()
+                        // Todo lo demas: autenticado y con los terminos vigentes
+                        // aceptados; si faltan, 403 TERMINOS_PENDIENTES.
+                        .anyRequest().access(terminosAceptados))
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(authenticationEntryPoint)
+                        .accessDeniedHandler(accessDeniedHandler))
                 .authenticationProvider(authenticationProvider())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
