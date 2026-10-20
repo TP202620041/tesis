@@ -1,6 +1,6 @@
 # Propuesta: dónde vive la asignación de distrito por coordenadas
 
-- **Estado:** abierta <!-- abierta | aceptada | rechazada -->
+- **Estado:** aceptada (opción A, 2026-10-20) <!-- abierta | aceptada | rechazada -->
 - **Fecha:** 2026-10-20
 - **Origen:** agente de backend, tarea BE-06
 - **Decide:** el usuario. Si se acepta, la sesión de raíz actualiza ARCHITECTURE.md o el plan.
@@ -35,3 +35,7 @@ La consulta espacial que asigna el distrito vive en `distritos`, pero su puerto 
 ## Qué queda bloqueado mientras no se decida
 
 Solo el cierre de `soloApiPublicaDeOtrosModulos` en 0: BE-06 se entrega con estas 3 entradas congeladas (48 → 3). El resto de BE-06 y US-11 no dependen de esto.
+
+## Decisión
+
+**Opción A**, decidida por el usuario el 2026-10-20. `GeoAssignmentStrategy` pasa a `distritos/port/` y `PointInPolygonAssignmentStrategy` a `distritos/infra/` (mismos nombres), con su IT en `distritos/infra/`; `ReporteService` inyecta el puerto de `distritos`. Sin recongelar: el almacén solo pierde las 3 entradas y `soloApiPublicaDeOtrosModulos` queda en 0. Cierra BE-06 en `plan-migracion-capas.md`.
