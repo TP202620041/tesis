@@ -10,7 +10,9 @@ import type { ApiErrorBody } from '@/lib/types/domain';
  * - `400` validacion de entrada (`@Valid`, coordenadas fuera de rango).
  * - `401` sin token o token invalido/vencido.
  * - `403` autenticado pero sin permiso (otro rol, otro distrito, no es el
- *   creador del reporte).
+ *   creador del reporte). Con `codigo: "TERMINOS_PENDIENTES"` (NC-07b, D-12)
+ *   no es falta de permiso: el usuario aun no acepto los terminos vigentes
+ *   (lo resuelve `client.ts`, que lleva a la pantalla de aceptacion).
  * - `404` recurso inexistente.
  * - `409` precondicion de negocio incumplida: transicion de estado invalida
  *   (US-14), reporte duplicado del mismo ciudadano (US-09), ya calificado
@@ -20,13 +22,26 @@ export class ApiError extends Error {
   readonly status: number;
   readonly path: string;
   readonly details: string[];
+  /**
+   * Codigo de maquina del backend (`ApiError.codigo`), o `null` si no vino:
+   * el backend lo omite del JSON cuando no hay. Hoy solo existe
+   * {@link CODIGO_TERMINOS_PENDIENTES}.
+   */
+  readonly codigo: string | null;
 
-  constructor(status: number, message: string, path = '', details: string[] = []) {
+  constructor(
+    status: number,
+    message: string,
+    path = '',
+    details: string[] = [],
+    codigo: string | null = null,
+  ) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.path = path;
     this.details = details;
+    this.codigo = codigo;
   }
 
   /** `true` si el fallo es de negocio y tiene sentido mostrarlo al usuario. */
@@ -41,7 +56,19 @@ export class ApiError extends Error {
   get esSinPermiso(): boolean {
     return this.status === 403;
   }
+
+  /** 403 porque faltan los terminos vigentes (D-12), no por falta de rol o relacion. */
+  get esTerminosPendientes(): boolean {
+    return this.status === 403 && this.codigo === CODIGO_TERMINOS_PENDIENTES;
+  }
 }
+
+/**
+ * NC-07b (D-12): con los terminos vigentes sin aceptar, toda ruta privada
+ * (salvo `/me`, `/me/consentimientos/**` y la baja de la suscripcion push)
+ * responde 403 con este codigo.
+ */
+export const CODIGO_TERMINOS_PENDIENTES = 'TERMINOS_PENDIENTES';
 
 /**
  * Error de red: el request nunca llego al backend (sin conexion, DNS, CORS).
@@ -94,6 +121,7 @@ export async function desdeRespuesta(respuesta: Response): Promise<ApiError> {
     cuerpo.message ?? mensajePorDefecto(respuesta.status),
     cuerpo.path ?? '',
     cuerpo.details ?? [],
+    cuerpo.codigo ?? null,
   );
 }
 

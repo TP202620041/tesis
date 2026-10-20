@@ -43,7 +43,11 @@ export type DesenlaceDeEnvio =
   | 'enviado'
   /** Sin red o 5xx: sigue pendiente y se deja de intentar por ahora. */
   | 'sin-conexion'
-  /** 401: la sesion vencio. Sigue pendiente hasta que vuelva a iniciar sesion. */
+  /**
+   * 401: la sesion vencio. Tambien el 403 `TERMINOS_PENDIENTES` (NC-07b):
+   * la sesion sirve, pero no se puede usar hasta aceptar los terminos.
+   * Sigue pendiente hasta que se pueda volver a enviar.
+   */
   | 'sin-sesion'
   /** Otro 4xx: el backend lo rechaza por una regla; reintentar no sirve. */
   | 'rechazado';
@@ -52,13 +56,21 @@ export type DesenlaceDeEnvio =
  * Clasifica el resultado de un reenvio a partir del status HTTP (`null` =
  * no hubo respuesta: fallo de red). 408 (timeout) y 429 (demasiadas
  * peticiones) son transitorios, como la falta de red.
+ *
+ * `terminosPendientes`: el 403 vino con `codigo: "TERMINOS_PENDIENTES"`
+ * (NC-07b). No es un rechazo del reporte: marcarlo `rechazado` lo sacaria
+ * del reenvio automatico por algo que se resuelve aceptando los terminos.
  */
-export function desenlaceDeEnvio(status: number | null): DesenlaceDeEnvio {
+export function desenlaceDeEnvio(
+  status: number | null,
+  { terminosPendientes = false }: { terminosPendientes?: boolean } = {},
+): DesenlaceDeEnvio {
   if (status === null || status >= 500 || status === 408 || status === 429) {
     return 'sin-conexion';
   }
   if (status >= 200 && status < 300) return 'enviado';
   if (status === 401) return 'sin-sesion';
+  if (status === 403 && terminosPendientes) return 'sin-sesion';
   return 'rechazado';
 }
 

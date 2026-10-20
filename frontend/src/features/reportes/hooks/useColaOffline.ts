@@ -83,6 +83,17 @@ function statusDe(e: unknown): number | null {
   throw e;
 }
 
+/**
+ * Desenlace de un reenvio fallido. El 403 `TERMINOS_PENDIENTES` (NC-07b)
+ * cuenta como `sin-sesion`: el reporte queda pendiente y se detiene, y se
+ * reenvia cuando el usuario acepte los terminos.
+ */
+function desenlaceDe(e: unknown): DesenlaceDeEnvio {
+  return desenlaceDeEnvio(statusDe(e), {
+    terminosPendientes: e instanceof ApiError && e.esTerminosPendientes,
+  });
+}
+
 export interface ResultadoDeSincronizacion {
   enviados: ReporteCreado[];
   /**
@@ -106,6 +117,8 @@ const enCurso = new Map<
  * - Sin red, 5xx, 408 o 429: se conserva y se detiene.
  * - 401: se conserva y se detiene. El token ya quedo borrado (sin navegar);
  *   la UI pide iniciar sesion y entonces se reenvia con el token nuevo.
+ * - 403 `TERMINOS_PENDIENTES` (NC-07b): igual que el 401 (`sin-sesion`),
+ *   pero sin borrar el token; se reenvia tras aceptar los terminos.
  * - Otro 4xx: se marca `rechazado` con el motivo y se sigue con el resto.
  *
  * **Nunca envia con la sesion de otro:** `generacionEsperada` es la
@@ -166,7 +179,7 @@ async function sincronizar(
     try {
       creado = await deps.enviar(comoNuevoReporte(enCola));
     } catch (e) {
-      const desenlace = desenlaceDeEnvio(statusDe(e));
+      const desenlace = desenlaceDe(e);
       if (desenlace === 'rechazado') {
         await deps.almacen.marcarRechazado(
           enCola.idempotencyKey,

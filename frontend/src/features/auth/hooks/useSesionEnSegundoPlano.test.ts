@@ -19,6 +19,7 @@ const ANA = {
   apellido: 'Vecina',
   rol: 'CIUDADANO',
   preferenciaNotificacion: 'EMAIL',
+  debeAceptarTerminos: false,
 } as Usuario;
 
 afterEach(() => {

@@ -31,6 +31,64 @@ export function rutaInicialDe(rol: Rol): string {
  */
 export const RUTA_SOPORTE_ADMIN = '/admin/soporte';
 
+/**
+ * NC-07b (D-12): pantalla donde el usuario acepta los terminos vigentes. La
+ * misma ruta la usa el cliente HTTP ante el 403 `TERMINOS_PENDIENTES`
+ * (`lib/api/client.ts`, `RUTA_ACEPTAR_TERMINOS`); los tests de ambos lados la
+ * fijan, porque `lib/` no puede importar de features.
+ */
+export const RUTA_ACEPTAR_TERMINOS = '/aceptar-terminos';
+
+/** Pagina publica con los terminos de uso y la politica de privacidad. */
+export const RUTA_PRIVACIDAD = '/privacidad';
+
+/**
+ * Destino de una redireccion que viene en la URL (`?redirect=`), o
+ * `porDefecto` si no es una ruta interna. Evita un redirect abierto: solo se
+ * aceptan rutas relativas de esta app (`/algo`), nunca `//otro-sitio` ni
+ * `https://…`, y nunca la propia pantalla de aceptacion (bucle).
+ *
+ * Se valida DESPUES de parsear (WHATWG), no sobre el texto: el parser quita
+ * tabuladores y saltos de linea y trata `\` como `/`, asi que
+ * `"/\t/evil.example"` pasaria un filtro de texto y terminaria siendo
+ * `//evil.example`. Se resuelve contra un origen ficticio y solo se acepta si
+ * sigue en ese origen.
+ */
+export function destinoInterno(redirect: string | null | undefined, porDefecto: string): string {
+  if (!redirect || !redirect.startsWith('/')) return porDefecto;
+  const ruta = rutaDelMismoOrigen(redirect);
+  if (ruta === null) return porDefecto;
+  // Lo que se devuelve se vuelve a parsear: el `pathname` ya normalizado
+  // puede ser otra cosa (`/.//evil.example` → `//evil.example`).
+  if (rutaDelMismoOrigen(ruta) !== ruta) return porDefecto;
+  if (new URL(ruta, ORIGEN_FICTICIO).pathname === RUTA_ACEPTAR_TERMINOS) return porDefecto;
+  return ruta;
+}
+
+/**
+ * `pathname + search + hash` de `texto` resuelto contra el origen ficticio,
+ * o `null` si no es parseable, sale de ese origen o su ruta normalizada
+ * empieza con `//` (que, usada como destino, seria una URL de otro sitio).
+ */
+function rutaDelMismoOrigen(texto: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(texto, ORIGEN_FICTICIO);
+  } catch {
+    return null;
+  }
+  if (url.origin !== ORIGEN_FICTICIO || url.pathname.startsWith('//')) return null;
+  return url.pathname + url.search + url.hash;
+}
+
+/** Origen que no existe, solo para resolver rutas relativas en {@link destinoInterno}. */
+const ORIGEN_FICTICIO = 'http://x.invalid';
+
+/** Ruta de la pantalla de aceptacion que, al terminar, vuelve a `destino`. */
+export function rutaAceptarTerminos(destino: string): string {
+  return `${RUTA_ACEPTAR_TERMINOS}?redirect=${encodeURIComponent(destino)}`;
+}
+
 /** Roles que pueden entrar a cada area protegida del cliente. */
 export const ROLES_AREA_MUNICIPAL: readonly Rol[] = ['FUNCIONARIO_MUNICIPAL'];
 export const ROLES_AREA_ADMIN: readonly Rol[] = ['ADMIN'];

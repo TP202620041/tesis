@@ -75,10 +75,11 @@ src/
 │   ├── (cuenta)/               # cualquier usuario con sesión — soporte
 │   └── (admin)/admin/          # rol ADMIN — soporte (bandeja de tickets)
 ├── features/                   # lógica por dominio, no por tipo de archivo
-│   ├── auth/  reportes/  desempeno/  gestion/  soporte/
+│   ├── auth/  reportes/  desempeno/  gestion/  soporte/  legal/
 ├── lib/
 │   ├── api/                    # cliente HTTP tipado + tipos generados + catálogos compartidos
 │   ├── auth/                   # almacenamiento del token
+│   ├── sesion/                 # pasos que otras features registran antes del cierre de sesión (D-14)
 │   └── types/domain.ts         # uniones de enums y alias de dominio
 ├── components/ui/              # presentacionales compartidos
 ├── map/                        # cliente de mapas encapsulado (Leaflet)
@@ -259,7 +260,7 @@ Reglas de la cola:
   pregunta «Tienes N reportes sin enviar en este dispositivo. Se enviarán
   cuando vuelvas a entrar. [Conservar] [Descartarlos]». `auth` no conoce la
   cola: quien compone la app registra ese paso en
-  `lib/hooks/antesDeCerrarSesion.ts` y `useCerrarSesion` lo espera. El cierre
+  `lib/sesion/antesDeCerrarSesion.ts` (D-14) y `useCerrarSesion` lo espera. El cierre
   **nunca se cuelga**: Escape equivale a «Conservar»; si la pregunta queda
   abierta y el componente se desmonta o la cola se vacía, se responde
   «Conservar»; un segundo intento de cierre reutiliza la misma pregunta; y
@@ -280,6 +281,67 @@ Reglas de la cola:
   con **`fake-indexeddb`** (dependencia de desarrollo): jsdom no implementa
   IndexedDB, y con un doble en memoria no se probaría el clonado de la foto ni
   el reemplazo por clave.
+
+### Consentimiento (NC-07b, D-12)
+
+El consentimiento es un **permiso** por finalidad y versión
+(`TERMINOS_Y_PRIVACIDAD`, `NOTIFICACIONES_CORREO`, `NOTIFICACIONES_PUSH`); la
+`preferenciaNotificacion` del perfil sigue siendo solo la **preferencia** de
+canal. Dónde aparece:
+
+- **Registro (US-01):** casilla obligatoria «Acepto los términos de uso y la
+  política de privacidad» con enlace a `/privacidad`. Sin marcarla no se envía.
+  Viajan `aceptaTerminos: true` y `versionTerminos`.
+- **`/privacidad`** (pública): el texto del borrador
+  `project-context/legal/terminos-y-privacidad-v1.md` copiado en
+  `features/legal/components/TextoTerminosYPrivacidad.tsx`, con el aviso
+  visible «Borrador pendiente de revisión», la versión y los `[COMPLETAR]` del
+  original resaltados (no se inventan datos).
+- **Pantalla de aceptación** (`/aceptar-terminos`, cualquier rol con sesión)
+  para quien tiene `debeAceptarTerminos`: términos obligatorios y, solo para el
+  ciudadano, avisos por correo y push opcionales (para push, solo el
+  consentimiento; activar el navegador se hace en el perfil). Al terminar
+  vuelve a `?redirect=` (validado: solo rutas internas). Llegan aquí el login,
+  `GuardiaDeRol` y el cliente HTTP.
+- **403 `TERMINOS_PENDIENTES` centralizado:** igual que el 401, `client.ts`
+  lleva a esa pantalla (navegación dura, conserva el destino, **no** borra el
+  token) ante un 403 con `ApiError.codigo === 'TERMINOS_PENDIENTES'`. Un 403
+  sin código sigue siendo «sin permiso». El trabajo en segundo plano
+  (`redirigirEn401: false`) tampoco navega por esto. En la cola offline ese
+  403 cuenta como «sin sesión», no como rechazo: el reporte queda pendiente,
+  la sincronización se detiene y se reenvía tras aceptar. `GuardiaDeRol` y
+  `useSesionRequerida` llevan a la pantalla antes de pedir nada (sin bucle
+  en la propia `/aceptar-terminos`). El `redirect` se valida después de
+  parsear la URL (un `"/\t/otro"` se convertiría en `//otro`).
+- **Perfil → «Privacidad y consentimientos»:** vigentes, historial (con
+  revocaciones) y otorgar/retirar correo y push. Los términos no se revocan:
+  es la baja de la cuenta (§5 y §7 del borrador), y el backend responde 409.
+
+**Versión de los términos.** El registro ocurre sin sesión y el contrato no
+expone la versión vigente en ninguna ruta pública (solo con sesión, en
+`ConsentimientosResponse.versionTerminosVigente`). Por eso el registro y
+`/privacidad` usan la constante `VERSION_TERMINOS`
+(`features/auth/model/terminos.ts`), y **`terminos.test.ts` la compara con
+`app.legal.version-terminos` del `application.yml` del backend**: si alguien
+cambia una sin la otra, la suite falla. Con sesión (pantalla de aceptación)
+se usa la versión del API; si no coincide con la del texto que trae la app,
+no se deja aceptar (no se acepta un texto que no se mostró). Si aun así el
+registro recibe 409 por versión, no se creó la cuenta: se desmarca la casilla
+y se pide volver a intentar en unos minutos. Publicar un texto nuevo =
+cambiar el texto, la constante y la propiedad del backend en la misma entrega.
+
+**No sobrescribir `LEGAL_VERSION_TERMINOS`** (la variable de entorno del
+backend que fija `app.legal.version-terminos`) sin publicar a la vez un
+frontend con ese mismo texto y esa misma versión. El test solo compara con
+el valor por defecto del `application.yml`: no ve lo que se configure en un
+entorno. Si el backend exige una versión que el frontend no trae, nadie
+puede registrarse (409) y quien deba aceptar no puede hacerlo (la pantalla
+no deja aceptar un texto que no muestra), ni escribir a Soporte, que también
+queda bloqueado sin los términos.
+
+Los avisos opcionales llevan su propia versión de texto
+(`push-2026-10-v1`, `correo-2026-10-v1`, en `model/consentimientos.ts`): el
+backend la guarda tal cual para saber qué texto vio el usuario.
 
 ### Fotos: dos visibilidades
 
@@ -324,6 +386,9 @@ Los tiles de OpenStreetMap **sí** están listados en `img-src` de la CSP
 Verificado end-to-end contra el backend real:
 
 - **US-01** registro (`/registro`) · **US-02** login (`/login`).
+- **NC-07b** consentimiento: aceptación de términos en el registro,
+  `/privacidad`, pantalla `/aceptar-terminos` y «Privacidad y
+  consentimientos» en el perfil (ver «Consentimiento» en Decisiones técnicas).
 - `/sesion` — verificación de `GET /api/auth/me`. Andamiaje: desaparece
   cuando existan las landings por rol.
 - **US-05** crear reporte (`/reportar`): GPS con fallback a marcar en el mapa

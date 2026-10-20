@@ -30,7 +30,7 @@ describe('useSesionRequerida', () => {
     expect(replace).not.toHaveBeenCalled();
   });
 
-  it('con sesion devuelve el usuario y no redirige', () => {
+  function conUsuario(debeAceptarTerminos: boolean) {
     sesion.mockReturnValue({
       estado: 'autenticado',
       usuario: {
@@ -40,9 +40,32 @@ describe('useSesionRequerida', () => {
         apellido: 'Vecina',
         rol: 'CIUDADANO',
         preferenciaNotificacion: 'EMAIL',
+        debeAceptarTerminos,
       },
       refrescar: vi.fn(),
     });
+  }
+
+  it('con sesion devuelve el usuario y no redirige', () => {
+    conUsuario(false);
+    const { result } = renderHook(() => useSesionRequerida('/login'));
+
+    expect(result.current.estado).toBe('autenticado');
+    expect(replace).not.toHaveBeenCalled();
+  });
+
+  it('con los términos pendientes lleva a aceptarlos y vuelve aquí (NC-07b)', () => {
+    conUsuario(true);
+    window.history.replaceState(null, '', '/reportar?x=1');
+    const { result } = renderHook(() => useSesionRequerida('/login'));
+
+    expect(result.current.estado).toBe('cargando');
+    expect(replace).toHaveBeenCalledWith('/aceptar-terminos?redirect=%2Freportar%3Fx%3D1');
+  });
+
+  it('en la propia pantalla de aceptación no redirige (sin bucle)', () => {
+    conUsuario(true);
+    window.history.replaceState(null, '', '/aceptar-terminos?redirect=%2Freportar');
     const { result } = renderHook(() => useSesionRequerida('/login'));
 
     expect(result.current.estado).toBe('autenticado');

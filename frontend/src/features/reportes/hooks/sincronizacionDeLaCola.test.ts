@@ -126,6 +126,28 @@ describe('sincronizarCola', () => {
     expect(await claves()).toEqual([]);
   });
 
+  it('un 403 TERMINOS_PENDIENTES no es un rechazo: queda pendiente y se detiene (NC-07b)', async () => {
+    await encolar('k1');
+    await encolar('k2');
+    const enviar = vi
+      .fn()
+      .mockRejectedValue(new ApiError(403, 'Debes aceptar los terminos', '', [], 'TERMINOS_PENDIENTES'));
+
+    const resultado = await sincronizarCola(ANA, 1, undefined, deps(enviar));
+
+    expect(resultado.detenidaPor).toBe('sin-sesion');
+    expect(enviar).toHaveBeenCalledTimes(1);
+    const cola = await colaDeReportes.listar();
+    expect(cola.map((r) => r.estado)).toEqual(['pendiente', 'pendiente']);
+  });
+
+  it('un 403 sin código sigue siendo un rechazo', async () => {
+    await encolar('k1');
+    const enviar = vi.fn().mockRejectedValue(new ApiError(403, 'Sin permiso'));
+    await sincronizarCola(ANA, 1, undefined, deps(enviar));
+    expect((await colaDeReportes.listar())[0]).toMatchObject({ estado: 'rechazado' });
+  });
+
   it.each([503, 408, 429])('un %i es transitorio: se conserva y se reintenta luego', async (status) => {
     await encolar('k1');
     const enviar = vi.fn().mockRejectedValue(new ApiError(status, 'Transitorio'));

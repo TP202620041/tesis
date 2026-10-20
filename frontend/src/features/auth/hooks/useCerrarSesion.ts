@@ -5,7 +5,7 @@ import { useCallback, useRef } from 'react';
 import {
   antesDeCerrarSesion,
   hayPasosAntesDeCerrarSesion,
-} from '@/lib/hooks/antesDeCerrarSesion';
+} from '@/lib/sesion/antesDeCerrarSesion';
 import { borrarCacheEntreOrigenes } from '@/pwa/cachesDeSesion';
 import { cerrarSesion } from '../api';
 
