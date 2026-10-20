@@ -13,6 +13,7 @@ import pe.edu.upc.viasegura.auth.domain.PreferenciaNotificacion;
 import pe.edu.upc.viasegura.auth.domain.Usuario;
 import pe.edu.upc.viasegura.auth.repository.UsuarioRepository;
 import pe.edu.upc.viasegura.auth.service.ConsentimientoService;
+import pe.edu.upc.viasegura.notificaciones.domain.AvisoReporte;
 import pe.edu.upc.viasegura.notificaciones.domain.CanalNotificacion;
 import pe.edu.upc.viasegura.notificaciones.domain.EstadoEntrega;
 import pe.edu.upc.viasegura.notificaciones.domain.Notificacion;
@@ -110,15 +111,15 @@ public class NotificacionService {
         }
         // Referencia (proxy) para la FK; no se necesita cargar el reporte entero.
         Reporte reporte = reporteRepository.getReferenceById(evento.reporteId());
-        String asunto = asuntoDe(tipo);
-        String mensaje = componerMensaje(destinatario, evento);
+        AvisoReporte aviso = new AvisoReporte(asuntoDe(tipo), componerMensaje(destinatario, evento),
+                componerResumen(evento), evento.reporteId(), evento.nuevo().name());
 
         List<CanalNotificacion> objetivos = canalesSegunPreferencia(destinatario.getPreferenciaNotificacion());
         boolean emailEntregado = false;
         boolean pushFallo = false;
 
         for (CanalNotificacion canal : objetivos) {
-            boolean ok = intentarEnviar(canal, destinatario, reporte, tipo, asunto, mensaje);
+            boolean ok = intentarEnviar(canal, destinatario, reporte, tipo, aviso);
             if (canal == CanalNotificacion.EMAIL && ok) {
                 emailEntregado = true;
             }
@@ -130,19 +131,19 @@ public class NotificacionService {
         // Fallback US-16 Esc.2: push no entrego y email no era objetivo aun.
         if (pushFallo && !emailEntregado && !objetivos.contains(CanalNotificacion.EMAIL)) {
             log.info("Push no disponible para usuario {}: fallback a email", destinatario.getId());
-            intentarEnviar(CanalNotificacion.EMAIL, destinatario, reporte, tipo, asunto, mensaje);
+            intentarEnviar(CanalNotificacion.EMAIL, destinatario, reporte, tipo, aviso);
         }
     }
 
     /** Intenta un canal y persiste el resultado. Devuelve true si se entrego. */
     private boolean intentarEnviar(CanalNotificacion canal, Usuario destinatario, Reporte reporte,
-                                   TipoEvento tipo, String asunto, String mensaje) {
+                                   TipoEvento tipo, AvisoReporte aviso) {
         Notificacion notificacion = Notificacion.builder()
                 .usuario(destinatario)
                 .reporte(reporte)
                 .tipoEvento(tipo)
                 .canal(canal)
-                .mensaje(mensaje)
+                .mensaje(aviso.mensaje())
                 .build();
 
         NotificacionCanalAdapter adapter = adapters.get(canal);
@@ -152,7 +153,7 @@ public class NotificacionService {
                 notificacionRepository.save(notificacion);
                 return false;
             }
-            adapter.enviar(destinatario, asunto, mensaje);
+            adapter.enviar(destinatario, aviso);
             notificacion.setEstadoEntrega(EstadoEntrega.ENVIADA);
             notificacion.setSentAt(Instant.now());
             notificacionRepository.save(notificacion);
@@ -195,6 +196,14 @@ public class NotificacionService {
             case REPORTE_RECHAZADO -> "ViaSegura: su reporte fue rechazado";
             case ADHESION_REGISTRADA -> "ViaSegura: novedad en su reporte";
         };
+    }
+
+    /**
+     * Texto corto del push (US-21): solo el estado nuevo, sin el comentario
+     * del municipio ni el distrito; el detalle se ve al abrir el reporte.
+     */
+    private String componerResumen(ReporteEstadoCambiadoEvent evento) {
+        return "Su reporte #" + evento.reporteId() + " paso a " + evento.nuevo() + ".";
     }
 
     /** Mensaje al ciudadano (<= 500 chars, ver columna notificacion.mensaje). */

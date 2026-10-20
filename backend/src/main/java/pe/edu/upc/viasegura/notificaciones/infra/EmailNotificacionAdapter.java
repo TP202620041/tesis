@@ -7,6 +7,7 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import pe.edu.upc.viasegura.auth.domain.Usuario;
+import pe.edu.upc.viasegura.notificaciones.domain.AvisoReporte;
 import pe.edu.upc.viasegura.notificaciones.domain.CanalNotificacion;
 import pe.edu.upc.viasegura.notificaciones.port.NotificacionCanalAdapter;
 
@@ -35,12 +36,12 @@ public class EmailNotificacionAdapter implements NotificacionCanalAdapter {
     }
 
     @Override
-    public void enviar(Usuario destinatario, String asunto, String mensaje) {
+    public void enviar(Usuario destinatario, AvisoReporte aviso) {
         SimpleMailMessage correo = new SimpleMailMessage();
         correo.setFrom(remitente);
         correo.setTo(destinatario.getEmail());
-        correo.setSubject(asunto);
-        correo.setText(mensaje);
+        correo.setSubject(aviso.asunto());
+        correo.setText(aviso.mensaje());
         mailSender.send(correo); // lanza MailException si el SMTP falla
     }
 }

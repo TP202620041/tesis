@@ -1,6 +1,7 @@
 package pe.edu.upc.viasegura.notificaciones.port;
 
 import pe.edu.upc.viasegura.auth.domain.Usuario;
+import pe.edu.upc.viasegura.notificaciones.domain.AvisoReporte;
 import pe.edu.upc.viasegura.notificaciones.domain.CanalNotificacion;
 
 /**
@@ -24,9 +25,9 @@ public interface NotificacionCanalAdapter {
     boolean estaDisponible(Usuario destinatario);
 
     /**
-     * Envia el mensaje. Debe lanzar una excepcion si el envio falla, para
+     * Envia el aviso. Debe lanzar una excepcion si el envio falla, para
      * que el orquestador lo registre como {@code FALLIDA} y active el
      * fallback si corresponde.
      */
-    void enviar(Usuario destinatario, String asunto, String mensaje);
+    void enviar(Usuario destinatario, AvisoReporte aviso);
 }

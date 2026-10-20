@@ -18,6 +18,18 @@ public interface SuscripcionPushRepository extends JpaRepository<SuscripcionPush
     /** Si el canal PUSH puede entregarle algo (ver {@code PushNotificacionAdapter}). */
     boolean existsByUsuarioIdAndActivaTrue(Long usuarioId);
 
+    /** Las activas del usuario: a todas se les envia el aviso (US-21). */
+    List<SuscripcionPush> findByUsuarioIdAndActivaTrue(Long usuarioId);
+
+    /**
+     * El servicio de push respondio 404/410 (US-21): no se vuelve a intentar.
+     * Se conserva la fila; si el navegador se vuelve a suscribir, el upsert la
+     * reactiva.
+     */
+    @Modifying
+    @Query("UPDATE SuscripcionPush s SET s.activa = false WHERE s.id = :id")
+    int desactivar(@Param("id") Long id);
+
     /** Las del usuario, de la registrada mas recientemente a la mas antigua (tope por usuario). */
     List<SuscripcionPush> findByUsuarioIdOrderByUpdatedAtDescIdDesc(Long usuarioId);
 
