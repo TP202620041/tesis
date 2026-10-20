@@ -84,7 +84,15 @@ Ningún sistema es infalible. Si detectamos un incidente que afecte tus datos, t
 
 Podemos rechazar o retirar contenido que incumpla estas reglas.
 
-## 10. Cambios a este documento
+## 10. Responsabilidad sobre las fotografías y el contenido que subes
+
+- Las fotografías, descripciones y comentarios que adjuntas son de tu exclusiva responsabilidad.
+- Al subir una foto declaras que la tomaste tú o que tienes derecho a usarla, y que no vulnera derechos de terceros (imagen, intimidad, propiedad intelectual).
+- Ciudad Viva no revisa las fotos antes de publicarlas. En la medida en que la ley lo permita, no se hace responsable de su contenido, su veracidad ni de los daños que su publicación cause a terceros; esa responsabilidad recae en quien la subió.
+- Nos autorizas, de forma gratuita y no exclusiva, a mostrar la foto en la plataforma y a compartirla con la municipalidad para atender el reporte.
+- Si una foto vulnera tus derechos, pide su retiro por Soporte. Podemos retirar sin aviso el contenido que incumpla estos términos (§9).
+
+## 11. Cambios a este documento
 
 Cada versión lleva una fecha. Si cambia algo importante, te pediremos que aceptes la nueva versión la próxima vez que entres; hasta que lo hagas, no podrás seguir usando la cuenta.
 
