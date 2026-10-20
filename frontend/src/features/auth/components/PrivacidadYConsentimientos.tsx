@@ -1,7 +1,7 @@
 'use client';
 
-import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { EnlaceConDialogo } from '@/components/ui/dialogo';
 import { AlertaError } from '@/components/ui/form';
 import type { EstadoConsentimientos } from '../hooks/useConsentimientos';
 import {
@@ -14,9 +14,16 @@ import {
   type FinalidadOpcional,
 } from '../model/consentimientos';
 import { RUTA_PRIVACIDAD } from '../model/rutas';
+import { TITULO_TERMINOS } from '../model/terminos';
 
 interface Props {
   consentimientos: EstadoConsentimientos;
+  /**
+   * El texto legal, que se lee en un dialogo como en el registro (lo compone
+   * la pagina: es de la feature `legal`). Navegar a `/privacidad` haria
+   * perder lo que se este editando en el perfil.
+   */
+  textoLegal: ReactNode;
   /**
    * Revocar en lugar de `consentimientos.revocar`. US-21: el perfil lo usa
    * para que retirar el consentimiento push cancele tambien la suscripcion
@@ -32,7 +39,12 @@ interface Props {
  * acciones de otorgar y revocar los avisos opcionales (correo y push). Los
  * terminos no se revocan aqui: retirarlos es la baja de la cuenta.
  */
-export function PrivacidadYConsentimientos({ consentimientos, revocar: revocarOtro, extra = {} }: Props) {
+export function PrivacidadYConsentimientos({
+  consentimientos,
+  textoLegal,
+  revocar: revocarOtro,
+  extra = {},
+}: Props) {
   const { carga, procesando, error, otorgar } = consentimientos;
   const revocar = revocarOtro ?? consentimientos.revocar;
 
@@ -56,13 +68,14 @@ export function PrivacidadYConsentimientos({ consentimientos, revocar: revocarOt
           <Fila titulo={etiquetaDeFinalidad('TERMINOS_Y_PRIVACIDAD')}>
             <p className="text-xs text-slate-600 dark:text-slate-400">
               {textoDeVigencia(vigenteDe(carga.datos, 'TERMINOS_Y_PRIVACIDAD'))}{' '}
-              <Link
+              <EnlaceConDialogo
                 href={RUTA_PRIVACIDAD}
-                target="_blank"
+                titulo={TITULO_TERMINOS}
+                contenido={textoLegal}
                 className="text-sky-700 hover:underline dark:text-sky-400"
               >
                 Leer el texto
-              </Link>
+              </EnlaceConDialogo>
             </p>
             <p className="text-xs text-slate-500 dark:text-slate-400">{TEXTO_TERMINOS_NO_REVOCABLES}</p>
           </Fila>

@@ -18,6 +18,9 @@
  */
 export const VERSION_TERMINOS = '2026-10-v1';
 
+/** Titulo del dialogo donde se leen los terminos (registro y perfil). */
+export const TITULO_TERMINOS = 'Términos de uso y política de privacidad';
+
 /**
  * `true` si el 409 del registro es por la version de los terminos (el texto
  * de este cliente quedo viejo) y no, por ejemplo, por un correo ya

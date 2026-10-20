@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { AlertaError, Boton, Campo } from '@/components/ui/form';
 import { PREFERENCIAS_NOTIFICACION, type PreferenciaNotificacion, type Usuario } from '@/lib/types/domain';
 import { useConsentimientos } from '../hooks/useConsentimientos';
@@ -14,9 +14,10 @@ import { PushEnEsteNavegador } from './PushEnEsteNavegador';
 
 /**
  * US-30: el ciudadano edita sus datos, su foto y como quiere recibir avisos.
- * NC-07b: y revisa sus consentimientos.
+ * NC-07b: y revisa sus consentimientos (`textoLegal`: ver
+ * {@link PrivacidadYConsentimientos}).
  */
-export function EditarPerfil({ inicial }: { inicial: Usuario }) {
+export function EditarPerfil({ inicial, textoLegal }: { inicial: Usuario; textoLegal: ReactNode }) {
   const { usuario, guardando, guardado, error, guardar, cambiarPreferencia } = usePerfil(inicial);
   const distritos = useDistritosDeResidencia();
   const consentimientos = useConsentimientos();
@@ -151,6 +152,7 @@ export function EditarPerfil({ inicial }: { inicial: Usuario }) {
 
       <PrivacidadYConsentimientos
         consentimientos={consentimientos}
+        textoLegal={textoLegal}
         revocar={(finalidad) =>
           finalidad === 'NOTIFICACIONES_PUSH'
             ? push.retirarConsentimiento()
