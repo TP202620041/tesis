@@ -16,12 +16,12 @@ import { esPeticionAlApi } from './cachesDeSesion';
  * Serwist, salvo el API, que nunca se cachea. Es lo que permite que la
  * aplicacion abra sin conexion.
  *
- * PENDIENTE (US-06, slice propio): la cola de sincronizacion de reportes
- * creados offline. El plan es un `BackgroundSyncPlugin` de Workbox sobre
- * `POST /api/reportes`, reenviando cada reporte encolado al recuperar senal.
- * El backend ya esta preparado: acepta el header `Idempotency-Key`, asi que
- * un reintento del mismo reporte devuelve la respuesta original en vez de
- * duplicarlo o fallar con el 409 de acumulacion de US-09.
+ * US-06 (cola de reportes creados sin conexion) NO vive aqui, a proposito:
+ * la cola esta en IndexedDB (`colaReportes.ts`) y la reenvia la pagina con el
+ * token vigente. Un `BackgroundSyncPlugin` guardaria la peticion con su
+ * `Authorization` original y la repetiria tal cual, aunque el token haya
+ * vencido; y el SW no puede leer el token nuevo (vive en `localStorage`, que
+ * solo toca `lib/auth/token-storage.ts`). Ver "Cola offline" en el README.
  */
 
 declare global {

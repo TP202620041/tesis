@@ -10,10 +10,12 @@ import { FormularioReporte } from './FormularioReporte';
  * otro daño" vuelve al formulario, que se monta de nuevo (y con el, una
  * `Idempotency-Key` nueva: es otro reporte).
  */
-export function NuevoReporte() {
+export function NuevoReporte({ usuarioId }: { usuarioId: number }) {
   const [creado, setCreado] = useState<ReporteCreado | null>(null);
+  const [encolado, setEncolado] = useState(false);
 
   if (creado) return <Confirmacion reporte={creado} onOtro={() => setCreado(null)} />;
+  if (encolado) return <ConfirmacionSinConexion onOtro={() => setEncolado(false)} />;
 
   return (
     <>
@@ -26,8 +28,52 @@ export function NuevoReporte() {
           tienes que saber cuál es.
         </p>
       </header>
-      <FormularioReporte onCreado={setCreado} />
+      <FormularioReporte
+        usuarioId={usuarioId}
+        onCreado={setCreado}
+        onEncolado={() => setEncolado(true)}
+      />
     </>
+  );
+}
+
+/**
+ * US-06: el reporte quedo guardado en el dispositivo. Se dice sin rodeos que
+ * TODAVIA no llego a la municipalidad: no hay distrito ni numero que mostrar
+ * hasta que el backend lo reciba.
+ */
+function ConfirmacionSinConexion({ onOtro }: { onOtro: () => void }) {
+  return (
+    <section
+      className="flex flex-col gap-4 rounded-lg border border-amber-300 bg-amber-50 p-6
+                 dark:border-amber-700 dark:bg-amber-950"
+      aria-live="polite"
+    >
+      <h1 className="text-xl font-semibold text-amber-900 dark:text-amber-100">
+        Pendiente de envío
+      </h1>
+      <p className="text-amber-900 dark:text-amber-100">
+        No hay conexión, así que tu reporte quedó <strong>guardado en este dispositivo</strong>.
+        Se enviará solo cuando vuelva la señal, sin que tengas que hacer nada. Si para entonces tu
+        sesión venció, se enviará cuando vuelvas a iniciarla.
+      </p>
+      <div className="flex flex-wrap gap-3">
+        <button
+          type="button"
+          onClick={onOtro}
+          className="rounded-md bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700"
+        >
+          Reportar otro daño
+        </button>
+        <Link
+          href="/mis-reportes"
+          className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium
+                     text-slate-700 dark:border-slate-600 dark:text-slate-200"
+        >
+          Ver mis reportes
+        </Link>
+      </div>
+    </section>
   );
 }
 

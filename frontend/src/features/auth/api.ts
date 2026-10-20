@@ -1,4 +1,5 @@
 import { api, apiFetch } from '@/lib/api/client';
+import { ApiError } from '@/lib/api/errors';
 import { borrarToken, guardarToken } from '@/lib/auth/token-storage';
 import type {
   LoginRequest,
@@ -59,6 +60,22 @@ export async function restablecerPassword(datos: RestablecerPasswordRequest): Pr
 /** Usuario autenticado segun el token actual. Sirve para validar la sesion. */
 export function obtenerUsuarioActual(): Promise<Usuario> {
   return api.get<Usuario>('/api/auth/me');
+}
+
+/**
+ * `GET /api/auth/me` para trabajo en segundo plano (la cola offline de
+ * US-06): con un token vencido (401) devuelve `null` y borra el token, pero
+ * no lleva al login (`redirigirEn401: false`). Cualquier otro fallo (red,
+ * 5xx) se LANZA: "no se pudo averiguar" no es "no hay sesion", y quien llama
+ * debe volver a intentarlo.
+ */
+export async function usuarioActualSinRedirigir(): Promise<Usuario | null> {
+  try {
+    return await api.get<Usuario>('/api/auth/me', { redirigirEn401: false });
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 401) return null;
+    throw e;
+  }
 }
 
 export interface CambiosDePerfil {

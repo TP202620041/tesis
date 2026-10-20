@@ -1,5 +1,5 @@
 import { ApiError, NetworkError, desdeRespuesta } from '@/lib/api/errors';
-import { borrarToken, leerToken } from '@/lib/auth/token-storage';
+import { borrarTokenSi, generacionDeSesion, leerToken } from '@/lib/auth/token-storage';
 
 /**
  * Cliente HTTP tipado contra el API REST de Spring Boot.
@@ -36,6 +36,16 @@ export interface OpcionesPeticion extends Omit<RequestInit, 'body'> {
    * JSON de texto plano.
    */
   comoBlob?: boolean;
+  /**
+   * `false` para trabajo en segundo plano (la cola offline de US-06): ante un
+   * 401 se borra el token igual y se lanza el `ApiError`, pero NO se navega
+   * al login. Una tarea que el usuario no inicio no debe sacarlo de la
+   * pantalla; la UI muestra un aviso para que inicie sesion cuando quiera, y
+   * la UI en primer plano se entera en su proxima peticion (que, ya sin
+   * token, da 401 y si redirige). Por defecto `true`: el 401 sigue
+   * centralizado aqui.
+   */
+  redirigirEn401?: boolean;
 }
 
 /**
@@ -46,7 +56,7 @@ export interface OpcionesPeticion extends Omit<RequestInit, 'body'> {
  * tenga que acordarse de manejar el 401.
  */
 function manejarNoAutenticado(): void {
-  borrarToken();
+  // El token ya lo borro `ejecutar` (solo si la sesion no cambio).
   if (typeof window !== 'undefined' && window.location.pathname !== RUTA_LOGIN) {
     const destino = window.location.pathname + window.location.search;
     // Navegacion dura a proposito, en vez de `useRouter().push`: este modulo
@@ -67,8 +77,16 @@ function manejarNoAutenticado(): void {
  */
 async function ejecutar(ruta: string, opciones: OpcionesPeticion): Promise<Response> {
   // `comoBlob` lo interpreta apiFetch al leer el cuerpo, no viaja en el fetch.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { json, conAuth = true, idempotencyKey, comoBlob, headers, ...resto } = opciones;
+  const {
+    json,
+    conAuth = true,
+    idempotencyKey,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    comoBlob,
+    redirigirEn401 = true,
+    headers,
+    ...resto
+  } = opciones;
 
   const cabeceras = new Headers(headers);
   if (json !== undefined) {
@@ -77,6 +95,8 @@ async function ejecutar(ruta: string, opciones: OpcionesPeticion): Promise<Respo
   if (idempotencyKey) {
     cabeceras.set('Idempotency-Key', idempotencyKey);
   }
+  // La sesion con la que sale la peticion (ver el manejo del 401).
+  const generacion = generacionDeSesion();
   if (conAuth) {
     const token = leerToken();
     if (token) cabeceras.set('Authorization', `Bearer ${token}`);
@@ -95,7 +115,11 @@ async function ejecutar(ruta: string, opciones: OpcionesPeticion): Promise<Respo
   }
 
   if (respuesta.status === 401) {
-    manejarNoAutenticado();
+    // Solo si la sesion sigue siendo la que envio la peticion: un 401 tardio
+    // de una sesion anterior no borra el token de quien entro despues, ni lo
+    // saca de la pantalla.
+    const borrado = borrarTokenSi(generacion);
+    if (borrado && redirigirEn401) manejarNoAutenticado();
     throw await desdeRespuesta(respuesta);
   }
 

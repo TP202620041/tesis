@@ -4,13 +4,28 @@ import { useEffect, useState } from 'react';
 import { AlertaError, Boton } from '@/components/ui/form';
 import { ApiError, NetworkError } from '@/lib/api/client';
 import { crearReporte, listarCategorias } from '../api';
+import { useEncolarReporte } from '../hooks/useColaOffline';
 import type { ReporteCreado } from '../model/tipos';
 import { CampoFoto } from './CampoFoto';
 import { CampoUbicacion, type UbicacionElegida } from './CampoUbicacion';
 import type { CategoriaDano } from '@/lib/types/domain';
 
-/** US-05: crear un reporte con foto, categoría y GPS. */
-export function FormularioReporte({ onCreado }: { onCreado: (r: ReporteCreado) => void }) {
+/**
+ * US-05: crear un reporte con foto, categoría y GPS.
+ *
+ * US-06: sin conexión, el reporte se guarda en el dispositivo con su
+ * `Idempotency-Key` (`onEncolado`) y se envía solo al volver la señal.
+ */
+export function FormularioReporte({
+  usuarioId,
+  onCreado,
+  onEncolado,
+}: {
+  usuarioId: number;
+  onCreado: (r: ReporteCreado) => void;
+  onEncolado: () => void;
+}) {
+  const encolar = useEncolarReporte(usuarioId);
   const [ubicacion, setUbicacion] = useState<UbicacionElegida | null>(null);
   const [categorias, setCategorias] = useState<CategoriaDano[]>([]);
   const [categoriaId, setCategoriaId] = useState<number | null>(null);
@@ -78,28 +93,38 @@ export function FormularioReporte({ onCreado }: { onCreado: (r: ReporteCreado) =
     }
 
     setEnviando(true);
+    const nuevo = {
+      latitud: ubicacion.coordenadas.latitud,
+      longitud: ubicacion.coordenadas.longitud,
+      categoriaId,
+      descripcion,
+      ubicacionManual: ubicacion.manual,
+      foto,
+      idempotencyKey,
+    };
     try {
-      const creado = await crearReporte({
-        latitud: ubicacion.coordenadas.latitud,
-        longitud: ubicacion.coordenadas.longitud,
-        categoriaId,
-        descripcion,
-        ubicacionManual: ubicacion.manual,
-        foto,
-        idempotencyKey,
-      });
+      const creado = await crearReporte(nuevo);
       // Envio exitoso: el siguiente reporte es un intento logico distinto.
       setIdempotencyKey(crypto.randomUUID());
       onCreado(creado);
     } catch (e) {
       if (e instanceof NetworkError) {
-        // La cola offline de US-06 es un slice propio; por ahora se avisa y
-        // se conserva la clave para que el reintento manual sea idempotente.
-        setError({
-          mensaje:
-            'Sin conexión. Tu reporte no se envió — vuelve a intentarlo cuando tengas señal.',
-          detalles: [],
-        });
+        // US-06: se guarda con la MISMA clave; el reenvio automatico no puede
+        // duplicarlo aunque esta peticion si hubiera llegado al backend.
+        try {
+          await encolar(nuevo);
+          setIdempotencyKey(crypto.randomUUID());
+          onEncolado();
+        } catch {
+          // Sin IndexedDB (p. ej. algun modo privado) no hay donde guardarlo:
+          // se avisa y se conserva la clave para que el reintento manual
+          // siga siendo idempotente.
+          setError({
+            mensaje:
+              'Sin conexión. Tu reporte no se envió — vuelve a intentarlo cuando tengas señal.',
+            detalles: [],
+          });
+        }
       } else if (e instanceof ApiError) {
         // 409 = fuera de cobertura o ya reportaste este daño (US-09).
         // 400 = validación (coordenadas faltantes o fuera de rango).

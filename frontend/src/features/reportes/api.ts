@@ -20,6 +20,13 @@ import type {
 export { listarCategorias } from '@/lib/api/catalogos';
 
 /**
+ * US-06: la cola offline en IndexedDB (adaptador en `src/pwa/`). Se expone
+ * por el gateway de la feature para que los hooks no dependan del adaptador
+ * directamente: `api.ts` sigue siendo la unica puerta de I/O de `reportes`.
+ */
+export { colaDeReportes, hayIndexedDb, type AlmacenDeCola } from '@/pwa/colaReportes';
+
+/**
  * US-10/US-12: busqueda publica de reportes. SIN token — el endpoint es
  * publico y adjuntar un `Authorization` inexistente no aporta nada.
  *
@@ -166,7 +173,10 @@ export function calificar(
  * las coordenadas. Es la restriccion clave del proyecto — el ciudadano no
  * tiene que saber ni elegir a que municipalidad pertenece el daño.
  */
-export async function crearReporte(datos: NuevoReporte): Promise<ReporteCreado> {
+export async function crearReporte(
+  datos: NuevoReporte,
+  opciones: { redirigirEn401?: boolean } = {},
+): Promise<ReporteCreado> {
   const cuerpo = new FormData();
   cuerpo.append('latitud', String(datos.latitud));
   cuerpo.append('longitud', String(datos.longitud));
@@ -185,6 +195,9 @@ export async function crearReporte(datos: NuevoReporte): Promise<ReporteCreado> 
     method: 'POST',
     body: cuerpo,
     idempotencyKey: datos.idempotencyKey,
+    // El reenvio de la cola offline (US-06) pasa `false`: un 401 en segundo
+    // plano no debe sacar al usuario de la pantalla.
+    redirigirEn401: opciones.redirigirEn401,
   });
 
   return {
