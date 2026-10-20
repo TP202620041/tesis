@@ -78,7 +78,8 @@ class ReporteAcumulacionIT extends AbstractPostgisIT {
         return mockMvc.perform(multipart("/api/reportes")
                 .param("latitud", String.valueOf(lat))
                 .param("longitud", String.valueOf(lon))
-                .param("categoriaId", String.valueOf(categoriaId))
+                .param("titulo", "Dano de prueba").param("severidad", "MEDIA")
+                        .param("categoriaId", String.valueOf(categoriaId))
                 .header("Authorization", "Bearer " + token));
     }
 

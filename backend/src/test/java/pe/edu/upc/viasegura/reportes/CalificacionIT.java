@@ -28,6 +28,7 @@ import pe.edu.upc.viasegura.reportes.domain.Calificacion;
 import pe.edu.upc.viasegura.reportes.domain.CategoriaDano;
 import pe.edu.upc.viasegura.reportes.domain.EstadoReporte;
 import pe.edu.upc.viasegura.reportes.domain.Reporte;
+import pe.edu.upc.viasegura.reportes.domain.Severidad;
 import pe.edu.upc.viasegura.reportes.repository.AdhesionReporteRepository;
 import pe.edu.upc.viasegura.reportes.repository.CalificacionRepository;
 import pe.edu.upc.viasegura.reportes.repository.CategoriaDanoRepository;
@@ -76,6 +77,7 @@ class CalificacionIT extends AbstractPostgisIT {
 
     private Reporte reporte(EstadoReporte estado, Usuario creador, Instant resolvedAt) {
         return reporteRepository.save(Reporte.builder()
+                .titulo("Dano de prueba").severidad(Severidad.MEDIA)
                 .ubicacion(GeometryUtils.point(-77.0297, -12.1215))
                 .categoria(categoria()).creador(creador).distrito(distrito("Miraflores"))
                 .estado(estado).totalAdhesiones(1).resolvedAt(resolvedAt)
@@ -125,7 +127,8 @@ class CalificacionIT extends AbstractPostgisIT {
         Usuario creador = ciudadano();
         Usuario adherido = ciudadano();
         Reporte reporte = reporte(EstadoReporte.RESUELTO, creador, Instant.now());
-        adhesionRepository.save(AdhesionReporte.builder().reporte(reporte).usuario(adherido).build());
+        adhesionRepository.save(AdhesionReporte.builder()
+                .titulo("Dano de prueba").severidad(Severidad.MEDIA).reporte(reporte).usuario(adherido).build());
 
         mockMvc.perform(post("/api/reportes/{id}/calificacion", reporte.getId())
                         .contentType(MediaType.APPLICATION_JSON)

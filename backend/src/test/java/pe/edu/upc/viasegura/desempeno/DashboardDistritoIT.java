@@ -26,6 +26,7 @@ import pe.edu.upc.viasegura.reportes.domain.AsignacionResponsable;
 import pe.edu.upc.viasegura.reportes.domain.CategoriaDano;
 import pe.edu.upc.viasegura.reportes.domain.EstadoReporte;
 import pe.edu.upc.viasegura.reportes.domain.Reporte;
+import pe.edu.upc.viasegura.reportes.domain.Severidad;
 import pe.edu.upc.viasegura.reportes.repository.AsignacionResponsableRepository;
 import pe.edu.upc.viasegura.reportes.repository.CategoriaDanoRepository;
 import pe.edu.upc.viasegura.reportes.repository.ReporteRepository;
@@ -82,6 +83,7 @@ class DashboardDistritoIT extends AbstractPostgisIT {
 
     private Reporte reporte(Distrito distrito, EstadoReporte estado, Usuario creador) {
         return reporteRepository.save(Reporte.builder()
+                .titulo("Dano de prueba").severidad(Severidad.MEDIA)
                 .ubicacion(GeometryUtils.point(-77.0297, -12.1215))
                 .categoria(categoria()).creador(creador).distrito(distrito)
                 .estado(estado).totalAdhesiones(1).build());

@@ -28,6 +28,7 @@ import pe.edu.upc.viasegura.reportes.domain.EstadoReporte;
 import pe.edu.upc.viasegura.reportes.domain.HistorialEstadoReporte;
 import pe.edu.upc.viasegura.reportes.domain.Reporte;
 import pe.edu.upc.viasegura.reportes.domain.TipoEventoHistorial;
+import pe.edu.upc.viasegura.reportes.domain.Severidad;
 import pe.edu.upc.viasegura.reportes.repository.AdhesionReporteRepository;
 import pe.edu.upc.viasegura.reportes.repository.CategoriaDanoRepository;
 import pe.edu.upc.viasegura.reportes.repository.HistorialEstadoReporteRepository;
@@ -103,24 +104,30 @@ class HistorialReporteIT extends AbstractPostgisIT {
         funcSurco = funcionario(distrito("Santiago de Surco"));
 
         reporte = reporteRepository.save(Reporte.builder()
+                .titulo("Dano de prueba").severidad(Severidad.MEDIA)
                 .ubicacion(GeometryUtils.point(-77.0297, -12.1215))
                 .categoria(categoria()).creador(creador).distrito(distrito("Miraflores"))
                 .estado(EstadoReporte.EN_PROCESO).totalAdhesiones(2)
                 .build());
 
-        adhesionRepository.save(AdhesionReporte.builder().reporte(reporte).usuario(creador).build());
-        adhesionRepository.save(AdhesionReporte.builder().reporte(reporte).usuario(adherido).build());
+        adhesionRepository.save(AdhesionReporte.builder()
+                .titulo("Dano de prueba").severidad(Severidad.MEDIA).reporte(reporte).usuario(creador).build());
+        adhesionRepository.save(AdhesionReporte.builder()
+                .titulo("Dano de prueba").severidad(Severidad.MEDIA).reporte(reporte).usuario(adherido).build());
 
         // Linea de tiempo: 2 cambios de estado + 1 asignacion (con dato interno).
         historialRepository.save(HistorialEstadoReporte.builder()
+                .titulo("Dano de prueba").severidad(Severidad.MEDIA)
                 .reporte(reporte).tipoEvento(TipoEventoHistorial.CAMBIO_ESTADO)
                 .estadoAnterior(EstadoReporte.PENDIENTE).estadoNuevo(EstadoReporte.RECIBIDO)
                 .comentario("Reporte recibido").autor(funcMiraflores).build());
         historialRepository.save(HistorialEstadoReporte.builder()
+                .titulo("Dano de prueba").severidad(Severidad.MEDIA)
                 .reporte(reporte).tipoEvento(TipoEventoHistorial.CAMBIO_ESTADO)
                 .estadoAnterior(EstadoReporte.RECIBIDO).estadoNuevo(EstadoReporte.EN_PROCESO)
                 .comentario("Cuadrilla en camino").autor(funcMiraflores).build());
         historialRepository.save(HistorialEstadoReporte.builder()
+                .titulo("Dano de prueba").severidad(Severidad.MEDIA)
                 .reporte(reporte).tipoEvento(TipoEventoHistorial.ASIGNACION)
                 .comentario("Responsable asignado: Cuadrilla Norte").autor(funcMiraflores).build());
     }

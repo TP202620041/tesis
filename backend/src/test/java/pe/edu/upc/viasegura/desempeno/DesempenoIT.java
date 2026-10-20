@@ -29,6 +29,7 @@ import pe.edu.upc.viasegura.reportes.domain.Calificacion;
 import pe.edu.upc.viasegura.reportes.domain.CategoriaDano;
 import pe.edu.upc.viasegura.reportes.domain.EstadoReporte;
 import pe.edu.upc.viasegura.reportes.domain.Reporte;
+import pe.edu.upc.viasegura.reportes.domain.Severidad;
 import pe.edu.upc.viasegura.reportes.repository.CalificacionRepository;
 import pe.edu.upc.viasegura.reportes.repository.CategoriaDanoRepository;
 import pe.edu.upc.viasegura.reportes.repository.ReporteRepository;
@@ -101,6 +102,7 @@ class DesempenoIT extends AbstractPostgisMailIT {
 
     private Reporte reporte(Distrito distrito, EstadoReporte estado, Usuario creador, Instant resolvedAt) {
         return reporteRepository.save(Reporte.builder()
+                .titulo("Dano de prueba").severidad(Severidad.MEDIA)
                 .ubicacion(GeometryUtils.point(-77.0297, -12.1215))
                 .categoria(categoria()).creador(creador).distrito(distrito)
                 .estado(estado).totalAdhesiones(1).resolvedAt(resolvedAt).build());
@@ -209,6 +211,7 @@ class DesempenoIT extends AbstractPostgisMailIT {
         String json = mockMvc.perform(multipart("/api/reportes")
                         .param("latitud", String.valueOf(LAT_PUEBLO_LIBRE))
                         .param("longitud", String.valueOf(LON_PUEBLO_LIBRE))
+                        .param("titulo", "Dano de prueba").param("severidad", "MEDIA")
                         .param("categoriaId", String.valueOf(categoriaId))
                         .header("Authorization", "Bearer " + bearer))
                 .andExpect(status().isCreated())
@@ -292,7 +295,7 @@ class DesempenoIT extends AbstractPostgisMailIT {
     /** Total de reportes de un distrito en el desglose de una categoria (US-20). */
     private long totalEnCategoria(String distritoNombre, long categoriaId) throws Exception {
         String json = mockMvc.perform(get("/api/desempeno/distritos")
-                        .param("categoriaId", String.valueOf(categoriaId)))
+                        .param("categoriaId",String.valueOf(categoriaId)))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
         for (JsonNode fila : objectMapper.readTree(json)) {

@@ -1,6 +1,6 @@
 # Propuesta: columnas de GESTION_MUNICIPAL y REQUISITO_RECEPCION
 
-- **Estado:** abierta <!-- abierta | aceptada | rechazada -->
+- **Estado:** aceptada (opción A, 2026-10-20) <!-- abierta | aceptada | rechazada -->
 - **Fecha:** 2026-10-20
 - **Origen:** agente de backend, tarea NC-01
 - **Decide:** el usuario. Si se acepta, la sesión de raíz actualiza ARCHITECTURE.md o el plan.
@@ -34,3 +34,7 @@ Las columnas de GESTION_MUNICIPAL y REQUISITO_RECEPCION no están definidas, y c
 ## Qué queda bloqueado mientras no se decida
 
 Nada de NC-01 ni de NC-02. NC-05 necesita REQUISITO_RECEPCION, y NC-06 posiblemente GESTION_MUNICIPAL.
+
+## Decisión
+
+**Opción A**, decidida por el usuario el 2026-10-20. GESTION_MUNICIPAL entra con NC-06 y REQUISITO_RECEPCION con NC-05, cada una con su migración, cuando el usuario dé sus columnas del OB2 §5. Se aceptan también `municipalidad.nombre` (`NOT NULL UNIQUE`) y sus valores: «Municipalidad Metropolitana de Lima» para Cercado (distrito «Lima») y «Municipalidad Distrital de X» para los otros 42. NC-01 queda hecha con MUNICIPALIDAD y PERIODO_GESTION (V15 y V16, PR #70).
