@@ -5,6 +5,7 @@ import { mensajeDeError, type MensajeDeError } from '@/lib/api/errors';
 import { useCarga } from '@/lib/hooks/useCarga';
 import { aceptarConsentimiento, obtenerConsentimientos } from '../api';
 import { versionDeAviso, type FinalidadOpcional } from '../model/consentimientos';
+import { reRegistrarPushAlIniciarSesion } from './push';
 
 /** Resultado de aceptar: los avisos opcionales que no se pudieron guardar. */
 export interface ResultadoAceptacion {
@@ -47,6 +48,9 @@ export function useAceptarTerminos() {
             avisosFallidos.push(finalidad);
           }
         }
+        // US-21: lo que el inicio de sesion no pudo hacer con los terminos
+        // pendientes (reasignar el push de este navegador), en segundo plano.
+        void reRegistrarPushAlIniciarSesion();
         return { avisosFallidos };
       } finally {
         setEnviando(false);

@@ -1,0 +1,69 @@
+import { describe, expect, it } from 'vitest';
+import { AVISO_GENERICO, elegirVentana, leerAvisoPush, rutaInterna } from './avisosPush';
+
+describe('leerAvisoPush', () => {
+  it('traduce el payload del backend (handoff 2026-10-19-push-real)', () => {
+    expect(
+      leerAvisoPush({
+        titulo: 'ViaSegura: su reporte esta en proceso',
+        cuerpo: 'Su reporte #42 esta en proceso.',
+        url: '/mis-reportes/42',
+        reporteId: 42,
+        estado: 'EN_PROCESO',
+      }),
+    ).toEqual({
+      titulo: 'ViaSegura: su reporte esta en proceso',
+      cuerpo: 'Su reporte #42 esta en proceso.',
+      url: '/mis-reportes/42',
+      tag: 'reporte-42',
+    });
+  });
+
+  it.each([null, undefined, 'texto', 42, []])('con un payload ilegible (%s) muestra el aviso genérico', (datos) => {
+    expect(leerAvisoPush(datos)).toEqual(AVISO_GENERICO);
+  });
+
+  it('completa lo que falte sin perder lo que vino', () => {
+    expect(leerAvisoPush({ cuerpo: 'Su reporte fue resuelto.', reporteId: '7' })).toEqual({
+      titulo: 'ViaSegura',
+      cuerpo: 'Su reporte fue resuelto.',
+      url: '/mis-reportes',
+      tag: undefined,
+    });
+  });
+});
+
+describe('rutaInterna', () => {
+  it('acepta rutas de la app', () => {
+    expect(rutaInterna('/mis-reportes/42?x=1')).toBe('/mis-reportes/42?x=1');
+  });
+
+  it.each(['https://evil.example/x', '//evil.example', 'javascript:alert(1)', '/\\evil', '', null])(
+    'no deja salir del origen: %s',
+    (url) => {
+      expect(rutaInterna(url)).toBe('/mis-reportes');
+    },
+  );
+});
+
+describe('elegirVentana', () => {
+  const destino = 'https://app.pe/mis-reportes/42';
+
+  it('enfoca la ventana que ya está en esa URL', () => {
+    expect(
+      elegirVentana([{ url: 'https://app.pe/mapa' }, { url: 'https://app.pe/mis-reportes/42' }], destino),
+    ).toEqual({ tipo: 'enfocar', indice: 1 });
+  });
+
+  it('reutiliza otra ventana de la app navegándola', () => {
+    expect(elegirVentana([{ url: 'https://otro.pe/' }, { url: 'https://app.pe/mapa' }], destino)).toEqual({
+      tipo: 'navegar',
+      indice: 1,
+    });
+  });
+
+  it('sin ventanas de la app abre una nueva', () => {
+    expect(elegirVentana([{ url: 'https://otro.pe/mis-reportes/42' }], destino)).toEqual({ tipo: 'abrir' });
+    expect(elegirVentana([], destino)).toEqual({ tipo: 'abrir' });
+  });
+});

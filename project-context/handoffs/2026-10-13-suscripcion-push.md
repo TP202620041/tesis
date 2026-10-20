@@ -1,10 +1,10 @@
 # Handoff de contrato: suscripción Web Push del navegador
 
-- **Estado:** pendiente <!-- pendiente | atendido -->
+- **Estado:** atendido <!-- pendiente | atendido -->
 - **Fecha:** 2026-10-13
 - **Origen:** backend, rama `feature/nc-07-suscripcion-push`, commit `2e0e397` (PR por abrir; sale de `feature/us-25-soporte-admin`, que debe fusionarse antes)
 - **Historia o tarea:** NC-07 (SUSCRIPCION_PUSH). El envío real es US-21 (Sprint 3).
-- **Atendido por:** _(frontend, rama y fecha)_
+- **Atendido por:** frontend, rama `feature/us-21-push-ui`, 2026-10-20 (junto con `2026-10-19-push-real.md`: `POST` al activar y en cada inicio de sesión, `DELETE` al desactivar y al cerrar sesión).
 
 ## Endpoints afectados
 | Método | Ruta | Cambio |

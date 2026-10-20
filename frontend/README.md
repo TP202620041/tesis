@@ -343,6 +343,66 @@ Los avisos opcionales llevan su propia versión de texto
 (`push-2026-10-v1`, `correo-2026-10-v1`, en `model/consentimientos.ts`): el
 backend la guarda tal cual para saber qué texto vio el usuario.
 
+### Notificaciones push (US-21)
+
+Capas: reglas puras en `features/auth/model/push.ts` (base64url → bytes,
+comparar la clave VAPID, textos de estado); el navegador (Service Worker,
+`PushManager`, `Notification`) en el adaptador `src/pwa/push.ts`; la
+orquestación en `features/auth/hooks/push.ts`, que recibe navegador y API por
+parámetro y se prueba con dobles (en jsdom no hay push real). Vive en `auth`
+porque la usan el perfil, el inicio y el cierre de sesión y la aceptación de
+términos, todos de `auth`.
+
+- **Activar (perfil, solo este navegador):** requiere el consentimiento
+  `NOTIFICACIONES_PUSH`; si falta, el botón es «Otorgar consentimiento y
+  activar aquí» (sin él, el `POST` daría 409). Orden del handoff:
+  `GET /api/notificaciones/vapid-public-key` → `Notification.requestPermission()`
+  → `pushManager.subscribe({ userVisibleOnly: true, applicationServerKey })`
+  → `POST /api/notificaciones/suscripciones` con `subscription.toJSON()` +
+  `userAgent`. Estados en pantalla: no soportado (o sin Service Worker, como
+  en `next dev`), sin claves en el servidor (404: no se ofrece), permiso
+  bloqueado, inactivo y activo.
+- **Desactivar en este navegador:** `DELETE` de la suscripción +
+  `unsubscribe()`; el permiso sigue para los demás navegadores. **Retirar el
+  consentimiento** push borra en el servidor las suscripciones de todos los
+  navegadores; aquí además se cancela la local.
+- **Al iniciar sesión** (y al aceptar términos pendientes, porque con ellos el
+  backend responde 403): si el navegador ya tiene una suscripción con permiso
+  concedido, se vuelve a registrar para el usuario que entra; si se hizo con
+  otra clave VAPID (rotación: el servicio de push rechaza las viejas y el
+  backend no las desactiva), `unsubscribe()` + `subscribe()` con la nueva +
+  `POST`. Nunca pide permiso ni crea una suscripción por su cuenta. Corre en
+  segundo plano (sin navegar por un 401/403) y sin esperar. Si el navegador
+  no informa la clave de la suscripción, se trata como distinta.
+- **Al cerrar sesión:** el `DELETE` de la suscripción de este navegador va
+  dentro de `cerrar` (`useCerrarSesion`), después de las preguntas de
+  `antesDeCerrarSesion` y **antes** de `cerrarSesion()` (después sería 401).
+  Si falla o tarda más de 3 s, el cierre sigue. La suscripción del navegador
+  se conserva: si la misma persona vuelve a entrar, el inicio de sesión la
+  registra otra vez; si entra otra persona sin consentimiento push, el
+  registro da 409 y no recibe nada.
+- **Service Worker** (`sw.ts`): `push` muestra la notificación con el
+  payload del backend (`titulo`, `cuerpo`, `url`, `tag: 'reporte-<id>'`, así
+  un aviso nuevo del mismo reporte reemplaza al anterior; con un payload
+  ilegible muestra un aviso genérico, porque `userVisibleOnly` obliga a
+  mostrar algo); `notificationclick` enfoca la pestaña que ya está en esa
+  URL, o reutiliza otra de la app navegándola, o abre una nueva. Solo rutas
+  del mismo origen: una `url` absoluta o `//otro` cae a `/mis-reportes`. La
+  lógica pura está en `src/pwa/avisosPush.ts`, con tests. El SW sigue sin
+  cachear `/api/`.
+- **CSP:** sin cambios. La suscripción y la entrega las hace el navegador con
+  su servicio de push, fuera de la CSP de la página; el SW no llama a otros
+  orígenes; la clave y el registro van al API, ya en `connect-src`.
+
+**Ver un push real en local:** el SW solo existe en el build
+(`npm run build && npm run start`, en `http://localhost:3000`, que el
+navegador trata como contexto seguro). El backend necesita claves VAPID por
+entorno (`npx web-push generate-vapid-keys`; luego `VAPID_PUBLIC_KEY`,
+`VAPID_PRIVATE_KEY` y `VAPID_SUBJECT=mailto:…` antes de
+`mvn spring-boot:run`, ver `backend/README.md`). Con un ciudadano: Perfil →
+«Otorgar consentimiento y activar aquí» → permitir; luego un funcionario del
+distrito cambia el estado de un reporte de ese ciudadano y llega el aviso.
+
 ### Fotos: dos visibilidades
 
 El backend devuelve `fotoUrl` **relativa** (no conoce su hostname público).
@@ -389,6 +449,10 @@ Verificado end-to-end contra el backend real:
 - **NC-07b** consentimiento: aceptación de términos en el registro,
   `/privacidad`, pantalla `/aceptar-terminos` y «Privacidad y
   consentimientos» en el perfil (ver «Consentimiento» en Decisiones técnicas).
+- **US-21** notificaciones push: activar y desactivar en el perfil por
+  navegador, re-registro al iniciar sesión (con rotación de claves VAPID),
+  baja al cerrar sesión y avisos en el Service Worker (ver «Notificaciones
+  push» en Decisiones técnicas).
 - `/sesion` — verificación de `GET /api/auth/me`. Andamiaje: desaparece
   cuando existan las landings por rol.
 - **US-05** crear reporte (`/reportar`): GPS con fallback a marcar en el mapa

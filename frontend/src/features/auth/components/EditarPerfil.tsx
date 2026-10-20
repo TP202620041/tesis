@@ -6,9 +6,11 @@ import { AlertaError, Boton, Campo } from '@/components/ui/form';
 import { PREFERENCIAS_NOTIFICACION, type PreferenciaNotificacion, type Usuario } from '@/lib/types/domain';
 import { useConsentimientos } from '../hooks/useConsentimientos';
 import { useDistritosDeResidencia, usePerfil } from '../hooks/usePerfil';
+import { usePushEnEsteNavegador } from '../hooks/usePushEnEsteNavegador';
 import { BotonCerrarSesion } from './BotonCerrarSesion';
 import { FotoDePerfil } from './FotoDePerfil';
 import { PrivacidadYConsentimientos } from './PrivacidadYConsentimientos';
+import { PushEnEsteNavegador } from './PushEnEsteNavegador';
 
 /**
  * US-30: el ciudadano edita sus datos, su foto y como quiere recibir avisos.
@@ -18,6 +20,7 @@ export function EditarPerfil({ inicial }: { inicial: Usuario }) {
   const { usuario, guardando, guardado, error, guardar, cambiarPreferencia } = usePerfil(inicial);
   const distritos = useDistritosDeResidencia();
   const consentimientos = useConsentimientos();
+  const push = usePushEnEsteNavegador(consentimientos);
   const [nombre, setNombre] = useState(inicial.nombre);
   const [apellido, setApellido] = useState(inicial.apellido);
   const [distritoId, setDistritoId] = useState<number | null>(inicial.distritoId ?? null);
@@ -137,19 +140,24 @@ export function EditarPerfil({ inicial }: { inicial: Usuario }) {
             </label>
           ))}
         </div>
-        {/* Honestidad sobre el estado real del canal push. */}
-        <p className="text-xs text-slate-500 dark:text-slate-400">
-          Las notificaciones push todavía no están disponibles: por ahora todos los avisos llegan
-          por correo.
-        </p>
         {/* NC-07b: la preferencia elige el canal; el permiso es el consentimiento. */}
         <p className="text-xs text-slate-500 dark:text-slate-400">
-          Esto es solo tu preferencia: para recibir avisos por correo también necesitas otorgar ese
-          consentimiento en «Privacidad y consentimientos».
+          Esto es solo tu preferencia. Para recibir avisos también necesitas otorgar el
+          consentimiento de ese canal en «Privacidad y consentimientos» y, para push, activarlas en
+          cada navegador. Si un push no llega, el aviso cae a correo solo si diste ese
+          consentimiento.
         </p>
       </section>
 
-      <PrivacidadYConsentimientos consentimientos={consentimientos} />
+      <PrivacidadYConsentimientos
+        consentimientos={consentimientos}
+        revocar={(finalidad) =>
+          finalidad === 'NOTIFICACIONES_PUSH'
+            ? push.retirarConsentimiento()
+            : consentimientos.revocar(finalidad)
+        }
+        extra={{ NOTIFICACIONES_PUSH: <PushEnEsteNavegador push={push} /> }}
+      />
     </main>
   );
 }
