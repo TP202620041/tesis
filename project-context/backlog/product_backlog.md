@@ -55,6 +55,42 @@ prompt `02_eda.toml`.
 29. **US-30** Editar mi perfil y preferencias de notificación (2 pts) — Como ciudadano, quiero editar mis datos y elegir tipo de notificaciones.
 30. **US-29** Configurar categorías de daño personalizadas por distrito — Como funcionario, quiero agregar categorías específicas de mi distrito.
 
+## Criterios de aceptación provisionales de US-19 (2026-10-20)
+
+El Gherkin original de US-19 no está en este repo. Con la aprobación del usuario (20/10), US-19 se valida contra estos criterios, escritos a partir de lo que ya hace `/desempeno` (US-18, US-20) y de lo que le falta. Si aparece el Gherkin del PDF, reemplaza esta sección.
+
+```gherkin
+Característica: US-19 Comparar la tasa de resolución entre distritos
+
+  Escenario: Ranking por tasa de resolución
+    Dado que estoy en el índice de desempeño público
+    Cuando ordeno la tabla por tasa de resolución
+    Entonces veo los distritos de mayor a menor tasa, y los distritos sin reportes al final con «Sin datos» (nunca 0 %)
+
+  Escenario: Comparar distritos lado a lado
+    Dado que estoy en el índice de desempeño público
+    Cuando elijo entre 2 y 4 distritos para comparar
+    Entonces veo, para cada uno, la tasa de resolución, los reportes resueltos sobre el total y el tiempo promedio de atención
+    Y una gráfica de barras de la tasa con su equivalente en texto o tabla para lectores de pantalla
+
+  Escenario: Comparar por tipo de daño
+    Dado que tengo distritos elegidos para comparar
+    Cuando filtro por un tipo de daño
+    Entonces la comparación muestra las cifras de ese tipo de daño
+
+  Escenario: Compartir la comparación
+    Dado que tengo distritos elegidos para comparar
+    Cuando copio la dirección de la página
+    Entonces quien la abra ve la misma comparación y el mismo filtro
+
+  Escenario: Límites de la selección
+    Dado que ya elegí 4 distritos
+    Cuando intento elegir otro
+    Entonces no se agrega y se me indica el máximo
+```
+
+No requiere cambios en el API: usa `GET /api/desempeno/distritos` (con `categoriaId`).
+
 ## Reglas de negocio clave a tener presentes en el EDA
 
 - **US-09**: acumulación de reportes duplicados dentro de un radio de 20
