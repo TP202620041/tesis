@@ -1,4 +1,4 @@
-package pe.edu.upc.viasegura.reportes.infra;
+package pe.edu.upc.viasegura.distritos.infra;
 
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
@@ -6,7 +6,7 @@ import org.locationtech.jts.geom.Point;
 import org.springframework.stereotype.Component;
 import pe.edu.upc.viasegura.distritos.domain.Distrito;
 import pe.edu.upc.viasegura.distritos.repository.DistritoRepository;
-import pe.edu.upc.viasegura.reportes.port.GeoAssignmentStrategy;
+import pe.edu.upc.viasegura.distritos.port.GeoAssignmentStrategy;
 
 /**
  * Asignacion por contencion punto-en-poligono (point-in-polygon) resuelta
