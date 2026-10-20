@@ -292,9 +292,23 @@ Cierre (2026-10-20, rama `feature/fe-06-mutaciones-en-hooks`, sobre `develop` co
 | `gatewayDesdeUi` / `clienteHttp` | 12 / 6 | 0 / 0 |
 | `npm run build` | — | OK |
 
-### [ ] FE-07 · URLs de fotos en el gateway
+### [x] FE-07 · URLs de fotos en el gateway (2026-10-20)
 `features/<f>/api.ts` devuelve `fotoUrl` ya absoluta (`urlDeFoto`). Las páginas y los componentes dejan de importar `@/lib/api/client`. La foto de perfil (que requiere token) se resuelve en un hook de auth que devuelve la URL `blob:`.
 - Viene de FE-02: `features/auth/fotoPerfil.ts` (+ test) → `descargarFotoDePerfil` en `features/auth/api.ts` (test a `auth/api.test.ts`; siguen 8 archivos de test). Hacerlo **junto con** el hook, para que `auth/components/FotoDePerfil.tsx` use el hook y no importe `../api` (eso sería un aviso `gatewayDesdeUi` nuevo).
+
+Cierre (2026-10-20, rama `feature/fe-07-urls-de-fotos`).
+- **Foto de perfil:** `descargarFotoDePerfil` pasa a `auth/api.ts` y sus 2 tests a `auth/api.test.ts`, ahora sobre el cliente real con `fetch` falso: comprueban que la petición lleva `Authorization` y que se lee como blob. Se borra `auth/fotoPerfil.ts`. El hook `auth/hooks/useFotoDePerfil` devuelve `{ src, fallo }` y libera la URL `blob:`; `FotoDePerfil.tsx` solo pinta. Test nuevo del hook: libera la URL al desmontar, libera sin mostrar una descarga que llega tarde y marca `fallo` si la descarga falla.
+- **Gateway:** `map/MapaReportes.tsx` deja de llamar a `urlDeFoto` y ya no importa `@/lib/api/client`, porque la foto llega absoluta de `buscarReportes`. Faltaban 3 respuestas que traen `fotoUrl`: `editarReporte` y `cancelarReporte` (`reportes/api.ts`) y `cambiarEstado` (`gestion/api.ts`). Ahora también pasan por `conFotoAbsoluta`. Fuera de los `api.ts` (y de sus tests), solo `lib/api/catalogos.ts` importa el cliente.
+- **CSP (bug previo, encontrado en la verificación en vivo):** `img-src` no listaba el origen del API, así que el navegador bloqueaba toda foto de reporte (estático del backend en `:8080`). No se había visto porque los reportes del seed no tienen foto. Se agrega `apiBaseUrl` a `img-src` en `next.config.ts`.
+- Verificación en vivo (Playwright, :3001, `ciudadano1`): se crea un reporte con foto y la foto carga con URL absoluta en la confirmación, Mis reportes, el detalle propio, el detalle público y el popup del mapa. La foto de perfil se sube y se ve como `blob:`, también tras recargar.
+
+| Métrica | Antes | Después |
+|---|---|---|
+| `npm run typecheck` | 0 errores | 0 errores |
+| `npm test` (con la guarda) | 547 tests en 76 archivos | 551 tests en 76 archivos (2 tests movidos al borrar `fotoPerfil.test.ts`; 4 nuevos en `useFotoDePerfil.test.ts`) |
+| `npm run lint`: código / avisos que no son de capas | 0 / 0 | 0 / 0 |
+| Avisos de capas (`contar-capas.mjs`) | 0 en 0 archivos | 0 en 0 archivos |
+| Imports de `@/lib/api/client` fuera de `api.ts`, `lib/api` y tests | 2 (`map/MapaReportes`, `auth/fotoPerfil`) | 0 |
 
 ### [ ] FE-08 · Dependencias entre features
 - `gestion` deja de importar `@/features/reportes/api`: usa `reportes/model/tipos` y su propio `api.ts`.

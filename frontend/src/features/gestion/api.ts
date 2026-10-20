@@ -66,15 +66,17 @@ function filtrarPorFecha(reportes: ReporteGestion[], filtros: FiltrosBandeja): R
 }
 
 /** US-14: cambia el estado. El backend valida la transicion (409 si no). */
-export function cambiarEstado(
+export async function cambiarEstado(
   reporteId: number,
   estado: string,
   comentario?: string,
 ): Promise<ReporteGestion> {
-  return api.patch<ReporteGestion>(`/api/reportes/${reporteId}/estado`, {
-    estado,
-    comentario: comentario?.trim() || undefined,
-  });
+  return conFotoAbsoluta(
+    await api.patch<ReporteGestion>(`/api/reportes/${reporteId}/estado`, {
+      estado,
+      comentario: comentario?.trim() || undefined,
+    }),
+  );
 }
 
 /**

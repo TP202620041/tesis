@@ -421,13 +421,19 @@ distrito cambia el estado de un reporte de ese ciudadano y llega el aviso.
 ### Fotos: dos visibilidades
 
 El backend devuelve `fotoUrl` **relativa** (no conoce su hostname público).
-Componerla es del cliente: `urlDeFoto()` en `lib/api/client.ts`.
+Componerla es del cliente, y se hace una sola vez en el gateway (FE-07): los
+`features/<f>/api.ts` devuelven `fotoUrl` ya absoluta (`conFotoAbsoluta` /
+`urlDeFoto()` de `lib/api/client.ts`), y páginas, componentes y `map/` la
+usan tal cual, sin importar el cliente HTTP.
 
 - **Foto de reporte** (`/media/fotos/reportes/…`) es **pública**: sirve
   directo en `<img src>`.
 - **Foto de perfil** (`/api/perfiles/fotos/…`) exige `Authorization`: un
   `<img src>` plano devuelve **401**; hay que traerla con `apiFetch` y
-  convertirla a `blob:`. `fotoRequiereAuth()` distingue ambos casos.
+  convertirla a `blob:`. `fotoRequiereAuth()` distingue ambos casos. Lo
+  hace `descargarFotoDePerfil` (`features/auth/api.ts`), y los componentes la
+  reciben del hook `useFotoDePerfil`, que libera la URL `blob:` al cambiar o
+  desmontar.
 
 ### Descargas autenticadas (US-28)
 
