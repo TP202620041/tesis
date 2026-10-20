@@ -38,12 +38,20 @@ describe('rutaInterna', () => {
     expect(rutaInterna('/mis-reportes/42?x=1')).toBe('/mis-reportes/42?x=1');
   });
 
-  it.each(['https://evil.example/x', '//evil.example', 'javascript:alert(1)', '/\\evil', '', null])(
-    'no deja salir del origen: %s',
-    (url) => {
-      expect(rutaInterna(url)).toBe('/mis-reportes');
-    },
-  );
+  it.each([
+    'https://evil.example/x',
+    '//evil.example',
+    'javascript:alert(1)',
+    '/\\evil.example',
+    // WHATWG quita \t, \n y \r: sin validar tras parsear serian //evil.example.
+    '/\t/evil.example',
+    '/\n/evil.example',
+    '/\r/evil.example',
+    '',
+    null,
+  ])('no deja salir del origen: %j', (url) => {
+    expect(rutaInterna(url)).toBe('/mis-reportes');
+  });
 });
 
 describe('elegirVentana', () => {

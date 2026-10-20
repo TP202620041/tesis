@@ -78,7 +78,11 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const datos: unknown = event.notification.data;
   const url = rutaInterna(typeof datos === 'object' && datos !== null ? (datos as { url?: unknown }).url : null);
-  const destino = new URL(url, self.location.origin).href;
+  const resuelta = new URL(url, self.location.origin);
+  // Segunda barrera, ya con el origen real: nunca se abre ni se navega fuera
+  // de esta app aunque `rutaInterna` dejara pasar algo.
+  if (resuelta.origin !== self.location.origin) return;
+  const destino = resuelta.href;
   event.waitUntil(
     (async () => {
       const ventanas = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });

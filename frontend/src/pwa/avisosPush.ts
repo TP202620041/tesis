@@ -28,17 +28,28 @@ function texto(valor: unknown): string | null {
   return typeof valor === 'string' && valor.trim() !== '' ? valor : null;
 }
 
+/** Origen que no existe, solo para resolver rutas relativas en {@link rutaInterna}. */
+const ORIGEN_FICTICIO = 'http://x.invalid';
+
 /**
  * Ruta interna a abrir: solo una ruta relativa de esta app (`/algo`). Una
  * URL absoluta, `//otro-sitio` o algo que no sea texto cae a «mis
  * reportes»: una notificacion no debe poder llevar a otro origen.
+ *
+ * Se valida DESPUES de parsear (WHATWG quita `\t`, `\n` y `\r` y trata `\`
+ * como `/`: `"/\t/otro"` seria `//otro`), contra un origen ficticio.
  */
 export function rutaInterna(url: unknown): string {
   const ruta = texto(url);
-  if (!ruta || !ruta.startsWith('/') || ruta.startsWith('//') || ruta.includes('\\')) {
+  if (!ruta || !ruta.startsWith('/')) return AVISO_GENERICO.url;
+  let parseada: URL;
+  try {
+    parseada = new URL(ruta, ORIGEN_FICTICIO);
+  } catch {
     return AVISO_GENERICO.url;
   }
-  return ruta;
+  if (parseada.origin !== ORIGEN_FICTICIO) return AVISO_GENERICO.url;
+  return parseada.pathname + parseada.search + parseada.hash;
 }
 
 /**

@@ -377,19 +377,26 @@ términos, todos de `auth`.
 - **Al cerrar sesión:** el `DELETE` de la suscripción de este navegador va
   dentro de `cerrar` (`useCerrarSesion`), después de las preguntas de
   `antesDeCerrarSesion` y **antes** de `cerrarSesion()` (después sería 401).
-  Si falla o tarda más de 3 s, el cierre sigue. La suscripción del navegador
-  se conserva: si la misma persona vuelve a entrar, el inicio de sesión la
-  registra otra vez; si entra otra persona sin consentimiento push, el
-  registro da 409 y no recibe nada.
+  Antes espera al re-registro de inicio de sesión si sigue en vuelo (si no,
+  ese `POST` podría llegar después de la baja y reasignar el navegador a
+  quien sale). Todo dentro de un tope de 3 s; pase lo que pase, el cierre
+  sigue. Si la baja responde bien, la suscripción del navegador se conserva:
+  si la misma persona vuelve a entrar, el inicio de sesión la registra otra
+  vez; si entra otra persona sin consentimiento push, el registro da 409 y no
+  recibe nada. Si la baja **falla**, se hace `unsubscribe()` en el navegador
+  para que el dispositivo no siga mostrando los avisos de quien salió (agotar
+  el tope no cuenta como fallo).
 - **Service Worker** (`sw.ts`): `push` muestra la notificación con el
   payload del backend (`titulo`, `cuerpo`, `url`, `tag: 'reporte-<id>'`, así
   un aviso nuevo del mismo reporte reemplaza al anterior; con un payload
   ilegible muestra un aviso genérico, porque `userVisibleOnly` obliga a
   mostrar algo); `notificationclick` enfoca la pestaña que ya está en esa
   URL, o reutiliza otra de la app navegándola, o abre una nueva. Solo rutas
-  del mismo origen: una `url` absoluta o `//otro` cae a `/mis-reportes`. La
-  lógica pura está en `src/pwa/avisosPush.ts`, con tests. El SW sigue sin
-  cachear `/api/`.
+  del mismo origen: una `url` absoluta o `//otro` cae a `/mis-reportes`. Se
+  valida después de parsear (con `\t`, `\n` o `\r`, `"/\t/otro"` sería
+  `//otro`), y el SW vuelve a comprobar el origen contra `self.location`
+  antes de `openWindow` o `navigate`. La lógica pura está en
+  `src/pwa/avisosPush.ts`, con tests. El SW sigue sin cachear `/api/`.
 - **CSP:** sin cambios. La suscripción y la entrega las hace el navegador con
   su servicio de push, fuera de la CSP de la página; el SW no llama a otros
   orígenes; la clave y el registro van al API, ya en `connect-src`.
@@ -446,13 +453,6 @@ Los tiles de OpenStreetMap **sí** están listados en `img-src` de la CSP
 Verificado end-to-end contra el backend real:
 
 - **US-01** registro (`/registro`) · **US-02** login (`/login`).
-- **NC-07b** consentimiento: aceptación de términos en el registro,
-  `/privacidad`, pantalla `/aceptar-terminos` y «Privacidad y
-  consentimientos» en el perfil (ver «Consentimiento» en Decisiones técnicas).
-- **US-21** notificaciones push: activar y desactivar en el perfil por
-  navegador, re-registro al iniciar sesión (con rotación de claves VAPID),
-  baja al cerrar sesión y avisos en el Service Worker (ver «Notificaciones
-  push» en Decisiones técnicas).
 - `/sesion` — verificación de `GET /api/auth/me`. Andamiaje: desaparece
   cuando existan las landings por rol.
 - **US-05** crear reporte (`/reportar`): GPS con fallback a marcar en el mapa
@@ -503,6 +503,17 @@ Verificado end-to-end contra el backend real:
 - **US-18/20** índice de desempeño (`/desempeno`), **público**: ranking de los
   43 distritos con tasa de resolución, tiempo promedio y satisfacción,
   ordenable por columna y filtrable por tipo de daño.
+
+Implementado y cubierto por tests, **pendiente de verificación en vivo**
+(contra el backend real; push con claves VAPID):
+
+- **NC-07b** consentimiento: aceptación de términos en el registro,
+  `/privacidad`, pantalla `/aceptar-terminos` y «Privacidad y
+  consentimientos» en el perfil (ver «Consentimiento» en Decisiones técnicas).
+- **US-21** notificaciones push: activar y desactivar en el perfil por
+  navegador, re-registro al iniciar sesión (con rotación de claves VAPID),
+  baja al cerrar sesión y avisos en el Service Worker (ver «Notificaciones
+  push» en Decisiones técnicas).
 
 ### `null` no es cero
 

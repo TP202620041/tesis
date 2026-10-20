@@ -110,28 +110,50 @@ export async function desactivarPush(
  * nueva por su cuenta. Nunca lanza: un 409 (sin consentimiento push), la
  * red o un servidor sin claves solo dejan las cosas como estaban.
  */
-export async function reRegistrarPushAlIniciarSesion(
+export function reRegistrarPushAlIniciarSesion(
   nav: NavegadorPush = navegadorPush,
   servidor: ServidorPush = servidorEnSegundoPlano,
 ): Promise<void> {
-  try {
-    if (!nav.soportado() || nav.permiso() !== 'granted') return;
-    if (!(await nav.suscripcionActual())) return;
-    const clave = await servidor.clavePublica();
-    if (clave === null) return;
-    const suscripcion = await suscripcionConClave(nav, clave);
-    await servidor.registrar(suscripcion.toJSON(), nav.userAgent());
-  } catch {
-    // Es una comodidad: el usuario puede activarlo desde su perfil.
-  }
+  const promesa = (async () => {
+    try {
+      if (!nav.soportado() || nav.permiso() !== 'granted') return;
+      if (!(await nav.suscripcionActual())) return;
+      const clave = await servidor.clavePublica();
+      if (clave === null) return;
+      const suscripcion = await suscripcionConClave(nav, clave);
+      await servidor.registrar(suscripcion.toJSON(), nav.userAgent());
+    } catch {
+      // Es una comodidad: el usuario puede activarlo desde su perfil.
+    }
+  })();
+  reRegistroEnCurso = promesa;
+  void promesa.finally(() => {
+    if (reRegistroEnCurso === promesa) reRegistroEnCurso = null;
+  });
+  return promesa;
 }
 
 /**
+ * Re-registro en curso, si lo hay. El cierre de sesion lo espera antes del
+ * `DELETE`: si no, un `POST` lento podria llegar DESPUES de la baja y volver
+ * a asignar este navegador al usuario que acaba de salir.
+ */
+let reRegistroEnCurso: Promise<void> | null = null;
+
+/**
  * Al cerrar sesion, ANTES de borrar el token (despues daria 401): da de baja
- * este navegador para que deje de recibir los avisos de ese usuario. La
- * suscripcion del navegador se conserva: si el mismo usuario vuelve a
- * entrar, el inicio de sesion la registra otra vez. Nunca lanza y nunca
- * espera mas de `topeMs`: si falla, el cierre sigue.
+ * este navegador para que deje de recibir los avisos de ese usuario.
+ *
+ * - Primero espera al re-registro en curso (ver {@link reRegistroEnCurso}).
+ * - Si la baja en el servidor responde bien, la suscripcion del navegador se
+ *   conserva: si el mismo usuario vuelve a entrar, el inicio de sesion la
+ *   registra otra vez.
+ * - Si la baja FALLA (red, 5xx…), se cancela la suscripcion en el navegador:
+ *   el servidor podria seguir enviando a ese endpoint, y el dispositivo no
+ *   debe seguir mostrando los avisos de quien salio. Que se agote el tope no
+ *   es un fallo: la peticion puede estar por terminar bien.
+ *
+ * Todo dentro de `topeMs`. Nunca lanza: si falla, el cierre sigue.
  */
 export async function bajaDePushAlCerrarSesion(
   topeMs: number = TOPE_BAJA_AL_CERRAR_MS,
@@ -140,8 +162,14 @@ export async function bajaDePushAlCerrarSesion(
 ): Promise<void> {
   if (!nav.soportado()) return;
   const baja = (async () => {
+    if (reRegistroEnCurso) await reRegistroEnCurso;
     const suscripcion = await nav.suscripcionActual();
-    if (suscripcion) await servidor.darDeBaja(suscripcion.endpoint);
+    if (!suscripcion) return;
+    try {
+      await servidor.darDeBaja(suscripcion.endpoint);
+    } catch {
+      await suscripcion.unsubscribe();
+    }
   })().catch(() => undefined);
   let temporizador: ReturnType<typeof setTimeout> | undefined;
   const tope = new Promise<void>((resolver) => {

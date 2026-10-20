@@ -220,19 +220,65 @@ describe('bajaDePushAlCerrarSesion', () => {
     expect(api.darDeBaja).not.toHaveBeenCalled();
   });
 
-  it('si el servidor falla, termina sin lanzar', async () => {
+  it('si el servidor falla, cancela la suscripción local y termina sin lanzar', async () => {
     const api = servidor();
     api.darDeBaja.mockRejectedValue(new Error('sin red'));
     const actual = suscripcion('https://fcm.googleapis.com/fcm/send/a', CLAVE);
+
     await expect(bajaDePushAlCerrarSesion(1_000, navegador({ actual }), api)).resolves.toBeUndefined();
+
+    // El dispositivo deja de recibir los avisos de quien salió.
+    expect(actual.unsubscribe).toHaveBeenCalledTimes(1);
   });
 
-  it('si el servidor no responde, no espera más que el tope', async () => {
+  it('si el servidor no responde, no espera más que el tope ni cancela la suscripción', async () => {
     const api = servidor();
     api.darDeBaja.mockReturnValue(new Promise(() => undefined));
     const actual = suscripcion('https://fcm.googleapis.com/fcm/send/a', CLAVE);
     const inicio = Date.now();
     await bajaDePushAlCerrarSesion(30, navegador({ actual }), api);
     expect(Date.now() - inicio).toBeLessThan(1_000);
+    expect(actual.unsubscribe).not.toHaveBeenCalled();
+  });
+
+  it('espera al re-registro en curso antes del DELETE (sin carrera)', async () => {
+    const actual = suscripcion('https://fcm.googleapis.com/fcm/send/a', CLAVE);
+    const nav = navegador({ permiso: 'granted', actual });
+    const api = servidor();
+    let terminarRegistro!: () => void;
+    api.registrar.mockReturnValue(new Promise<void>((r) => (terminarRegistro = r)));
+
+    const reRegistro = reRegistrarPushAlIniciarSesion(nav, api);
+    await vi.waitFor(() => expect(api.registrar).toHaveBeenCalledTimes(1));
+    const baja = bajaDePushAlCerrarSesion(1_000, nav, api);
+    await new Promise((r) => setTimeout(r, 20));
+    // El POST sigue en vuelo: todavía no se manda el DELETE.
+    expect(api.darDeBaja).not.toHaveBeenCalled();
+
+    terminarRegistro();
+    await Promise.all([reRegistro, baja]);
+
+    expect(api.darDeBaja).toHaveBeenCalledWith('https://fcm.googleapis.com/fcm/send/a');
+    const [registro] = api.registrar.mock.invocationCallOrder;
+    const [delete_] = api.darDeBaja.mock.invocationCallOrder;
+    expect(registro).toBeLessThan(delete_ ?? 0);
+  });
+
+  it('la espera al re-registro también cuenta dentro del tope', async () => {
+    const actual = suscripcion('https://fcm.googleapis.com/fcm/send/a', CLAVE);
+    const nav = navegador({ permiso: 'granted', actual });
+    const api = servidor();
+    let soltar!: () => void;
+    api.registrar.mockReturnValue(new Promise<void>((r) => (soltar = r)));
+
+    const reRegistro = reRegistrarPushAlIniciarSesion(nav, api);
+    await vi.waitFor(() => expect(api.registrar).toHaveBeenCalledTimes(1));
+    const inicio = Date.now();
+    await bajaDePushAlCerrarSesion(30, nav, api);
+
+    expect(Date.now() - inicio).toBeLessThan(1_000);
+    // No dejar un re-registro colgado para los tests siguientes.
+    soltar();
+    await reRegistro;
   });
 });
