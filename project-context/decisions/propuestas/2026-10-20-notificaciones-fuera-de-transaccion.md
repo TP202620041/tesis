@@ -1,6 +1,6 @@
 # Propuesta: notificaciones fuera de transacción (excepción a §4.5)
 
-- **Estado:** abierta <!-- abierta | aceptada | rechazada -->
+- **Estado:** aceptada (2026-10-20) <!-- abierta | aceptada | rechazada -->
 - **Fecha:** 2026-10-20
 - **Origen:** agente de backend, tarea US-21 (rama `feature/us-21-push-real`)
 - **Decide:** el usuario. Si se acepta, la sesión de raíz actualiza ARCHITECTURE.md o el plan.
@@ -31,3 +31,7 @@ Hoy el código hace esto, en `feature/us-21-push-real`:
 
 ## Qué queda bloqueado mientras no se decida
 Nada. El código de US-21 ya funciona así y lo cita en el javadoc de `NotificacionService.notificarCambioEstado`. Si se elige B o C, es un cambio local a ese método.
+
+## Decisión
+
+**Opción A**, decidida por el usuario el 2026-10-20. Registrada como **D-13** en `ARCHITECTURE.md` (§4.5 y §9).
