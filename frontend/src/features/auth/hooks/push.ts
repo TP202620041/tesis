@@ -1,4 +1,4 @@
-import { ApiError, NetworkError } from '@/lib/api/errors';
+import { ApiError } from '@/lib/api/errors';
 import { navegadorPush, type NavegadorPush } from '@/pwa/push';
 import { clavePublicaVapid, darDeBajaSuscripcionPush, registrarSuscripcionPush } from '../api';
 import { base64UrlABytes, esLaMismaClave, type EstadoPush } from '../model/push';
@@ -34,9 +34,15 @@ const servidorEnSegundoPlano: ServidorPush = {
   darDeBaja: (e) => darDeBajaSuscripcionPush(e, { enSegundoPlano: true }),
 };
 
-/** `true` si la baja no llego al servidor (red) o este fallo (5xx). */
-function laBajaNoLlego(e: unknown): boolean {
-  return e instanceof NetworkError || (e instanceof ApiError && e.status >= 500);
+/**
+ * `true` si, tras un fallo de la baja, hay que cancelar la suscripcion
+ * local: ante CUALQUIER error salvo un 404. Un 401 (el JWT vencio con la PWA
+ * abierta), la red o un 5xx dejan el endpoint registrado a nombre de quien
+ * sale; el 404, en cambio, dice que no es suyo (puede ser de otra persona
+ * que uso el dispositivo antes).
+ */
+function hayQueCancelarTrasFallo(e: unknown): boolean {
+  return !(e instanceof ApiError && e.status === 404);
 }
 
 /** Tope de espera de la baja al cerrar sesion: cerrar sesion nunca se cuelga. */
@@ -154,13 +160,15 @@ let reRegistroEnCurso: Promise<void> | null = null;
  * - Si la baja en el servidor responde bien, la suscripcion del navegador se
  *   conserva: si el mismo usuario vuelve a entrar, el inicio de sesion la
  *   registra otra vez.
- * - Si la baja no llego al servidor o este fallo (red o 5xx), se cancela la
- *   suscripcion en el navegador: el servidor podria seguir enviando a ese
- *   endpoint, y el dispositivo no debe seguir mostrando los avisos de quien
- *   salio. Cualquier otra respuesta NO cancela: un 404 dice que el endpoint
- *   no es de quien sale (p. ej. es de otra persona que uso el dispositivo
- *   antes), y cancelarlo le quitaria push a esa persona. Que se agote el
- *   tope tampoco es un fallo: la peticion puede estar por terminar bien.
+ * - Si la baja falla por cualquier motivo (red, 401 por un JWT vencido,
+ *   5xx…), se cancela la suscripcion en el navegador: el servidor podria
+ *   seguir enviando a ese endpoint, y el dispositivo no debe seguir
+ *   mostrando los avisos de quien salio. La unica excepcion es el 404: dice
+ *   que el endpoint no es de quien sale (p. ej. es de otra persona que uso
+ *   el dispositivo antes), y cancelarlo le quitaria push a esa persona.
+ *   `darDeBajaSuscripcionPush` ya resuelve el 404 como exito; esta regla es
+ *   una segunda barrera. Que se agote el tope no es un fallo: la peticion
+ *   puede estar por terminar bien.
  *
  * Todo dentro de `topeMs`. Nunca lanza: si falla, el cierre sigue.
  */
@@ -177,7 +185,7 @@ export async function bajaDePushAlCerrarSesion(
     try {
       await servidor.darDeBaja(suscripcion.endpoint);
     } catch (e) {
-      if (laBajaNoLlego(e)) await suscripcion.unsubscribe();
+      if (hayQueCancelarTrasFallo(e)) await suscripcion.unsubscribe();
     }
   })().catch(() => undefined);
   let temporizador: ReturnType<typeof setTimeout> | undefined;

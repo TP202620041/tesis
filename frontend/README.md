@@ -385,12 +385,13 @@ términos, todos de `auth`.
   sigue. Si la baja responde bien, la suscripción del navegador se conserva:
   si la misma persona vuelve a entrar, el inicio de sesión la registra otra
   vez; si entra otra persona sin consentimiento push, el registro da 409 y no
-  recibe nada. Si la baja **no llega** (error de red) o el servidor falla
-  (5xx), se hace `unsubscribe()` en el navegador para que el dispositivo no
-  siga mostrando los avisos de quien salió. Otras respuestas no cancelan: un
-  404 dice que el endpoint no es de quien sale (puede ser de otra persona que
-  usó el dispositivo antes, que perdería su push). Agotar el tope tampoco
-  cuenta como fallo.
+  recibe nada. Si la baja **falla** por cualquier motivo (red, 401 porque el
+  JWT venció con la PWA abierta, 5xx…), se hace `unsubscribe()` en el
+  navegador para que el dispositivo no siga mostrando los avisos de quien
+  salió. La única excepción es el 404: dice que el endpoint no es de quien
+  sale (puede ser de otra persona que usó el dispositivo antes, que perdería
+  su push); `darDeBajaSuscripcionPush` ya lo resuelve como éxito y la regla
+  es una segunda barrera. Agotar el tope no cuenta como fallo.
 - **Service Worker** (`sw.ts`): `push` muestra la notificación con el
   payload del backend (`titulo`, `cuerpo`, `url`, `tag: 'reporte-<id>'`, así
   un aviso nuevo del mismo reporte reemplaza al anterior; con un payload

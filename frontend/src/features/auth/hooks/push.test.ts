@@ -222,7 +222,10 @@ describe('bajaDePushAlCerrarSesion', () => {
 
   it.each([
     ['sin red', new NetworkError()],
+    // El JWT venció con la PWA abierta: el endpoint sigue a nombre de quien sale.
+    ['un 401', new ApiError(401, 'Sesión expirada')],
     ['un 5xx', new ApiError(503, 'No disponible')],
+    ['un error inesperado', new Error('inesperado')],
   ])('si la baja falla (%s), cancela la suscripción local y termina sin lanzar', async (_caso, error) => {
     const api = servidor();
     api.darDeBaja.mockRejectedValue(error);
@@ -235,20 +238,15 @@ describe('bajaDePushAlCerrarSesion', () => {
   });
 
   it('un 404 (el endpoint no es de quien sale) no cancela la suscripción de otra persona', async () => {
+    // Segunda barrera: el adaptador real (`darDeBajaSuscripcionPush`) ya
+    // resuelve el 404 como éxito (lo prueba `api.test.ts`), así que este
+    // rechazo solo llegaría si alguien cambiara ese adaptador.
     const api = servidor();
     api.darDeBaja.mockRejectedValue(new ApiError(404, 'No encontrada'));
     const actual = suscripcion('https://fcm.googleapis.com/fcm/send/de-ana', CLAVE);
 
     await bajaDePushAlCerrarSesion(1_000, navegador({ actual }), api);
 
-    expect(actual.unsubscribe).not.toHaveBeenCalled();
-  });
-
-  it('otro error (p. ej. un fallo del navegador) tampoco cancela', async () => {
-    const api = servidor();
-    api.darDeBaja.mockRejectedValue(new Error('inesperado'));
-    const actual = suscripcion('https://fcm.googleapis.com/fcm/send/a', CLAVE);
-    await bajaDePushAlCerrarSesion(1_000, navegador({ actual }), api);
     expect(actual.unsubscribe).not.toHaveBeenCalled();
   });
 
