@@ -1,10 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { NetworkError } from '@/lib/api/errors';
+import { ApiError, NetworkError } from '@/lib/api/errors';
 import { borrarToken, generacionDeSesion, guardarToken } from '@/lib/auth/token-storage';
 import type { Usuario } from '@/lib/types/domain';
 import { usuarioActualSinRedirigir } from '../api';
-import { useHaySesion, useIdentidadEnSegundoPlano } from './useSesionEnSegundoPlano';
+import {
+  MAXIMO_DE_REINTENTOS,
+  useHaySesion,
+  useIdentidadEnSegundoPlano,
+} from './useSesionEnSegundoPlano';
 
 vi.mock('../api', () => ({ usuarioActualSinRedirigir: vi.fn() }));
 
@@ -66,6 +70,47 @@ describe('useIdentidadEnSegundoPlano', () => {
     await waitFor(() => expect(usuarioActualSinRedirigir).toHaveBeenCalledTimes(2));
   });
 
+  it('ante un 5xx reintenta solo, con espera creciente y hasta un tope', async () => {
+    guardarToken('t1');
+    vi.mocked(usuarioActualSinRedirigir).mockRejectedValue(new ApiError(503, 'No disponible'));
+    const { result, unmount } = renderHook(() =>
+      useIdentidadEnSegundoPlano({ esperaInicialMs: 5 }),
+    );
+
+    // 1 consulta inicial + MAXIMO_DE_REINTENTOS reintentos automaticos.
+    await waitFor(
+      () => expect(usuarioActualSinRedirigir).toHaveBeenCalledTimes(1 + MAXIMO_DE_REINTENTOS),
+      { timeout: 2000 },
+    );
+    await new Promise((r) => setTimeout(r, 300));
+    expect(usuarioActualSinRedirigir).toHaveBeenCalledTimes(1 + MAXIMO_DE_REINTENTOS);
+    expect(result.current).toBeUndefined();
+    unmount();
+  });
+
+  it('el reintento automatico identifica al usuario cuando /me se recupera', async () => {
+    guardarToken('t1');
+    vi.mocked(usuarioActualSinRedirigir)
+      .mockRejectedValueOnce(new ApiError(500, 'Fallo'))
+      .mockResolvedValue(ANA);
+    const { result } = renderHook(() => useIdentidadEnSegundoPlano({ esperaInicialMs: 5 }));
+
+    await waitFor(() => expect(result.current?.usuario).toEqual(ANA));
+    expect(usuarioActualSinRedirigir).toHaveBeenCalledTimes(2);
+  });
+
+  it('al desmontarse no queda ningun reintento programado', async () => {
+    guardarToken('t1');
+    vi.mocked(usuarioActualSinRedirigir).mockRejectedValue(new ApiError(503, 'No disponible'));
+    const { unmount } = renderHook(() => useIdentidadEnSegundoPlano({ esperaInicialMs: 50 }));
+    await waitFor(() => expect(usuarioActualSinRedirigir).toHaveBeenCalledTimes(1));
+
+    unmount();
+    await new Promise((r) => setTimeout(r, 150));
+
+    expect(usuarioActualSinRedirigir).toHaveBeenCalledTimes(1);
+  });
+
   it('si /me falla por red queda "sin saber" y reintenta al volver la conexion', async () => {
     guardarToken('t1');
     vi.mocked(usuarioActualSinRedirigir)
@@ -74,6 +119,8 @@ describe('useIdentidadEnSegundoPlano', () => {
     const { result } = renderHook(() => useIdentidadEnSegundoPlano());
     await waitFor(() => expect(usuarioActualSinRedirigir).toHaveBeenCalledTimes(1));
     expect(result.current).toBeUndefined();
+    // Que el fallo ya se haya procesado (y el listener de `online` exista).
+    await new Promise((r) => setTimeout(r, 50));
 
     act(() => {
       window.dispatchEvent(new Event('online'));

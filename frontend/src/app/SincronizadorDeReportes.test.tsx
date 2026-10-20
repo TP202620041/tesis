@@ -64,6 +64,8 @@ describe('SincronizadorDeReportes', () => {
     render(<SincronizadorDeReportes />);
     await waitFor(() => expect(usuarioActualSinRedirigir).toHaveBeenCalledTimes(1));
     expect(crearReporte).not.toHaveBeenCalled();
+    // Que el fallo ya se haya procesado (y el listener de `online` exista).
+    await new Promise((r) => setTimeout(r, 50));
 
     act(() => {
       window.dispatchEvent(new Event('online'));

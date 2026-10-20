@@ -82,6 +82,37 @@ describe('useConfirmacionAlCerrarSesion', () => {
     unmount();
   });
 
+  it('si la cola solo baja (de 2 a 1) con la pregunta abierta, NO responde por el usuario', async () => {
+    await colaDeReportes.guardar(enCola('k1', 7));
+    await colaDeReportes.guardar(enCola('k2', 7));
+    const { result, unmount } = renderHook(() => useConfirmacionAlCerrarSesion(7));
+    await waitFor(() => expect(hayPasosAntesDeCerrarSesion()).toBe(true));
+    await waitFor(async () => expect(await colaDeReportes.listar()).toHaveLength(2));
+
+    let cerrado = false;
+    act(() => {
+      void antesDeCerrarSesion().then(() => {
+        cerrado = true;
+      });
+    });
+    await waitFor(() => expect(result.current.preguntando).toBe(2));
+
+    // El sincronizador envio uno mientras se preguntaba.
+    await act(async () => {
+      await colaDeReportes.quitar('k1');
+    });
+
+    await waitFor(() => expect(result.current.preguntando).toBe(1));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(cerrado).toBe(false);
+
+    await act(async () => {
+      result.current.conservar();
+    });
+    await waitFor(() => expect(cerrado).toBe(true));
+    unmount();
+  });
+
   it('al desmontarse con la pregunta abierta responde "Conservar"', async () => {
     await colaDeReportes.guardar(enCola('k1', 7));
     const { result, unmount } = renderHook(() => useConfirmacionAlCerrarSesion(7));

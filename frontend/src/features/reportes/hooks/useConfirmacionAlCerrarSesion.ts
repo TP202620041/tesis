@@ -12,9 +12,10 @@ import { useReportesEnCola } from './useColaOffline';
  * es inmediato.
  *
  * El cierre nunca queda colgado:
- * - Si el efecto se limpia o el componente se desmonta con la pregunta
- *   abierta (p. ej. la cola se vacio porque se enviaron), se responde
- *   "Conservar", que es la opcion por defecto.
+ * - Si la cola se vacia (p. ej. se enviaron) o el componente se desmonta con
+ *   la pregunta abierta, se responde "Conservar", que es la opcion por
+ *   defecto. Que la cantidad solo baje (de 2 a 1) NO responde por el
+ *   usuario: el dialogo sigue abierto con el numero actualizado.
  * - Un segundo intento de cierre mientras se pregunta reutiliza la MISMA
  *   espera (no deja una promesa huerfana).
  * - Responder dos veces (doble clic) no hace nada la segunda vez.
@@ -26,6 +27,15 @@ export function useConfirmacionAlCerrarSesion(usuarioId: number) {
   const [preguntando, setPreguntando] = useState<number | null>(null);
   const espera = useRef<{ promesa: Promise<void>; resolver: () => void } | null>(null);
   const cantidad = pendientes.length;
+  const hayPendientes = cantidad > 0;
+  // La cantidad se lee de un ref: que cambie (p. ej. de 2 a 1 porque se envio
+  // uno) no debe volver a registrar la guarda ni responder por el usuario.
+  const cantidadActual = useRef(cantidad);
+  useEffect(() => {
+    cantidadActual.current = cantidad;
+    // Con la pregunta abierta, el numero mostrado sigue a la cola.
+    if (espera.current && cantidad > 0) setPreguntando(cantidad);
+  }, [cantidad]);
 
   /** Responde la pregunta abierta (si la hay) y la cierra. Idempotente. */
   const terminar = useCallback(() => {
@@ -36,7 +46,7 @@ export function useConfirmacionAlCerrarSesion(usuarioId: number) {
   }, []);
 
   useEffect(() => {
-    if (cantidad === 0) return;
+    if (!hayPendientes) return;
     const quitar = registrarAntesDeCerrarSesion(() => {
       if (!espera.current) {
         let resolver!: () => void;
@@ -44,16 +54,17 @@ export function useConfirmacionAlCerrarSesion(usuarioId: number) {
           resolver = r;
         });
         espera.current = { promesa, resolver };
-        setPreguntando(cantidad);
+        setPreguntando(cantidadActual.current);
       }
       return espera.current.promesa;
     });
     return () => {
       quitar();
-      // Limpieza con la pregunta abierta = "Conservar": el cierre sigue.
+      // Solo llega aqui si la cola se vacio o el componente se desmonta: con
+      // la pregunta abierta se responde "Conservar" y el cierre sigue.
       terminar();
     };
-  }, [cantidad, terminar]);
+  }, [hayPendientes, terminar]);
 
   const conservar = useCallback(() => terminar(), [terminar]);
   const descartar = useCallback(async () => {
