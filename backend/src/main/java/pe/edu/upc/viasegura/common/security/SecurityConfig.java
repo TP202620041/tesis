@@ -131,6 +131,10 @@ public class SecurityConfig {
                         // literales hermanas /mis-reportes, /bandeja y /exportar,
                         // que son privadas.
                         .requestMatchers(HttpMethod.GET, "/api/reportes/{id:[0-9]+}").permitAll()
+                        // Densidad para el mapa de calor (US-11): agregado anonimo
+                        // de la misma informacion publica que la busqueda. Ruta
+                        // EXACTA y solo GET.
+                        .requestMatchers(HttpMethod.GET, "/api/reportes/densidad").permitAll()
                         // Catalogos de referencia para poblar selectores y filtros
                         // (crear reporte US-05, mapa US-10, busqueda US-12). Publicos
                         // por el mismo criterio que la busqueda: un filtro publico cuyo
