@@ -223,13 +223,47 @@ Cierre (2026-10-13, rama `feature/fe-04`). 14 imports en 12 archivos: los 11 con
 | `otraFeature` | 16 | 5 (los cruces reales de FE-08) |
 | `gatewayDesdeUi` / `clienteHttp` / `schema` | 33 / 14 / 1 | 33 / 14 / 1 |
 
-### [ ] FE-05 · Hooks de carga y páginas como composición
+### [x] FE-05 · Hooks de carga y páginas como composición (2026-10-19)
 1. ~~Crear `src/lib/hooks/useCarga.ts` con el patrón de `ARCHITECTURE.md` §5.5, con tests de la cancelación.~~ **Hecho en US-17 (Sprint 1, PR #18):** 6 tests de cancelación, respuesta vieja descartada, recarga y desmontaje.
 2. ~~Agregar `mensajeDeError(e: unknown): { mensaje: string; detalles: string[] }` a `src/lib/api/errors.ts`.~~ **Hecho en US-03 (Sprint 1, PR #16)**, con test.
 3. Mover `features/auth/hooks.ts` → `features/auth/hooks/useSesion.ts` (hoy conviven el archivo `hooks.ts` y la carpeta `hooks/` creada en el Sprint 1: unificarlos) y `features/reportes/useGeolocalizacion.ts` → `features/reportes/hooks/`.
 4. Por cada página con `useEffect` de datos, crear el hook y llevar el contenido a un componente de la feature: `mis-reportes`, `mis-reportes/[id]`, `perfil`, `bandeja`, `bandeja/[id]`, `desempeno`, `mapa`, `reportes/[id]`, `reportar` y `sesion`.
 
 **Aceptación:** ninguna página de `app/` usa `useEffect` para cargar datos ni importa `api.ts`.
+
+Cierre (2026-10-19, rama `feature/fe-05`, sobre `develop` v0.3.0).
+- **Paso 3.** `auth/hooks.ts` → `auth/hooks/useSesion.ts`, reescrito sobre `useCarga` (un fallo de `/me` cuenta como "sin sesión", no como error; `refrescar` conserva el estado visible, igual que antes). Sin `index.ts`: se importa el archivo explícito (`../hooks/useSesion`, `@/features/auth/hooks/useSesion`). `reportes/useGeolocalizacion.ts` → `reportes/hooks/` con `git mv`. Ninguno de los dos trae avisos al entrar al bloque `feature-hooks`.
+- **Paso 4.** `git grep -n "useEffect\|/api'\|lib/api" -- frontend/src/app` no devuelve nada (exit 1). Las 10 páginas quedan como composición:
+
+| Página | Hook (sobre `useCarga`) | Componente |
+|---|---|---|
+| `mis-reportes` | `reportes/hooks/useMisReportes` | `reportes/components/ListaMisReportes` |
+| `mis-reportes/[id]` | `reportes/hooks/useMiReporte` | `reportes/components/DetalleMiReporte` |
+| `reportes/[id]` | `reportes/hooks/useReportePublico` (+ `useSesion` en la página para `puedeComentar`) | `reportes/components/DetalleReportePublico` |
+| `reportar` | `auth/hooks/useSesionRequerida` | `reportes/components/NuevoReporte` (formulario + confirmación) |
+| `sesion` | `auth/hooks/useSesionRequerida` | (la página solo pinta los datos) |
+| `perfil` | `auth/hooks/usePerfil` (`usePerfil`, `useDistritosDeResidencia`) | `auth/components/EditarPerfil` |
+| `bandeja` | `gestion/hooks/useBandeja` (`useBandeja`, `useCategoriasDelDistrito`) | `gestion/components/BandejaMunicipal` |
+| `bandeja/[id]` | `gestion/hooks/useDetalleGestion` | `gestion/components/DetalleGestionReporte` |
+| `desempeno` | `desempeno/hooks/useIndiceDesempeno` (`useRankingDistrital`, `useCategoriasDelIndice`) | `desempeno/components/IndiceDesempeno` |
+| `mapa` | `reportes/hooks/useCatalogosMapa` (el `dynamic()` del mapa sigue en la página) | (sin cambio: ya componía) |
+
+- `BotonCerrarSesion` (de `auth`) lo pasa la página por la prop `cierreDeSesion` a los componentes de `reportes` y `gestion`, para no crear avisos `otraFeature`.
+- Los detalles (`DetalleMiReporte`, `DetalleGestionReporte`) muestran "Cargando…" también mientras `recargando`: tras editar o cambiar el estado la pantalla se vuelve a montar como antes y los formularios hijos arrancan de cero.
+- Diferencia mínima aceptada: en `bandeja` y `desempeno`, si la carga falla ya no se muestra la lista anterior debajo del error (el estado `error` de `useCarga` no tiene datos). Textos, rutas, `Idempotency-Key` y el debounce/umbral del mapa no cambian.
+- **Anticipado de FE-08:** `src/lib/api/catalogos.ts` con `listarDistritos`, `distritoPorCoordenadas` y `listarCategorias`; desaparece `features/distritos/`. `CampoUbicacion` resuelve el distrito con `reportes/hooks/useDistritoDeUbicacion` (desaparece el último `otraFeature`). `reportes/api.ts` reexporta `listarCategorias` solo para `FormularioReporte` y `EditarReporte`, que lo dejan al pasar a hooks en FE-06.
+- **Anticipado de FE-07 (parcial):** `conFotoAbsoluta` en `lib/api/client.ts`; `reportes/api.ts` (`buscarReportes`, `misReportes`, `pendientesDeCalificacion`, `reportePorId`, `crearReporte`) y `gestion/api.ts` (`bandeja`) devuelven `fotoUrl` absoluta. Quedan para FE-07 las llamadas a `urlDeFoto` de `ListaReportes` y `map/MapaReportes` (idempotentes, inofensivas) y la foto de perfil.
+
+| Métrica | Antes | Después |
+|---|---|---|
+| `npm run typecheck` | 0 errores | 0 errores |
+| `npm test` (con la guarda) | 232 tests en 34 archivos | 269 tests en 45 archivos |
+| `npm run lint`: código / avisos que no son de capas | 0 / 0 | 0 / 0 |
+| Avisos de capas (`contar-capas.mjs`) | **44 en 18 archivos** | **24 en 8 archivos** |
+| `gatewayDesdeUi` / `clienteHttp` / `otraFeature` | 29 / 14 / 1 | 16 / 8 / 0 |
+| `npm run build` | — | OK (19 rutas) |
+
+Los 24 restantes son de los 8 componentes de FE-06 (`FormularioLogin`, `FormularioRegistro`, `CambiarEstado`, `Responsable`, `Calificar`, `Comentarios`, `EditarReporte`, `FormularioReporte`). No hay avisos nuevos en los archivos que entraron a `hooks/` ni a `components/`.
 
 ### [ ] FE-06 · Mutaciones en hooks
 Los componentes que hoy llaman al API pasan a usar un hook de su feature: `CambiarEstado`, `Responsable`, `Calificar`, `Comentarios`, `EditarReporte`, `FormularioReporte`, `FormularioLogin` y `FormularioRegistro`. El hook captura el error con `mensajeDeError`, y el componente ya no importa `ApiError` ni `NetworkError`. **Se conserva** la regla de `Idempotency-Key` de `FormularioReporte`: la clave vive en el hook y no se regenera en un reintento.
@@ -242,6 +276,7 @@ Los componentes que hoy llaman al API pasan a usar un hook de su feature: `Cambi
 ### [ ] FE-08 · Dependencias entre features
 - `gestion` deja de importar `@/features/reportes/api`: usa `reportes/model/tipos` y su propio `api.ts`.
 - Catálogos compartidos: `listarDistritos`, `distritoPorCoordenadas` y `listarCategorias` → `src/lib/api/catalogos.ts`. Los hooks de cada feature lo usan.
+  - **Hecho en FE-05 (2026-10-19)**, salvo la reexportación de `listarCategorias` en `reportes/api.ts` (la quitan los hooks de FE-06). Desde FE-05 `otraFeature` = 0.
 
 **Aceptación:** sin avisos `otraFeature`.
 
