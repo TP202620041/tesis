@@ -67,6 +67,13 @@ export function DetalleGestionReporte({ reporteId }: { reporteId: number }) {
         </span>
       </header>
 
+      {carga.datos?.errorDeRecarga && (
+        <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-800 dark:bg-red-950 dark:text-red-200">
+          No se pudo actualizar el reporte: {carga.datos.errorDeRecarga.mensaje} Lo que ves puede
+          no estar al día.
+        </p>
+      )}
+
       {reporte.posibleReincidencia && (
         <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-100">
           Un vecino comentó que este daño reapareció o quedó mal reparado (US-27).

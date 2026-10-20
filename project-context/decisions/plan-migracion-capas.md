@@ -252,12 +252,13 @@ Cierre (2026-10-19, rama `feature/fe-05`, sobre `develop` v0.3.0).
 - Los detalles (`DetalleMiReporte`, `DetalleGestionReporte`) muestran "Cargando…" también mientras `recargando`: tras editar o cambiar el estado la pantalla se vuelve a montar como antes y los formularios hijos arrancan de cero.
 - Diferencia mínima aceptada: en `bandeja` y `desempeno`, si la carga falla ya no se muestra la lista anterior debajo del error (el estado `error` de `useCarga` no tiene datos). Textos, rutas, `Idempotency-Key` y el debounce/umbral del mapa no cambian.
 - **Anticipado de FE-08:** `src/lib/api/catalogos.ts` con `listarDistritos`, `distritoPorCoordenadas` y `listarCategorias`; desaparece `features/distritos/`. `CampoUbicacion` resuelve el distrito con `reportes/hooks/useDistritoDeUbicacion` (desaparece el último `otraFeature`). `reportes/api.ts` reexporta `listarCategorias` solo para `FormularioReporte` y `EditarReporte`, que lo dejan al pasar a hooks en FE-06.
-- **Anticipado de FE-07 (parcial):** `conFotoAbsoluta` en `lib/api/client.ts`; `reportes/api.ts` (`buscarReportes`, `misReportes`, `pendientesDeCalificacion`, `reportePorId`, `crearReporte`) y `gestion/api.ts` (`bandeja`) devuelven `fotoUrl` absoluta. Quedan para FE-07 las llamadas a `urlDeFoto` de `ListaReportes` y `map/MapaReportes` (idempotentes, inofensivas) y la foto de perfil.
+- **Anticipado de FE-07 (parcial):** `conFotoAbsoluta` en `lib/api/client.ts`; `reportes/api.ts` (`buscarReportes`, `misReportes`, `pendientesDeCalificacion`, `reportePorId`, `crearReporte`) y `gestion/api.ts` (`bandeja`) devuelven `fotoUrl` absoluta. Quedan para FE-07 la llamada a `urlDeFoto` de `map/MapaReportes.tsx` (idempotente solo porque `NEXT_PUBLIC_API_BASE_URL` es un origen absoluto, lo que exige la CSP; ver el javadoc de `conFotoAbsoluta`) y la foto de perfil.
+- Observaciones de la revisión (APTO CON OBSERVACIONES, menores), aplicadas en la misma rama: una recarga fallida en `DetalleMiReporte`/`DetalleGestionReporte` conserva el reporte visible con un aviso (`errorDeRecarga` en `useMiReporte`/`useDetalleGestion`; `useCarga` no cambia); `puedeComentar` pasa a `auth/model/permisos.ts` (`puedeComentarReportes`, con test).
 
 | Métrica | Antes | Después |
 |---|---|---|
 | `npm run typecheck` | 0 errores | 0 errores |
-| `npm test` (con la guarda) | 232 tests en 34 archivos | 269 tests en 45 archivos |
+| `npm test` (con la guarda) | 232 tests en 34 archivos | 275 tests en 46 archivos (269/45 antes de las observaciones) |
 | `npm run lint`: código / avisos que no son de capas | 0 / 0 | 0 / 0 |
 | Avisos de capas (`contar-capas.mjs`) | **44 en 18 archivos** | **24 en 8 archivos** |
 | `gatewayDesdeUi` / `clienteHttp` / `otraFeature` | 29 / 14 / 1 | 16 / 8 / 0 |

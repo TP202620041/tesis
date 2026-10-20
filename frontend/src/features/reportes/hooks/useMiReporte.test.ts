@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { ApiError } from '@/lib/api/errors';
 import type { HistorialEntrada } from '@/lib/types/domain';
 import { historialDeReporte, misReportes } from '../api';
@@ -24,7 +24,7 @@ describe('useMiReporte', () => {
     const { result } = renderHook(() => useMiReporte(2));
 
     await waitFor(() => expect(result.current.estado).toBe('listo'));
-    expect(result.current.datos).toEqual({ reporte: DOS, entradas: [ENTRADA] });
+    expect(result.current.datos).toEqual({ reporte: DOS, entradas: [ENTRADA], errorDeRecarga: null });
     expect(historialDeReporte).toHaveBeenCalledWith(2);
   });
 
@@ -43,6 +43,36 @@ describe('useMiReporte', () => {
     const { result } = renderHook(() => useMiReporte(1));
 
     await waitFor(() => expect(result.current.estado).toBe('listo'));
-    expect(result.current.datos).toEqual({ reporte: UNO, entradas: [] });
+    expect(result.current.datos).toEqual({ reporte: UNO, entradas: [], errorDeRecarga: null });
+  });
+
+  it('si falla una recarga conserva el reporte visible y avisa', async () => {
+    vi.mocked(misReportes)
+      .mockResolvedValueOnce([UNO])
+      .mockRejectedValueOnce(new ApiError(500, 'Fallo del servidor'))
+      .mockResolvedValueOnce([{ ...UNO, estado: 'CANCELADO' }]);
+    vi.mocked(historialDeReporte).mockResolvedValue([ENTRADA]);
+    const { result } = renderHook(() => useMiReporte(1));
+    await waitFor(() => expect(result.current.estado).toBe('listo'));
+
+    act(() => result.current.recargar());
+
+    await waitFor(() => expect(result.current.datos?.errorDeRecarga).not.toBeNull());
+    expect(result.current.estado).toBe('listo');
+    expect(result.current.datos?.reporte).toEqual(UNO);
+    expect(result.current.datos?.errorDeRecarga?.mensaje).toBe('Fallo del servidor');
+
+    // Una recarga que vuelve a funcionar limpia el aviso.
+    act(() => result.current.recargar());
+    await waitFor(() => expect(result.current.datos?.reporte?.estado).toBe('CANCELADO'));
+    expect(result.current.datos?.errorDeRecarga).toBeNull();
+  });
+
+  it('un fallo en la primera carga sigue siendo error (no hay datos que conservar)', async () => {
+    vi.mocked(misReportes).mockRejectedValue(new ApiError(500, 'Fallo'));
+    vi.mocked(historialDeReporte).mockResolvedValue([]);
+    const { result } = renderHook(() => useMiReporte(1));
+
+    await waitFor(() => expect(result.current.estado).toBe('error'));
   });
 });

@@ -12,7 +12,7 @@ vi.mock('next/link', () => ({
     <a href={href}>{children}</a>
   ),
 }));
-vi.mock('../hooks/useSesion', () =>({ useSesion: vi.fn() }));
+vi.mock('../hooks/useSesion', () => ({ useSesion: vi.fn() }));
 
 const sesion = vi.mocked(useSesion);
 

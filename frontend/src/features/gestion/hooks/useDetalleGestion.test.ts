@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { renderHook, waitFor } from '@testing-library/react';
-import { ApiError } from '@/lib/api/errors';
+import { act, renderHook, waitFor } from '@testing-library/react';
+import { ApiError, NetworkError } from '@/lib/api/errors';
 import type { HistorialEntrada } from '@/lib/types/domain';
 import { bandeja, historial } from '../api';
 import { FILTROS_BANDEJA_VACIOS, type ReporteGestion } from '../model/tipos';
@@ -23,7 +23,11 @@ describe('useDetalleGestion', () => {
     const { result } = renderHook(() => useDetalleGestion(4));
 
     await waitFor(() => expect(result.current.estado).toBe('listo'));
-    expect(result.current.datos).toEqual({ reporte: DEL_DISTRITO, entradas: [ENTRADA] });
+    expect(result.current.datos).toEqual({
+      reporte: DEL_DISTRITO,
+      entradas: [ENTRADA],
+      errorDeRecarga: null,
+    });
     expect(bandeja).toHaveBeenCalledWith(FILTROS_BANDEJA_VACIOS);
   });
 
@@ -33,6 +37,21 @@ describe('useDetalleGestion', () => {
     const { result } = renderHook(() => useDetalleGestion(99));
 
     await waitFor(() => expect(result.current.estado).toBe('listo'));
-    expect(result.current.datos).toEqual({ reporte: null, entradas: [] });
+    expect(result.current.datos).toEqual({ reporte: null, entradas: [], errorDeRecarga: null });
+  });
+
+  it('si falla la recarga tras cambiar el estado, conserva el reporte y avisa', async () => {
+    vi.mocked(bandeja)
+      .mockResolvedValueOnce([DEL_DISTRITO])
+      .mockRejectedValueOnce(new NetworkError());
+    vi.mocked(historial).mockResolvedValue([ENTRADA]);
+    const { result } = renderHook(() => useDetalleGestion(4));
+    await waitFor(() => expect(result.current.estado).toBe('listo'));
+
+    act(() => result.current.recargar());
+
+    await waitFor(() => expect(result.current.datos?.errorDeRecarga).not.toBeNull());
+    expect(result.current.estado).toBe('listo');
+    expect(result.current.datos?.reporte).toEqual(DEL_DISTRITO);
   });
 });

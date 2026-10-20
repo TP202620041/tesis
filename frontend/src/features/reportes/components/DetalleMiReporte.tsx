@@ -85,6 +85,13 @@ export function DetalleMiReporte({
         </span>
       </header>
 
+      {carga.datos?.errorDeRecarga && (
+        <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-800 dark:bg-red-950 dark:text-red-200">
+          No se pudo actualizar el reporte: {carga.datos.errorDeRecarga.mensaje} Lo que ves puede
+          no estar al día.
+        </p>
+      )}
+
       {/* Explica el estado en los terminos del vecino, no del funcionario. */}
       <p className="rounded-md bg-slate-100 px-3 py-2 text-sm text-slate-700 dark:bg-slate-800 dark:text-slate-300">
         {explicacionDeEstado(estado)}

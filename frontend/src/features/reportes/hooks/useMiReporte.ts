@@ -1,5 +1,7 @@
 'use client';
 
+import { useRef } from 'react';
+import { mensajeDeError, type MensajeDeError } from '@/lib/api/errors';
 import { useCarga } from '@/lib/hooks/useCarga';
 import type { HistorialEntrada } from '@/lib/types/domain';
 import { historialDeReporte, misReportes } from '../api';
@@ -9,6 +11,11 @@ export interface MiReporte {
   /** `null` si no esta entre los reportes del ciudadano (no es suyo o no existe). */
   reporte: ReporteResumen | null;
   entradas: HistorialEntrada[];
+  /**
+   * Fallo de una RECARGA (tras editar o retirar): se conservan los datos que
+   * ya se veian y se avisa, en vez de pasar a "Reporte no disponible".
+   */
+  errorDeRecarga: MensajeDeError | null;
 }
 
 /**
@@ -20,11 +27,28 @@ export interface MiReporte {
  * que decirle. Un historial que falla se muestra vacio.
  */
 export function useMiReporte(reporteId: number) {
+  // Ultimos datos buenos de ESTE reporte, para sobrevivir a una recarga fallida.
+  const ultimos = useRef<{ reporteId: number; datos: MiReporte } | null>(null);
+
   return useCarga<MiReporte>(async () => {
-    const [lista, entradas] = await Promise.all([
-      misReportes(),
-      historialDeReporte(reporteId).catch(() => [] as HistorialEntrada[]),
-    ]);
-    return { reporte: lista.find((r) => r.id === reporteId) ?? null, entradas };
+    try {
+      const [lista, entradas] = await Promise.all([
+        misReportes(),
+        historialDeReporte(reporteId).catch(() => [] as HistorialEntrada[]),
+      ]);
+      const datos: MiReporte = {
+        reporte: lista.find((r) => r.id === reporteId) ?? null,
+        entradas,
+        errorDeRecarga: null,
+      };
+      ultimos.current = { reporteId, datos };
+      return datos;
+    } catch (e) {
+      const previos = ultimos.current;
+      if (previos?.reporteId === reporteId && previos.datos.reporte) {
+        return { ...previos.datos, errorDeRecarga: mensajeDeError(e) };
+      }
+      throw e;
+    }
   }, [reporteId]);
 }

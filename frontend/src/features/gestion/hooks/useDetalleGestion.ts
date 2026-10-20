@@ -1,5 +1,7 @@
 'use client';
 
+import { useRef } from 'react';
+import { mensajeDeError, type MensajeDeError } from '@/lib/api/errors';
 import { useCarga } from '@/lib/hooks/useCarga';
 import type { HistorialEntrada } from '@/lib/types/domain';
 import { bandeja, historial } from '../api';
@@ -9,6 +11,11 @@ export interface DetalleGestion {
   /** `null` si no esta en la bandeja: no es de su distrito o no existe. */
   reporte: ReporteGestion | null;
   entradas: HistorialEntrada[];
+  /**
+   * Fallo de una RECARGA (tras cambiar el estado): se conservan los datos que
+   * ya se veian y se avisa, en vez de pasar a "Reporte no disponible".
+   */
+  errorDeRecarga: MensajeDeError | null;
 }
 
 /**
@@ -21,11 +28,28 @@ export interface DetalleGestion {
  * falla se muestra vacio.
  */
 export function useDetalleGestion(reporteId: number) {
+  // Ultimos datos buenos de ESTE reporte, para sobrevivir a una recarga fallida.
+  const ultimos = useRef<{ reporteId: number; datos: DetalleGestion } | null>(null);
+
   return useCarga<DetalleGestion>(async () => {
-    const [lista, entradas] = await Promise.all([
-      bandeja(FILTROS_BANDEJA_VACIOS),
-      historial(reporteId).catch(() => [] as HistorialEntrada[]),
-    ]);
-    return { reporte: lista.find((r) => r.id === reporteId) ?? null, entradas };
+    try {
+      const [lista, entradas] = await Promise.all([
+        bandeja(FILTROS_BANDEJA_VACIOS),
+        historial(reporteId).catch(() => [] as HistorialEntrada[]),
+      ]);
+      const datos: DetalleGestion = {
+        reporte: lista.find((r) => r.id === reporteId) ?? null,
+        entradas,
+        errorDeRecarga: null,
+      };
+      ultimos.current = { reporteId, datos };
+      return datos;
+    } catch (e) {
+      const previos = ultimos.current;
+      if (previos?.reporteId === reporteId && previos.datos.reporte) {
+        return { ...previos.datos, errorDeRecarga: mensajeDeError(e) };
+      }
+      throw e;
+    }
   }, [reporteId]);
 }

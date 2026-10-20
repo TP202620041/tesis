@@ -2,6 +2,7 @@
 
 import { use } from 'react';
 import { useSesion } from '@/features/auth/hooks/useSesion';
+import { puedeComentarReportes } from '@/features/auth/model/permisos';
 import { DetalleReportePublico } from '@/features/reportes/components/DetalleReportePublico';
 
 /**
@@ -17,8 +18,9 @@ import { DetalleReportePublico } from '@/features/reportes/components/DetalleRep
 export default function ReportePublicoPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const sesion = useSesion();
-  // Comentar exige sesion de ciudadano; el funcionario gestiona, no opina.
-  const puedeComentar = sesion.estado === 'autenticado' && sesion.usuario.rol === 'CIUDADANO';
+  const puedeComentar = puedeComentarReportes(
+    sesion.estado === 'autenticado' ? sesion.usuario : null,
+  );
 
   return <DetalleReportePublico reporteId={Number(id)} puedeComentar={puedeComentar} />;
 }
