@@ -3,6 +3,7 @@ import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { NetworkError } from '@/lib/api/errors';
+import { generacionDeSesion } from '@/lib/auth/token-storage';
 import { colaDeReportes } from '@/pwa/colaReportes';
 import { crearReporte } from '../api';
 import type { ReporteEnCola } from '../model/colaOffline';
@@ -29,6 +30,9 @@ function enCola(clave: string, usuarioId: number, creadoEn = new Date().toISOStr
     motivo: null,
   };
 }
+
+/** Ana identificada en la sesion vigente. */
+const ana = () => ({ usuarioId: 7, generacion: generacionDeSesion() });
 
 const CREADO = {
   id: 1,
@@ -82,7 +86,7 @@ describe('useResumenDeLaCola', () => {
 describe('useSincronizacionAutomatica', () => {
   it('con pendientes propios intenta al montarse y otra vez al volver la conexion', async () => {
     await colaDeReportes.guardar(enCola('k1', 7));
-    renderHook(() => useSincronizacionAutomatica(7));
+    renderHook(() => useSincronizacionAutomatica(ana()));
     await waitFor(() => expect(crearReporte).toHaveBeenCalledTimes(1));
 
     await act(async () => {
@@ -100,7 +104,7 @@ describe('useSincronizacionAutomatica', () => {
   it('al enviarse, el reporte sale de la cola', async () => {
     vi.mocked(crearReporte).mockResolvedValue(CREADO);
     await colaDeReportes.guardar(enCola('k1', 7));
-    renderHook(() => useSincronizacionAutomatica(7));
+    renderHook(() => useSincronizacionAutomatica(ana()));
 
     await waitFor(async () => expect(await colaDeReportes.listar()).toEqual([]));
   });
@@ -109,7 +113,7 @@ describe('useSincronizacionAutomatica', () => {
     const intervalo = vi.spyOn(window, 'setInterval');
     const escuchar = vi.spyOn(window, 'addEventListener');
     await colaDeReportes.guardar(enCola('ajeno', 8));
-    renderHook(() => useSincronizacionAutomatica(7));
+    renderHook(() => useSincronizacionAutomatica(ana()));
     renderHook(() => useSincronizacionAutomatica(null));
     await new Promise((r) => setTimeout(r, 50));
 
@@ -123,7 +127,7 @@ describe('useSincronizacionAutomatica', () => {
     const quitarDeDocumento = vi.spyOn(document, 'removeEventListener');
     const limpiarIntervalo = vi.spyOn(window, 'clearInterval');
     await colaDeReportes.guardar(enCola('k1', 7));
-    const { unmount } = renderHook(() => useSincronizacionAutomatica(7));
+    const { unmount } = renderHook(() => useSincronizacionAutomatica(ana()));
     await waitFor(() => expect(crearReporte).toHaveBeenCalledTimes(1));
 
     unmount();

@@ -136,6 +136,7 @@ export const colaDeReportes: AlmacenDeCola = {
   },
 
   async reemplazar(idempotencyKey, nuevo) {
+    if (!hayIndexedDb()) return;
     await enTransaccion('readwrite', (a) => {
       a.delete(idempotencyKey);
       a.put(nuevo);

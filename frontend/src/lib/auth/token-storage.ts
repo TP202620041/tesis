@@ -103,6 +103,18 @@ export function borrarToken(): void {
   sesionCambio();
 }
 
+/**
+ * Borra el token solo si la sesion sigue siendo la de la generacion
+ * `generacion` (la que habia cuando salio la peticion). Un 401 que llega
+ * tarde, despues de que otra persona inicio sesion, no debe borrar el token
+ * NUEVO. Devuelve `true` si lo borro.
+ */
+export function borrarTokenSi(generacionEsperada: number): boolean {
+  if (generacion !== generacionEsperada) return false;
+  borrarToken();
+  return true;
+}
+
 export function haySesion(): boolean {
   return leerToken() !== null;
 }

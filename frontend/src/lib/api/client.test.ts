@@ -104,6 +104,22 @@ describe('apiFetch', () => {
     expect(assign).not.toHaveBeenCalled();
   });
 
+  it('un 401 tardío de una sesión anterior no borra el token nuevo ni navega', async () => {
+    const assign = vi.fn();
+    vi.stubGlobal('location', { pathname: '/mis-reportes', search: '', assign });
+    let responder!: (r: Response) => void;
+    fetchFalso.mockReturnValue(new Promise((r) => (responder = r)));
+
+    const peticionVieja = apiFetch('/api/reportes/mis-reportes');
+    // Mientras esperaba, se cerro la sesion y entro otra persona.
+    guardarToken('token-de-otra-persona');
+    responder(new Response(null, { status: 401 }));
+
+    await expect(peticionVieja).rejects.toMatchObject({ status: 401 });
+    expect(leerToken()).toBe('token-de-otra-persona');
+    expect(assign).not.toHaveBeenCalled();
+  });
+
   it('sigue interpretando JSON tras extraer la ejecución común', async () => {
     fetchFalso.mockResolvedValue(Response.json({ id: 7 }));
     await expect(apiFetch<{ id: number }>('/api/auth/me')).resolves.toEqual({ id: 7 });

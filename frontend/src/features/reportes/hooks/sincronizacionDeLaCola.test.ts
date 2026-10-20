@@ -91,7 +91,7 @@ describe('sincronizarCola', () => {
     await encolar('k1');
     const enviar = vi.fn().mockResolvedValue(creado(41));
 
-    const resultado = await sincronizarCola(ANA, undefined, deps(enviar));
+    const resultado = await sincronizarCola(ANA, 1, undefined, deps(enviar));
 
     expect(enviar).toHaveBeenCalledWith(expect.objectContaining({ idempotencyKey: 'k1' }));
     expect(resultado).toEqual({ enviados: [creado(41)], detenidaPor: null });
@@ -103,7 +103,7 @@ describe('sincronizarCola', () => {
     await encolar('k2', ANA, en(1));
     const enviar = vi.fn().mockRejectedValue(new NetworkError());
 
-    const resultado = await sincronizarCola(ANA, undefined, deps(enviar, { ahora: en(2) }));
+    const resultado = await sincronizarCola(ANA, 1, undefined, deps(enviar, { ahora: en(2) }));
 
     expect(resultado.detenidaPor).toBe('sin-conexion');
     expect(enviar).toHaveBeenCalledTimes(1);
@@ -114,14 +114,14 @@ describe('sincronizarCola', () => {
     await encolar('k1');
     const enviar = vi.fn().mockRejectedValue(new ApiError(401, 'Sesión expirada'));
 
-    const resultado = await sincronizarCola(ANA, undefined, deps(enviar));
+    const resultado = await sincronizarCola(ANA, 1, undefined, deps(enviar));
 
     expect(resultado.detenidaPor).toBe('sin-sesion');
     expect((await colaDeReportes.listar())[0]).toMatchObject({ idempotencyKey: 'k1', estado: 'pendiente' });
 
     // Tras volver a iniciar sesion, el mismo reporte se envia y sale de la cola.
     const conSesion = vi.fn().mockResolvedValue(creado(42));
-    await sincronizarCola(ANA, undefined, deps(conSesion, { generacion: () => 2 }));
+    await sincronizarCola(ANA, 2, undefined, deps(conSesion, { generacion: () => 2 }));
     expect(conSesion).toHaveBeenCalledWith(expect.objectContaining({ idempotencyKey: 'k1' }));
     expect(await claves()).toEqual([]);
   });
@@ -130,7 +130,7 @@ describe('sincronizarCola', () => {
     await encolar('k1');
     const enviar = vi.fn().mockRejectedValue(new ApiError(status, 'Transitorio'));
 
-    expect((await sincronizarCola(ANA, undefined, deps(enviar))).detenidaPor).toBe('sin-conexion');
+    expect((await sincronizarCola(ANA, 1, undefined, deps(enviar))).detenidaPor).toBe('sin-conexion');
     expect((await colaDeReportes.listar())[0]?.estado).toBe('pendiente');
   });
 
@@ -142,7 +142,7 @@ describe('sincronizarCola', () => {
       .mockRejectedValueOnce(new ApiError(409, 'La ubicación está fuera de Lima Metropolitana'))
       .mockResolvedValueOnce(creado(43));
 
-    const resultado = await sincronizarCola(ANA, undefined, deps(enviar, { ahora: en(2) }));
+    const resultado = await sincronizarCola(ANA, 1, undefined, deps(enviar, { ahora: en(2) }));
 
     expect(resultado.enviados).toEqual([creado(43)]);
     const cola = await colaDeReportes.listar();
@@ -155,7 +155,7 @@ describe('sincronizarCola', () => {
 
     // Un rechazado no se reintenta solo; el ciudadano lo descarta.
     const otra = vi.fn();
-    await sincronizarCola(ANA, undefined, deps(otra, { ahora: en(3) }));
+    await sincronizarCola(ANA, 1, undefined, deps(otra, { ahora: en(3) }));
     expect(otra).not.toHaveBeenCalled();
     await descartarDeLaCola('k1', { almacen: colaDeReportes });
     expect(await claves()).toEqual([]);
@@ -169,7 +169,7 @@ describe('sincronizarCola', () => {
       throw new ApiError(409, 'Ya reportaste este daño');
     });
 
-    await sincronizarCola(ANA, undefined, deps(enviar));
+    await sincronizarCola(ANA, 1, undefined, deps(enviar));
 
     expect(await claves()).toEqual([]);
   });
@@ -179,7 +179,7 @@ describe('sincronizarCola', () => {
     await encolar('de-luis', LUIS);
     const enviar = vi.fn().mockResolvedValue(creado(44));
 
-    await sincronizarCola(LUIS, undefined, deps(enviar));
+    await sincronizarCola(LUIS, 1, undefined, deps(enviar));
 
     expect(enviar).toHaveBeenCalledTimes(1);
     expect(enviar).toHaveBeenCalledWith(expect.objectContaining({ idempotencyKey: 'de-luis' }));
@@ -198,6 +198,7 @@ describe('sincronizarCola', () => {
 
     const resultado = await sincronizarCola(
       ANA,
+      1,
       undefined,
       deps(enviar, { ahora: en(2), generacion: () => generacion }),
     );
@@ -205,6 +206,45 @@ describe('sincronizarCola', () => {
     expect(resultado.detenidaPor).toBe('interrumpida');
     expect(enviar).toHaveBeenCalledTimes(1);
     expect(await claves()).toEqual(['k2']);
+  });
+
+  it('si la sesion ya no es la identificada al EMPEZAR, no envia nada', async () => {
+    await encolar('k1');
+    const enviar = vi.fn();
+
+    // Se identifico en la generacion 1, pero cuando arranca ya es la 2.
+    const resultado = await sincronizarCola(ANA, 1, undefined, deps(enviar, { generacion: () => 2 }));
+
+    expect(resultado.detenidaPor).toBe('interrumpida');
+    expect(enviar).not.toHaveBeenCalled();
+  });
+
+  it('una llamada encolada tras una cancelada comprueba la sesion al empezar', async () => {
+    await encolar('k1');
+    let generacion = 1;
+    let soltar!: () => void;
+    const primera = new AbortController();
+    const enviar = vi.fn(
+      () =>
+        new Promise<ReporteCreado>((r) => {
+          soltar = () => r(creado(49));
+        }),
+    );
+    const d = deps(enviar, { generacion: () => generacion });
+
+    const enVuelo = sincronizarCola(ANA, 1, primera.signal, d);
+    await vi.waitFor(() => expect(enviar).toHaveBeenCalledTimes(1));
+    // Se desmonta y, mientras la primera sigue en vuelo, cambia la sesion;
+    // la segunda llamada queda encolada detras.
+    primera.abort();
+    generacion = 2;
+    await encolar('k2', ANA, en(1));
+    const encolada = sincronizarCola(ANA, 1, undefined, d);
+    soltar();
+
+    await enVuelo;
+    expect((await encolada).detenidaPor).toBe('interrumpida');
+    expect(enviar).toHaveBeenCalledTimes(1);
   });
 
   it('si se aborta la señal (desmontaje), no envia el resto', async () => {
@@ -216,7 +256,7 @@ describe('sincronizarCola', () => {
       return creado(46);
     });
 
-    const resultado = await sincronizarCola(ANA, control.signal, deps(enviar, { ahora: en(2) }));
+    const resultado = await sincronizarCola(ANA, 1, control.signal, deps(enviar, { ahora: en(2) }));
 
     expect(resultado.detenidaPor).toBe('interrumpida');
     expect(enviar).toHaveBeenCalledTimes(1);
@@ -227,8 +267,8 @@ describe('sincronizarCola', () => {
     const enviar = vi.fn().mockResolvedValue(creado(47));
 
     const [a, b] = await Promise.all([
-      sincronizarCola(ANA, undefined, deps(enviar)),
-      sincronizarCola(ANA, undefined, deps(enviar)),
+      sincronizarCola(ANA, 1, undefined, deps(enviar)),
+      sincronizarCola(ANA, 1, undefined, deps(enviar)),
     ]);
 
     expect(a).toBe(b);
@@ -241,7 +281,7 @@ describe('caducidad de la clave (48 h)', () => {
     await encolar('k1');
     const enviar = vi.fn();
 
-    await sincronizarCola(ANA, undefined, deps(enviar, { ahora: en(49) }));
+    await sincronizarCola(ANA, 1, undefined, deps(enviar, { ahora: en(49) }));
 
     expect(enviar).not.toHaveBeenCalled();
     expect(await claves()).toEqual(['k1']);
@@ -272,7 +312,7 @@ describe('caducidad de la clave (48 h)', () => {
     await colaDeReportes.marcarRechazado('rechazado-viejo', 'Fuera de Lima');
     await encolar('reciente', ANA, en(31 * 24));
 
-    await sincronizarCola(ANA, undefined, deps(vi.fn().mockResolvedValue(creado(48)), {
+    await sincronizarCola(ANA, 1, undefined, deps(vi.fn().mockResolvedValue(creado(48)), {
       ahora: en(31 * 24 + 1),
     }));
 

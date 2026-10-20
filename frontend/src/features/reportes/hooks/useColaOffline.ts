@@ -93,7 +93,10 @@ export interface ResultadoDeSincronizacion {
 }
 
 /** Una sincronizacion en curso por usuario (no global: no se mezclan sesiones). */
-const enCurso = new Map<number, { promesa: Promise<ResultadoDeSincronizacion>; senal?: AbortSignal }>();
+const enCurso = new Map<
+  number,
+  { promesa: Promise<ResultadoDeSincronizacion>; generacion: number; senal?: AbortSignal }
+>();
 
 /**
  * Reenvia, del mas antiguo al mas nuevo, los reportes de `usuarioId` que se
@@ -105,39 +108,49 @@ const enCurso = new Map<number, { promesa: Promise<ResultadoDeSincronizacion>; s
  *   la UI pide iniciar sesion y entonces se reenvia con el token nuevo.
  * - Otro 4xx: se marca `rechazado` con el motivo y se sigue con el resto.
  *
- * **Nunca envia con la sesion de otro:** lee la generacion de sesion al
- * empezar y la compara antes de CADA envio; si cambio (se cerro la sesion,
- * entro otra persona, otra pestaña cambio el token) o `senal` se aborto, se
- * detiene sin enviar el resto.
+ * **Nunca envia con la sesion de otro:** `generacionEsperada` es la
+ * generacion de sesion en la que se identifico a `usuarioId` (la devuelve
+ * `useIdentidadEnSegundoPlano`, tomada ANTES de preguntar a `/me`). Se
+ * compara con la actual al empezar y antes de CADA envio; si difiere (se
+ * cerro la sesion, entro otra persona, otra pestaña cambio el token) o
+ * `senal` se aborto, se detiene sin enviar nada mas. No depende de cuando
+ * React confirme los cambios ni de si esta llamada quedo encolada detras de
+ * otra.
  *
  * Antes de empezar purga los rechazados/caducados de mas de 30 dias.
  */
 export function sincronizarCola(
   usuarioId: number,
+  generacionEsperada: number,
   senal?: AbortSignal,
   deps: Dependencias = POR_DEFECTO,
 ): Promise<ResultadoDeSincronizacion> {
   const actual = enCurso.get(usuarioId);
-  if (actual && !actual.senal?.aborted) return actual.promesa;
+  if (actual && !actual.senal?.aborted && actual.generacion === generacionEsperada) {
+    return actual.promesa;
+  }
 
-  // Si la anterior se cancelo, la nueva arranca cuando esa termine.
+  // Si la anterior se cancelo (o era de otra sesion), la nueva arranca cuando
+  // esa termine, y vuelve a comprobar la sesion al empezar.
   const previa = actual?.promesa.catch(() => undefined) ?? Promise.resolve();
   const promesa = previa
-    .then(() => sincronizar(usuarioId, senal, deps))
+    .then(() => sincronizar(usuarioId, generacionEsperada, senal, deps))
     .finally(() => {
       if (enCurso.get(usuarioId)?.promesa === promesa) enCurso.delete(usuarioId);
     });
-  enCurso.set(usuarioId, { promesa, senal });
+  enCurso.set(usuarioId, { promesa, generacion: generacionEsperada, senal });
   return promesa;
 }
 
 async function sincronizar(
   usuarioId: number,
+  generacion: number,
   senal: AbortSignal | undefined,
   deps: Dependencias,
 ): Promise<ResultadoDeSincronizacion> {
-  const generacion = deps.generacion();
   const enviados: ReporteCreado[] = [];
+  const sesionVigente = () => !senal?.aborted && deps.generacion() === generacion;
+  if (!sesionVigente()) return { enviados, detenidaPor: 'interrumpida' };
   const ahora = deps.ahora();
   const cola = await deps.almacen.listar();
 
@@ -147,9 +160,7 @@ async function sincronizar(
 
   const aEnviar = pendientesDe(cola, usuarioId).filter((r) => seReenviaSolo(r, ahora));
   for (const enCola of aEnviar) {
-    if (senal?.aborted || deps.generacion() !== generacion) {
-      return { enviados, detenidaPor: 'interrumpida' };
-    }
+    if (!sesionVigente()) return { enviados, detenidaPor: 'interrumpida' };
 
     let creado: ReporteCreado;
     try {
@@ -285,13 +296,19 @@ export function useEncolarReporte(usuarioId: number) {
 }
 
 /**
- * US-06: reenvia sola la cola de `usuarioId` al montarse, al volver la
- * conexion (`online`), al volver a la pestaña y cada
- * {@link INTERVALO_DE_REINTENTO} mientras queden reenviables. Con `null` (sin
- * sesion) no hace nada. Al desmontarse (o cambiar de usuario) cancela el
- * bucle en curso con un `AbortSignal`.
+ * US-06: reenvia sola la cola del usuario identificado al montarse, al
+ * volver la conexion (`online`), al volver a la pestaña y cada
+ * {@link INTERVALO_DE_REINTENTO} mientras queden reenviables. `generacion` es
+ * la generacion de sesion en que se identifico al usuario: el bucle no envia
+ * nada si ya no es la vigente. Con `null` (sin sesion) no hace nada. Al
+ * desmontarse (o cambiar de usuario o de sesion) cancela el bucle en curso
+ * con un `AbortSignal`.
  */
-export function useSincronizacionAutomatica(usuarioId: number | null) {
+export function useSincronizacionAutomatica(
+  identidad: { usuarioId: number; generacion: number } | null,
+) {
+  const usuarioId = identidad?.usuarioId ?? null;
+  const generacion = identidad?.generacion ?? null;
   const hayReenviables =
     useCola(
       (cola) => {
@@ -303,10 +320,10 @@ export function useSincronizacionAutomatica(usuarioId: number | null) {
     ) ?? false;
 
   useEffect(() => {
-    if (usuarioId == null || !hayReenviables) return;
+    if (usuarioId == null || generacion == null || !hayReenviables) return;
     const control = new AbortController();
     const intentar = () => {
-      void sincronizarCola(usuarioId, control.signal).catch(() => {
+      void sincronizarCola(usuarioId, generacion, control.signal).catch(() => {
         // Un fallo inesperado no debe romper la pantalla: se reintenta luego.
       });
     };
@@ -324,5 +341,5 @@ export function useSincronizacionAutomatica(usuarioId: number | null) {
       document.removeEventListener('visibilitychange', alVolverALaPestana);
       window.clearInterval(intervalo);
     };
-  }, [usuarioId, hayReenviables]);
+  }, [usuarioId, generacion, hayReenviables]);
 }

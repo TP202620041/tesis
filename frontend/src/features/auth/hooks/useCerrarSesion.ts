@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import {
   antesDeCerrarSesion,
   hayPasosAntesDeCerrarSesion,
@@ -23,16 +23,24 @@ import { cerrarSesion } from '../api';
  */
 export function useCerrarSesion(): () => void {
   const router = useRouter();
+  const cerrando = useRef(false);
   return useCallback(() => {
+    // Doble clic mientras se espera una pregunta previa: se ignora.
+    if (cerrando.current) return;
     const cerrar = () => {
       cerrarSesion();
       void borrarCacheEntreOrigenes();
       router.replace('/login');
+      cerrando.current = false;
     };
     // US-06: si otra parte de la app registro un paso previo (p. ej. preguntar
-    // por reportes sin enviar), se espera a que el usuario decida. Sin pasos
-    // previos el cierre es inmediato, como siempre.
-    if (hayPasosAntesDeCerrarSesion()) void antesDeCerrarSesion().then(cerrar);
-    else cerrar();
+    // por reportes sin enviar), se espera a que el usuario decida (con tope:
+    // nunca se cuelga). Sin pasos previos el cierre es inmediato, como siempre.
+    if (hayPasosAntesDeCerrarSesion()) {
+      cerrando.current = true;
+      void antesDeCerrarSesion().then(cerrar);
+    } else {
+      cerrar();
+    }
   }, [router]);
 }

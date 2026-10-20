@@ -223,10 +223,19 @@ Reglas de la cola:
   ciudadano lo descarta. Sin red, 5xx, 408 o 429, sigue pendiente.
 - **Nunca sale con la sesión de otro**: `token-storage` lleva una *generación
   de sesión* que sube al guardar o borrar el token (también desde otra
-  pestaña, por el evento `storage`). El bucle de reenvío la lee al empezar y
-  la compara antes de cada envío; si cambió, o si la pantalla se desmontó
-  (`AbortSignal`), se detiene sin enviar el resto. Además cada reporte guarda
-  quién lo creó y solo se reenvía con la sesión de esa persona.
+  pestaña, por el evento `storage`). `/me` se pregunta tomando antes la
+  generación, y el bucle de reenvío recibe esa generación (la de la sesión en
+  que se identificó al usuario) y la compara **al empezar** y antes de cada
+  envío; si cambió, o si la pantalla se desmontó (`AbortSignal`), se detiene
+  sin enviar nada más. Además cada reporte guarda quién lo creó y solo se
+  reenvía con la sesión de esa persona.
+- **Un 401 tardío no afecta a otra sesión**: el cliente HTTP toma la
+  generación antes del `fetch` y, ante un 401, borra el token (y redirige)
+  solo si la sesión sigue siendo la misma (`borrarTokenSi`). Un 401 de una
+  petición de la sesión anterior no cierra la de quien entró después.
+- **«No sé quién eres» no es «no hay sesión»**: si `/me` falla por red o 5xx,
+  el sincronizador no da la sesión por perdida; vuelve a preguntar al volver
+  la conexión o la pestaña. Solo un 401 cuenta como sesión inválida.
 - **Sesión vencida (decisión del usuario)**: un 401 conserva el reporte. El
   trabajo en segundo plano **nunca lleva al login**: el `/me` del sincronizador
   y el POST del reenvío usan `redirigirEn401: false` (el cliente borra el
@@ -250,7 +259,12 @@ Reglas de la cola:
   pregunta «Tienes N reportes sin enviar en este dispositivo. Se enviarán
   cuando vuelvas a entrar. [Conservar] [Descartarlos]». `auth` no conoce la
   cola: quien compone la app registra ese paso en
-  `lib/hooks/antesDeCerrarSesion.ts` y `useCerrarSesion` lo espera. Los
+  `lib/hooks/antesDeCerrarSesion.ts` y `useCerrarSesion` lo espera. El cierre
+  **nunca se cuelga**: Escape equivale a «Conservar»; si la pregunta queda
+  abierta y el componente se desmonta o la cola se vacía, se responde
+  «Conservar»; un segundo intento de cierre reutiliza la misma pregunta; y
+  `antesDeCerrarSesion` tiene un tope de espera (2 min) tras el cual cierra
+  igual. Los
   rechazados y caducados se purgan solos a los 30 días. **Riesgo aceptado**: si
   se elige «Conservar», los datos del reporte (ubicación, descripción y foto)
   quedan en el IndexedDB del navegador hasta que su dueño vuelva a entrar o

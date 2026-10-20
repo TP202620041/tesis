@@ -1,6 +1,6 @@
 'use client';
 
-import { useSyncExternalStore } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 import { useCarga } from '@/lib/hooks/useCarga';
 import {
   generacionDeSesion,
@@ -21,19 +21,50 @@ export function useHaySesion(): boolean {
   return haySesion();
 }
 
+/** Usuario identificado y la generacion de sesion en la que se identifico. */
+export interface IdentidadEnSegundoPlano {
+  usuario: Usuario;
+  /**
+   * Generacion de sesion tomada ANTES de preguntar a `/me`. Quien actue en
+   * nombre de este usuario la compara con la actual: si difiere, la sesion
+   * ya no es la que se identifico.
+   */
+  generacion: number;
+}
+
 /**
- * Usuario de la sesion para tareas en segundo plano (US-06), sin llevar
- * nunca al login: con un token vencido el resultado es `null` (y el token se
- * borra). Consulta `/me` una sola vez por sesion, no en cada navegacion:
- * solo vuelve a preguntar cuando la sesion cambia.
+ * Identidad de la sesion para tareas en segundo plano (US-06), sin llevar
+ * nunca al login. Consulta `/me` una vez por sesion, no en cada navegacion.
  *
- * `undefined` mientras se averigua; `null` si no hay sesion valida.
+ * - `undefined`: todavia no se sabe. Incluye "no se pudo averiguar" (sin red
+ *   o 5xx): en ese caso se vuelve a preguntar al volver la conexion o la
+ *   pestaña, porque eso NO significa que no haya sesion.
+ * - `null`: no hay sesion valida (sin token, o `/me` dio 401 y el token se
+ *   borro).
  */
-export function useUsuarioEnSegundoPlano(): Usuario | null | undefined {
-  const generacion = useGeneracionDeSesion();
-  const carga = useCarga<Usuario | null>(
-    () => (haySesion() ? usuarioActualSinRedirigir() : Promise.resolve(null)),
-    [generacion],
-  );
+export function useIdentidadEnSegundoPlano(): IdentidadEnSegundoPlano | null | undefined {
+  const generacionActual = useGeneracionDeSesion();
+  const carga = useCarga<IdentidadEnSegundoPlano | null>(async () => {
+    if (!haySesion()) return null;
+    const generacion = generacionDeSesion();
+    const usuario = await usuarioActualSinRedirigir();
+    return usuario ? { usuario, generacion } : null;
+  }, [generacionActual]);
+
+  const { recargar } = carga;
+  const fallo = carga.estado === 'error';
+  useEffect(() => {
+    if (!fallo) return;
+    const reintentar = () => {
+      if (document.visibilityState === 'visible') recargar();
+    };
+    window.addEventListener('online', recargar);
+    document.addEventListener('visibilitychange', reintentar);
+    return () => {
+      window.removeEventListener('online', recargar);
+      document.removeEventListener('visibilitychange', reintentar);
+    };
+  }, [fallo, recargar]);
+
   return carga.estado === 'listo' ? carga.datos : undefined;
 }

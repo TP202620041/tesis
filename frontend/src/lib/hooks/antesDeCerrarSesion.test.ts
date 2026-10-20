@@ -27,4 +27,11 @@ describe('antesDeCerrarSesion', () => {
     await antesDeCerrarSesion();
     expect(orden).toEqual(['a', 'c']);
   });
+
+  it('si una guarda nunca responde, cierra igual al llegar al tope', async () => {
+    const quitar = registrarAntesDeCerrarSesion(() => new Promise<void>(() => {}));
+
+    await expect(antesDeCerrarSesion(20)).resolves.toBeUndefined();
+    quitar();
+  });
 });

@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect } from 'react';
 
 /** Rutas donde no tiene sentido pedir que inicie sesion: ya esta en eso. */
 const RUTAS_DE_ACCESO = ['/login', '/registro', '/recuperar-password'];
@@ -35,7 +36,8 @@ export function AvisoPendientesSinSesion({ cantidad, ruta }: { cantidad: number;
 
 /**
  * US-06, dispositivo compartido: pregunta al cerrar sesion que hacer con los
- * reportes propios que siguen en el dispositivo.
+ * reportes propios que siguen en el dispositivo. Escape equivale a
+ * "Conservar", la opcion por defecto (no se pierde nada).
  */
 export function DialogoCierreConPendientes({
   cantidad,
@@ -46,6 +48,14 @@ export function DialogoCierreConPendientes({
   onConservar: () => void;
   onDescartar: () => void;
 }) {
+  useEffect(() => {
+    const alPulsar = (evento: KeyboardEvent) => {
+      if (evento.key === 'Escape') onConservar();
+    };
+    document.addEventListener('keydown', alPulsar);
+    return () => document.removeEventListener('keydown', alPulsar);
+  }, [onConservar]);
+
   return (
     <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-slate-900/50 p-4">
       <div
