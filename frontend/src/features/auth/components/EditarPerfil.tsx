@@ -4,14 +4,20 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { AlertaError, Boton, Campo } from '@/components/ui/form';
 import { PREFERENCIAS_NOTIFICACION, type PreferenciaNotificacion, type Usuario } from '@/lib/types/domain';
+import { useConsentimientos } from '../hooks/useConsentimientos';
 import { useDistritosDeResidencia, usePerfil } from '../hooks/usePerfil';
 import { BotonCerrarSesion } from './BotonCerrarSesion';
 import { FotoDePerfil } from './FotoDePerfil';
+import { PrivacidadYConsentimientos } from './PrivacidadYConsentimientos';
 
-/** US-30: el ciudadano edita sus datos, su foto y como quiere recibir avisos. */
+/**
+ * US-30: el ciudadano edita sus datos, su foto y como quiere recibir avisos.
+ * NC-07b: y revisa sus consentimientos.
+ */
 export function EditarPerfil({ inicial }: { inicial: Usuario }) {
   const { usuario, guardando, guardado, error, guardar, cambiarPreferencia } = usePerfil(inicial);
   const distritos = useDistritosDeResidencia();
+  const consentimientos = useConsentimientos();
   const [nombre, setNombre] = useState(inicial.nombre);
   const [apellido, setApellido] = useState(inicial.apellido);
   const [distritoId, setDistritoId] = useState<number | null>(inicial.distritoId ?? null);
@@ -136,7 +142,14 @@ export function EditarPerfil({ inicial }: { inicial: Usuario }) {
           Las notificaciones push todavía no están disponibles: por ahora todos los avisos llegan
           por correo.
         </p>
+        {/* NC-07b: la preferencia elige el canal; el permiso es el consentimiento. */}
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          Esto es solo tu preferencia: para recibir avisos por correo también necesitas otorgar ese
+          consentimiento en «Privacidad y consentimientos».
+        </p>
       </section>
+
+      <PrivacidadYConsentimientos consentimientos={consentimientos} />
     </main>
   );
 }

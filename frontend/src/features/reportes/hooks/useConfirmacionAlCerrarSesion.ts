@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { registrarAntesDeCerrarSesion } from '@/lib/hooks/antesDeCerrarSesion';
+import { registrarAntesDeCerrarSesion } from '@/lib/sesion/antesDeCerrarSesion';
 import { useReportesEnCola } from './useColaOffline';
 
 /**

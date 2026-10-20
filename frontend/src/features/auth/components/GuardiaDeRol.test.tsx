@@ -6,7 +6,8 @@ import { GuardiaDeRol } from './GuardiaDeRol';
 import { useSesion } from '../hooks/useSesion';
 import { ROLES_AREA_ADMIN, ROLES_AREA_MUNICIPAL, ROLES_CON_SESION } from '../model/rutas';
 
-vi.mock('next/navigation', () => ({ useRouter: () => ({ replace: vi.fn() }) }));
+const { replace } = vi.hoisted(() => ({ replace: vi.fn() }));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ replace }) }));
 vi.mock('next/link', () => ({
   default: ({ href, children }: { href: string; children: ReactNode }) => (
     <a href={href}>{children}</a>
@@ -16,7 +17,7 @@ vi.mock('../hooks/useSesion', () => ({ useSesion: vi.fn() }));
 
 const sesion = vi.mocked(useSesion);
 
-function comoRol(rol: Rol) {
+function comoRol(rol: Rol, extra: Partial<Usuario> = {}) {
   const usuario: Usuario = {
     id: 1,
     email: 'u@lima.pe',
@@ -24,12 +25,17 @@ function comoRol(rol: Rol) {
     apellido: 'Vecina',
     rol,
     preferenciaNotificacion: 'EMAIL',
+    debeAceptarTerminos: false,
+    ...extra,
   };
   sesion.mockReturnValue({ estado: 'autenticado', usuario, refrescar: vi.fn() });
 }
 
 describe('GuardiaDeRol', () => {
-  beforeEach(() => sesion.mockReset());
+  beforeEach(() => {
+    sesion.mockReset();
+    replace.mockReset();
+  });
 
   it('explica el área municipal a quien no es funcionario', () => {
     comoRol('CIUDADANO');
@@ -52,5 +58,13 @@ describe('GuardiaDeRol', () => {
     comoRol('ADMIN');
     render(<GuardiaDeRol rolesPermitidos={ROLES_CON_SESION}>{() => 'dentro'}</GuardiaDeRol>);
     expect(screen.getByText('dentro')).toBeInTheDocument();
+  });
+
+  it('con los términos pendientes no muestra el área y lleva a aceptarlos (NC-07b)', () => {
+    comoRol('CIUDADANO', { debeAceptarTerminos: true });
+    window.history.replaceState(null, '', '/mis-reportes?p=2');
+    render(<GuardiaDeRol rolesPermitidos={['CIUDADANO']}>{() => 'dentro'}</GuardiaDeRol>);
+    expect(screen.queryByText('dentro')).not.toBeInTheDocument();
+    expect(replace).toHaveBeenCalledWith('/aceptar-terminos?redirect=%2Fmis-reportes%3Fp%3D2');
   });
 });

@@ -164,6 +164,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/me/consentimientos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listar_1"];
+        put?: never;
+        post: operations["aceptar"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/login": {
         parameters: {
             query?: never;
@@ -404,6 +420,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/notificaciones/vapid-public-key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["clavePublica"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/distritos": {
         parameters: {
             query?: never;
@@ -411,7 +443,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["listar_1"];
+        get: operations["listar_2"];
         put?: never;
         post?: never;
         delete?: never;
@@ -479,6 +511,22 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/me/consentimientos/{finalidad}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["revocar"];
         options?: never;
         head?: never;
         patch?: never;
@@ -611,6 +659,8 @@ export interface components {
             password: string;
             nombre: string;
             apellido: string;
+            aceptaTerminos: boolean;
+            versionTerminos: string;
         };
         AuthResponse: {
             token?: string;
@@ -631,9 +681,26 @@ export interface components {
             /** Format: int64 */
             distritoId?: number;
             distritoNombre?: string;
+            debeAceptarTerminos?: boolean;
         };
         RecuperarPasswordRequest: {
             email: string;
+        };
+        AceptarConsentimientoRequest: {
+            /** @enum {string} */
+            finalidad: "TERMINOS_Y_PRIVACIDAD" | "NOTIFICACIONES_PUSH" | "NOTIFICACIONES_CORREO";
+            version: string;
+        };
+        ConsentimientoResponse: {
+            /** Format: int64 */
+            id?: number;
+            finalidad?: string;
+            versionDocumento?: string;
+            /** Format: date-time */
+            aceptadoEn?: string;
+            /** Format: date-time */
+            revocadoEn?: string;
+            vigente?: boolean;
         };
         LoginRequest: {
             email: string;
@@ -724,18 +791,18 @@ export interface components {
             preferenciaNotificacion: "PUSH" | "EMAIL" | "AMBAS";
         };
         PageTicketAdminResponse: {
-            /** Format: int32 */
-            totalPages?: number;
             /** Format: int64 */
             totalElements?: number;
             /** Format: int32 */
-            numberOfElements?: number;
+            totalPages?: number;
             /** Format: int32 */
             size?: number;
             content?: components["schemas"]["TicketAdminResponse"][];
             /** Format: int32 */
             number?: number;
             sort?: components["schemas"]["SortObject"];
+            /** Format: int32 */
+            numberOfElements?: number;
             pageable?: components["schemas"]["PageableObject"];
             first?: boolean;
             last?: boolean;
@@ -745,11 +812,11 @@ export interface components {
             /** Format: int64 */
             offset?: number;
             sort?: components["schemas"]["SortObject"];
-            paged?: boolean;
-            /** Format: int32 */
-            pageSize?: number;
             /** Format: int32 */
             pageNumber?: number;
+            /** Format: int32 */
+            pageSize?: number;
+            paged?: boolean;
             unpaged?: boolean;
         };
         SortObject: {
@@ -779,18 +846,18 @@ export interface components {
             sort?: string[];
         };
         PageReporteResumenResponse: {
-            /** Format: int32 */
-            totalPages?: number;
             /** Format: int64 */
             totalElements?: number;
             /** Format: int32 */
-            numberOfElements?: number;
+            totalPages?: number;
             /** Format: int32 */
             size?: number;
             content?: components["schemas"]["ReporteResumenResponse"][];
             /** Format: int32 */
             number?: number;
             sort?: components["schemas"]["SortObject"];
+            /** Format: int32 */
+            numberOfElements?: number;
             pageable?: components["schemas"]["PageableObject"];
             first?: boolean;
             last?: boolean;
@@ -806,6 +873,9 @@ export interface components {
             autor?: string;
             /** Format: date-time */
             fecha?: string;
+        };
+        ClavePublicaVapidResponse: {
+            clavePublica?: string;
         };
         DistritoResponse: {
             /** Format: int64 */
@@ -837,6 +907,12 @@ export interface components {
             totalCalificaciones?: number;
             /** Format: date-time */
             calculatedAt?: string;
+        };
+        ConsentimientosResponse: {
+            versionTerminosVigente?: string;
+            debeAceptarTerminos?: boolean;
+            vigentes?: components["schemas"]["ConsentimientoResponse"][];
+            historial?: components["schemas"]["ConsentimientoResponse"][];
         };
         BajaSuscripcionPushRequest: {
             endpoint: string;
@@ -1268,6 +1344,50 @@ export interface operations {
             };
         };
     };
+    listar_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ConsentimientosResponse"];
+                };
+            };
+        };
+    };
+    aceptar: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AceptarConsentimientoRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ConsentimientoResponse"];
+                };
+            };
+        };
+    };
     login: {
         parameters: {
             query?: never;
@@ -1694,7 +1814,27 @@ export interface operations {
             };
         };
     };
-    listar_1: {
+    clavePublica: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ClavePublicaVapidResponse"];
+                };
+            };
+        };
+    };
+    listar_2: {
         parameters: {
             query?: never;
             header?: never;
@@ -1796,6 +1936,26 @@ export interface operations {
                 content: {
                     "*/*": components["schemas"]["CategoriaGestionResponse"][];
                 };
+            };
+        };
+    };
+    revocar: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                finalidad: "TERMINOS_Y_PRIVACIDAD" | "NOTIFICACIONES_PUSH" | "NOTIFICACIONES_CORREO";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

@@ -40,6 +40,7 @@ describe('useSesionRequerida', () => {
         apellido: 'Vecina',
         rol: 'CIUDADANO',
         preferenciaNotificacion: 'EMAIL',
+        debeAceptarTerminos: false,
       },
       refrescar: vi.fn(),
     });

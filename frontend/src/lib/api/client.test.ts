@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { apiDescargar, apiFetch, conFotoAbsoluta } from './client';
+import { RUTA_ACEPTAR_TERMINOS, apiDescargar, apiFetch, conFotoAbsoluta } from './client';
 import { ApiError, NetworkError } from './errors';
 import { borrarToken, guardarToken, leerToken } from '@/lib/auth/token-storage';
 
@@ -129,6 +129,60 @@ describe('apiFetch', () => {
   it('una respuesta 202 sin cuerpo devuelve undefined', async () => {
     fetchFalso.mockResolvedValue(new Response(null, { status: 202, headers: { 'Content-Length': '0' } }));
     await expect(apiFetch('/api/auth/recuperar-password', { method: 'POST' })).resolves.toBeUndefined();
+  });
+});
+
+describe('403 TERMINOS_PENDIENTES (NC-07b)', () => {
+  const terminosPendientes = () =>
+    Response.json(
+      { status: 403, message: 'Debes aceptar los terminos', codigo: 'TERMINOS_PENDIENTES' },
+      { status: 403 },
+    );
+
+  it('lleva a la pantalla de aceptación con la ruta actual, sin borrar el token', async () => {
+    const assign = vi.fn();
+    vi.stubGlobal('location', { pathname: '/mis-reportes', search: '?p=2', assign });
+    fetchFalso.mockResolvedValue(terminosPendientes());
+
+    const fallo = apiFetch('/api/reportes/mis-reportes');
+
+    await expect(fallo).rejects.toMatchObject({ status: 403, codigo: 'TERMINOS_PENDIENTES' });
+    expect(assign).toHaveBeenCalledWith(
+      `${RUTA_ACEPTAR_TERMINOS}?redirect=${encodeURIComponent('/mis-reportes?p=2')}`,
+    );
+    expect(leerToken()).toBe('token-de-prueba');
+  });
+
+  it('no navega si ya está en la pantalla de aceptación ni en segundo plano', async () => {
+    const assign = vi.fn();
+    vi.stubGlobal('location', { pathname: RUTA_ACEPTAR_TERMINOS, search: '', assign });
+    fetchFalso.mockResolvedValue(terminosPendientes());
+    await expect(apiFetch('/api/reportes/mis-reportes')).rejects.toBeInstanceOf(ApiError);
+
+    vi.stubGlobal('location', { pathname: '/mapa', search: '', assign });
+    fetchFalso.mockResolvedValue(terminosPendientes());
+    await expect(
+      apiFetch('/api/notificaciones/suscripciones', { redirigirEn401: false }),
+    ).rejects.toMatchObject({ esTerminosPendientes: true });
+
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  it('un 403 sin código sigue siendo falta de permiso: no navega', async () => {
+    const assign = vi.fn();
+    vi.stubGlobal('location', { pathname: '/bandeja', search: '', assign });
+    fetchFalso.mockResolvedValue(Response.json({ message: 'Sin permiso' }, { status: 403 }));
+
+    await expect(apiFetch('/api/reportes/bandeja')).rejects.toMatchObject({
+      status: 403,
+      codigo: null,
+      esTerminosPendientes: false,
+    });
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  it('la ruta coincide con la de la feature de auth', () => {
+    expect(RUTA_ACEPTAR_TERMINOS).toBe('/aceptar-terminos');
   });
 });
 

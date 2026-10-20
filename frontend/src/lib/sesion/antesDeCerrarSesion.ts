@@ -11,8 +11,9 @@
  * El cierre NUNCA se cuelga: una guarda que falla se ignora, y si alguna no
  * responde en {@link TOPE_DE_ESPERA_MS} se cierra igual.
  *
- * (Ubicacion en `lib/hooks/` en discusion: ver la propuesta
- * `2026-10-20-coordinacion-cierre-sesion.md`.)
+ * Vive en `lib/sesion/` (D-14): capa de aplicacion compartida para el ciclo
+ * de vida de la sesion. No toca el JWT (eso sigue solo en
+ * `lib/auth/token-storage.ts`).
  */
 
 type Guarda = () => Promise<void>;

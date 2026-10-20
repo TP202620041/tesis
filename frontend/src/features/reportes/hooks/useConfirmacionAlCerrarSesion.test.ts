@@ -5,7 +5,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import {
   antesDeCerrarSesion,
   hayPasosAntesDeCerrarSesion,
-} from '@/lib/hooks/antesDeCerrarSesion';
+} from '@/lib/sesion/antesDeCerrarSesion';
 import { colaDeReportes } from '@/pwa/colaReportes';
 import type { ReporteEnCola } from '../model/colaOffline';
 import { useConfirmacionAlCerrarSesion } from './useConfirmacionAlCerrarSesion';

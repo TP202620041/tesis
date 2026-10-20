@@ -1,10 +1,10 @@
 # Handoff de contrato: consentimiento por finalidad y versión (D-12)
 
-- **Estado:** pendiente <!-- pendiente | atendido -->
+- **Estado:** atendido <!-- pendiente | atendido -->
 - **Fecha:** 2026-10-19
 - **Origen:** backend, rama `feature/nc-07b-consentimiento`, commits `6a7e867` (implementación) y `e45268d` (correcciones de revisión: bloqueo por términos, permiso de correo y push al enviar, V14) (PR por abrir contra `develop`)
 - **Historia o tarea:** NC-07b (D-12), cambia US-01 (registro) y NC-07 (suscripción push)
-- **Atendido por:** _(frontend, rama y fecha)_
+- **Atendido por:** frontend, rama `feature/nc-07b-consentimiento-ui`, 2026-10-20. La versión vigente para el registro (sin sesión) es la constante `VERSION_TERMINOS` de `frontend/src/features/auth/model/terminos.ts`, atada por test a `app.legal.version-terminos`; con sesión se usa `versionTerminosVigente`.
 
 ## Endpoints afectados
 | Método | Ruta | Cambio |

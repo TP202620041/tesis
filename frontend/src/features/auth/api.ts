@@ -1,7 +1,14 @@
 import { api, apiFetch } from '@/lib/api/client';
 import { ApiError } from '@/lib/api/errors';
 import { borrarToken, guardarToken } from '@/lib/auth/token-storage';
+import type { components } from '@/lib/api/generated/schema';
+import {
+  desdeRespuestaDeConsentimientos,
+  type Consentimientos,
+  type FinalidadOpcional,
+} from './model/consentimientos';
 import type {
+  FinalidadConsentimiento,
   LoginRequest,
   PreferenciaNotificacion,
   RecuperarPasswordRequest,
@@ -111,6 +118,35 @@ export function actualizarPreferenciaNotificacion(
   return api.patch<Usuario>('/api/auth/me/preferencia-notificacion', {
     preferenciaNotificacion,
   });
+}
+
+/** NC-07b: consentimientos vigentes, historial y version vigente de los terminos. */
+export async function obtenerConsentimientos(): Promise<Consentimientos> {
+  const r = await api.get<components['schemas']['ConsentimientosResponse']>(
+    '/api/auth/me/consentimientos',
+  );
+  return desdeRespuestaDeConsentimientos(r);
+}
+
+/**
+ * NC-07b: acepta una finalidad. Idempotente: si ya estaba vigente con esa
+ * version, el backend responde 200 sin duplicar. Para los terminos, una
+ * version que no es la vigente da 409.
+ */
+export async function aceptarConsentimiento(
+  finalidad: FinalidadConsentimiento,
+  version: string,
+): Promise<void> {
+  await api.post<unknown>('/api/auth/me/consentimientos', { finalidad, version });
+}
+
+/**
+ * NC-07b: revoca una finalidad (204, idempotente). Revocar
+ * `NOTIFICACIONES_PUSH` borra en el servidor TODAS las suscripciones push
+ * del usuario. Los terminos no se revocan (409): es la baja de la cuenta.
+ */
+export async function revocarConsentimiento(finalidad: FinalidadOpcional): Promise<void> {
+  await api.delete<void>(`/api/auth/me/consentimientos/${finalidad}`);
 }
 
 /**

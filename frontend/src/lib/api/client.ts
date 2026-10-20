@@ -43,7 +43,8 @@ export interface OpcionesPeticion extends Omit<RequestInit, 'body'> {
    * pantalla; la UI muestra un aviso para que inicie sesion cuando quiera, y
    * la UI en primer plano se entera en su proxima peticion (que, ya sin
    * token, da 401 y si redirige). Por defecto `true`: el 401 sigue
-   * centralizado aqui.
+   * centralizado aqui. Con `false` tampoco se navega ante el 403
+   * `TERMINOS_PENDIENTES` (NC-07b): se lanza el `ApiError` y nada mas.
    */
   redirigirEn401?: boolean;
 }
@@ -68,6 +69,26 @@ function manejarNoAutenticado(): void {
     // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.assign(`${RUTA_LOGIN}?redirect=${encodeURIComponent(destino)}`);
   }
+}
+
+/**
+ * Pantalla donde el usuario acepta los terminos vigentes (NC-07b). La misma
+ * ruta esta en `features/auth/model/rutas.ts` (`RUTA_ACEPTAR_TERMINOS`):
+ * `lib/` no puede importar features, y los tests de ambos lados la fijan.
+ */
+export const RUTA_ACEPTAR_TERMINOS = '/aceptar-terminos';
+
+/**
+ * 403 `TERMINOS_PENDIENTES`: navegacion dura a la pantalla de aceptacion,
+ * conservando el destino para volver despues. Dura por lo mismo que el 401:
+ * la pantalla que fallo no debe quedar montada a medias. No borra el token:
+ * la sesion es valida, solo le falta aceptar.
+ */
+function manejarTerminosPendientes(): void {
+  if (typeof window === 'undefined' || window.location.pathname === RUTA_ACEPTAR_TERMINOS) return;
+  const destino = window.location.pathname + window.location.search;
+  // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+  window.location.assign(`${RUTA_ACEPTAR_TERMINOS}?redirect=${encodeURIComponent(destino)}`);
 }
 
 /**
@@ -124,7 +145,13 @@ async function ejecutar(ruta: string, opciones: OpcionesPeticion): Promise<Respo
   }
 
   if (!respuesta.ok) {
-    throw await desdeRespuesta(respuesta);
+    const error = await desdeRespuesta(respuesta);
+    // NC-07b (D-12): no es "acceso denegado" sino "faltan los terminos". Se
+    // centraliza aqui, igual que el 401, para que ninguna pantalla tenga que
+    // distinguir ese 403. El trabajo en segundo plano (`redirigirEn401:
+    // false`) tampoco navega por esto: solo recibe el error.
+    if (error.esTerminosPendientes && redirigirEn401) manejarTerminosPendientes();
+    throw error;
   }
 
   return respuesta;
