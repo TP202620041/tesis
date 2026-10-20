@@ -36,10 +36,16 @@ public class AuthService {
     private final JwtService jwtService;
     private final DistritoRepository distritoRepository;
     private final FotoStorageService fotoStorageService;
+    private final ConsentimientoService consentimientoService;
 
-    /** US-01: registra una cuenta ciudadana y devuelve un token de sesion. */
+    /**
+     * US-01: registra una cuenta ciudadana y devuelve un token de sesion.
+     * D-12: la aceptacion de los terminos vigentes se guarda en la misma
+     * transaccion; si la version no es la vigente, 409 y no se crea nada.
+     */
     @Transactional
     public AuthResponse registrar(RegistroRequest request) {
+        consentimientoService.exigirVersionVigenteDeTerminos(request.versionTerminos());
         if (usuarioRepository.existsByEmail(request.email())) {
             throw new BusinessException("El correo ya esta registrado");
         }
@@ -55,6 +61,7 @@ public class AuthService {
                 .build();
 
         Usuario guardado = usuarioRepository.save(usuario);
+        consentimientoService.registrarAceptacionDeTerminos(guardado, request.versionTerminos());
         return construirRespuesta(guardado);
     }
 
@@ -76,7 +83,7 @@ public class AuthService {
     public UsuarioResponse perfilActual(String email) {
         Usuario usuario = usuarioRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
-        return UsuarioResponse.from(usuario);
+        return respuesta(usuario);
     }
 
     /**
@@ -88,7 +95,7 @@ public class AuthService {
         Usuario usuario = usuarioRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
         usuario.setPreferenciaNotificacion(preferencia);
-        return UsuarioResponse.from(usuarioRepository.save(usuario));
+        return respuesta(usuarioRepository.save(usuario));
     }
 
     /**
@@ -131,11 +138,16 @@ public class AuthService {
             usuario.setFotoUrl(fotoStorageService.almacenarFotoPerfil(foto));
         }
 
-        return UsuarioResponse.from(usuarioRepository.save(usuario));
+        return respuesta(usuarioRepository.save(usuario));
     }
 
     private AuthResponse construirRespuesta(Usuario usuario) {
         String token = jwtService.generarToken(usuario.getEmail(), usuario.getRol().name());
-        return AuthResponse.of(token, jwtService.getExpirationMinutes(), UsuarioResponse.from(usuario));
+        return AuthResponse.of(token, jwtService.getExpirationMinutes(), respuesta(usuario));
+    }
+
+    /** Datos del propio usuario, con si le falta aceptar los terminos vigentes (D-12). */
+    private UsuarioResponse respuesta(Usuario usuario) {
+        return UsuarioResponse.from(usuario, consentimientoService.debeAceptarTerminos(usuario.getId()));
     }
 }

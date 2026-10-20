@@ -4,8 +4,11 @@ import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import pe.edu.upc.viasegura.auth.domain.FinalidadConsentimiento;
 import pe.edu.upc.viasegura.auth.domain.Usuario;
+import pe.edu.upc.viasegura.auth.service.ConsentimientoService;
 import pe.edu.upc.viasegura.auth.service.UsuarioConsultaService;
+import pe.edu.upc.viasegura.common.exception.BusinessException;
 import pe.edu.upc.viasegura.common.exception.ResourceNotFoundException;
 import pe.edu.upc.viasegura.notificaciones.domain.PoliticaEndpointPush;
 import pe.edu.upc.viasegura.notificaciones.domain.SuscripcionPush;
@@ -25,12 +28,14 @@ public class SuscripcionPushService {
 
     private final SuscripcionPushRepository suscripcionRepository;
     private final UsuarioConsultaService usuarioConsultaService;
+    private final ConsentimientoService consentimientoService;
     private final List<String> hostsPermitidos;
     private final int maxPorUsuario;
 
     public SuscripcionPushService(
             SuscripcionPushRepository suscripcionRepository,
             UsuarioConsultaService usuarioConsultaService,
+            ConsentimientoService consentimientoService,
             @Value("${app.notificaciones.push.hosts-permitidos}") List<String> hostsPermitidos,
             @Value("${app.notificaciones.push.max-por-usuario:10}") int maxPorUsuario) {
         if (maxPorUsuario < 1) {
@@ -38,6 +43,7 @@ public class SuscripcionPushService {
         }
         this.suscripcionRepository = suscripcionRepository;
         this.usuarioConsultaService = usuarioConsultaService;
+        this.consentimientoService = consentimientoService;
         this.hostsPermitidos = List.copyOf(hostsPermitidos);
         this.maxPorUsuario = maxPorUsuario;
     }
@@ -59,6 +65,10 @@ public class SuscripcionPushService {
      * ({@link PoliticaEndpointPush}, contra SSRF). Al superar el tope por
      * usuario se borran las menos recientemente registradas: ver
      * {@link #aplicarTope}.
+     *
+     * <p>D-12: exige el consentimiento {@code NOTIFICACIONES_PUSH} vigente
+     * (409 si no lo hay). El permiso del navegador no basta: es del
+     * dispositivo, no la autorizacion del titular de los datos.</p>
      */
     @Transactional
     public ResultadoSuscripcion suscribir(String email, SuscripcionPushRequest req) {
@@ -67,6 +77,10 @@ public class SuscripcionPushService {
                     "endpoint: el servicio de push no esta permitido");
         }
         Usuario usuario = usuarioConsultaService.usuarioPorEmail(email);
+        if (!consentimientoService.tieneVigente(usuario.getId(), FinalidadConsentimiento.NOTIFICACIONES_PUSH)) {
+            throw new BusinessException(
+                    "Para recibir notificaciones push primero acepta el consentimiento NOTIFICACIONES_PUSH");
+        }
         boolean creada = suscripcionRepository.upsert(usuario.getId(), req.endpoint(),
                 req.keys().p256dh(), req.keys().auth(), req.userAgent());
         SuscripcionPush guardada = suscripcionRepository.findByEndpoint(req.endpoint())
@@ -108,5 +122,15 @@ public class SuscripcionPushService {
                 .findByEndpointAndUsuarioId(endpoint, usuario.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Suscripcion no encontrada"));
         suscripcionRepository.delete(suscripcion);
+    }
+
+    /**
+     * Borra todas las suscripciones del usuario. Lo invoca el listener de la
+     * revocacion de {@code NOTIFICACIONES_PUSH} (D-12) dentro de esa misma
+     * transaccion: sin permiso no se conservan las claves de envio.
+     */
+    @Transactional
+    public int eliminarTodasDelUsuario(Long usuarioId) {
+        return suscripcionRepository.borrarDeUsuario(usuarioId);
     }
 }

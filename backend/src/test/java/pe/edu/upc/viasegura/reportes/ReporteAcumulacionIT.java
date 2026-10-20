@@ -67,7 +67,7 @@ class ReporteAcumulacionIT extends AbstractPostgisIT {
         MvcResult res = mockMvc.perform(post("/api/auth/registro")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"email":"%s","password":"secreta123","nombre":"Ciro","apellido":"Vecino"}
+                                {"email":"%s","password":"secreta123","nombre":"Ciro","apellido":"Vecino","aceptaTerminos":true,"versionTerminos":"2026-10-v1"}
                                 """.formatted(correo)))
                 .andExpect(status().isCreated())
                 .andReturn();

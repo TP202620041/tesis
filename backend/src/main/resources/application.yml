@@ -58,6 +58,13 @@ app:
       # Tope de suscripciones por usuario: al superarlo se borra la menos
       # recientemente registrada.
       max-por-usuario: ${PUSH_MAX_POR_USUARIO:10}
+  # Consentimiento (D-12, Ley N.° 29733). Version de los terminos y la
+  # politica de privacidad que se exige hoy: el registro y POST
+  # /api/auth/me/consentimientos solo aceptan esta. Al publicar un texto
+  # nuevo se cambia aqui (y en /privacidad del frontend) y todos los
+  # usuarios pasan a debeAceptarTerminos=true sin migrar datos.
+  legal:
+    version-terminos: ${LEGAL_VERSION_TERMINOS:2026-10-v1}
   # CORS: el frontend es una PWA Next.js desplegada como proyecto
   # independiente, en otro origen. Lista de origenes permitidos separados
   # por coma; en dev, el servidor de desarrollo de Next (puerto 3000).

@@ -39,7 +39,7 @@ class FotoPerfilIT extends AbstractPostgisIT {
         MvcResult res = mockMvc.perform(post("/api/auth/registro")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"email":"perfil-%s@lima.pe","password":"secreta123","nombre":"Ana","apellido":"Vecina"}
+                                {"email":"perfil-%s@lima.pe","password":"secreta123","nombre":"Ana","apellido":"Vecina","aceptaTerminos":true,"versionTerminos":"2026-10-v1"}
                                 """.formatted(UUID.randomUUID())))
                 .andExpect(status().isCreated())
                 .andReturn();

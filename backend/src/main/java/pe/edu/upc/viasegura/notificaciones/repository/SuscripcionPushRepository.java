@@ -3,6 +3,7 @@ package pe.edu.upc.viasegura.notificaciones.repository;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import pe.edu.upc.viasegura.notificaciones.domain.SuscripcionPush;
@@ -19,6 +20,14 @@ public interface SuscripcionPushRepository extends JpaRepository<SuscripcionPush
 
     /** Las del usuario, de la registrada mas recientemente a la mas antigua (tope por usuario). */
     List<SuscripcionPush> findByUsuarioIdOrderByUpdatedAtDescIdDesc(Long usuarioId);
+
+    /**
+     * Borra todas las suscripciones del usuario (al revocar el consentimiento
+     * {@code NOTIFICACIONES_PUSH}, D-12). Devuelve cuantas borro.
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("DELETE FROM SuscripcionPush s WHERE s.usuario.id = :usuarioId")
+    int borrarDeUsuario(@Param("usuarioId") Long usuarioId);
 
     /**
      * Upsert atomico por {@code endpoint}. Con un "buscar y luego insertar",
