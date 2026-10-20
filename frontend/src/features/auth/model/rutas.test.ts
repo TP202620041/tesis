@@ -107,6 +107,10 @@ describe('aceptación de términos (NC-07b)', () => {
     '/\t/evil.example',
     '/\n/evil.example',
     '/\r/evil.example',
+    // La normalizacion de puntos tambien puede dejar `//evil.example`.
+    '/.//evil.example',
+    '/x/..//evil.example',
+    '/%2e//evil.example',
   ])('destinoInterno rechaza %j (redirect abierto)', (valor) => {
     expect(destinoInterno(valor, '/inicio')).toBe('/inicio');
   });

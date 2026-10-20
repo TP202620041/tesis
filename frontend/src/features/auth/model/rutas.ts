@@ -56,14 +56,28 @@ export const RUTA_PRIVACIDAD = '/privacidad';
  */
 export function destinoInterno(redirect: string | null | undefined, porDefecto: string): string {
   if (!redirect || !redirect.startsWith('/')) return porDefecto;
+  const ruta = rutaDelMismoOrigen(redirect);
+  if (ruta === null) return porDefecto;
+  // Lo que se devuelve se vuelve a parsear: el `pathname` ya normalizado
+  // puede ser otra cosa (`/.//evil.example` → `//evil.example`).
+  if (rutaDelMismoOrigen(ruta) !== ruta) return porDefecto;
+  if (new URL(ruta, ORIGEN_FICTICIO).pathname === RUTA_ACEPTAR_TERMINOS) return porDefecto;
+  return ruta;
+}
+
+/**
+ * `pathname + search + hash` de `texto` resuelto contra el origen ficticio,
+ * o `null` si no es parseable, sale de ese origen o su ruta normalizada
+ * empieza con `//` (que, usada como destino, seria una URL de otro sitio).
+ */
+function rutaDelMismoOrigen(texto: string): string | null {
   let url: URL;
   try {
-    url = new URL(redirect, ORIGEN_FICTICIO);
+    url = new URL(texto, ORIGEN_FICTICIO);
   } catch {
-    return porDefecto;
+    return null;
   }
-  if (url.origin !== ORIGEN_FICTICIO) return porDefecto;
-  if (url.pathname === RUTA_ACEPTAR_TERMINOS) return porDefecto;
+  if (url.origin !== ORIGEN_FICTICIO || url.pathname.startsWith('//')) return null;
   return url.pathname + url.search + url.hash;
 }
 
