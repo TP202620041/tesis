@@ -16,6 +16,10 @@ import { FormularioCategoria } from './FormularioCategoria';
  * las propias (activas e inactivas) se crean, editan y activan/desactivan.
  * Desactivar solo deja de ofrecerla al reportar: los reportes que ya la
  * tienen la conservan, y se puede reactivar.
+ *
+ * Tras cada cambio se recarga la lista sin desmontarla (`useCarga` conserva
+ * los datos mientras recarga): un formulario abierto en otra fila sigue
+ * abierto y con lo escrito.
  */
 export function GestionCategorias() {
   const carga = useCategoriasGestion();
@@ -31,6 +35,11 @@ export function GestionCategorias() {
 
   return (
     <div className="flex flex-col gap-8">
+      {carga.recargando && (
+        <p role="status" className="text-sm text-slate-500 dark:text-slate-400">
+          Actualizando…
+        </p>
+      )}
       <section aria-labelledby="titulo-propias" className="flex flex-col gap-3">
         <h2 id="titulo-propias" className="text-lg font-semibold text-slate-900 dark:text-slate-100">
           Categorías de tu distrito

@@ -34,7 +34,5 @@ export function useGuardarCategoria() {
     }
   }, []);
 
-  const limpiarError = useCallback(() => setError(null), []);
-
-  return { guardar, enviando, error, limpiarError };
+  return { guardar, enviando, error };
 }

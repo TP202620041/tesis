@@ -84,6 +84,23 @@ describe('GestionCategorias', () => {
     await vi.waitFor(() => expect(listar).toHaveBeenCalledTimes(2));
   });
 
+  it('activar/desactivar no desmonta la lista ni cierra el formulario abierto en otra fila', async () => {
+    cambiarActiva.mockResolvedValue({ ...CICLOVIA, activo: true });
+    render(<GestionCategorias />);
+    const usuario = userEvent.setup();
+    await screen.findByText('Malecon erosionado');
+    const [ciclovia, malecon] = within(seccion('Categorías de tu distrito')).getAllByRole('listitem');
+
+    await usuario.click(within(malecon!).getByRole('button', { name: 'Editar' }));
+    await usuario.type(within(malecon!).getByLabelText('Nombre'), ' sur');
+    await usuario.click(within(ciclovia!).getByRole('button', { name: 'Reactivar' }));
+
+    await vi.waitFor(() => expect(listar).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText('Cargando…')).not.toBeInTheDocument();
+    expect(ciclovia).toBeInTheDocument();
+    expect(within(malecon!).getByLabelText('Nombre')).toHaveValue('Malecon erosionado sur');
+  });
+
   it('muestra el mensaje del backend si no puede desactivar', async () => {
     cambiarActiva.mockRejectedValue(
       new ApiError(403, 'Solo puede gestionar las categorias personalizadas de Miraflores'),
