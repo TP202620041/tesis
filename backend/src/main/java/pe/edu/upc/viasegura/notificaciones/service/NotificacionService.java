@@ -213,11 +213,11 @@ public class NotificacionService {
 
     private String asuntoDe(TipoEvento tipo) {
         return switch (tipo) {
-            case REPORTE_RECIBIDO -> "ViaSegura: su reporte fue recibido";
-            case REPORTE_EN_PROCESO -> "ViaSegura: su reporte esta en proceso";
-            case REPORTE_RESUELTO -> "ViaSegura: su reporte fue resuelto";
-            case REPORTE_RECHAZADO -> "ViaSegura: su reporte fue rechazado";
-            case ADHESION_REGISTRADA -> "ViaSegura: novedad en su reporte";
+            case REPORTE_RECIBIDO -> "Ciudad Viva: su reporte fue recibido";
+            case REPORTE_EN_PROCESO -> "Ciudad Viva: su reporte esta en proceso";
+            case REPORTE_RESUELTO -> "Ciudad Viva: su reporte fue resuelto";
+            case REPORTE_RECHAZADO -> "Ciudad Viva: su reporte fue rechazado";
+            case ADHESION_REGISTRADA -> "Ciudad Viva: novedad en su reporte";
         };
     }
 

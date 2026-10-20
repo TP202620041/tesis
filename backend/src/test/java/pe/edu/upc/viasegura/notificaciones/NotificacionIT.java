@@ -160,6 +160,7 @@ class NotificacionIT extends AbstractPostgisMailIT {
         MimeMessage[] recibidos = greenMail.getReceivedMessages();
         assertThat(recibidos).hasSize(1);
         assertThat(recibidos[0].getAllRecipients()[0].toString()).isEqualTo(ciudadano.getEmail());
+        assertThat(recibidos[0].getSubject()).startsWith("Ciudad Viva: ");
     }
 
     @Test

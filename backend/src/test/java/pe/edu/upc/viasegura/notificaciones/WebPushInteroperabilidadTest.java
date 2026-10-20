@@ -205,7 +205,7 @@ class WebPushInteroperabilidadTest {
         KeyPair navegador = parP256();
         byte[] auth = new byte[16];
         new SecureRandom().nextBytes(auth);
-        String texto = "{\"titulo\":\"ViaSegura\",\"cuerpo\":\"Su reporte #7 esta en proceso.\","
+        String texto = "{\"titulo\":\"Ciudad Viva\",\"cuerpo\":\"Su reporte #7 esta en proceso.\","
                 + "\"url\":\"/mis-reportes/7\",\"reporteId\":7,\"estado\":\"EN_PROCESO\"}";
 
         HttpRequest pedido = adapter.prepararPedido(

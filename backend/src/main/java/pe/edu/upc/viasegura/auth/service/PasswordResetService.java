@@ -44,7 +44,7 @@ public class PasswordResetService {
     private final PasswordEncoder passwordEncoder;
     private final JavaMailSender mailSender;
 
-    @Value("${app.notificaciones.email-remitente:no-reply@viasegura.pe}")
+    @Value("${app.notificaciones.email-remitente:Ciudad Viva <no-reply@viasegura.pe>}")
     private String remitente;
 
     /**
@@ -99,7 +99,7 @@ public class PasswordResetService {
         SimpleMailMessage correo = new SimpleMailMessage();
         correo.setFrom(remitente);
         correo.setTo(destinatario.getEmail());
-        correo.setSubject("ViaSegura: recuperacion de contrasena");
+        correo.setSubject("Ciudad Viva: recuperacion de contrasena");
         correo.setText("""
                 Hola %s,
 

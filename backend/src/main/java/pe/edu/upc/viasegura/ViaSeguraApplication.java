@@ -5,7 +5,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 
 /**
- * Punto de entrada del backend de ViaSegura.
+ * Punto de entrada del backend de Ciudad Viva.
  *
  * <p>Sistema de crowdsourcing geoespacial para el reporte ciudadano y la
  * gestion municipal de infraestructura vial en Lima Metropolitana.</p>

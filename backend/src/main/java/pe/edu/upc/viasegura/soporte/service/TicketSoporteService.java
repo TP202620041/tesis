@@ -46,7 +46,7 @@ public class TicketSoporteService {
     /** Tope del {@code size} del listado del ADMIN (US-25). */
     static final int TAMANO_MAXIMO_PAGINA = 100;
 
-    @Value("${app.notificaciones.email-remitente:no-reply@viasegura.pe}")
+    @Value("${app.notificaciones.email-remitente:Ciudad Viva <no-reply@viasegura.pe>}")
     private String remitente;
 
     @Transactional
@@ -112,7 +112,7 @@ public class TicketSoporteService {
         SimpleMailMessage correo = new SimpleMailMessage();
         correo.setFrom(remitente);
         correo.setTo(ticket.getEmailContacto());
-        correo.setSubject("ViaSegura: respuesta a tu consulta \"%s\"".formatted(ticket.getAsunto()));
+        correo.setSubject("Ciudad Viva: respuesta a tu consulta \"%s\"".formatted(ticket.getAsunto()));
         correo.setText(ticket.getRespuesta());
         mailSender.send(correo);
     }
