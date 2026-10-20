@@ -11,13 +11,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import pe.edu.upc.viasegura.auth.domain.Usuario;
-import pe.edu.upc.viasegura.auth.repository.UsuarioRepository;
+import pe.edu.upc.viasegura.auth.service.UsuarioConsultaService;
 import pe.edu.upc.viasegura.common.exception.ResourceNotFoundException;
 import pe.edu.upc.viasegura.desempeno.domain.IndiceDesempenoDistrital;
 import pe.edu.upc.viasegura.desempeno.dto.DashboardDistritoResponse;
 import pe.edu.upc.viasegura.desempeno.dto.DesempenoDistritalResponse;
 import pe.edu.upc.viasegura.desempeno.repository.IndiceDesempenoDistritalRepository;
-import pe.edu.upc.viasegura.reportes.repository.ReporteRepository;
+import pe.edu.upc.viasegura.reportes.service.ReporteConsultaService;
 
 /**
  * Lectura y refresco del indice de desempeno distrital (US-18, US-20).
@@ -37,8 +37,8 @@ public class DesempenoService {
     private static final int DIAS_ESTANCAMIENTO = 7;
 
     private final IndiceDesempenoDistritalRepository indiceRepository;
-    private final ReporteRepository reporteRepository;
-    private final UsuarioRepository usuarioRepository;
+    private final ReporteConsultaService reporteConsultaService;
+    private final UsuarioConsultaService usuarioConsultaService;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -63,8 +63,7 @@ public class DesempenoService {
      */
     @Transactional(readOnly = true)
     public DashboardDistritoResponse dashboardDistrito(String emailFuncionario) {
-        Usuario funcionario = usuarioRepository.findByEmail(emailFuncionario)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+        Usuario funcionario = usuarioConsultaService.usuarioPorEmail(emailFuncionario);
         if (funcionario.getDistrito() == null) {
             throw new AccessDeniedException("El funcionario no tiene un distrito de gestion asignado");
         }
@@ -74,9 +73,9 @@ public class DesempenoService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Sin datos de desempeno para el distrito " + distritoId));
 
-        long sinResponsable = reporteRepository.countSinResponsable(distritoId);
+        long sinResponsable = reporteConsultaService.contarSinResponsable(distritoId);
         Instant limite = Instant.now().minus(DIAS_ESTANCAMIENTO, ChronoUnit.DAYS);
-        long estancados = reporteRepository.countEstancados(distritoId, limite);
+        long estancados = reporteConsultaService.contarEstancados(distritoId, limite);
 
         return new DashboardDistritoResponse(
                 DesempenoDistritalResponse.from(fila), sinResponsable, estancados);

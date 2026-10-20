@@ -11,8 +11,8 @@ import pe.edu.upc.viasegura.common.config.AsyncConfig;
 import pe.edu.upc.viasegura.auth.domain.FinalidadConsentimiento;
 import pe.edu.upc.viasegura.auth.domain.PreferenciaNotificacion;
 import pe.edu.upc.viasegura.auth.domain.Usuario;
-import pe.edu.upc.viasegura.auth.repository.UsuarioRepository;
 import pe.edu.upc.viasegura.auth.service.ConsentimientoService;
+import pe.edu.upc.viasegura.auth.service.UsuarioConsultaService;
 import pe.edu.upc.viasegura.notificaciones.domain.AvisoReporte;
 import pe.edu.upc.viasegura.notificaciones.domain.CanalNotificacion;
 import pe.edu.upc.viasegura.notificaciones.domain.EstadoEntrega;
@@ -23,7 +23,7 @@ import pe.edu.upc.viasegura.notificaciones.repository.NotificacionRepository;
 import pe.edu.upc.viasegura.reportes.domain.EstadoReporte;
 import pe.edu.upc.viasegura.reportes.domain.Reporte;
 import pe.edu.upc.viasegura.reportes.event.ReporteEstadoCambiadoEvent;
-import pe.edu.upc.viasegura.reportes.repository.ReporteRepository;
+import pe.edu.upc.viasegura.reportes.service.ReporteConsultaService;
 
 /**
  * Orquesta la notificacion al ciudadano ante un cambio de estado de su
@@ -55,19 +55,19 @@ public class NotificacionService {
     private final Map<CanalNotificacion, NotificacionCanalAdapter> adapters =
             new EnumMap<>(CanalNotificacion.class);
     private final NotificacionRepository notificacionRepository;
-    private final UsuarioRepository usuarioRepository;
-    private final ReporteRepository reporteRepository;
+    private final UsuarioConsultaService usuarioConsultaService;
+    private final ReporteConsultaService reporteConsultaService;
     private final ConsentimientoService consentimientoService;
 
     public NotificacionService(List<NotificacionCanalAdapter> adapterList,
                                NotificacionRepository notificacionRepository,
-                               UsuarioRepository usuarioRepository,
-                               ReporteRepository reporteRepository,
+                               UsuarioConsultaService usuarioConsultaService,
+                               ReporteConsultaService reporteConsultaService,
                                ConsentimientoService consentimientoService) {
         adapterList.forEach(a -> adapters.put(a.canal(), a));
         this.notificacionRepository = notificacionRepository;
-        this.usuarioRepository = usuarioRepository;
-        this.reporteRepository = reporteRepository;
+        this.usuarioConsultaService = usuarioConsultaService;
+        this.reporteConsultaService = reporteConsultaService;
         this.consentimientoService = consentimientoService;
     }
 
@@ -115,14 +115,14 @@ public class NotificacionService {
         if (tipo == null) {
             return; // estados que no notifican al ciudadano (p.ej. PENDIENTE)
         }
-        Usuario destinatario = usuarioRepository.findById(evento.creadorId()).orElse(null);
+        Usuario destinatario = usuarioConsultaService.usuarioPorId(evento.creadorId()).orElse(null);
         if (destinatario == null) {
             log.warn("Reporte {} sin destinatario ({}): no se notifica",
                     evento.reporteId(), evento.creadorId());
             return;
         }
         // Referencia (proxy) solo para la FK: se persiste con su id, sin cargarla.
-        Reporte reporte = reporteRepository.getReferenceById(evento.reporteId());
+        Reporte reporte = reporteConsultaService.referencia(evento.reporteId());
         AvisoReporte aviso = new AvisoReporte(asuntoDe(tipo), componerMensaje(destinatario, evento),
                 componerResumen(evento), evento.reporteId(), evento.nuevo().name());
 

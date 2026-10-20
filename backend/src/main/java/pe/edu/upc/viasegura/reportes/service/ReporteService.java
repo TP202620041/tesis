@@ -11,7 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import pe.edu.upc.viasegura.auth.domain.Usuario;
-import pe.edu.upc.viasegura.auth.repository.UsuarioRepository;
+import pe.edu.upc.viasegura.auth.service.UsuarioConsultaService;
 import pe.edu.upc.viasegura.common.exception.BusinessException;
 import pe.edu.upc.viasegura.common.exception.ResourceNotFoundException;
 import pe.edu.upc.viasegura.common.geo.GeometryUtils;
@@ -55,7 +55,7 @@ public class ReporteService {
     private final ReporteRepository reporteRepository;
     private final AdhesionReporteRepository adhesionRepository;
     private final CategoriaDanoRepository categoriaRepository;
-    private final UsuarioRepository usuarioRepository;
+    private final UsuarioConsultaService usuarioConsultaService;
     private final GeoAssignmentStrategy geoAssignmentStrategy;
     private final FotoStorageService fotoStorageService;
     private final HistorialEstadoReporteRepository historialRepository;
@@ -71,8 +71,7 @@ public class ReporteService {
      */
     @Transactional
     public ReporteResponse crear(String emailCreador, CrearReporteCommand cmd, String idempotencyKey) {
-        Usuario ciudadano = usuarioRepository.findByEmail(emailCreador)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+        Usuario ciudadano = usuarioConsultaService.usuarioPorEmail(emailCreador);
 
         String clave = StringUtils.hasText(idempotencyKey) ? idempotencyKey.trim() : null;
         if (clave != null) {
@@ -174,8 +173,7 @@ public class ReporteService {
      */
     @Transactional(readOnly = true)
     public List<ReporteResumenResponse> misReportes(String emailCiudadano) {
-        Usuario ciudadano = usuarioRepository.findByEmail(emailCiudadano)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+        Usuario ciudadano = usuarioConsultaService.usuarioPorEmail(emailCiudadano);
         return reporteRepository.findByCreadorIdOrderByCreatedAtDesc(ciudadano.getId()).stream()
                 .map(ReporteResumenResponse::from)
                 .toList();
@@ -290,8 +288,7 @@ public class ReporteService {
     }
 
     private Reporte reportePendienteDelCreador(String emailCiudadano, Long reporteId) {
-        Usuario ciudadano = usuarioRepository.findByEmail(emailCiudadano)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+        Usuario ciudadano = usuarioConsultaService.usuarioPorEmail(emailCiudadano);
         Reporte reporte = reporteRepository.findById(reporteId)
                 .orElseThrow(() -> new ResourceNotFoundException("Reporte no encontrado: " + reporteId));
 
