@@ -42,13 +42,28 @@ const ORIGEN_FICTICIO = 'http://x.invalid';
 export function rutaInterna(url: unknown): string {
   const ruta = texto(url);
   if (!ruta || !ruta.startsWith('/')) return AVISO_GENERICO.url;
+  const normalizada = rutaDelMismoOrigen(ruta);
+  // Lo que se devuelve se vuelve a parsear: la normalizacion de puntos puede
+  // cambiarla (`/.//otro` → `//otro`).
+  if (normalizada === null || rutaDelMismoOrigen(normalizada) !== normalizada) {
+    return AVISO_GENERICO.url;
+  }
+  return normalizada;
+}
+
+/**
+ * `pathname + search + hash` resuelto contra el origen ficticio, o `null`
+ * si no es parseable, sale de ese origen o la ruta normalizada empieza con
+ * `//` (como destino seria otro sitio).
+ */
+function rutaDelMismoOrigen(ruta: string): string | null {
   let parseada: URL;
   try {
     parseada = new URL(ruta, ORIGEN_FICTICIO);
   } catch {
-    return AVISO_GENERICO.url;
+    return null;
   }
-  if (parseada.origin !== ORIGEN_FICTICIO) return AVISO_GENERICO.url;
+  if (parseada.origin !== ORIGEN_FICTICIO || parseada.pathname.startsWith('//')) return null;
   return parseada.pathname + parseada.search + parseada.hash;
 }
 

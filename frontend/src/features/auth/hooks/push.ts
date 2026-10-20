@@ -1,3 +1,4 @@
+import { ApiError, NetworkError } from '@/lib/api/errors';
 import { navegadorPush, type NavegadorPush } from '@/pwa/push';
 import { clavePublicaVapid, darDeBajaSuscripcionPush, registrarSuscripcionPush } from '../api';
 import { base64UrlABytes, esLaMismaClave, type EstadoPush } from '../model/push';
@@ -32,6 +33,11 @@ const servidorEnSegundoPlano: ServidorPush = {
   registrar: (s, ua) => registrarSuscripcionPush(s, ua, { enSegundoPlano: true }),
   darDeBaja: (e) => darDeBajaSuscripcionPush(e, { enSegundoPlano: true }),
 };
+
+/** `true` si la baja no llego al servidor (red) o este fallo (5xx). */
+function laBajaNoLlego(e: unknown): boolean {
+  return e instanceof NetworkError || (e instanceof ApiError && e.status >= 500);
+}
 
 /** Tope de espera de la baja al cerrar sesion: cerrar sesion nunca se cuelga. */
 export const TOPE_BAJA_AL_CERRAR_MS = 3_000;
@@ -148,10 +154,13 @@ let reRegistroEnCurso: Promise<void> | null = null;
  * - Si la baja en el servidor responde bien, la suscripcion del navegador se
  *   conserva: si el mismo usuario vuelve a entrar, el inicio de sesion la
  *   registra otra vez.
- * - Si la baja FALLA (red, 5xx…), se cancela la suscripcion en el navegador:
- *   el servidor podria seguir enviando a ese endpoint, y el dispositivo no
- *   debe seguir mostrando los avisos de quien salio. Que se agote el tope no
- *   es un fallo: la peticion puede estar por terminar bien.
+ * - Si la baja no llego al servidor o este fallo (red o 5xx), se cancela la
+ *   suscripcion en el navegador: el servidor podria seguir enviando a ese
+ *   endpoint, y el dispositivo no debe seguir mostrando los avisos de quien
+ *   salio. Cualquier otra respuesta NO cancela: un 404 dice que el endpoint
+ *   no es de quien sale (p. ej. es de otra persona que uso el dispositivo
+ *   antes), y cancelarlo le quitaria push a esa persona. Que se agote el
+ *   tope tampoco es un fallo: la peticion puede estar por terminar bien.
  *
  * Todo dentro de `topeMs`. Nunca lanza: si falla, el cierre sigue.
  */
@@ -167,8 +176,8 @@ export async function bajaDePushAlCerrarSesion(
     if (!suscripcion) return;
     try {
       await servidor.darDeBaja(suscripcion.endpoint);
-    } catch {
-      await suscripcion.unsubscribe();
+    } catch (e) {
+      if (laBajaNoLlego(e)) await suscripcion.unsubscribe();
     }
   })().catch(() => undefined);
   let temporizador: ReturnType<typeof setTimeout> | undefined;

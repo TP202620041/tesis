@@ -47,6 +47,10 @@ describe('rutaInterna', () => {
     '/\t/evil.example',
     '/\n/evil.example',
     '/\r/evil.example',
+    // La normalizacion de puntos tambien puede dejar `//evil.example`.
+    '/.//evil.example',
+    '/x/..//evil.example',
+    '/%2e//evil.example',
     '',
     null,
   ])('no deja salir del origen: %j', (url) => {

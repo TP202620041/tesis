@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { NavegadorPush } from '@/pwa/push';
-import { ApiError } from '@/lib/api/errors';
+import { ApiError, NetworkError } from '@/lib/api/errors';
 import { base64UrlABytes } from '../model/push';
 import {
   activarPush,
@@ -220,15 +220,36 @@ describe('bajaDePushAlCerrarSesion', () => {
     expect(api.darDeBaja).not.toHaveBeenCalled();
   });
 
-  it('si el servidor falla, cancela la suscripción local y termina sin lanzar', async () => {
+  it.each([
+    ['sin red', new NetworkError()],
+    ['un 5xx', new ApiError(503, 'No disponible')],
+  ])('si la baja falla (%s), cancela la suscripción local y termina sin lanzar', async (_caso, error) => {
     const api = servidor();
-    api.darDeBaja.mockRejectedValue(new Error('sin red'));
+    api.darDeBaja.mockRejectedValue(error);
     const actual = suscripcion('https://fcm.googleapis.com/fcm/send/a', CLAVE);
 
     await expect(bajaDePushAlCerrarSesion(1_000, navegador({ actual }), api)).resolves.toBeUndefined();
 
     // El dispositivo deja de recibir los avisos de quien salió.
     expect(actual.unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it('un 404 (el endpoint no es de quien sale) no cancela la suscripción de otra persona', async () => {
+    const api = servidor();
+    api.darDeBaja.mockRejectedValue(new ApiError(404, 'No encontrada'));
+    const actual = suscripcion('https://fcm.googleapis.com/fcm/send/de-ana', CLAVE);
+
+    await bajaDePushAlCerrarSesion(1_000, navegador({ actual }), api);
+
+    expect(actual.unsubscribe).not.toHaveBeenCalled();
+  });
+
+  it('otro error (p. ej. un fallo del navegador) tampoco cancela', async () => {
+    const api = servidor();
+    api.darDeBaja.mockRejectedValue(new Error('inesperado'));
+    const actual = suscripcion('https://fcm.googleapis.com/fcm/send/a', CLAVE);
+    await bajaDePushAlCerrarSesion(1_000, navegador({ actual }), api);
+    expect(actual.unsubscribe).not.toHaveBeenCalled();
   });
 
   it('si el servidor no responde, no espera más que el tope ni cancela la suscripción', async () => {

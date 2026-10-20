@@ -312,7 +312,9 @@ canal. Dónde aparece:
   la sincronización se detiene y se reenvía tras aceptar. `GuardiaDeRol` y
   `useSesionRequerida` llevan a la pantalla antes de pedir nada (sin bucle
   en la propia `/aceptar-terminos`). El `redirect` se valida después de
-  parsear la URL (un `"/\t/otro"` se convertiría en `//otro`).
+  parsear la URL (un `"/\t/otro"` o un `"/.//otro"` se convertirían en
+  `//otro`): se rechaza una ruta normalizada que empiece con `//` y se vuelve
+  a parsear lo que se devuelve.
 - **Perfil → «Privacidad y consentimientos»:** vigentes, historial (con
   revocaciones) y otorgar/retirar correo y push. Los términos no se revocan:
   es la baja de la cuenta (§5 y §7 del borrador), y el backend responde 409.
@@ -383,9 +385,12 @@ términos, todos de `auth`.
   sigue. Si la baja responde bien, la suscripción del navegador se conserva:
   si la misma persona vuelve a entrar, el inicio de sesión la registra otra
   vez; si entra otra persona sin consentimiento push, el registro da 409 y no
-  recibe nada. Si la baja **falla**, se hace `unsubscribe()` en el navegador
-  para que el dispositivo no siga mostrando los avisos de quien salió (agotar
-  el tope no cuenta como fallo).
+  recibe nada. Si la baja **no llega** (error de red) o el servidor falla
+  (5xx), se hace `unsubscribe()` en el navegador para que el dispositivo no
+  siga mostrando los avisos de quien salió. Otras respuestas no cancelan: un
+  404 dice que el endpoint no es de quien sale (puede ser de otra persona que
+  usó el dispositivo antes, que perdería su push). Agotar el tope tampoco
+  cuenta como fallo.
 - **Service Worker** (`sw.ts`): `push` muestra la notificación con el
   payload del backend (`titulo`, `cuerpo`, `url`, `tag: 'reporte-<id>'`, así
   un aviso nuevo del mismo reporte reemplaza al anterior; con un payload
@@ -394,8 +399,10 @@ términos, todos de `auth`.
   URL, o reutiliza otra de la app navegándola, o abre una nueva. Solo rutas
   del mismo origen: una `url` absoluta o `//otro` cae a `/mis-reportes`. Se
   valida después de parsear (con `\t`, `\n` o `\r`, `"/\t/otro"` sería
-  `//otro`), y el SW vuelve a comprobar el origen contra `self.location`
-  antes de `openWindow` o `navigate`. La lógica pura está en
+  `//otro`, y lo mismo `"/.//otro"` por la normalización de puntos): se
+  rechaza una ruta normalizada que empiece con `//` y se vuelve a parsear lo
+  que se devuelve. El SW comprueba además el origen contra `self.location`
+  antes de `openWindow` o `navigate`; si no coincide, abre `/mis-reportes`. La lógica pura está en
   `src/pwa/avisosPush.ts`, con tests. El SW sigue sin cachear `/api/`.
 - **CSP:** sin cambios. La suscripción y la entrega las hace el navegador con
   su servicio de push, fuera de la CSP de la página; el SW no llama a otros
