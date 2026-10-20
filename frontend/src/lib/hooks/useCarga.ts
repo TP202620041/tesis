@@ -24,14 +24,23 @@ const CARGANDO = { estado: 'cargando', datos: null, error: null } as const;
  *   recreado en cada render no dispare cargas en bucle.
  * - **Errores**: se traducen con `mensajeDeError`. El 401 ya lo resolvió el
  *   cliente HTTP (redirige al login).
+ * - **Recarga sin desmontar**: `recargar()` sobre datos ya listos (mismas
+ *   dependencias) los conserva visibles y solo marca `recargando`, en vez de
+ *   volver a `cargando`. Así una lista que se refresca tras una acción no
+ *   parpadea ni desmonta sus filas (scroll, formularios abiertos). Si las
+ *   dependencias cambian, o se reintenta desde un error, sí vuelve a
+ *   `cargando`: esos datos ya no corresponden.
  */
 export function useCarga<T>(
   cargar: () => Promise<T>,
   dependencias: readonly unknown[],
-): EstadoCarga<T> & { recargar: () => void } {
+): EstadoCarga<T> & { recargar: () => void; recargando: boolean } {
   const [estado, setEstado] = useState<EstadoCarga<T>>(CARGANDO);
+  const [recargando, setRecargando] = useState(false);
   const [intento, setIntento] = useState(0);
   const clave = JSON.stringify(dependencias);
+  // Dependencias de los datos que hay en estado `listo`; `null` si no hay.
+  const claveDeLosDatos = useRef<string | null>(null);
 
   // Siempre la última función de carga, sin que cambiar su identidad (una
   // arrow nueva en cada render) vuelva a disparar la carga.
@@ -49,12 +58,24 @@ export function useCarga<T>(
     // vuelve a renderizar. `listo`/`error` se escriben tras el `await`, y
     // solo si la carga no se canceló.
     const ejecutar = async () => {
-      setEstado(CARGANDO);
+      if (claveDeLosDatos.current === clave) {
+        setRecargando(true);
+      } else {
+        claveDeLosDatos.current = null;
+        setRecargando(false);
+        setEstado(CARGANDO);
+      }
       try {
         const datos = await cargarActual.current();
-        if (!cancelado) setEstado({ estado: 'listo', datos, error: null });
+        if (cancelado) return;
+        claveDeLosDatos.current = clave;
+        setEstado({ estado: 'listo', datos, error: null });
+        setRecargando(false);
       } catch (e) {
-        if (!cancelado) setEstado({ estado: 'error', datos: null, error: mensajeDeError(e) });
+        if (cancelado) return;
+        claveDeLosDatos.current = null;
+        setEstado({ estado: 'error', datos: null, error: mensajeDeError(e) });
+        setRecargando(false);
       }
     };
     void ejecutar();
@@ -65,5 +86,5 @@ export function useCarga<T>(
 
   const recargar = useCallback(() => setIntento((n) => n + 1), []);
 
-  return { ...estado, recargar };
+  return { ...estado, recargar, recargando };
 }

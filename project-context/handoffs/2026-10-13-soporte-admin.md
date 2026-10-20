@@ -1,10 +1,10 @@
 # Handoff de contrato: listado de tickets de soporte para el ADMIN
 
-- **Estado:** pendiente <!-- pendiente | atendido -->
+- **Estado:** atendido <!-- pendiente | atendido -->
 - **Fecha:** 2026-10-13
 - **Origen:** backend, rama `feature/us-25-soporte-admin`, commit `1db88bb` (PR pendiente)
 - **Historia o tarea:** US-25
-- **Atendido por:** _(frontend, rama y fecha)_
+- **Atendido por:** frontend, rama `feature/us-25-soporte-ui`, 2026-10-13 (`features/soporte/`, páginas `/soporte` y `/admin/soporte`)
 
 ## Endpoints afectados
 | Método | Ruta | Cambio |
