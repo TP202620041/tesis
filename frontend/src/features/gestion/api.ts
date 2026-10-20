@@ -7,6 +7,12 @@ import {
   type FiltrosExportacion,
   type FormatoExportacion,
 } from './model/exportacion';
+import {
+  cuerpoDeCategoria,
+  type CategoriaGestion,
+  type CategoriaGestionResponse,
+  type DatosCategoria,
+} from './model/categorias';
 import type {
   AsignacionResponsable,
   FiltrosBandeja,
@@ -125,4 +131,53 @@ export async function exportarReportes(
     contenido: archivo.contenido,
     nombreArchivo: nombreDeArchivo(archivo.contentDisposition, formato),
   };
+}
+
+/* -------------------------------------------------------------------------
+ * US-29: categorías personalizadas del distrito del funcionario
+ * ---------------------------------------------------------------------- */
+
+export function aCategoriaGestion(c: CategoriaGestionResponse): CategoriaGestion {
+  return {
+    id: c.id ?? 0,
+    nombre: c.nombre ?? '',
+    descripcion: c.descripcion ?? null,
+    esEstandar: c.esEstandar ?? false,
+    activo: c.activo ?? false,
+    distritoId: c.distritoId ?? null,
+    distritoNombre: c.distritoNombre ?? null,
+  };
+}
+
+/**
+ * Estándar + personalizadas del distrito, **incluidas las inactivas** (el
+ * catálogo público solo trae las activas). Orden del backend: primero las
+ * estándar y luego las propias, cada grupo por nombre.
+ */
+export async function categoriasDeGestion(): Promise<CategoriaGestion[]> {
+  const lista = await api.get<CategoriaGestionResponse[]>('/api/categorias/gestion');
+  return lista.map(aCategoriaGestion);
+}
+
+/** Crea una personalizada en el distrito del funcionario. 409 = nombre repetido o de una estándar. */
+export async function crearCategoria(datos: DatosCategoria): Promise<void> {
+  await api.post('/api/categorias', cuerpoDeCategoria(datos));
+}
+
+/** Reemplaza nombre y descripción (se envían siempre los dos). 403 = estándar o de otro distrito. */
+export async function editarCategoria(id: number, datos: DatosCategoria): Promise<CategoriaGestion> {
+  const c = await api.patch<CategoriaGestionResponse>(
+    `/api/categorias/${id}`,
+    cuerpoDeCategoria(datos),
+  );
+  return aCategoriaGestion(c);
+}
+
+/** Activa o desactiva: desactivar solo deja de ofrecerla al reportar. */
+export async function cambiarActivaCategoria(
+  id: number,
+  activa: boolean,
+): Promise<CategoriaGestion> {
+  const c = await api.patch<CategoriaGestionResponse>(`/api/categorias/${id}/activa`, { activa });
+  return aCategoriaGestion(c);
 }
