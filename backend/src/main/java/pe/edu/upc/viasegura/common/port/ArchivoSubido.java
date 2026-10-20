@@ -10,6 +10,13 @@ package pe.edu.upc.viasegura.common.port;
  * adaptador, igual que antes; el tamano maximo lo sigue imponiendo
  * {@code spring.servlet.multipart.max-file-size} antes de llegar aqui.</p>
  *
+ * <p><b>Costo aceptado:</b> el archivo completo queda en el heap, hasta
+ * {@code max-file-size} (10 MB) por cada pedido concurrente con foto. Antes
+ * se copiaba al disco por streaming desde el {@code MultipartFile}; el plan
+ * (BE-10) pide un record con los bytes para que el puerto no dependa de un
+ * tipo de Spring Web, y a esta escala (una foto por reporte o perfil) el
+ * costo no compensa un contrato con {@code InputStream}.</p>
+ *
  * @param contenido      bytes del archivo (vacio si el cliente envio una parte sin contenido)
  * @param contentType    tipo declarado por el cliente; puede ser {@code null}
  * @param nombreOriginal nombre que envio el cliente; solo se usa su extension

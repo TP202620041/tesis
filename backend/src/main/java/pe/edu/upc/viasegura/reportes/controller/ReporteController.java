@@ -246,7 +246,7 @@ public class ReporteController {
         try {
             return new ArchivoSubido(archivo.getBytes(), archivo.getContentType(), archivo.getOriginalFilename());
         } catch (IOException e) {
-            throw new BusinessException("No se pudo leer la foto");
+            throw new BusinessException("No se pudo almacenar la foto");
         }
     }
 }
