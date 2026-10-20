@@ -1,7 +1,6 @@
 package pe.edu.upc.viasegura.common.config;
 
 import java.util.concurrent.ThreadPoolExecutor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -19,18 +18,28 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
  * <ul>
  *   <li>hilos {@code app.async.hilos-base} a {@code app.async.hilos-max}
  *       (2 a 4) y cola de {@code app.async.cola} (100) tareas;</li>
- *   <li>con la cola llena la tarea se <b>descarta y se registra</b>; nunca
- *       corre en el hilo que la pidio (eso devolveria la latencia de la red
- *       al funcionario que cambio el estado). Perder un aviso con el sistema
- *       saturado se acepta: el reporte y su historial no dependen de el;</li>
+ *   <li>con la cola llena la tarea se <b>rechaza</b>
+ *       ({@code TaskRejectedException}, politica {@code AbortPolicy}) y quien
+ *       la encolo registra que se pierde (p. ej.
+ *       {@code ReporteEstadoCambiadoListener}, con el reporte y el usuario).
+ *       Nunca corre en el hilo que la pidio (eso devolveria la latencia de la
+ *       red al funcionario que cambio el estado). Perder un aviso con el
+ *       sistema saturado se acepta: el reporte y su historial no dependen de
+ *       el;</li>
  *   <li>al apagar, espera hasta 10 s a que terminen las tareas en curso.</li>
  * </ul>
+ *
+ * <p><b>Reemplaza al {@code applicationTaskExecutor} de Spring Boot</b>: Boot
+ * solo crea el suyo si no hay ningun {@code Executor}, asi que este pasa a
+ * ser el unico, y por tanto tambien el executor por defecto de cualquier
+ * {@code @Async} sin nombre (y de lo que Boot le asigne, como el MVC
+ * asincrono). Conviene nombrarlo igual en cada {@code @Async} para dejarlo
+ * explicito.</p>
  *
  * <p>En el perfil {@code test} este bean no existe: los IT registran uno con
  * el mismo nombre ({@code support/EjecutorSincronoTestConfig}) que corre la
  * tarea en otro hilo y la espera, para seguir siendo deterministas.</p>
  */
-@Slf4j
 @Configuration
 @EnableAsync
 public class AsyncConfig {
@@ -48,20 +57,10 @@ public class AsyncConfig {
         ejecutor.setCorePoolSize(hilosBase);
         ejecutor.setMaxPoolSize(hilosMax);
         ejecutor.setQueueCapacity(cola);
-        ejecutor.setRejectedExecutionHandler(descartarYRegistrar());
+        ejecutor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
         ejecutor.setWaitForTasksToCompleteOnShutdown(true);
         ejecutor.setAwaitTerminationSeconds(10);
         ejecutor.initialize();
         return ejecutor;
-    }
-
-    private static ThreadPoolExecutor.DiscardPolicy descartarYRegistrar() {
-        return new ThreadPoolExecutor.DiscardPolicy() {
-            @Override
-            public void rejectedExecution(Runnable tarea, ThreadPoolExecutor ejecutor) {
-                log.warn("Cola asincrona llena ({} en cola, {} hilos activos): se descarta una tarea",
-                        ejecutor.getQueue().size(), ejecutor.getActiveCount());
-            }
-        };
     }
 }

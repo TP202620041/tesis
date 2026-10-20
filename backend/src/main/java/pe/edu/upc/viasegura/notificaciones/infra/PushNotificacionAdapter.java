@@ -69,7 +69,11 @@ public class PushNotificacionAdapter implements NotificacionCanalAdapter {
             ResultadoEnvioPush resultado = enviadorWebPush.enviar(DestinoPush.de(s), payload, topico);
             switch (resultado) {
                 case ENTREGADO -> entregados++;
-                case SUSCRIPCION_CADUCADA -> suscripcionPushRepository.desactivar(s.getId());
+                case SUSCRIPCION_CADUCADA -> {
+                    // save de Spring Data: transaccion corta propia, despues del HTTP.
+                    s.setActiva(false);
+                    suscripcionPushRepository.save(s);
+                }
                 case ERROR -> log.info("Push no entregado a una suscripcion del usuario {}", destinatario.getId());
             }
         }

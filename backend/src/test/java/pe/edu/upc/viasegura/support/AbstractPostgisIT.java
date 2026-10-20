@@ -1,5 +1,6 @@
 package pe.edu.upc.viasegura.support;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -64,6 +65,16 @@ public abstract class AbstractPostgisIT {
     @Autowired
     protected EnviadorWebPushFake enviadorPush;
 
+    /** Executor de test: guarda los errores de los metodos @Async. */
+    @Autowired
+    private EjecutorSincronoTestConfig asincrono;
+
+    /** Un fallo en el hilo asincrono hace fallar el test con su causa. */
+    @AfterEach
+    void fallarSiHuboErrorAsincrono() {
+        asincrono.relanzarSiHuboError();
+    }
+
     /**
      * Guarda el usuario y le registra la aceptacion de los terminos vigentes,
      * como si se hubiera registrado por {@code POST /api/auth/registro}. Desde
@@ -119,6 +130,7 @@ public abstract class AbstractPostgisIT {
     @BeforeEach
     void limpiezaFkSafe() {
         enviadorPush.reiniciar();
+        asincrono.reiniciar();
         if (notificacionRepository != null) {
             notificacionRepository.deleteAll();
         }

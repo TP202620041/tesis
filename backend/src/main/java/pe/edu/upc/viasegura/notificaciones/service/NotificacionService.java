@@ -5,7 +5,9 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import pe.edu.upc.viasegura.common.config.AsyncConfig;
 import pe.edu.upc.viasegura.auth.domain.FinalidadConsentimiento;
 import pe.edu.upc.viasegura.auth.domain.PreferenciaNotificacion;
 import pe.edu.upc.viasegura.auth.domain.Usuario;
@@ -94,12 +96,20 @@ public class NotificacionService {
      * en el executor asincrono ({@code AsyncConfig}), asi que el cambio de
      * estado ya esta confirmado y el funcionario no espera a la red.
      *
-     * <p><b>Sin transaccion propia a proposito:</b> los envios (SMTP, HTTP al
-     * servicio de push) corren fuera de cualquier transaccion, sin retener
-     * una conexion a la base. Cada lectura y cada escritura (el registro de
-     * {@code notificacion}, la desactivacion de una suscripcion caducada) es
-     * una transaccion corta del repositorio.</p>
+     * <p><b>Sin transaccion propia a proposito</b>, y por eso se aparta de
+     * ARCHITECTURE.md 4.5 (que pide {@code REQUIRES_NEW}): los envios (SMTP,
+     * HTTP al servicio de push) corren fuera de cualquier transaccion, sin
+     * retener una conexion a la base. Cada lectura y cada escritura (el
+     * registro de {@code notificacion}, la desactivacion de una suscripcion
+     * caducada) es una transaccion corta del repositorio. La excepcion esta
+     * registrada en
+     * {@code project-context/decisions/propuestas/2026-10-20-notificaciones-fuera-de-transaccion.md}.</p>
+     *
+     * <p>Corre en el executor acotado ({@link AsyncConfig#EJECUTOR}); si la
+     * cola esta llena, la llamada lanza {@code TaskRejectedException} y el
+     * listener registra el aviso perdido.</p>
      */
+    @Async(AsyncConfig.EJECUTOR)
     public void notificarCambioEstado(ReporteEstadoCambiadoEvent evento) {
         TipoEvento tipo = tipoEventoDe(evento.nuevo());
         if (tipo == null) {
@@ -137,34 +147,45 @@ public class NotificacionService {
         }
     }
 
-    /** Intenta un canal y persiste el resultado. Devuelve true si se entrego. */
+    /**
+     * Intenta un canal y registra el resultado. Devuelve true si se entrego.
+     *
+     * <p>El {@code try} envuelve solo el envio: si guardar el registro falla
+     * despues de un envio exitoso, el aviso ya llego, asi que no se cuenta
+     * como fallo de envio ni dispara el fallback a correo; solo se registra
+     * el error.</p>
+     */
     private boolean intentarEnviar(CanalNotificacion canal, Usuario destinatario, Reporte reporte,
                                    TipoEvento tipo, AvisoReporte aviso) {
+        boolean entregado = false;
+        if (canalDisponible(destinatario, canal)) {
+            try {
+                adapters.get(canal).enviar(destinatario, aviso);
+                entregado = true;
+            } catch (RuntimeException e) {
+                log.warn("Fallo envio {} a usuario {}: {}", canal, destinatario.getId(), e.getMessage());
+            }
+        }
+        registrar(canal, destinatario, reporte, tipo, aviso, entregado);
+        return entregado;
+    }
+
+    private void registrar(CanalNotificacion canal, Usuario destinatario, Reporte reporte,
+                           TipoEvento tipo, AvisoReporte aviso, boolean entregado) {
         Notificacion notificacion = Notificacion.builder()
                 .usuario(destinatario)
                 .reporte(reporte)
                 .tipoEvento(tipo)
                 .canal(canal)
                 .mensaje(aviso.mensaje())
+                .estadoEntrega(entregado ? EstadoEntrega.ENVIADA : EstadoEntrega.FALLIDA)
+                .sentAt(entregado ? Instant.now() : null)
                 .build();
-
-        NotificacionCanalAdapter adapter = adapters.get(canal);
         try {
-            if (!canalDisponible(destinatario, canal)) {
-                notificacion.setEstadoEntrega(EstadoEntrega.FALLIDA);
-                notificacionRepository.save(notificacion);
-                return false;
-            }
-            adapter.enviar(destinatario, aviso);
-            notificacion.setEstadoEntrega(EstadoEntrega.ENVIADA);
-            notificacion.setSentAt(Instant.now());
             notificacionRepository.save(notificacion);
-            return true;
         } catch (RuntimeException e) {
-            notificacion.setEstadoEntrega(EstadoEntrega.FALLIDA);
-            notificacionRepository.save(notificacion);
-            log.warn("Fallo envio {} a usuario {}: {}", canal, destinatario.getId(), e.getMessage());
-            return false;
+            log.error("No se pudo registrar el aviso {} ({}) del reporte {} al usuario {}",
+                    canal, entregado ? "ENVIADA" : "FALLIDA", aviso.reporteId(), destinatario.getId(), e);
         }
     }
 
