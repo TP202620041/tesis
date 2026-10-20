@@ -229,7 +229,11 @@ Verificado end-to-end contra el backend real:
 - **US-13/14/15/22** bandeja municipal (`/bandeja`, `/bandeja/[id]`), rol
   `FUNCIONARIO_MUNICIPAL`: lista del distrito con filtros y orden, cambio de
   estado por la máquina de transiciones, asignación de responsable interno e
-  historial unificado sin redactar.
+  historial unificado sin redactar. La bandeja trabaja con su propio tipo,
+  `ReporteGestion` (`gestion/model/tipos.ts`), que es el único que trae la
+  señal interna `posibleReincidencia` (SEC-02 del backend): el
+  `ReporteResumen` del mapa, del detalle público y de «mis reportes» ya no la
+  tipa, así que una vista pública no puede leerla ni por descuido.
 - **US-18/20** índice de desempeño (`/desempeno`), **público**: ranking de los
   43 distritos con tasa de resolución, tiempo promedio y satisfacción,
   ordenable por columna y filtrable por tipo de daño.
