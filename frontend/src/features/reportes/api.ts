@@ -12,14 +12,6 @@ import type {
 } from './model/tipos';
 
 /**
- * Categorias seleccionables (US-05, US-29). El catalogo es compartido y vive
- * en `lib/api/catalogos.ts` (FE-08, anticipado en FE-05); se reexporta aqui
- * solo para `FormularioReporte` y `EditarReporte`, que todavia llaman a
- * `../api` desde el componente (pasan a hooks en FE-06).
- */
-export { listarCategorias } from '@/lib/api/catalogos';
-
-/**
  * US-06: la cola offline en IndexedDB (adaptador en `src/pwa/`). Se expone
  * por el gateway de la feature para que los hooks no dependan del adaptador
  * directamente: `api.ts` sigue siendo la unica puerta de I/O de `reportes`.

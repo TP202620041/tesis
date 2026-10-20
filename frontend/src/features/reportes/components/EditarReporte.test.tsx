@@ -2,14 +2,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { EditarReporte } from './EditarReporte';
-import { editarReporte, listarCategorias } from '../api';
+import { listarCategorias } from '@/lib/api/catalogos';
+import { editarReporte } from '../api';
 import type { ReporteResumen } from '../model/tipos';
 
 vi.mock('../api', () => ({
   editarReporte: vi.fn(),
   cancelarReporte: vi.fn(),
-  listarCategorias: vi.fn(),
 }));
+vi.mock('@/lib/api/catalogos', () => ({ listarCategorias: vi.fn() }));
 
 const editar = vi.mocked(editarReporte);
 const catalogo = vi.mocked(listarCategorias);

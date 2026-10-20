@@ -1,10 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { AlertaError, Boton, Campo } from '@/components/ui/form';
-import { ApiError, NetworkError } from '@/lib/api/client';
-import { asignarResponsable, responsableActivo } from '../api';
-import type { AsignacionResponsable } from '../model/tipos';
+import { useResponsable } from '../hooks/useResponsable';
 import { admiteResponsable } from '../model/transiciones';
 
 /**
@@ -15,56 +13,17 @@ import { admiteResponsable } from '../model/transiciones';
  * backend desactiva la asignacion vigente y crea una nueva.
  */
 export function Responsable({ reporteId, estado }: { reporteId: number; estado: string }) {
-  const [actual, setActual] = useState<AsignacionResponsable | null>(null);
-  const [cargando, setCargando] = useState(true);
+  const { cargando, actual, asignar, enviando, error } = useResponsable(reporteId, estado);
   const [nombre, setNombre] = useState('');
   const [notas, setNotas] = useState('');
-  const [error, setError] = useState<{ mensaje: string; detalles: string[] } | null>(null);
-  const [enviando, setEnviando] = useState(false);
-
-  useEffect(() => {
-    let cancelado = false;
-    const cargar = async () => {
-      setCargando(true);
-      try {
-        const asignacion = await responsableActivo(reporteId);
-        if (!cancelado) setActual(asignacion);
-      } catch {
-        if (!cancelado) setActual(null);
-      } finally {
-        if (!cancelado) setCargando(false);
-      }
-    };
-    void cargar();
-    return () => {
-      cancelado = true;
-    };
-  }, [reporteId, estado]);
 
   const puedeAsignar = admiteResponsable(estado);
 
   async function enviar(evento: React.FormEvent) {
     evento.preventDefault();
-    setError(null);
-    if (!nombre.trim()) return;
-
-    setEnviando(true);
-    try {
-      const asignacion = await asignarResponsable(reporteId, nombre, notas);
-      setActual(asignacion);
+    if (await asignar(nombre, notas)) {
       setNombre('');
       setNotas('');
-    } catch (e) {
-      if (e instanceof NetworkError) {
-        setError({ mensaje: 'Sin conexión con el servidor.', detalles: [] });
-      } else if (e instanceof ApiError) {
-        // 409 = el estado no admite asignación; 403 = otro distrito.
-        setError({ mensaje: e.message, detalles: e.details });
-      } else {
-        setError({ mensaje: 'Ocurrió un error inesperado.', detalles: [] });
-      }
-    } finally {
-      setEnviando(false);
     }
   }
 

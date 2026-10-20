@@ -2,8 +2,7 @@
 
 import { useState } from 'react';
 import { AlertaError, Boton } from '@/components/ui/form';
-import { ApiError, NetworkError } from '@/lib/api/client';
-import { cambiarEstado } from '../api';
+import { useCambiarEstado } from '../hooks/useCambiarEstado';
 import { esTerminal, exigeComentario, transicionesDesde } from '../model/transiciones';
 import { estiloDeEstado } from '@/lib/types/estados';
 import type { ReporteGestion } from '../model/tipos';
@@ -20,8 +19,7 @@ export function CambiarEstado({
   const opciones = transicionesDesde(actual);
   const [destino, setDestino] = useState('');
   const [comentario, setComentario] = useState('');
-  const [error, setError] = useState<{ mensaje: string; detalles: string[] } | null>(null);
-  const [enviando, setEnviando] = useState(false);
+  const { cambiar, enviando, error } = useCambiarEstado();
 
   if (esTerminal(actual)) {
     return (
@@ -37,34 +35,13 @@ export function CambiarEstado({
 
   async function enviar(evento: React.FormEvent) {
     evento.preventDefault();
-    setError(null);
-    if (!destino) return;
-    // El backend responde 400 si se rechaza sin justificar; se exige antes
-    // de enviar para que el funcionario no pierda lo escrito.
-    if (faltaComentario) {
-      setError({ mensaje: 'Para rechazar un reporte debes explicar el motivo.', detalles: [] });
-      return;
-    }
-
-    setEnviando(true);
-    try {
-      const actualizado = await cambiarEstado(reporte.id ?? 0, destino, comentario);
-      setDestino('');
-      setComentario('');
-      onCambiado(actualizado);
-    } catch (e) {
-      if (e instanceof NetworkError) {
-        setError({ mensaje: 'Sin conexión con el servidor.', detalles: [] });
-      } else if (e instanceof ApiError) {
-        // 409 = transición inválida (el backend es la autoridad sobre eso).
-        // 403 = el reporte no es de tu distrito.
-        setError({ mensaje: e.message, detalles: e.details });
-      } else {
-        setError({ mensaje: 'Ocurrió un error inesperado.', detalles: [] });
-      }
-    } finally {
-      setEnviando(false);
-    }
+    // El hook exige el comentario al rechazar antes de enviar, para que el
+    // funcionario no pierda lo escrito.
+    const actualizado = await cambiar(reporte.id ?? 0, destino, comentario);
+    if (!actualizado) return;
+    setDestino('');
+    setComentario('');
+    onCambiado(actualizado);
   }
 
   return (
