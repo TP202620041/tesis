@@ -38,7 +38,12 @@ const csp = [
   // del backend (`/media/fotos/reportes/…`) que va directo en `<img src>`.
   `img-src 'self' data: blob: ${apiBaseUrl} ${TILE_HOSTS}`,
   "font-src 'self' data:",
-  `connect-src 'self' ${apiBaseUrl}${esDesarrollo ? ' ws: wss:' : ''}`,
+  // Los tiles tambien van aqui: en produccion el Service Worker intercepta las
+  // peticiones de otro origen (`defaultCache` de Serwist) y las repite con
+  // `fetch()`, que se rige por `connect-src` y no por `img-src`. Sin listarlos,
+  // en cuanto el SW controla la pagina el mapa queda sin calles en cualquier
+  // navegador (en desarrollo no pasa porque el SW esta desactivado).
+  `connect-src 'self' ${apiBaseUrl} ${TILE_HOSTS}${esDesarrollo ? ' ws: wss:' : ''}`,
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
