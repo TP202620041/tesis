@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { estiloDeEstado } from '@/lib/types/estados';
+import { textoDeSeveridad, tituloVisible } from '@/lib/types/tituloYSeveridad';
 import { paginar, TAMANO_PAGINA_LISTA } from '../model/paginacion';
 import type { ReporteResumen } from '../model/tipos';
 
@@ -117,7 +118,7 @@ function FilaReporte({ reporte }: { reporte: ReporteResumen }) {
     >
       <span className="flex flex-wrap items-center justify-between gap-2">
         <span className="font-medium text-slate-900 dark:text-slate-100">
-          {reporte.categoriaNombre ?? 'Sin categoría'}
+          {tituloVisible(reporte.titulo)}
         </span>
         {/* Estado con nombre además del color (US-23). */}
         <span className="inline-flex items-center gap-1.5 text-sm text-slate-700 dark:text-slate-300">
@@ -128,6 +129,11 @@ function FilaReporte({ reporte }: { reporte: ReporteResumen }) {
           />
           {estilo.etiqueta}
         </span>
+      </span>
+      <span className="text-sm text-slate-700 dark:text-slate-300">
+        {[reporte.categoriaNombre ?? 'Sin categoría', textoDeSeveridad(reporte.severidad)]
+          .filter(Boolean)
+          .join(' · ')}
       </span>
       <span className="text-sm text-slate-600 dark:text-slate-400">
         {reporte.distritoNombre ?? 'Distrito desconocido'}

@@ -39,11 +39,46 @@ async function llenarYEnviar(usuario: ReturnType<typeof userEvent.setup>) {
   await usuario.click(screen.getByRole('button', { name: 'Usar mi ubicación (GPS)' }));
   await screen.findByText('Municipalidad de Miraflores');
   await usuario.selectOptions(screen.getByLabelText('Tipo de daño'), '3');
+  await usuario.type(screen.getByLabelText('Título'), 'Bache profundo');
+  await usuario.click(screen.getByRole('radio', { name: 'Alta' }));
   await usuario.click(screen.getByRole('button', { name: 'Enviar reporte' }));
 }
 
 const claveDe = (llamada: number) =>
   (vi.mocked(crearReporte).mock.calls[llamada]?.[0] as { idempotencyKey: string }).idempotencyKey;
+
+describe('FormularioReporte: título y severidad (NC-02)', () => {
+  it('la severidad empieza sin elegir y sin ella no se envía', async () => {
+    const usuario = userEvent.setup();
+    render(<FormularioReporte usuarioId={7} onCreado={vi.fn()} onEncolado={vi.fn()} />);
+
+    for (const nombre of ['Baja', 'Media', 'Alta']) {
+      expect(screen.getByRole('radio', { name: nombre })).not.toBeChecked();
+    }
+
+    await usuario.click(screen.getByRole('button', { name: 'Usar mi ubicación (GPS)' }));
+    await screen.findByText('Municipalidad de Miraflores');
+    await usuario.selectOptions(screen.getByLabelText('Tipo de daño'), '3');
+    await usuario.type(screen.getByLabelText('Título'), 'Bache profundo');
+    await usuario.click(screen.getByRole('button', { name: 'Enviar reporte' }));
+
+    expect(await screen.findByText('Elige la severidad del daño.')).toBeInTheDocument();
+    expect(crearReporte).not.toHaveBeenCalled();
+  });
+
+  it('envía el título recortado y la severidad elegida', async () => {
+    const usuario = userEvent.setup();
+    render(<FormularioReporte usuarioId={7} onCreado={vi.fn()} onEncolado={vi.fn()} />);
+
+    await usuario.type(screen.getByLabelText('Título'), '  ');
+    await llenarYEnviar(usuario);
+
+    await waitFor(() => expect(crearReporte).toHaveBeenCalledTimes(1));
+    expect(crearReporte).toHaveBeenCalledWith(
+      expect.objectContaining({ titulo: 'Bache profundo', severidad: 'ALTA' }),
+    );
+  });
+});
 
 describe('FormularioReporte sin conexión (US-06)', () => {
   it('NetworkError: encola con la misma clave y el siguiente reporte usa una nueva', async () => {

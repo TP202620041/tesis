@@ -3,9 +3,11 @@ import { IDBFactory } from 'fake-indexeddb';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError, NetworkError } from '@/lib/api/errors';
 import { colaDeReportes } from '@/pwa/colaReportes';
+import type { ReporteEnCola } from '../model/colaOffline';
 import type { NuevoReporte, ReporteCreado } from '../model/tipos';
 import {
   comoNuevoReporte,
+  completarEnCola,
   descartarDeLaCola,
   descartarTodosDe,
   encolarReporte,
@@ -30,6 +32,8 @@ function nuevo(clave: string, foto: File | null = null): NuevoReporte {
     latitud: -12.12,
     longitud: -77.03,
     categoriaId: 2,
+    titulo: 'Bache profundo en la berma',
+    severidad: 'ALTA',
     descripcion: 'Bache profundo',
     ubicacionManual: false,
     foto,
@@ -45,6 +49,8 @@ function creado(id: number): ReporteCreado {
     distritoNombre: 'Miraflores',
     categoriaNombre: 'Bache',
     fotoUrl: null,
+    titulo: 'Bache profundo en la berma',
+    severidad: 'ALTA',
   };
 }
 
@@ -74,11 +80,17 @@ describe('encolarReporte', () => {
       usuarioId: ANA,
       creadoEn: INICIO.toISOString(),
       estado: 'pendiente',
-      datos: { categoriaId: 2, descripcion: 'Bache profundo', ubicacionManual: false },
+      datos: {
+        categoriaId: 2,
+        titulo: 'Bache profundo en la berma',
+        severidad: 'ALTA',
+        descripcion: 'Bache profundo',
+        ubicacionManual: false,
+      },
     });
 
     // Al reenviar se rearma el mismo multipart: misma clave, misma foto.
-    const reenvio = comoNuevoReporte(guardado);
+    const reenvio = comoNuevoReporte(guardado)!;
     expect(reenvio.idempotencyKey).toBe('clave-1');
     expect(reenvio.foto?.name).toBe('bache.jpg');
     expect(reenvio.foto?.type).toBe('image/jpeg');
@@ -340,6 +352,155 @@ describe('caducidad de la clave (48 h)', () => {
 
     // El reciente se envio; los dos viejos se purgaron.
     expect(await claves()).toEqual([]);
+  });
+});
+
+/**
+ * NC-02: un reporte guardado por la version anterior del formulario, sin
+ * titulo ni severidad (se escribe directo en IndexedDB, como lo dejo esa
+ * version: sin esos campos y sin ningun marcador nuevo).
+ */
+async function guardarIncompleto(clave: string, usuarioId = ANA, ahora = en(0)) {
+  const { latitud, longitud, categoriaId, descripcion, ubicacionManual } = nuevo(clave);
+  const viejo: ReporteEnCola = {
+    idempotencyKey: clave,
+    usuarioId,
+    creadoEn: ahora().toISOString(),
+    datos: { latitud, longitud, categoriaId, descripcion, ubicacionManual },
+    foto: null,
+    estado: 'pendiente',
+    motivo: null,
+  };
+  await colaDeReportes.guardar(viejo);
+}
+
+describe('reportes incompletos (NC-02)', () => {
+  it('un incompleto NUNCA se envia sin completar, aunque este pendiente', async () => {
+    await guardarIncompleto('viejo');
+    await encolar('completo', ANA, en(1));
+    const enviar = vi.fn().mockResolvedValue(creado(50));
+
+    const resultado = await sincronizarCola(ANA, 1, undefined, deps(enviar, { ahora: en(2) }));
+
+    expect(enviar).toHaveBeenCalledTimes(1);
+    expect(enviar).toHaveBeenCalledWith(expect.objectContaining({ idempotencyKey: 'completo' }));
+    expect(resultado).toEqual({ enviados: [creado(50)], detenidaPor: null });
+    // El incompleto sigue en la cola, intacto.
+    expect(await claves()).toEqual(['viejo']);
+    expect((await colaDeReportes.listar())[0]).toMatchObject({ estado: 'pendiente', motivo: null });
+  });
+
+  it('comoNuevoReporte no puede armar la peticion de un incompleto', async () => {
+    await guardarIncompleto('viejo');
+    expect(comoNuevoReporte((await colaDeReportes.listar())[0]!)).toBeNull();
+  });
+
+  it('completarlo conserva la MISMA clave y la fecha, y entonces se envia con esa clave', async () => {
+    await guardarIncompleto('clave-original');
+
+    const error = await completarEnCola(
+      'clave-original',
+      { titulo: '  Bache en Miraflores  ', severidad: 'MEDIA' },
+      { almacen: colaDeReportes },
+    );
+
+    expect(error).toBeNull();
+    const [completado] = await colaDeReportes.listar();
+    expect(completado).toMatchObject({
+      idempotencyKey: 'clave-original',
+      creadoEn: en(0)().toISOString(),
+      estado: 'pendiente',
+      datos: { categoriaId: 2, titulo: 'Bache en Miraflores', severidad: 'MEDIA' },
+    });
+
+    const enviar = vi.fn().mockResolvedValue(creado(51));
+    await sincronizarCola(ANA, 1, undefined, deps(enviar, { ahora: en(1) }));
+
+    expect(enviar).toHaveBeenCalledTimes(1);
+    expect(enviar).toHaveBeenCalledWith(
+      expect.objectContaining({
+        idempotencyKey: 'clave-original',
+        titulo: 'Bache en Miraflores',
+        severidad: 'MEDIA',
+      }),
+    );
+    expect(await claves()).toEqual([]);
+  });
+
+  it('completar valida como el backend y no toca la cola si es invalido', async () => {
+    await guardarIncompleto('viejo');
+    const completar = (titulo: string, severidad: 'BAJA' | null) =>
+      completarEnCola('viejo', { titulo, severidad }, { almacen: colaDeReportes });
+
+    expect(await completar('   ab   ', 'BAJA')).toMatch(/al menos 5/);
+    expect(await completar('x'.repeat(121), 'BAJA')).toMatch(/como máximo 120/);
+    expect(await completar('Bache en Surco', null)).toBe('Elige la severidad del daño.');
+    expect((await colaDeReportes.listar())[0]?.datos.titulo).toBeUndefined();
+  });
+
+  it('completar un reporte que ya no esta (otra pestaña lo envio) no lo resucita', async () => {
+    const error = await completarEnCola(
+      'no-existe',
+      { titulo: 'Bache en Surco', severidad: 'ALTA' },
+      { almacen: colaDeReportes },
+    );
+    expect(error).toMatch(/ya no está/);
+    expect(await claves()).toEqual([]);
+  });
+
+  it('un incompleto rechazado con 400 (por la version vieja) se completa y vuelve a pendiente', async () => {
+    await guardarIncompleto('viejo');
+    await colaDeReportes.marcarRechazado('viejo', 'El titulo debe tener entre 5 y 120 caracteres');
+
+    await completarEnCola(
+      'viejo',
+      { titulo: 'Bache en Surco', severidad: 'BAJA' },
+      { almacen: colaDeReportes },
+    );
+
+    expect((await colaDeReportes.listar())[0]).toMatchObject({
+      idempotencyKey: 'viejo',
+      estado: 'pendiente',
+      motivo: null,
+    });
+  });
+
+  it('un 400 de validacion nunca borra el reporte de la cola', async () => {
+    await encolar('k1');
+    const enviar = vi
+      .fn()
+      .mockRejectedValue(new ApiError(400, 'El titulo debe tener entre 5 y 120 caracteres'));
+
+    await sincronizarCola(ANA, 1, undefined, deps(enviar));
+
+    expect((await colaDeReportes.listar())[0]).toMatchObject({
+      idempotencyKey: 'k1',
+      estado: 'rechazado',
+      motivo: 'El titulo debe tener entre 5 y 120 caracteres',
+    });
+  });
+
+  it('un incompleto no se purga aunque pasen 30 dias', async () => {
+    await guardarIncompleto('viejo');
+
+    await sincronizarCola(ANA, 1, undefined, deps(vi.fn(), { ahora: en(40 * 24) }));
+
+    expect(await claves()).toEqual(['viejo']);
+  });
+
+  it('un incompleto de mas de 48 h, al completarlo, queda caducado: no se reenvia a ciegas', async () => {
+    await guardarIncompleto('viejo');
+    await completarEnCola(
+      'viejo',
+      { titulo: 'Bache en Surco', severidad: 'ALTA' },
+      { almacen: colaDeReportes },
+    );
+    const enviar = vi.fn();
+
+    await sincronizarCola(ANA, 1, undefined, deps(enviar, { ahora: en(49) }));
+
+    expect(enviar).not.toHaveBeenCalled();
+    expect(await claves()).toEqual(['viejo']);
   });
 });
 

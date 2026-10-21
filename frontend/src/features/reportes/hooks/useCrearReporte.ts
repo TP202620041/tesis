@@ -2,7 +2,9 @@
 
 import { useCallback, useRef, useState } from 'react';
 import { mensajeDeError, NetworkError, type MensajeDeError } from '@/lib/api/errors';
+import type { Severidad } from '@/lib/types/domain';
 import { crearReporte } from '../api';
+import { errorDelTitulo } from '../model/titulo';
 import type { NuevoReporte, ReporteCreado } from '../model/tipos';
 import { useEncolarReporte } from './useColaOffline';
 
@@ -10,6 +12,10 @@ import { useEncolarReporte } from './useColaOffline';
 export interface DatosDelReporte {
   ubicacion: { latitud: number; longitud: number; manual: boolean } | null;
   categoriaId: number | null;
+  /** NC-02: obligatorio, 5-120 caracteres tras el trim. */
+  titulo: string;
+  /** NC-02: sin valor por defecto; `null` hasta que el ciudadano elige. */
+  severidad: Severidad | null;
   descripcion: string;
   foto: File | null;
 }
@@ -51,12 +57,24 @@ export function useCrearReporte(usuarioId: number) {
         setError({ mensaje: 'Elige el tipo de daño.', detalles: [] });
         return null;
       }
+      // NC-02: mismas reglas que el backend (que responderia 400).
+      const errorTitulo = errorDelTitulo(datos.titulo);
+      if (errorTitulo) {
+        setError({ mensaje: errorTitulo, detalles: [] });
+        return null;
+      }
+      if (datos.severidad == null) {
+        setError({ mensaje: 'Elige la severidad del daño.', detalles: [] });
+        return null;
+      }
 
       clave.current ??= crypto.randomUUID();
       const nuevo: NuevoReporte = {
         latitud: datos.ubicacion.latitud,
         longitud: datos.ubicacion.longitud,
         categoriaId: datos.categoriaId,
+        titulo: datos.titulo.trim(),
+        severidad: datos.severidad,
         descripcion: datos.descripcion,
         ubicacionManual: datos.ubicacion.manual,
         foto: datos.foto,

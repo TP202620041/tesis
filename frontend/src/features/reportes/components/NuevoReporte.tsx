@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { etiquetaDeSeveridad, tituloVisible } from '@/lib/types/tituloYSeveridad';
 import type { ReporteCreado } from '../model/tipos';
 import { FormularioReporte } from './FormularioReporte';
 
@@ -84,6 +85,11 @@ function ConfirmacionSinConexion({ onOtro }: { onOtro: () => void }) {
  * una ADHESION a uno existente cercano. Mostrar el mismo mensaje en ambos
  * casos seria enganoso — en el segundo el ciudadano no creo nada, se sumo a
  * un reporte que ya existia, y eso cambia lo que puede esperar despues.
+ *
+ * NC-02: titulo y severidad son los de la RESPUESTA, no los que escribio el
+ * ciudadano: en una adhesion el backend descarta los enviados y devuelve los
+ * del reporte existente. Mostrar los escritos presentaria como propio un
+ * titulo que no quedo registrado.
  */
 function Confirmacion({ reporte, onOtro }: { reporte: ReporteCreado; onOtro: () => void }) {
   // `api.ts` ya devuelve la URL absoluta de la foto.
@@ -102,7 +108,9 @@ function Confirmacion({ reporte, onOtro }: { reporte: ReporteCreado; onOtro: () 
           </h1>
           <p className="text-slate-700 dark:text-slate-300">
             Alguien más ya había reportado este mismo daño muy cerca, así que{' '}
-            <strong>te sumaste a ese reporte</strong> en lugar de crear uno duplicado. Ahora hay{' '}
+            <strong>te sumaste a ese reporte</strong>
+            {reporte.titulo ? <> («{reporte.titulo}»)</> : null} en lugar de crear uno duplicado.
+            Se conservan su título y su severidad; los que escribiste no se usaron. Ahora hay{' '}
             <strong>{reporte.totalAdhesiones} vecinos</strong> respaldándolo, lo que ayuda a que la
             municipalidad lo priorice.
           </p>
@@ -121,6 +129,12 @@ function Confirmacion({ reporte, onOtro }: { reporte: ReporteCreado; onOtro: () 
       )}
 
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+        <dt className="font-medium text-slate-500 dark:text-slate-400">Título</dt>
+        <dd className="text-slate-900 dark:text-slate-100">{tituloVisible(reporte.titulo)}</dd>
+        <dt className="font-medium text-slate-500 dark:text-slate-400">Severidad</dt>
+        <dd className="text-slate-900 dark:text-slate-100">
+          {etiquetaDeSeveridad(reporte.severidad) ?? '—'}
+        </dd>
         <dt className="font-medium text-slate-500 dark:text-slate-400">Tipo</dt>
         <dd className="text-slate-900 dark:text-slate-100">{reporte.categoriaNombre ?? '—'}</dd>
         <dt className="font-medium text-slate-500 dark:text-slate-400">Distrito</dt>

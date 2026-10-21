@@ -2,14 +2,17 @@
 
 import { useState } from 'react';
 import { AlertaError, Boton } from '@/components/ui/form';
+import type { Severidad } from '@/lib/types/domain';
 import { useCategoriasDeReporte } from '../hooks/useCategoriasDeReporte';
 import { useCrearReporte } from '../hooks/useCrearReporte';
 import type { ReporteCreado } from '../model/tipos';
+import { CampoSeveridad, CampoTitulo } from './CamposTituloYSeveridad';
 import { CampoFoto } from './CampoFoto';
 import { CampoUbicacion, type UbicacionElegida } from './CampoUbicacion';
 
 /**
- * US-05: crear un reporte con foto, categoría y GPS.
+ * US-05: crear un reporte con foto, categoría y GPS. NC-02: con título
+ * (obligatorio) y severidad (obligatoria, sin valor por defecto).
  *
  * US-06: sin conexión, el reporte se guarda en el dispositivo con su
  * `Idempotency-Key` (`onEncolado`) y se envía solo al volver la señal. La
@@ -27,6 +30,8 @@ export function FormularioReporte({
   const { enviar: enviarReporte, enviando, error } = useCrearReporte(usuarioId);
   const [ubicacion, setUbicacion] = useState<UbicacionElegida | null>(null);
   const [categoriaElegida, setCategoriaElegida] = useState<number | null>(null);
+  const [titulo, setTitulo] = useState('');
+  const [severidad, setSeveridad] = useState<Severidad | null>(null);
   const [descripcion, setDescripcion] = useState('');
   const [foto, setFoto] = useState<File | null>(null);
 
@@ -52,6 +57,8 @@ export function FormularioReporte({
         manual: ubicacion.manual,
       },
       categoriaId,
+      titulo,
+      severidad,
       descripcion,
       foto,
     });
@@ -95,6 +102,10 @@ export function FormularioReporte({
           </p>
         )}
       </div>
+
+      <CampoTitulo id="titulo" valor={titulo} onCambiar={setTitulo} />
+
+      <CampoSeveridad nombre="severidad" valor={severidad} onCambiar={setSeveridad} />
 
       <CampoFoto valor={foto} onCambiar={setFoto} />
 

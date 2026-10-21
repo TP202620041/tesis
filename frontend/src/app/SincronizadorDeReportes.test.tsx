@@ -29,7 +29,14 @@ function enCola(clave: string): ReporteEnCola {
     idempotencyKey: clave,
     usuarioId: 7,
     creadoEn: new Date().toISOString(),
-    datos: { latitud: -12.1, longitud: -77.0, categoriaId: 1, ubicacionManual: false },
+    datos: {
+      latitud: -12.1,
+      longitud: -77.0,
+      categoriaId: 1,
+      titulo: 'Bache en Miraflores',
+      severidad: 'MEDIA',
+      ubicacionManual: false,
+    },
     foto: null,
     estado: 'pendiente',
     motivo: null,
@@ -60,6 +67,8 @@ describe('SincronizadorDeReportes', () => {
       distritoNombre: null,
       categoriaNombre: null,
       fotoUrl: null,
+      titulo: null,
+      severidad: null,
     });
     render(<SincronizadorDeReportes />);
     await waitFor(() => expect(usuarioActualSinRedirigir).toHaveBeenCalledTimes(1));

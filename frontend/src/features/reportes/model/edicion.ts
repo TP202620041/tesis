@@ -1,6 +1,6 @@
 /**
  * Reglas puras de la edición de un reporte (US-08) frente a categorías
- * desactivadas (US-29).
+ * desactivadas (US-29), con título y severidad (NC-02).
  *
  * Desactivar una categoría solo deja de ofrecerla: los reportes que ya la
  * tienen la conservan. El catálogo público ya no la trae, así que el
@@ -8,7 +8,8 @@
  * agregar como opción, y la petición solo lleva `categoriaId` si el
  * ciudadano eligió otra (el PATCH de US-08 es parcial: lo ausente no cambia).
  */
-import type { CategoriaDano } from '@/lib/types/domain';
+import type { CategoriaDano, Severidad } from '@/lib/types/domain';
+import { errorDelTitulo } from './titulo';
 
 export interface OpcionCategoria {
   id: number;
@@ -37,14 +38,57 @@ export function etiquetaDeOpcion(opcion: OpcionCategoria): string {
   return opcion.noOfrecida ? `${opcion.nombre} (ya no se ofrece)` : opcion.nombre;
 }
 
-/** Cuerpo del PATCH de US-08: `categoriaId` solo si cambió. */
+/** Lo que el ciudadano dejó en el formulario de edición. */
+export interface EdicionElegida {
+  categoriaId: number | null;
+  /** NC-02. */
+  titulo: string;
+  /** NC-02. */
+  severidad: Severidad | null;
+  descripcion: string;
+}
+
+/** Valores actuales del reporte, para saber qué cambió. */
+export interface ValoresOriginales {
+  categoriaId: number | null;
+  titulo: string | null;
+  severidad: string | null;
+}
+
+export interface CambiosDeEdicion {
+  categoriaId?: number;
+  titulo?: string;
+  severidad?: Severidad;
+  descripcion: string;
+}
+
+/**
+ * Cuerpo del PATCH de US-08. La descripción va siempre (como antes); la
+ * categoría, el título y la severidad (NC-02) solo si cambiaron: en el PATCH
+ * lo ausente no cambia, y así un título que el ciudadano no tocó nunca
+ * provoca un 400. El título se compara y se envía recortado, como lo guarda
+ * el backend.
+ */
 export function cambiosDeEdicion(
-  categoriaOriginal: number | null,
-  categoriaElegida: number | null,
-  descripcion: string,
-): { categoriaId?: number; descripcion: string } {
-  if (categoriaElegida != null && categoriaElegida !== categoriaOriginal) {
-    return { categoriaId: categoriaElegida, descripcion };
+  original: ValoresOriginales,
+  elegido: EdicionElegida,
+): CambiosDeEdicion {
+  const cambios: CambiosDeEdicion = { descripcion: elegido.descripcion };
+  if (elegido.categoriaId != null && elegido.categoriaId !== original.categoriaId) {
+    cambios.categoriaId = elegido.categoriaId;
   }
-  return { descripcion };
+  const titulo = elegido.titulo.trim();
+  if (titulo !== (original.titulo ?? '').trim()) cambios.titulo = titulo;
+  if (elegido.severidad != null && elegido.severidad !== original.severidad) {
+    cambios.severidad = elegido.severidad;
+  }
+  return cambios;
+}
+
+/**
+ * Error que impide guardar, o `null`. Solo se valida el título si cambió:
+ * el que ya tiene el reporte lo validó el backend.
+ */
+export function errorDeEdicion(cambios: CambiosDeEdicion): string | null {
+  return cambios.titulo === undefined ? null : errorDelTitulo(cambios.titulo);
 }

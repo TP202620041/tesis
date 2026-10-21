@@ -2,9 +2,11 @@
 
 import { useState } from 'react';
 import { AlertaError, Boton } from '@/components/ui/form';
+import type { Severidad } from '@/lib/types/domain';
 import { useEditarReporte } from '../hooks/useEditarReporte';
 import { etiquetaDeOpcion } from '../model/edicion';
 import type { ReporteResumen } from '../model/tipos';
+import { CampoSeveridad, CampoTitulo } from './CamposTituloYSeveridad';
 
 /**
  * US-08: el creador edita o retira su reporte mientras sigue PENDIENTE.
@@ -23,12 +25,14 @@ export function EditarReporte({
   const { opciones, guardar: guardarCambios, retirar: retirarReporte, enviando, error } =
     useEditarReporte(reporte);
   const [categoriaId, setCategoriaId] = useState<number | null>(reporte.categoriaId ?? null);
+  const [titulo, setTitulo] = useState(reporte.titulo ?? '');
+  const [severidad, setSeveridad] = useState<Severidad | null>(reporte.severidad ?? null);
   const [descripcion, setDescripcion] = useState(reporte.descripcion ?? '');
   const [confirmandoRetiro, setConfirmandoRetiro] = useState(false);
 
   async function guardar(evento: React.FormEvent) {
     evento.preventDefault();
-    if (await guardarCambios(categoriaId, descripcion)) onActualizado();
+    if (await guardarCambios({ categoriaId, titulo, severidad, descripcion })) onActualizado();
   }
 
   async function retirar() {
@@ -44,6 +48,10 @@ export function EditarReporte({
           Editar mi reporte
         </h2>
         {error && <AlertaError mensaje={error.mensaje} detalles={error.detalles} />}
+
+        <CampoTitulo id="titulo-edit" valor={titulo} onCambiar={setTitulo} />
+
+        <CampoSeveridad nombre="severidad-edit" valor={severidad} onCambiar={setSeveridad} />
 
         <div className="flex flex-col gap-1.5">
           <label htmlFor="cat-edit" className="text-sm text-slate-700 dark:text-slate-200">

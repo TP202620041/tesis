@@ -15,6 +15,7 @@ import {
 import type { BoundingBox } from '@/features/reportes/model/bbox';
 import { estiloDeNivel, textoDeRango, type CeldaCalor } from '@/features/reportes/model/densidad';
 import { ESTADOS_EN_MAPA, estiloDeEstado } from '@/lib/types/estados';
+import { textoDeSeveridad, tituloVisible } from '@/lib/types/tituloYSeveridad';
 import type { ReporteResumen } from '@/features/reportes/model/tipos';
 
 /**
@@ -201,8 +202,8 @@ export default function MapaReportes({
  * Resumen dentro del popup.
  *
  * Usa solo lo que ya trae `ReporteResumenResponse` — no hace una llamada por
- * reporte: el endpoint de busqueda ya devuelve foto, categoria, fecha,
- * estado y distrito, que es exactamente lo que pide el escenario.
+ * reporte: el endpoint de busqueda ya devuelve foto, titulo, categoria,
+ * severidad (NC-02), fecha, estado y distrito.
  */
 function PopupReporte({ reporte }: { reporte: ReporteResumen }) {
   const estilo = estiloDeEstado(reporte.estado ?? '');
@@ -224,7 +225,7 @@ function PopupReporte({ reporte }: { reporte: ReporteResumen }) {
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={foto}
-          alt={`Foto del daño reportado: ${reporte.categoriaNombre ?? ''}`}
+          alt={`Foto del daño reportado: ${tituloVisible(reporte.titulo)}`}
           style={{
             width: '100%',
             maxHeight: '8rem',
@@ -234,7 +235,10 @@ function PopupReporte({ reporte }: { reporte: ReporteResumen }) {
           }}
         />
       )}
-      <p style={{ margin: '0 0 .25rem', fontWeight: 600 }}>{reporte.categoriaNombre}</p>
+      <p style={{ margin: '0 0 .25rem', fontWeight: 600 }}>{tituloVisible(reporte.titulo)}</p>
+      <p style={{ margin: '0 0 .25rem', fontSize: '.8rem' }}>
+        {[reporte.categoriaNombre, textoDeSeveridad(reporte.severidad)].filter(Boolean).join(' · ')}
+      </p>
       <p style={{ margin: '0 0 .5rem' }}>
         <span
           style={{

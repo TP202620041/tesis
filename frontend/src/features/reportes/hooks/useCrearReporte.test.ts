@@ -14,6 +14,8 @@ const CREADO = { id: 40, esAdhesion: false } as ReporteCreado;
 const DATOS: DatosDelReporte = {
   ubicacion: { latitud: -12.12, longitud: -77.03, manual: true },
   categoriaId: 3,
+  titulo: '  Bache profundo en la berma  ',
+  severidad: 'ALTA',
   descripcion: 'Bache profundo',
   foto: null,
 };
@@ -51,6 +53,8 @@ describe('useCrearReporte (US-05, US-06)', () => {
       latitud: -12.12,
       longitud: -77.03,
       categoriaId: 3,
+      titulo: 'Bache profundo en la berma',
+      severidad: 'ALTA',
       descripcion: 'Bache profundo',
       ubicacionManual: true,
       foto: null,
@@ -126,5 +130,29 @@ describe('useCrearReporte (US-05, US-06)', () => {
     expect(result.current.error?.mensaje).toBe('Elige el tipo de daño.');
 
     expect(crearReporte).not.toHaveBeenCalled();
+  });
+
+  it('NC-02: sin título válido o sin severidad no llega al backend', async () => {
+    const { result, enviar } = montar();
+
+    expect(await enviar({ ...DATOS, titulo: '   ' })).toBeNull();
+    expect(result.current.error?.mensaje).toBe('Escribe un título para el reporte.');
+
+    expect(await enviar({ ...DATOS, titulo: ' Hoyo ' })).toBeNull();
+    expect(result.current.error?.mensaje).toMatch(/al menos 5/);
+
+    expect(await enviar({ ...DATOS, severidad: null })).toBeNull();
+    expect(result.current.error?.mensaje).toBe('Elige la severidad del daño.');
+
+    expect(crearReporte).not.toHaveBeenCalled();
+  });
+
+  it('NC-02: el largo se cuenta en caracteres, como el backend (un emoji es 1)', async () => {
+    vi.mocked(crearReporte).mockResolvedValue(CREADO);
+    const { enviar } = montar();
+
+    // 4 letras + 1 emoji = 5 caracteres (y 6 unidades UTF-16).
+    expect(await enviar({ ...DATOS, titulo: 'Hoyo😀' })).toEqual({ tipo: 'creado', reporte: CREADO });
+    expect(crearReporte).toHaveBeenCalledWith(expect.objectContaining({ titulo: 'Hoyo😀' }));
   });
 });

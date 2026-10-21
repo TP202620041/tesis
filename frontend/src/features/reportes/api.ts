@@ -1,6 +1,6 @@
 import { apiFetch, api, conFotoAbsoluta, urlDeFoto } from '@/lib/api/client';
 import { ApiError } from '@/lib/api/errors';
-import type { HistorialEntrada } from '@/lib/types/domain';
+import { esSeveridad, type HistorialEntrada, type Severidad } from '@/lib/types/domain';
 import type {
   Calificacion,
   ComentarioPublico,
@@ -86,10 +86,14 @@ export function historialDeReporte(reporteId: number): Promise<HistorialEntrada[
   return api.get<HistorialEntrada[]>(`/api/reportes/${reporteId}/historial`);
 }
 
-/** US-08: edita categoria y/o descripcion. Campos ausentes no se modifican. */
+/**
+ * US-08: edita categoria, descripcion y (NC-02) titulo y severidad. Campos
+ * ausentes no se modifican. El backend valida el titulo igual que al crear
+ * (400 si no tiene de 5 a 120 caracteres tras el trim).
+ */
 export async function editarReporte(
   reporteId: number,
-  cambios: { categoriaId?: number; descripcion?: string },
+  cambios: { categoriaId?: number; descripcion?: string; titulo?: string; severidad?: Severidad },
 ): Promise<ReporteResumen> {
   return conFotoAbsoluta(await api.patch<ReporteResumen>(`/api/reportes/${reporteId}`, cambios));
 }
@@ -190,6 +194,10 @@ export async function crearReporte(
   cuerpo.append('latitud', String(datos.latitud));
   cuerpo.append('longitud', String(datos.longitud));
   cuerpo.append('categoriaId', String(datos.categoriaId));
+  // NC-02: obligatorios (400 si faltan). El titulo va recortado, como lo
+  // guarda el backend.
+  cuerpo.append('titulo', datos.titulo.trim());
+  cuerpo.append('severidad', datos.severidad);
   cuerpo.append('ubicacionManual', String(datos.ubicacionManual));
   if (datos.descripcion?.trim()) {
     cuerpo.append('descripcion', datos.descripcion.trim());
@@ -216,5 +224,10 @@ export async function crearReporte(
     distritoNombre: creado.distritoNombre ?? null,
     categoriaNombre: creado.categoriaNombre ?? null,
     fotoUrl: urlDeFoto(creado.fotoUrl),
+    // NC-02: los de la RESPUESTA (en una adhesion, los del reporte
+    // existente). `null` si es la respuesta guardada de un envio anterior a
+    // NC-02 (reenvio idempotente).
+    titulo: creado.titulo ?? null,
+    severidad: esSeveridad(creado.severidad) ? creado.severidad : null,
   };
 }

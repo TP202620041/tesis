@@ -1,8 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import type { ReporteEnColaVisible } from '../hooks/useColaOffline';
+import type { Severidad } from '@/lib/types/domain';
+import type { ErrorAlCompletar, ReporteEnColaVisible } from '../hooks/useColaOffline';
+import { useTituloSugerido } from '../hooks/useTituloSugerido';
 import type { ReporteEnCola } from '../model/colaOffline';
+import { CampoSeveridad, CampoTitulo } from './CamposTituloYSeveridad';
 
 type Accion = { clave: string; tipo: 'descartar' | 'reenviar' };
 
@@ -16,6 +19,9 @@ type Accion = { clave: string; tipo: 'descartar' | 'reenviar' };
  * - `caducado`: lleva mas de 48 h y la clave de idempotencia ya vencio en el
  *   backend. Pudo haber llegado: se pide revisar "Mis reportes" antes de
  *   reenviarlo con una clave nueva, o descartarlo.
+ * - `incompleto` (NC-02): lo guardo la version anterior, sin titulo ni
+ *   severidad. No se envia solo ni se purga: el ciudadano lo completa aqui
+ *   (con la misma clave) o lo descarta.
  *
  * Descartar y reenviar piden confirmacion.
  */
@@ -23,10 +29,15 @@ export function PendientesDeEnvio({
   pendientes,
   onDescartar,
   onReenviarConClaveNueva,
+  onCompletar,
 }: {
   pendientes: ReporteEnColaVisible[];
   onDescartar: (idempotencyKey: string) => void;
   onReenviarConClaveNueva: (reporte: ReporteEnCola) => void;
+  onCompletar: (
+    idempotencyKey: string,
+    campos: { titulo: string; severidad: Severidad | null },
+  ) => Promise<ErrorAlCompletar>;
 }) {
   const [confirmando, setConfirmando] = useState<Accion | null>(null);
   if (pendientes.length === 0) return null;
@@ -51,6 +62,7 @@ export function PendientesDeEnvio({
               className="flex flex-col gap-1 rounded bg-white px-3 py-2 text-sm dark:bg-slate-800"
             >
               <span className="text-slate-700 dark:text-slate-200">
+                {r.datos.titulo ? <strong>{r.datos.titulo} · </strong> : null}
                 Reporte del {new Date(r.creadoEn).toLocaleString('es-PE')}
                 {r.foto ? ' · con foto' : ''}
               </span>
@@ -67,6 +79,10 @@ export function PendientesDeEnvio({
                 <span role="alert" className="text-red-700 dark:text-red-300">
                   Caducado: revisa Mis reportes antes de reenviarlo
                 </span>
+              )}
+
+              {r.visible === 'incompleto' && !enConfirmacion && (
+                <CompletarReporte reporte={r} onCompletar={onCompletar} />
               )}
 
               {r.visible !== 'pendiente' && !enConfirmacion && (
@@ -122,5 +138,65 @@ export function PendientesDeEnvio({
         })}
       </ul>
     </section>
+  );
+}
+
+/**
+ * NC-02: completar un reporte guardado por la version anterior del
+ * formulario. El titulo viene sugerido («<categoría> en <distrito>») pero
+ * hay que confirmarlo; la severidad no trae valor por defecto.
+ */
+function CompletarReporte({
+  reporte,
+  onCompletar,
+}: {
+  reporte: ReporteEnCola;
+  onCompletar: (
+    idempotencyKey: string,
+    campos: { titulo: string; severidad: Severidad | null },
+  ) => Promise<ErrorAlCompletar>;
+}) {
+  const sugerido = useTituloSugerido(reporte.datos);
+  // `null` = el ciudadano todavia no lo toco: se muestra la sugerencia.
+  const [tituloEscrito, setTitulo] = useState<string | null>(reporte.datos.titulo ?? null);
+  const [severidad, setSeveridad] = useState<Severidad | null>(reporte.datos.severidad ?? null);
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const titulo = tituloEscrito ?? sugerido ?? '';
+  const id = `completar-${reporte.idempotencyKey}`;
+
+  async function guardar(evento: React.FormEvent) {
+    evento.preventDefault();
+    setError(null);
+    setGuardando(true);
+    try {
+      setError(await onCompletar(reporte.idempotencyKey, { titulo, severidad }));
+    } catch {
+      setError('No se pudo guardar en el dispositivo. Vuelve a intentarlo.');
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  return (
+    <form onSubmit={guardar} noValidate className="flex flex-col gap-2 border-t border-amber-200 pt-2 dark:border-amber-800">
+      <p role="alert" className="text-amber-900 dark:text-amber-100">
+        Le faltan el título y la severidad: complétalos para enviarlo.
+      </p>
+      {error && (
+        <p role="alert" className="text-red-700 dark:text-red-300">
+          {error}
+        </p>
+      )}
+      <CampoTitulo id={`${id}-titulo`} valor={titulo} onCambiar={setTitulo} />
+      <CampoSeveridad nombre={`${id}-severidad`} valor={severidad} onCambiar={setSeveridad} />
+      <button
+        type="submit"
+        disabled={guardando}
+        className="self-start rounded-md bg-sky-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-sky-700 disabled:opacity-60"
+      >
+        {guardando ? 'Guardando…' : 'Completar'}
+      </button>
+    </form>
   );
 }

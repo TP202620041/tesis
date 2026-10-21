@@ -4,23 +4,26 @@ import { useCallback, useEffect } from 'react';
 import { ApiError, NetworkError } from '@/lib/api/errors';
 import { generacionDeSesion } from '@/lib/auth/token-storage';
 import { useCarga } from '@/lib/hooks/useCarga';
+import { esSeveridad, type Severidad } from '@/lib/types/domain';
 import { colaDeReportes, crearReporte, type AlmacenDeCola } from '../api';
 import {
   debePurgarse,
   desenlaceDeEnvio,
   estadoVisible,
+  estaIncompleto,
   pendientesDe,
   seReenviaSolo,
   type DesenlaceDeEnvio,
   type EstadoVisible,
   type ReporteEnCola,
 } from '../model/colaOffline';
+import { errorDelTitulo } from '../model/titulo';
 import type { NuevoReporte, ReporteCreado } from '../model/tipos';
 
 /*
  * US-06: cola offline (capa de aplicacion). Arriba, los casos de uso sin
- * React (encolar, sincronizar, descartar, reenviar con clave nueva); abajo,
- * los hooks que los exponen a la UI. Todo el I/O pasa por `../api`: el POST
+ * React (encolar, sincronizar, completar, descartar, reenviar con clave
+ * nueva); abajo, los hooks que los exponen a la UI. Todo el I/O pasa por `../api`: el POST
  * (`crearReporte`, que lee el token vigente al enviar) y el almacen de la
  * cola (`colaDeReportes`, IndexedDB).
  */
@@ -66,10 +69,18 @@ export async function encolarReporte(
   });
 }
 
-/** Reconstruye la peticion original a partir de lo guardado. */
-export function comoNuevoReporte(enCola: ReporteEnCola): NuevoReporte {
+/**
+ * Reconstruye la peticion original a partir de lo guardado, o `null` si el
+ * reporte esta `incompleto` (NC-02: le falta el titulo o la severidad): esa
+ * peticion no se puede armar, y asi tampoco se puede enviar por descuido.
+ */
+export function comoNuevoReporte(enCola: ReporteEnCola): NuevoReporte | null {
+  const { titulo, severidad } = enCola.datos;
+  if (estaIncompleto(enCola) || titulo === undefined || severidad === undefined) return null;
   return {
     ...enCola.datos,
+    titulo,
+    severidad,
     idempotencyKey: enCola.idempotencyKey,
     foto: enCola.foto
       ? new File([enCola.foto.contenido], enCola.foto.nombre, { type: enCola.foto.tipo })
@@ -111,7 +122,9 @@ const enCurso = new Map<
 
 /**
  * Reenvia, del mas antiguo al mas nuevo, los reportes de `usuarioId` que se
- * reenvian solos (pendientes con la clave vigente).
+ * reenvian solos (pendientes, completos y con la clave vigente). Un reporte
+ * `incompleto` (NC-02: sin titulo o sin severidad) NUNCA se envia aqui: el
+ * backend lo rechazaria con 400; espera a que el ciudadano lo complete.
  *
  * - Exito: se quita de la cola.
  * - Sin red, 5xx, 408 o 429: se conserva y se detiene.
@@ -120,6 +133,7 @@ const enCurso = new Map<
  * - 403 `TERMINOS_PENDIENTES` (NC-07b): igual que el 401 (`sin-sesion`),
  *   pero sin borrar el token; se reenvia tras aceptar los terminos.
  * - Otro 4xx: se marca `rechazado` con el motivo y se sigue con el resto.
+ *   Nunca se borra: un 400 de validacion tampoco saca un reporte de la cola.
  *
  * **Nunca envia con la sesion de otro:** `generacionEsperada` es la
  * generacion de sesion en la que se identifico a `usuarioId` (la devuelve
@@ -174,10 +188,12 @@ async function sincronizar(
   const aEnviar = pendientesDe(cola, usuarioId).filter((r) => seReenviaSolo(r, ahora));
   for (const enCola of aEnviar) {
     if (!sesionVigente()) return { enviados, detenidaPor: 'interrumpida' };
+    const peticion = comoNuevoReporte(enCola);
+    if (!peticion) continue;
 
     let creado: ReporteCreado;
     try {
-      creado = await deps.enviar(comoNuevoReporte(enCola));
+      creado = await deps.enviar(peticion);
     } catch (e) {
       const desenlace = desenlaceDe(e);
       if (desenlace === 'rechazado') {
@@ -214,6 +230,32 @@ export async function descartarTodosDe(
   for (const r of pendientesDe(await deps.almacen.listar(), usuarioId)) {
     await deps.almacen.quitar(r.idempotencyKey);
   }
+}
+
+/** Resultado de completar un reporte incompleto: `null` si se guardo, o el motivo. */
+export type ErrorAlCompletar = string | null;
+
+/**
+ * NC-02: el ciudadano completa un reporte `incompleto` (armado por la
+ * version anterior del formulario, sin titulo ni severidad). Se valida como
+ * el backend y se guarda con el titulo recortado, en una sola transaccion y
+ * con la MISMA `Idempotency-Key`: nunca se regenera la clave de un reporte
+ * encolado. Queda `pendiente`, y la sincronizacion automatica lo envia
+ * (o pasa a `caducado` si la clave ya vencio).
+ */
+export async function completarEnCola(
+  idempotencyKey: string,
+  campos: { titulo: string; severidad: Severidad | null },
+  deps: Pick<Dependencias, 'almacen'> = POR_DEFECTO,
+): Promise<ErrorAlCompletar> {
+  const errorTitulo = errorDelTitulo(campos.titulo);
+  if (errorTitulo) return errorTitulo;
+  if (!esSeveridad(campos.severidad)) return 'Elige la severidad del daño.';
+  const guardado = await deps.almacen.completar(idempotencyKey, {
+    titulo: campos.titulo.trim(),
+    severidad: campos.severidad,
+  });
+  return guardado ? null : 'Este reporte ya no está en el dispositivo: pudo haberse enviado.';
 }
 
 /**
@@ -278,7 +320,12 @@ export function useReportesEnCola(usuarioId: number) {
   const descartar = useCallback((clave: string) => descartarDeLaCola(clave), []);
   const reenviarConClaveNueva = useCallback((r: ReporteEnCola) => reencolarConClaveNueva(r), []);
   const descartarTodos = useCallback(() => descartarTodosDe(usuarioId), [usuarioId]);
-  return { pendientes, descartar, reenviarConClaveNueva, descartarTodos };
+  const completar = useCallback(
+    (clave: string, campos: { titulo: string; severidad: Severidad | null }) =>
+      completarEnCola(clave, campos),
+    [],
+  );
+  return { pendientes, descartar, reenviarConClaveNueva, descartarTodos, completar };
 }
 
 export interface ResumenDeLaCola {
