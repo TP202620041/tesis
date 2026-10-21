@@ -11,7 +11,7 @@
 --   done
 -- Uso: docker exec -i viasegura-db psql -U viasegura -d viasegura -v ON_ERROR_STOP=1 -q < backend/scripts/seed-datos-prueba.sql
 -- Este script asigna roles y distritos (los func.* son FUNCIONARIO_MUNICIPAL; admin es ADMIN).
--- Si NC-02 ya está en develop, revisa que los INSERT de reporte incluyan titulo y severidad.
+-- Desde NC-02 (V17) los reportes llevan titulo, severidad y periodo_gestion_id (nulo fuera de todo periodo).
 BEGIN;
 
 -- Nombres legibles y roles
@@ -83,9 +83,14 @@ UPDATE ins SET resuelto = LEAST(resuelto, now() - interval '1 hour');
 
 CREATE TEMP TABLE rep ON COMMIT DROP AS
 WITH x AS (
-  INSERT INTO reporte (ubicacion, foto_url, descripcion, categoria_id, estado, distrito_id, creador_id,
-                       total_adhesiones, resolved_at, created_at, updated_at)
+  INSERT INTO reporte (ubicacion, foto_url, titulo, severidad, periodo_gestion_id, descripcion, categoria_id, estado,
+                       distrito_id, creador_id, total_adhesiones, resolved_at, created_at, updated_at)
   SELECT punto::geography, NULL,
+         (ARRAY['Bache profundo en la vía', 'Vereda rota frente a paradero', 'Semáforo sin funcionar en cruce',
+                'Hueco peligroso para motos', 'Falta señal de pare', 'Asfalto deteriorado en todo el tramo'])[cat],
+         (ARRAY['BAJA', 'MEDIA', 'ALTA'])[1 + floor(random() * 3)::int],
+         (SELECT p.id FROM periodo_gestion p
+           WHERE (creado AT TIME ZONE 'America/Lima')::date BETWEEN p.fecha_inicio AND p.fecha_fin LIMIT 1),
          '[seed] ' || (ARRAY['Bache profundo en la vía', 'Vereda rota frente a paradero', 'Semáforo sin funcionar en cruce',
                              'Hueco peligroso para motos', 'Falta señal de pare', 'Asfalto deteriorado en todo el tramo'])[cat],
          cat, estado, did, creador, 1,

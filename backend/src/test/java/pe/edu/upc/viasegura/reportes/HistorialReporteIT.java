@@ -111,23 +111,20 @@ class HistorialReporteIT extends AbstractPostgisIT {
                 .build());
 
         adhesionRepository.save(AdhesionReporte.builder()
-                .titulo("Dano de prueba").severidad(Severidad.MEDIA).reporte(reporte).usuario(creador).build());
+                .reporte(reporte).usuario(creador).build());
         adhesionRepository.save(AdhesionReporte.builder()
-                .titulo("Dano de prueba").severidad(Severidad.MEDIA).reporte(reporte).usuario(adherido).build());
+                .reporte(reporte).usuario(adherido).build());
 
         // Linea de tiempo: 2 cambios de estado + 1 asignacion (con dato interno).
         historialRepository.save(HistorialEstadoReporte.builder()
-                .titulo("Dano de prueba").severidad(Severidad.MEDIA)
                 .reporte(reporte).tipoEvento(TipoEventoHistorial.CAMBIO_ESTADO)
                 .estadoAnterior(EstadoReporte.PENDIENTE).estadoNuevo(EstadoReporte.RECIBIDO)
                 .comentario("Reporte recibido").autor(funcMiraflores).build());
         historialRepository.save(HistorialEstadoReporte.builder()
-                .titulo("Dano de prueba").severidad(Severidad.MEDIA)
                 .reporte(reporte).tipoEvento(TipoEventoHistorial.CAMBIO_ESTADO)
                 .estadoAnterior(EstadoReporte.RECIBIDO).estadoNuevo(EstadoReporte.EN_PROCESO)
                 .comentario("Cuadrilla en camino").autor(funcMiraflores).build());
         historialRepository.save(HistorialEstadoReporte.builder()
-                .titulo("Dano de prueba").severidad(Severidad.MEDIA)
                 .reporte(reporte).tipoEvento(TipoEventoHistorial.ASIGNACION)
                 .comentario("Responsable asignado: Cuadrilla Norte").autor(funcMiraflores).build());
     }

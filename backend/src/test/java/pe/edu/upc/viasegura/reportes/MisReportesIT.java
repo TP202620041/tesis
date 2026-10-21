@@ -112,7 +112,6 @@ class MisReportesIT extends AbstractPostgisIT {
         Usuario adherido = ciudadano();
         Reporte reporte = reporte(creador, EstadoReporte.PENDIENTE);
         adhesionRepository.save(AdhesionReporte.builder()
-                .titulo("Dano de prueba").severidad(Severidad.MEDIA)
                 .reporte(reporte).usuario(adherido).build());
 
         mockMvc.perform(get("/api/reportes/mis-reportes")

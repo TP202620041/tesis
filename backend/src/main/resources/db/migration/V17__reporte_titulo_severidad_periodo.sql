@@ -19,10 +19,11 @@ ALTER TABLE reporte
 
 -- Un reporte sin distrito no deberia existir (fuera de Lima es 409), pero la
 -- columna es nulable desde V1: en ese caso se usa "Lima Metropolitana".
+-- El distrito va en subconsulta: un JOIN en el FROM no puede referirse a r.
 UPDATE reporte r
-   SET titulo = LEFT(c.nombre || ' en ' || COALESCE(d.nombre, 'Lima Metropolitana'), 120)
+   SET titulo = LEFT(c.nombre || ' en ' || COALESCE(
+           (SELECT d.nombre FROM distrito d WHERE d.id = r.distrito_id), 'Lima Metropolitana'), 120)
   FROM categoria_dano c
-  LEFT JOIN distrito d ON d.id = (SELECT r2.distrito_id FROM reporte r2 WHERE r2.id = r.id)
  WHERE c.id = r.categoria_id;
 
 UPDATE reporte SET severidad = 'MEDIA';

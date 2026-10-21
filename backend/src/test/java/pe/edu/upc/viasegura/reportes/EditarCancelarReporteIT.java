@@ -168,7 +168,7 @@ class EditarCancelarReporteIT extends AbstractPostgisIT {
         Usuario adherido = ciudadano();
         Reporte reporte = reporte(creador, EstadoReporte.PENDIENTE);
         adhesionRepository.save(AdhesionReporte.builder()
-                .titulo("Dano de prueba").severidad(Severidad.MEDIA).reporte(reporte).usuario(adherido).build());
+                .reporte(reporte).usuario(adherido).build());
 
         mockMvc.perform(delete("/api/reportes/{id}", reporte.getId())
                         .header("Authorization", "Bearer " + token(creador)))

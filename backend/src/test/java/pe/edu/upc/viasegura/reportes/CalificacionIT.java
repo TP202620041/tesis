@@ -128,7 +128,7 @@ class CalificacionIT extends AbstractPostgisIT {
         Usuario adherido = ciudadano();
         Reporte reporte = reporte(EstadoReporte.RESUELTO, creador, Instant.now());
         adhesionRepository.save(AdhesionReporte.builder()
-                .titulo("Dano de prueba").severidad(Severidad.MEDIA).reporte(reporte).usuario(adherido).build());
+                .reporte(reporte).usuario(adherido).build());
 
         mockMvc.perform(post("/api/reportes/{id}/calificacion", reporte.getId())
                         .contentType(MediaType.APPLICATION_JSON)
