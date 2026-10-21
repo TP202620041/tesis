@@ -2,6 +2,60 @@
 
 Versiones de Ciudad Viva (antes ViaSegura) según GitFlow (`WORKFLOW.md` §8): cada sprint cierra con una versión minor en `main`. Plan: `project-context/decisions/plan-sprints.md`.
 
+## v0.6.0 — Sprint 5 (2026-10-21)
+
+### Historias de usuario
+- **NC-01 · Municipalidades y periodo de gestión** (#70, parcial a propósito):
+  - Módulo `municipalidades` con MUNICIPALIDAD, 1:1 con el distrito (D-09), y PERIODO_GESTION, con fechas inclusivas y sin solape (V15, V16).
+  - Las 43 municipalidades las siembra un `ApplicationRunner` después de los distritos. Una migración no serviría: en una base vacía los distritos todavía no existen cuando corre Flyway.
+  - GESTION_MUNICIPAL y REQUISITO_RECEPCION se crean con NC-06 y NC-05 (propuesta aceptada, opción A).
+- **NC-02 · Título, severidad y periodo del reporte** (#74 backend, #79 PWA):
+  - **Campos nuevos:** `titulo` (5–120 caracteres tras el trim) y `severidad` (Baja/Media/Alta, sin valor por defecto) son obligatorios al crear y editables en PENDIENTE. Los fija el ciudadano y son públicos. El funcionario los ve, pero no los cambia.
+  - **Periodo de gestión:** `periodo_gestion_id` se asigna al crear y no se expone.
+  - **V17 rellena los reportes existentes:** título «<categoría> en <distrito>», severidad MEDIA y el periodo de su fecha.
+  - **Idempotencia:** una `Idempotency-Key` ya registrada devuelve la respuesta original antes de validar los campos nuevos, para que la cola offline pueda reenviar reportes viejos.
+  - **Cola offline:** nuevo estado «incompleto» para los reportes encolados por la versión anterior. No se reenvía solo ni se purga. El ciudadano lo completa en «Pendiente de envío» con un título sugerido, y se envía con la **misma** clave. Mientras haya incompletos se muestra un aviso, que se puede cerrar.
+  - **Adhesión (US-09):** muestra el título y la severidad del reporte existente.
+- **US-19 · Comparar distritos** (#73, criterios provisionales en #68): en `/desempeno` se comparan de 2 a 4 distritos lado a lado, con la tasa de resolución, resueltos/total y el tiempo promedio, más una gráfica de barras accesible. La comparación queda en la URL y respeta el filtro por tipo de daño. Sin cambios de API.
+- **US-01 · Responsabilidad sobre las fotos** (#64, #67): nueva §10 en el borrador de términos. La versión sigue en `2026-10-v1`.
+
+### Correcciones
+- **Mapa sin calles en producción** (#78): en cuanto el Service Worker controlaba la página, cada tesela fallaba con `net::ERR_FAILED`, en el iPhone, en Android y en escritorio. El SW las repite con `fetch()`, que se rige por `connect-src`, y el host de OSM solo estaba en `img-src`.
+  - **Arreglo:** el host va también en `connect-src` (solo `tile.openstreetmap.org`, sin comodín) y las teselas se piden con `crossOrigin`, así que en la caché no quedan respuestas opacas que gastan cuota.
+- **Build de producción** (#72): `esbuild` faltaba en el lockfile (peer opcional de `@serwist/cli`), así que el build fallaba en cualquier instalación limpia.
+- **FE-07** (#69) además corrigió la CSP `img-src`, que bloqueaba las fotos de los reportes.
+
+### Arquitectura y decisiones
+- **FE-07** (#69): las URLs de fotos se resuelven en el gateway, y la foto de perfil pasa a `auth/api.ts` y a un hook.
+- **FE-08** (#71): cierre de dependencias entre features, sin cambios de código.
+- **Marca visible Ciudad Viva** (#62, #63, #65, #66): los identificadores técnicos `viasegura` se conservan a propósito.
+- **Diagramas de arquitectura** (#80): módulo `municipalidades`, las columnas de NC-02 en el modelo de datos y las teselas por el Service Worker en el C4 de contenedores.
+- **Documentación:** traspaso de sesión, el entorno en Windows y en macOS, y el script de datos de prueba (#75, #76). También se repuso el encabezado de v0.4.0 en este archivo (#77).
+
+### Cifras
+| Métrica | v0.5.0 | v0.6.0 |
+|---|---|---|
+| Tests de integración backend (Failsafe `completed`) | 284 | 309 |
+| Tests unitarios backend (Surefire) | 57 | 62 |
+| Violaciones congeladas de ArchUnit | 0 | 0 |
+| Tests frontend (archivos) | 547 (76) | 646 (83) |
+| Avisos de capas frontend | 0 | 0 |
+
+**Verificación en vivo** (21/10, Windows):
+- **Entorno:** build de producción de la PWA y backend de `develop`, detrás de túneles HTTPS de `cloudflared`, con los datos de prueba (166 reportes en 11 distritos).
+- **Migración:** V15–V17 se aplicaron sobre la base de desarrollo con datos.
+- **NC-02, en Chrome contra el backend real:**
+  - crear da 201 y el reporte cae en Miraflores;
+  - un título de 4 caracteres se bloquea con `aria-invalid`;
+  - la edición en PENDIENTE se guarda;
+  - la adhesión muestra los datos del reporte existente;
+  - un ítem incompleto en IndexedDB no se envía solo;
+  - al completarlo se envía con la misma clave (reporte #185).
+- **Mapa con el SW activo:** 6 de 6 teselas en tres recargas, guardadas en caché como respuestas `cors`.
+- **API por el túnel:**
+  - CORS, login, densidad y clave VAPID responden;
+  - un `POST` sin título da 400.
+
 ## v0.5.0 — Sprint 4 (2026-10-20)
 
 ### Historias de usuario
