@@ -467,6 +467,32 @@ iconos rotos con bundlers y no obliga a abrir orígenes extra en la CSP.
 Los tiles de OpenStreetMap **sí** están listados en `img-src` de la CSP
 (hosts concretos, no `*`); sin eso el mapa se ve en blanco.
 
+**También en `connect-src`.** En producción el Service Worker intercepta las
+peticiones a otros orígenes (la regla de otros orígenes de `defaultCache`
+de Serwist) y las repite con `fetch()`. Ese `fetch()` se rige por
+`connect-src`, no por `img-src`. Mientras los tiles solo estaban en `img-src`,
+el mapa cargaba en la primera visita, antes de que el SW controlara la
+página, y desde la segunda quedaba sin calles (`net::ERR_FAILED` en cada
+tile). Pasaba en cualquier navegador, incluidos el iPhone y Android. En
+desarrollo no se nota porque el SW está desactivado.
+
+Verificado el 21/10 con la build de producción detrás de un túnel HTTPS:
+- con el SW bloqueado cargaban los 15 tiles;
+- con el SW controlando la página y solo `img-src`, cargaban 0 de 6;
+- con el SW controlando la página y los tiles en `connect-src`, cargaban 6 de 6 en tres recargas.
+
+**Los tiles se piden con `crossOrigin="anonymous"`.** Al pasar por el SW, los
+tiles entran en la caché de otros orígenes de `defaultCache` (`NetworkFirst`,
+32 entradas, 1 h). Un `<img>` sin CORS deja una respuesta opaca, y Chrome
+cuenta cada respuesta opaca como unos 7 MB de cuota. Esa cuota es la misma de
+la cola offline, que guarda fotos en IndexedDB. OpenStreetMap responde con
+`Access-Control-Allow-Origin: *`, así que con `crossOrigin` las respuestas
+dejan de ser opacas y ocupan lo que pesan.
+
+**Un solo host.** La CSP lista solo `https://tile.openstreetmap.org`, que es
+el que usan los dos mapas. Ya no incluye el comodín `*.tile.openstreetmap.org`
+de los antiguos subdominios a/b/c.
+
 ### Mapa de calor (US-11): círculos de Leaflet, sin plugin
 
 La capa de calor de `/mapa` dibuja la grilla de `GET /api/reportes/densidad`
