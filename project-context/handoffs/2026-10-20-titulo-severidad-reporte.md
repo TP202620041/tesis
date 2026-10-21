@@ -2,7 +2,7 @@
 
 - **Estado:** pendiente <!-- pendiente | atendido -->
 - **Fecha:** 2026-10-20
-- **Origen:** backend, rama `feature/nc-02-titulo-severidad-periodo`, commit `<hash>` (PR #<n>)
+- **Origen:** backend, rama `feature/nc-02-titulo-severidad-periodo`, commit `303794c` (PR #74)
 - **Historia o tarea:** NC-02 (cambia US-05, US-06 y US-08)
 - **Atendido por:** _(frontend, rama y fecha)_
 
