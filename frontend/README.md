@@ -261,6 +261,9 @@ Reglas de la cola:
 - **Rechazos de negocio** (otro 4xx, p. ej. fuera de cobertura): reintentar no
   cambia la respuesta, así que queda «No se pudo enviar: <motivo>» con un
   botón para descartarlo (con confirmación).
+- **Incompletos (NC-02)**: un reporte guardado por la versión anterior, sin
+  título ni severidad, no se reenvía solo ni se purga; el ciudadano lo completa
+  con la misma clave (ver «Título y severidad del reporte (NC-02)»).
 - **Dispositivo compartido**: al cerrar sesión con reportes propios en cola se
   pregunta «Tienes N reportes sin enviar en este dispositivo. Se enviarán
   cuando vuelvas a entrar. [Conservar] [Descartarlos]». `auth` no conoce la
@@ -286,6 +289,84 @@ Reglas de la cola:
   con **`fake-indexeddb`** (dependencia de desarrollo): jsdom no implementa
   IndexedDB, y con un doble en memoria no se probaría el clonado de la foto ni
   el reemplazo por clave.
+
+### Título y severidad del reporte (NC-02)
+
+El backend agregó dos datos que declara el ciudadano: un **título** (obligatorio,
+de 5 a 120 caracteres tras el trim) y una **severidad** (`BAJA < MEDIA < ALTA`).
+Contrato en `project-context/handoffs/2026-10-20-titulo-severidad-reporte.md`.
+
+- **Mismas reglas que el backend, contadas igual.** `model/titulo.ts` cuenta
+  *code points* (`[...titulo.trim()].length`), como `Reporte.normalizarTitulo`
+  y el `CHECK` de V17: un emoji es 1 carácter para el backend y 2 para
+  `'😀'.length`. Por eso el `<input>` del título **no lleva `maxLength`** (el
+  navegador cuenta unidades UTF-16 y cortaría títulos válidos); el límite se
+  valida antes de enviar y un contador muestra el largo. El título se envía
+  recortado, como lo guarda el backend.
+- **La severidad no tiene valor por defecto.** Tres radios, ninguno marcado al
+  empezar: un valor preseleccionado se enviaría sin que el ciudadano lo haya
+  decidido y sesgaría el dato hacia ese valor. `MEDIA` solo la usó la
+  migración para rellenar los reportes existentes.
+- **Edición en PENDIENTE (US-08).** El `PATCH` es parcial: título, severidad y
+  categoría viajan **solo si cambiaron** (`cambiosDeEdicion`). Así un título
+  que el ciudadano no tocó nunca provoca un 400, y uno cambiado se valida
+  antes de enviarlo.
+- **El funcionario los ve, no los edita.** La bandeja y el detalle de gestión
+  los muestran; no hay endpoint de gestión que los cambie.
+- **`null` → «Sin título».** El único caso en que llegan vacíos es el reenvío
+  idempotente de un envío que el backend procesó antes de NC-02 (devuelve la
+  respuesta guardada entonces). `lib/types/tituloYSeveridad.ts` muestra
+  «Sin título» y omite la severidad en vez de romper, como `estiloDeEstado`
+  con un estado desconocido. Vive en `lib/types` porque lo usan `reportes` y
+  `gestion`.
+- **Adhesión (US-09): se muestran los de la respuesta.** Si el `POST` termina
+  sumándose a un reporte cercano, el backend descarta el título y la severidad
+  enviados y devuelve los del reporte existente. La confirmación muestra esos
+  y avisa que los escritos no se usaron: presentar como propio un título que no
+  quedó registrado sería engañoso.
+
+#### Cola offline: el estado «incompleto»
+
+La cola puede tener reportes armados por la versión anterior del formulario,
+**sin** título ni severidad. El backend los rechaza con 400 si nunca llegaron
+(y si llegaron, la misma `Idempotency-Key` devuelve el original sin exigirlos).
+Decisión del usuario (20/10):
+
+- **Se deduce, no se migra.** `estaIncompleto` mira los datos guardados (título
+  inválido o severidad ausente). No hay campo nuevo ni versión nueva de
+  IndexedDB: un `onupgradeneeded` que recorra la cola es código que corre una
+  sola vez en cada navegador, en el peor momento (al abrir la app) y sin forma
+  de reintentarlo; deducirlo es puro y se prueba con un test de modelo.
+- **No se reenvía solo.** `seReenviaSolo` lo excluye y, además,
+  `comoNuevoReporte` devuelve `null` para un incompleto: la petición no se
+  puede armar, así que tampoco se puede enviar por descuido. Reenviarlo a
+  ciegas daría 400 (o, si la clave ya estaba registrada, un 201 que tampoco
+  necesita el título).
+- **No se purga.** El ciudadano no eligió dejarlo así; solo sale de la cola si
+  lo completa y se envía, o si lo descarta. Tiene prioridad sobre
+  `rechazado`: un reporte que la versión anterior ya intentó enviar y recibió
+  el 400 por faltar estos campos también se puede completar.
+- **Se completa en «Pendiente de envío»** (Mis reportes): título sugerido
+  «<categoría> en <distrito>» (el formato con que V17 rellenó los reportes
+  existentes; el distrito se pregunta al backend con las coordenadas y la
+  categoría sale del catálogo de ese distrito) pero **exigido**: se puede
+  editar y se valida igual. Si la sugerencia no se puede armar (sin red, fuera
+  de cobertura, categoría desactivada) el campo queda vacío. La severidad
+  tampoco trae valor por defecto aquí.
+- **Misma clave, una transacción.** `completar(clave)` lee y escribe en la
+  misma transacción de IndexedDB, conserva la `Idempotency-Key` y `creadoEn`, y
+  lo deja `pendiente`; si la clave ya no está (otra pestaña lo envió o se
+  descartó) no lo resucita. Nunca se regenera la clave: si la primera petición
+  sí había llegado al backend, el reenvío con la misma clave devuelve el
+  reporte original en vez de duplicarlo. Por lo mismo, un incompleto con más de
+  48 h pasa a **«Caducado»** al completarlo, con su flujo de siempre (revisar
+  Mis reportes antes de reenviarlo con clave nueva).
+- **Un 400 nunca borra un reporte de la cola**: lo marca `rechazado` con el
+  motivo (como antes) y solo el ciudadano lo descarta.
+- Tests: un incompleto nunca se envía sin completar (ni pendiente ni
+  rechazado); al completarlo usa la misma clave y la sincronización automática
+  lo envía; un 400 lo conserva; no se purga a los 30 días; completarlo pasadas
+  48 h no lo reenvía a ciegas.
 
 ### Consentimiento (NC-07b, D-12)
 
@@ -608,6 +689,11 @@ Verificado end-to-end contra el backend real:
   jsdom. Verificado el 20/10 contra el backend real: la capa dibuja los
   círculos bajo los marcadores en un único canvas, y con un reporte por celda
   la leyenda dice «Baja» (piso de 4 en la escala).
+- **NC-02** título y severidad: obligatorios en `/reportar` (severidad sin
+  valor por defecto), editables en PENDIENTE (US-08) y visibles en el mapa, la
+  lista, los detalles, mis reportes y la bandeja (solo lectura). La cola
+  offline gana el estado «incompleto» para los reportes guardados antes (ver
+  «Título y severidad del reporte (NC-02)» en Decisiones técnicas).
 
 ### `null` no es cero
 

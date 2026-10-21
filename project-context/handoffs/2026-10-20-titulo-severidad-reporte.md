@@ -1,10 +1,10 @@
 # Handoff de contrato: título y severidad del reporte (NC-02)
 
-- **Estado:** pendiente <!-- pendiente | atendido -->
+- **Estado:** atendido <!-- pendiente | atendido -->
 - **Fecha:** 2026-10-20
 - **Origen:** backend, rama `feature/nc-02-titulo-severidad-periodo`, commit `303794c` (PR #74)
 - **Historia o tarea:** NC-02 (cambia US-05, US-06 y US-08)
-- **Atendido por:** _(frontend, rama y fecha)_
+- **Atendido por:** frontend, rama `feature/nc-02-frontend`, 2026-10-21 (commits `ef0413f` y `c7655e0`; decisiones en `frontend/README.md`, «Título y severidad del reporte (NC-02)»)
 
 ## Endpoints afectados
 | Método | Ruta | Cambio |
