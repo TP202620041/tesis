@@ -10,7 +10,7 @@ flowchart TB
 
   subgraph viasegura["Ciudad Viva"]
     pwa["PWA<br/>Next.js 16 · React 19 · App Router<br/>frontend/"]
-    sw["Service Worker<br/>Serwist: precache del App Shell y caché de teselas (el API nunca se cachea)<br/>muestra los avisos push y abre la página al hacer clic"]
+    sw["Service Worker<br/>Serwist: precache del App Shell y caché en runtime de otros orígenes, teselas incluidas (el API nunca se cachea)<br/>muestra los avisos push y abre la página al hacer clic"]
     api["API REST<br/>Spring Boot 3.4 · Java 21 · JWT<br/>backend/ · OpenAPI en /v3/api-docs<br/>GET públicos sin token: reportes, densidad del mapa de calor (US-11), catálogos, fotos"]
     db[("PostgreSQL 16 + PostGIS 3.4<br/>Esquema por Flyway · índice GiST · vista materializada del índice")]
     fotos[("Fotos en disco<br/>common/infra/LocalFotoStorageService")]
