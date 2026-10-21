@@ -28,7 +28,7 @@ export function FormularioReporte({
   onCreado: (r: ReporteCreado) => void;
   onEncolado: () => void;
 }) {
-  const { enviar: enviarReporte, enviando, error } = useCrearReporte(usuarioId);
+  const { enviar: enviarReporte, enviando, error, limpiarError } = useCrearReporte(usuarioId);
   const [ubicacion, setUbicacion] = useState<UbicacionElegida | null>(null);
   const [categoriaElegida, setCategoriaElegida] = useState<number | null>(null);
   const [titulo, setTitulo] = useState('');
@@ -60,7 +60,11 @@ export function FormularioReporte({
     // Titulo o severidad invalidos: se marcan en su campo y no se envia (el
     // hook valida igual, pero asi el mensaje no sale dos veces).
     const campos = erroresDeTituloYSeveridad(titulo, severidad);
-    if (campos.titulo || campos.severidad) return;
+    if (campos.titulo || campos.severidad) {
+      // El error anterior (p. ej. un 409 del intento previo) ya no aplica.
+      limpiarError();
+      return;
+    }
     const desenlace = await enviarReporte({
       ubicacion: ubicacion && {
         latitud: ubicacion.coordenadas.latitud,

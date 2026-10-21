@@ -39,7 +39,7 @@ describe('CampoTitulo (NC-02)', () => {
 describe('CampoSeveridad (NC-02)', () => {
   it('con error marca el grupo y lo describe con el mensaje', () => {
     render(<CampoSeveridad nombre="s" valor={null} onCambiar={vi.fn()} error="Elige la severidad del daño." />);
-    const grupo = screen.getByRole('group', { name: 'Severidad' });
+    const grupo = screen.getByRole('radiogroup', { name: 'Severidad' });
     expect(grupo).toHaveAttribute('aria-invalid', 'true');
     expect(grupo.getAttribute('aria-describedby')?.split(' ')).toContain('s-error');
     expect(screen.getByRole('alert')).toHaveAttribute('id', 's-error');
@@ -47,7 +47,7 @@ describe('CampoSeveridad (NC-02)', () => {
 
   it('sin error no marca el grupo', () => {
     render(<CampoSeveridad nombre="s" valor="MEDIA" onCambiar={vi.fn()} />);
-    expect(screen.getByRole('group', { name: 'Severidad' })).not.toHaveAttribute('aria-invalid');
+    expect(screen.getByRole('radiogroup', { name: 'Severidad' })).not.toHaveAttribute('aria-invalid');
     expect(screen.getByRole('radio', { name: 'Media' })).toBeChecked();
   });
 });

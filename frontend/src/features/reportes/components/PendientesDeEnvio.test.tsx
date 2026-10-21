@@ -87,7 +87,7 @@ describe('PendientesDeEnvio: reporte incompleto (NC-02)', () => {
     await usuario.click(screen.getByRole('button', { name: 'Completar' }));
 
     const mensaje = await screen.findByText('Elige la severidad del daño.');
-    const grupo = screen.getByRole('group', { name: 'Severidad' });
+    const grupo = screen.getByRole('radiogroup', { name: 'Severidad' });
     expect(grupo).toHaveAttribute('aria-invalid', 'true');
     expect(grupo.getAttribute('aria-describedby')).toContain(mensaje.id);
     expect(onCompletar).not.toHaveBeenCalled();

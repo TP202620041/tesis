@@ -118,5 +118,12 @@ export function useCrearReporte(usuarioId: number) {
     [encolar],
   );
 
-  return { enviar, enviando, error };
+  /**
+   * Borra el error de la operacion. El formulario lo llama cuando corta el
+   * envio por un error de campo, para que no conviva el error viejo del
+   * backend con el del campo.
+   */
+  const limpiarError = useCallback(() => setError(null), []);
+
+  return { enviar, enviando, error, limpiarError };
 }

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { distritoPorCoordenadas, listarCategorias } from '@/lib/api/catalogos';
-import { NetworkError } from '@/lib/api/errors';
+import { ApiError, NetworkError } from '@/lib/api/errors';
 import type { CategoriaDano, Distrito } from '@/lib/types/domain';
 import { crearReporte } from '../api';
 import { useEncolarReporte } from '../hooks/useColaOffline';
@@ -64,11 +64,29 @@ describe('FormularioReporte: título y severidad (NC-02)', () => {
 
     const mensaje = await screen.findByText('Elige la severidad del daño.');
     // El error queda en el grupo de severidad, enlazado por aria-describedby.
-    const grupo = screen.getByRole('group', { name: 'Severidad' });
+    const grupo = screen.getByRole('radiogroup', { name: 'Severidad' });
     expect(grupo).toHaveAttribute('aria-invalid', 'true');
     expect(grupo.getAttribute('aria-describedby')).toContain(mensaje.id);
     expect(screen.getByLabelText('Título')).not.toHaveAttribute('aria-invalid');
     expect(crearReporte).not.toHaveBeenCalled();
+  });
+
+  it('un error de campo borra el error anterior del envío (no conviven)', async () => {
+    vi.mocked(crearReporte).mockRejectedValueOnce(
+      new ApiError(409, 'Ya reportaste este daño'),
+    );
+    const usuario = userEvent.setup();
+    render(<FormularioReporte usuarioId={7} onCreado={vi.fn()} onEncolado={vi.fn()} />);
+
+    await llenarYEnviar(usuario);
+    expect(await screen.findByText('Ya reportaste este daño')).toBeInTheDocument();
+
+    await usuario.clear(screen.getByLabelText('Título'));
+    await usuario.click(screen.getByRole('button', { name: 'Enviar reporte' }));
+
+    expect(await screen.findByText('Escribe un título para el reporte.')).toBeInTheDocument();
+    expect(screen.queryByText('Ya reportaste este daño')).not.toBeInTheDocument();
+    expect(crearReporte).toHaveBeenCalledTimes(1);
   });
 
   it('un título corto se marca en su campo y no se envía', async () => {

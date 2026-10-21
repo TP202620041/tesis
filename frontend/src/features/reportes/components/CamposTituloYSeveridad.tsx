@@ -97,13 +97,18 @@ export function CampoSeveridad({
 }) {
   const idAyuda = `${nombre}-ayuda`;
   const idError = `${nombre}-error`;
+  const idLeyenda = `${nombre}-leyenda`;
+  // `radiogroup` y no el `group` implicito del fieldset: `aria-invalid` no
+  // esta admitido en `group`. El nombre sigue siendo la leyenda.
   return (
     <fieldset
+      role="radiogroup"
+      aria-labelledby={idLeyenda}
       className="flex flex-col gap-1.5"
       aria-invalid={error ? true : undefined}
       aria-describedby={error ? `${idError} ${idAyuda}` : idAyuda}
     >
-      <legend className="text-sm font-medium text-slate-700 dark:text-slate-200">
+      <legend id={idLeyenda} className="text-sm font-medium text-slate-700 dark:text-slate-200">
         Severidad
       </legend>
       <p id={idAyuda} className="text-xs text-slate-500 dark:text-slate-400">

@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { CLAVE_AVISO_INCOMPLETOS_CERRADO } from '../hooks/useCierreDelAvisoDeIncompletos';
 import {
   AvisoPendientesSinSesion,
   AvisoReportesIncompletos,
@@ -35,6 +37,11 @@ describe('AvisoPendientesSinSesion', () => {
 });
 
 describe('AvisoReportesIncompletos (NC-02)', () => {
+  afterEach(() => {
+    sessionStorage.clear();
+    vi.restoreAllMocks();
+  });
+
   it('avisa sin bloquear y enlaza a «Pendiente de envío» en Mis reportes', () => {
     render(<AvisoReportesIncompletos cantidad={2} ruta="/mapa" />);
 
@@ -46,6 +53,39 @@ describe('AvisoReportesIncompletos (NC-02)', () => {
       '/mis-reportes#pendientes-de-envio',
     );
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+  });
+
+  it('se cierra por la sesion de la pestaña y vuelve si aparecen mas incompletos', async () => {
+    const usuario = userEvent.setup();
+    const { container, unmount } = render(<AvisoReportesIncompletos cantidad={1} ruta="/mapa" />);
+
+    await usuario.click(screen.getByRole('button', { name: 'Cerrar aviso' }));
+    expect(container).toBeEmptyDOMElement();
+    expect(sessionStorage.getItem(CLAVE_AVISO_INCOMPLETOS_CERRADO)).toBe('1');
+    unmount();
+
+    // Otra pantalla, misma pestaña: sigue cerrado.
+    const otra = render(<AvisoReportesIncompletos cantidad={1} ruta="/desempeno" />);
+    expect(otra.container).toBeEmptyDOMElement();
+
+    // Aparece otro incompleto: es informacion nueva, el aviso vuelve.
+    otra.rerender(<AvisoReportesIncompletos cantidad={2} ruta="/desempeno" />);
+    expect(screen.getByRole('status')).toHaveTextContent('Tienes 2 reportes sin enviar');
+  });
+
+  it('sin sessionStorage se cierra igual (en memoria)', async () => {
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('bloqueado');
+    });
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('bloqueado');
+    });
+    const usuario = userEvent.setup();
+    const { container } = render(<AvisoReportesIncompletos cantidad={1} ruta="/mapa" />);
+
+    await usuario.click(screen.getByRole('button', { name: 'Cerrar aviso' }));
+
+    expect(container).toBeEmptyDOMElement();
   });
 
   it('no aparece sin incompletos ni en Mis reportes, donde ya esta la lista', () => {

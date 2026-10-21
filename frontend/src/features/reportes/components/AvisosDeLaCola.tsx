@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect } from 'react';
+import { useCierreDelAvisoDeIncompletos } from '../hooks/useCierreDelAvisoDeIncompletos';
 
 /** Rutas donde no tiene sentido pedir que inicie sesion: ya esta en eso. */
 const RUTAS_DE_ACCESO = ['/login', '/registro', '/recuperar-password'];
@@ -42,25 +43,41 @@ export const RUTA_PENDIENTES_DE_ENVIO = '/mis-reportes#pendientes-de-envio';
  * estan incompletos (guardados por la version anterior, sin titulo o sin
  * severidad): no se envian solos, asi que se invita a completarlos. No se
  * muestra en «Mis reportes», donde ya esta la lista para completarlos.
+ *
+ * Se puede cerrar por el resto de la sesion de la pestaña (vuelve si
+ * aparecen mas incompletos), y va a `bottom-12` y no pegado al borde: en
+ * `/mapa` en un movil, pegado abajo tapaba la atribucion de OpenStreetMap
+ * (obligatoria por su licencia).
  */
 export function AvisoReportesIncompletos({ cantidad, ruta }: { cantidad: number; ruta: string }) {
-  if (cantidad === 0 || ruta === '/mis-reportes') return null;
+  const { visible, cerrar } = useCierreDelAvisoDeIncompletos(cantidad);
+  if (!visible || ruta === '/mis-reportes') return null;
   return (
-    <p
+    <div
       role="status"
-      className="fixed inset-x-4 bottom-4 z-[1100] mx-auto max-w-lg rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-lg dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100"
+      className="fixed inset-x-4 bottom-12 z-[1100] mx-auto flex max-w-lg items-start gap-3 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-lg dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100"
     >
-      {cantidad === 1
-        ? 'Tienes 1 reporte sin enviar al que le faltan datos: '
-        : `Tienes ${cantidad} reportes sin enviar a los que les faltan datos: `}
-      <Link
-        href={RUTA_PENDIENTES_DE_ENVIO}
-        className="font-medium text-sky-700 underline dark:text-sky-400"
+      <p className="flex-1">
+        {cantidad === 1
+          ? 'Tienes 1 reporte sin enviar al que le faltan datos: '
+          : `Tienes ${cantidad} reportes sin enviar a los que les faltan datos: `}
+        <Link
+          href={RUTA_PENDIENTES_DE_ENVIO}
+          className="font-medium text-sky-700 underline dark:text-sky-400"
+        >
+          complétalos en Mis reportes
+        </Link>
+        .
+      </p>
+      <button
+        type="button"
+        onClick={cerrar}
+        aria-label="Cerrar aviso"
+        className="-m-1 rounded p-1 leading-none text-amber-900 hover:bg-amber-100 dark:text-amber-100 dark:hover:bg-amber-900"
       >
-        complétalos en Mis reportes
-      </Link>
-      .
-    </p>
+        <span aria-hidden="true">×</span>
+      </button>
+    </div>
   );
 }
 
