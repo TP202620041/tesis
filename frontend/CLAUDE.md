@@ -19,7 +19,7 @@ Cada feature: `components/` (presentación) → `hooks/` (aplicación) → `mode
 
 - Casi todo flujo necesita el backend corriendo en `:8080` (ver `../backend/CLAUDE.md`). La URL sale de `NEXT_PUBLIC_API_BASE_URL` en `.env.local` (copiar de `.env.local.example`).
 - El backend solo acepta por CORS el origen `http://localhost:3000` (`app.cors.allowed-origins`). Otro puerto de frontend → el preflight falla.
-- `next.config.ts` arma la CSP con `NEXT_PUBLIC_API_BASE_URL` en `connect-src` y los hosts de tiles de OSM en `img-src` (hosts concretos, nunca `*`). Cambiar el origen del API o agregar un origen externo exige tocar la CSP; si no, el navegador bloquea en silencio (el mapa queda en blanco).
+- `next.config.ts` arma la CSP con `NEXT_PUBLIC_API_BASE_URL` en `connect-src` y los hosts de tiles de OSM en `img-src` y en `connect-src` (hosts concretos, nunca `*`; `connect-src` porque el Service Worker repite con `fetch()` las peticiones de otro origen). Cambiar el origen del API o agregar un origen externo exige tocar la CSP; si no, el navegador bloquea en silencio (el mapa queda en blanco).
 
 ## Tests
 

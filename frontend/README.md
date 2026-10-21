@@ -467,6 +467,19 @@ iconos rotos con bundlers y no obliga a abrir orígenes extra en la CSP.
 Los tiles de OpenStreetMap **sí** están listados en `img-src` de la CSP
 (hosts concretos, no `*`); sin eso el mapa se ve en blanco.
 
+**También en `connect-src`.** En producción el Service Worker intercepta las
+peticiones a otros orígenes (la regla de otros orígenes de `defaultCache`
+de Serwist) y las repite con `fetch()`. Ese `fetch()` se rige por
+`connect-src`, no por `img-src`. Mientras los tiles solo estaban en `img-src`,
+el mapa cargaba en la primera visita, antes de que el SW controlara la
+página, y desde la segunda quedaba sin calles (`net::ERR_FAILED` en cada
+tile). Pasaba en cualquier navegador, incluidos el iPhone y Android. En
+desarrollo no se nota porque el SW está desactivado.
+
+Verificado el 21/10 con la build de producción detrás de un túnel HTTPS:
+- con el SW bloqueado cargaban los 15 tiles;
+- con el SW controlando la página y solo `img-src`, cargaban 0 de 6.
+
 ### Mapa de calor (US-11): círculos de Leaflet, sin plugin
 
 La capa de calor de `/mapa` dibuja la grilla de `GET /api/reportes/densidad`
