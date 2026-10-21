@@ -27,8 +27,8 @@ import pe.edu.upc.viasegura.reportes.domain.CategoriaDano;
 import pe.edu.upc.viasegura.reportes.domain.EstadoReporte;
 import pe.edu.upc.viasegura.reportes.domain.HistorialEstadoReporte;
 import pe.edu.upc.viasegura.reportes.domain.Reporte;
-import pe.edu.upc.viasegura.reportes.domain.TipoEventoHistorial;
 import pe.edu.upc.viasegura.reportes.domain.Severidad;
+import pe.edu.upc.viasegura.reportes.domain.TipoEventoHistorial;
 import pe.edu.upc.viasegura.reportes.repository.AdhesionReporteRepository;
 import pe.edu.upc.viasegura.reportes.repository.CategoriaDanoRepository;
 import pe.edu.upc.viasegura.reportes.repository.HistorialEstadoReporteRepository;
@@ -110,10 +110,8 @@ class HistorialReporteIT extends AbstractPostgisIT {
                 .estado(EstadoReporte.EN_PROCESO).totalAdhesiones(2)
                 .build());
 
-        adhesionRepository.save(AdhesionReporte.builder()
-                .reporte(reporte).usuario(creador).build());
-        adhesionRepository.save(AdhesionReporte.builder()
-                .reporte(reporte).usuario(adherido).build());
+        adhesionRepository.save(AdhesionReporte.builder().reporte(reporte).usuario(creador).build());
+        adhesionRepository.save(AdhesionReporte.builder().reporte(reporte).usuario(adherido).build());
 
         // Linea de tiempo: 2 cambios de estado + 1 asignacion (con dato interno).
         historialRepository.save(HistorialEstadoReporte.builder()

@@ -295,7 +295,7 @@ class DesempenoIT extends AbstractPostgisMailIT {
     /** Total de reportes de un distrito en el desglose de una categoria (US-20). */
     private long totalEnCategoria(String distritoNombre, long categoriaId) throws Exception {
         String json = mockMvc.perform(get("/api/desempeno/distritos")
-                        .param("categoriaId",String.valueOf(categoriaId)))
+                        .param("categoriaId", String.valueOf(categoriaId)))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
         for (JsonNode fila : objectMapper.readTree(json)) {

@@ -75,6 +75,10 @@ Sin severidad: `"message": "La severidad es obligatoria (BAJA, MEDIA o ALTA)"`. 
 
 **Compatibilidad (importante).** Desde que esto llegue a `develop`, el formulario de creación actual recibe **400** en cada reporte hasta que salga la parte del frontend de NC-02. Se aceptó como breve en `develop`; conviene atender este handoff enseguida.
 
+**Adhesión (US-09).** Si el `POST` termina en adhesión a un reporte activo cercano de la misma categoría, el `titulo` y la `severidad` enviados se validan igual (400 si faltan) pero **se descartan**: la respuesta trae el título y la severidad del reporte existente. La PWA debe mostrar los de la respuesta y avisar que se sumó a un reporte existente, no presentar como propio el título que escribió el ciudadano.
+
+**Largo del título.** El backend cuenta caracteres Unicode (code points), como el `CHECK` de la base: un emoji cuenta 1. En JS, `'😀'.length` es 2; para validar igual que el backend usar `[...titulo.trim()].length`.
+
 **Cola offline (US-06).** La cola de la PWA puede tener reportes guardados **sin** `titulo` ni `severidad`, armados por la versión anterior del formulario. Al reenviarlos hay dos casos:
 
 1. **Ya llegaron al backend antes** (se cortó la respuesta y se reintenta con la **misma** `Idempotency-Key`). El backend busca la clave **antes** de validar los campos nuevos y devuelve la respuesta original (201), sin exigirlos. No hay que hacer nada especial.

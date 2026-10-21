@@ -108,11 +108,14 @@ public class Reporte extends BaseAuditableEntity {
     /**
      * Titulo sin espacios al borde, validado: obligatorio y de
      * {@value #TITULO_MIN} a {@value #TITULO_MAX} caracteres despues del trim.
-     * Invalido: {@link IllegalArgumentException} (400).
+     * Invalido: {@link IllegalArgumentException} (400). Se cuentan code points,
+     * como el {@code char_length} del CHECK de V17: con {@code length()} un emoji
+     * contaria doble y el CHECK lo rechazaria con un 500 en vez de un 400.
      */
     public static String normalizarTitulo(String titulo) {
         String limpio = titulo == null ? "" : titulo.strip();
-        if (limpio.length() < TITULO_MIN || limpio.length() > TITULO_MAX) {
+        int largo = limpio.codePointCount(0, limpio.length());
+        if (largo < TITULO_MIN || largo > TITULO_MAX) {
             throw new IllegalArgumentException(
                     "El titulo debe tener entre " + TITULO_MIN + " y " + TITULO_MAX + " caracteres");
         }

@@ -15,6 +15,16 @@ class ReporteTituloTest {
     }
 
     @Test
+    void cuentaCodePoints_comoElCheckDeLaBase() {
+        String emoji = new String(Character.toChars(0x1F600));
+        // "abc" + emoji son 4 code points (5 unidades UTF-16): corto, igual que para char_length.
+        assertThatThrownBy(() -> Reporte.normalizarTitulo("abc" + emoji))
+                .isInstanceOf(IllegalArgumentException.class);
+        // 120 emojis son 120 code points: se aceptan aunque length() sea 240.
+        assertThat(Reporte.normalizarTitulo(emoji.repeat(120))).hasSize(240);
+    }
+
+    @Test
     void rechazaNuloVacioCortoYLargo() {
         for (String invalido : new String[] {null, "", "    ", "Bach", "x".repeat(121)}) {
             assertThatThrownBy(() -> Reporte.normalizarTitulo(invalido))

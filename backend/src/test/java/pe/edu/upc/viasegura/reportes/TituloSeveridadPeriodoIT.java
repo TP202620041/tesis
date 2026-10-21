@@ -100,17 +100,19 @@ class TituloSeveridadPeriodoIT extends AbstractPostgisIT {
 
     @Test
     void crear_asignaElPeriodoDeGestionDeSuFechaDeCreacion() throws Exception {
-        // Hoy (2023-2026) cae en el periodo sembrado por V15.
+        // El periodo esperado es el que contiene la fecha de creacion, o nulo si
+        // ninguno la contiene: el test no depende de que hoy caiga en 2023-2026.
         long id = idDe(crear(tokenCiudadano(), "Bache en la esquina", "MEDIA")
                 .andExpect(status().isCreated()).andReturn());
 
         Long periodo = jdbc.queryForObject("SELECT periodo_gestion_id FROM reporte WHERE id = ?", Long.class, id);
         Long esperado = jdbc.queryForObject("""
-                SELECT p.id FROM periodo_gestion p, reporte r
-                 WHERE r.id = ? AND (r.created_at AT TIME ZONE 'America/Lima')::date
-                       BETWEEN p.fecha_inicio AND p.fecha_fin
+                SELECT (SELECT p.id FROM periodo_gestion p
+                         WHERE (r.created_at AT TIME ZONE 'America/Lima')::date
+                               BETWEEN p.fecha_inicio AND p.fecha_fin)
+                  FROM reporte r WHERE r.id = ?
                 """, Long.class, id);
-        assertThat(periodo).isNotNull().isEqualTo(esperado);
+        assertThat(periodo).isEqualTo(esperado);
     }
 
     @Test

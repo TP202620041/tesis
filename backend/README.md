@@ -907,7 +907,7 @@ sus columnas no están definidas. Según la propuesta
 
 ## Título, severidad y periodo del reporte (NC-02)
 
-**Qué agrega.** `reporte` suma `titulo` (5–120 caracteres tras el trim, se
+**Qué agrega.** `reporte` suma `titulo` (5–120 caracteres Unicode tras el trim, se
 guarda recortado), `severidad` (`BAJA < MEDIA < ALTA`) y `periodo_gestion_id`.
 El ciudadano fija título y severidad al crear y puede cambiarlos mientras el
 reporte está `PENDIENTE` (US-08), igual que la descripción. El funcionario los
