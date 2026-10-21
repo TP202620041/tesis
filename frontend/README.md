@@ -265,8 +265,11 @@ Reglas de la cola:
   título ni severidad, no se reenvía solo ni se purga; el ciudadano lo completa
   con la misma clave (ver «Título y severidad del reporte (NC-02)»).
 - **Dispositivo compartido**: al cerrar sesión con reportes propios en cola se
-  pregunta «Tienes N reportes sin enviar en este dispositivo. Se enviarán
-  cuando vuelvas a entrar. [Conservar] [Descartarlos]». `auth` no conoce la
+  pregunta «Tienes N reportes sin enviar en este dispositivo. X se enviarán
+  cuando vuelvas a entrar. [Conservar] [Descartarlos]». Desde NC-02 el texto
+  separa los que se envían solos (`pendiente`) de los que necesitan acción
+  (incompletos, rechazados, caducados: «no se enviarán solos…»): no se promete
+  enviar lo que no se envía (`desglosar` en `model/colaOffline.ts`). `auth` no conoce la
   cola: quien compone la app registra ese paso en
   `lib/sesion/antesDeCerrarSesion.ts` (D-14) y `useCerrarSesion` lo espera. El cierre
   **nunca se cuelga**: Escape equivale a «Conservar»; si la pregunta queda
@@ -363,10 +366,24 @@ Decisión del usuario (20/10):
   Mis reportes antes de reenviarlo con clave nueva).
 - **Un 400 nunca borra un reporte de la cola**: lo marca `rechazado` con el
   motivo (como antes) y solo el ciudadano lo descarta.
+- **Si ya no está incompleto, `completar` no escribe**: otra pestaña pudo
+  completarlo (y quizá enviarlo) con otros datos; pisarlo cambiaría lo que ya
+  está en camino. Devuelve `false` y la pantalla lo dice.
+- **El aviso dice qué falta** (título, severidad o ambos) y es texto fijo, no
+  una alerta: solo el error al completar se anuncia con `role="alert"`. Los
+  campos con error quedan `aria-invalid` y enlazan su mensaje con
+  `aria-describedby` (el título en el `<input>`, la severidad en el
+  `<fieldset>`).
+- **Aviso con sesión.** Fuera de Mis reportes, si el usuario con sesión tiene
+  reportes incompletos aparece un aviso no modal («Tienes N reportes sin enviar
+  a los que les faltan datos: complétalos en Mis reportes») con enlace a
+  «Pendiente de envío». Lo compone `app/SincronizadorDeReportes.tsx` con
+  `useCantidadDeIncompletos`; sin sesión sigue el aviso de siempre, que solo
+  cuenta los reenviables.
 - Tests: un incompleto nunca se envía sin completar (ni pendiente ni
   rechazado); al completarlo usa la misma clave y la sincronización automática
   lo envía; un 400 lo conserva; no se purga a los 30 días; completarlo pasadas
-  48 h no lo reenvía a ciegas.
+  48 h no lo reenvía a ciegas; `completar` sobre uno ya completo no escribe.
 
 ### Consentimiento (NC-07b, D-12)
 
@@ -689,6 +706,10 @@ Verificado end-to-end contra el backend real:
   jsdom. Verificado el 20/10 contra el backend real: la capa dibuja los
   círculos bajo los marcadores en un único canvas, y con un reporte por celda
   la leyenda dice «Baja» (piso de 4 en la escala).
+
+Implementado y cubierto por tests, **pendiente de verificación en vivo**
+contra el backend real:
+
 - **NC-02** título y severidad: obligatorios en `/reportar` (severidad sin
   valor por defecto), editables en PENDIENTE (US-08) y visibles en el mapa, la
   lista, los detalles, mis reportes y la bandeja (solo lectura). La cola
