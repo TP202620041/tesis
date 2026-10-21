@@ -5,6 +5,7 @@ import { AlertaError, Boton } from '@/components/ui/form';
 import type { Severidad } from '@/lib/types/domain';
 import { useEditarReporte } from '../hooks/useEditarReporte';
 import { etiquetaDeOpcion } from '../model/edicion';
+import { errorDelTitulo } from '../model/titulo';
 import type { ReporteResumen } from '../model/tipos';
 import { CampoSeveridad, CampoTitulo } from './CamposTituloYSeveridad';
 
@@ -28,10 +29,16 @@ export function EditarReporte({
   const [titulo, setTitulo] = useState(reporte.titulo ?? '');
   const [severidad, setSeveridad] = useState<Severidad | null>(reporte.severidad ?? null);
   const [descripcion, setDescripcion] = useState(reporte.descripcion ?? '');
+  const [intentado, setIntentado] = useState(false);
+  // Solo se valida el titulo si cambio (en el PATCH, lo que no cambia no viaja).
+  const tituloCambio = titulo.trim() !== (reporte.titulo ?? '').trim();
+  const errorTitulo = intentado && tituloCambio ? errorDelTitulo(titulo) : null;
   const [confirmandoRetiro, setConfirmandoRetiro] = useState(false);
 
   async function guardar(evento: React.FormEvent) {
     evento.preventDefault();
+    setIntentado(true);
+    if (tituloCambio && errorDelTitulo(titulo)) return;
     if (await guardarCambios({ categoriaId, titulo, severidad, descripcion })) onActualizado();
   }
 
@@ -49,7 +56,7 @@ export function EditarReporte({
         </h2>
         {error && <AlertaError mensaje={error.mensaje} detalles={error.detalles} />}
 
-        <CampoTitulo id="titulo-edit" valor={titulo} onCambiar={setTitulo} />
+        <CampoTitulo id="titulo-edit" valor={titulo} onCambiar={setTitulo} error={errorTitulo} />
 
         <CampoSeveridad nombre="severidad-edit" valor={severidad} onCambiar={setSeveridad} />
 

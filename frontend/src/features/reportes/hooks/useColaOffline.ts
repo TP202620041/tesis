@@ -9,6 +9,7 @@ import { colaDeReportes, crearReporte, type AlmacenDeCola } from '../api';
 import {
   debePurgarse,
   desenlaceDeEnvio,
+  desglosar,
   estadoVisible,
   estaIncompleto,
   pendientesDe,
@@ -17,7 +18,7 @@ import {
   type EstadoVisible,
   type ReporteEnCola,
 } from '../model/colaOffline';
-import { errorDelTitulo } from '../model/titulo';
+import { errorDelTitulo, MENSAJE_SIN_SEVERIDAD } from '../model/titulo';
 import type { NuevoReporte, ReporteCreado } from '../model/tipos';
 
 /*
@@ -250,12 +251,14 @@ export async function completarEnCola(
 ): Promise<ErrorAlCompletar> {
   const errorTitulo = errorDelTitulo(campos.titulo);
   if (errorTitulo) return errorTitulo;
-  if (!esSeveridad(campos.severidad)) return 'Elige la severidad del daño.';
+  if (!esSeveridad(campos.severidad)) return MENSAJE_SIN_SEVERIDAD;
   const guardado = await deps.almacen.completar(idempotencyKey, {
     titulo: campos.titulo.trim(),
     severidad: campos.severidad,
   });
-  return guardado ? null : 'Este reporte ya no está en el dispositivo: pudo haberse enviado.';
+  return guardado
+    ? null
+    : 'Este reporte ya no está por completar: pudo haberse completado o enviado en otra pestaña.';
 }
 
 /**
@@ -347,6 +350,24 @@ export function useResumenDeLaCola(): ResumenDeLaCola {
       const ahora = new Date();
       return { total: cola.length, reenviables: cola.filter((r) => seReenviaSolo(r, ahora)).length };
     }, []) ?? COLA_VACIA
+  );
+}
+
+/**
+ * NC-02: cuantos reportes de `usuarioId` en la cola estan `incompleto`
+ * (guardados por la version anterior, sin titulo o sin severidad). No se
+ * envian solos: el aviso con sesion invita a completarlos.
+ */
+export function useCantidadDeIncompletos(usuarioId: number): number {
+  return (
+    useCola(
+      (cola) => {
+        const ahora = new Date();
+        return desglosar(pendientesDe(cola, usuarioId).map((r) => estadoVisible(r, ahora)))
+          .incompletos;
+      },
+      [usuarioId],
+    ) ?? 0
   );
 }
 

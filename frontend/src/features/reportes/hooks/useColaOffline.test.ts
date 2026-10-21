@@ -9,6 +9,7 @@ import { crearReporte } from '../api';
 import type { ReporteEnCola } from '../model/colaOffline';
 import {
   INTERVALO_DE_REINTENTO,
+  useCantidadDeIncompletos,
   useReportesEnCola,
   useResumenDeLaCola,
   useSincronizacionAutomatica,
@@ -119,6 +120,19 @@ describe('reporte incompleto (NC-02) de punta a punta', () => {
       { redirigirEn401: false },
     );
     await waitFor(async () => expect(await colaDeReportes.listar()).toEqual([]));
+  });
+
+  it('useCantidadDeIncompletos cuenta solo los incompletos del usuario', async () => {
+    await colaDeReportes.guardar(incompleto('k1', 7));
+    await colaDeReportes.guardar(incompleto('ajeno', 8));
+    await colaDeReportes.guardar(enCola('k2', 7));
+    const { result } = renderHook(() => useCantidadDeIncompletos(7));
+    await waitFor(() => expect(result.current).toBe(1));
+
+    await act(async () => {
+      await colaDeReportes.quitar('k1');
+    });
+    await waitFor(() => expect(result.current).toBe(0));
   });
 
   it('no cuenta como reenviable en el resumen del dispositivo', async () => {

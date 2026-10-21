@@ -84,6 +84,24 @@ describe('SincronizadorDeReportes', () => {
     await waitFor(async () => expect(await colaDeReportes.listar()).toEqual([]));
   });
 
+  it('con sesion y un incompleto propio (NC-02) avisa sin bloquear y no lo envia', async () => {
+    const viejo = enCola('viejo');
+    delete viejo.datos.titulo;
+    delete viejo.datos.severidad;
+    await colaDeReportes.quitar('k1');
+    await colaDeReportes.guardar(viejo);
+    guardarToken('t');
+    vi.mocked(usuarioActualSinRedirigir).mockResolvedValue(ANA);
+
+    render(<SincronizadorDeReportes />);
+
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'Tienes 1 reporte sin enviar al que le faltan datos: complétalos en Mis reportes.',
+    );
+    expect(screen.getByRole('link')).toHaveAttribute('href', '/mis-reportes#pendientes-de-envio');
+    expect(crearReporte).not.toHaveBeenCalled();
+  });
+
   it('sin sesion muestra el aviso no modal con enlace al login', async () => {
     render(<SincronizadorDeReportes />);
 

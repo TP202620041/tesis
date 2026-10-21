@@ -34,6 +34,20 @@ export function esTituloValido(titulo: string | null | undefined): boolean {
   return errorDelTitulo(titulo) === null;
 }
 
+/** Mensaje cuando falta la severidad (no tiene valor por defecto). */
+export const MENSAJE_SIN_SEVERIDAD = 'Elige la severidad del daño.';
+
+/** Errores por campo de titulo y severidad (`null` = valido), para marcar cada campo. */
+export function erroresDeTituloYSeveridad(
+  titulo: string,
+  severidad: string | null,
+): { titulo: string | null; severidad: string | null } {
+  return {
+    titulo: errorDelTitulo(titulo),
+    severidad: severidad == null ? MENSAJE_SIN_SEVERIDAD : null,
+  };
+}
+
 /**
  * Titulo sugerido «<categoría> en <distrito>», el mismo formato con que la
  * migracion V17 relleno los reportes existentes. Vacio si falta alguno de

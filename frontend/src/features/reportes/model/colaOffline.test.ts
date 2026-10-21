@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  avisoDeIncompleto,
+  camposQueFaltan,
   debePurgarse,
   desenlaceDeEnvio,
+  desglosar,
   estadoVisible,
   estaIncompleto,
   pendientesDe,
@@ -104,5 +107,41 @@ describe('estado «incompleto» (NC-02)', () => {
     expect(debePurgarse(viejo({ estado: 'rechazado', motivo: 'x' }), tras(40 * 24))).toBe(false);
     // Un completo caducado de la misma edad si.
     expect(debePurgarse(enCola('k', 1, CREADO), tras(40 * 24))).toBe(true);
+  });
+});
+
+describe('lo que le falta a un incompleto (NC-02)', () => {
+  const base = enCola('k', 1, '2026-10-19T10:00:00.000Z');
+  const con = (datos: Partial<ReporteEnCola['datos']>): ReporteEnCola => ({
+    ...base,
+    datos: { ...base.datos, ...datos },
+  });
+
+  it('arma el aviso segun falte el titulo, la severidad o ambos', () => {
+    expect(camposQueFaltan(base)).toEqual([]);
+    expect(avisoDeIncompleto(con({ titulo: undefined }))).toBe(
+      'Le falta el título: complétalo para enviarlo.',
+    );
+    expect(avisoDeIncompleto(con({ severidad: undefined }))).toBe(
+      'Le falta la severidad: complétala para enviarlo.',
+    );
+    expect(camposQueFaltan(con({ titulo: undefined, severidad: undefined }))).toEqual([
+      'titulo',
+      'severidad',
+    ]);
+    expect(avisoDeIncompleto(con({ titulo: undefined, severidad: undefined }))).toBe(
+      'Le faltan el título y la severidad: complétalos para enviarlo.',
+    );
+  });
+});
+
+describe('desglosar', () => {
+  it('separa los que se enviaran solos de los que necesitan accion', () => {
+    expect(desglosar(['pendiente', 'incompleto', 'rechazado', 'caducado', 'pendiente'])).toEqual({
+      seEnviaran: 2,
+      requierenAccion: 3,
+      incompletos: 1,
+    });
+    expect(desglosar([])).toEqual({ seEnviaran: 0, requierenAccion: 0, incompletos: 0 });
   });
 });

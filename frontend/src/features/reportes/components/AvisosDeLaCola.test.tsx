@@ -1,7 +1,12 @@
 import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { AvisoPendientesSinSesion } from './AvisosDeLaCola';
+import {
+  AvisoPendientesSinSesion,
+  AvisoReportesIncompletos,
+  DialogoCierreConPendientes,
+  textoDelCierre,
+} from './AvisosDeLaCola';
 
 vi.mock('next/link', () => ({
   default: ({ href, children }: { href: string; children: ReactNode }) => <a href={href}>{children}</a>,
@@ -26,5 +31,59 @@ describe('AvisoPendientesSinSesion', () => {
 
     rerender(<AvisoPendientesSinSesion cantidad={0} ruta="/mapa" />);
     expect(container).toBeEmptyDOMElement();
+  });
+});
+
+describe('AvisoReportesIncompletos (NC-02)', () => {
+  it('avisa sin bloquear y enlaza a «Pendiente de envío» en Mis reportes', () => {
+    render(<AvisoReportesIncompletos cantidad={2} ruta="/mapa" />);
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Tienes 2 reportes sin enviar a los que les faltan datos: complétalos en Mis reportes.',
+    );
+    expect(screen.getByRole('link', { name: 'complétalos en Mis reportes' })).toHaveAttribute(
+      'href',
+      '/mis-reportes#pendientes-de-envio',
+    );
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+  });
+
+  it('no aparece sin incompletos ni en Mis reportes, donde ya esta la lista', () => {
+    const { container, rerender } = render(<AvisoReportesIncompletos cantidad={0} ruta="/mapa" />);
+    expect(container).toBeEmptyDOMElement();
+
+    rerender(<AvisoReportesIncompletos cantidad={1} ruta="/mis-reportes" />);
+    expect(container).toBeEmptyDOMElement();
+  });
+});
+
+describe('dialogo de cierre con pendientes (NC-02: no promete enviar lo que no se envia)', () => {
+  it('textoDelCierre separa los que se enviaran solos de los que necesitan accion', () => {
+    expect(textoDelCierre(2, 0)).toBe(
+      '2 se enviarán cuando vuelvas a entrar. Si este dispositivo no es tuyo, puedes descartarlos.',
+    );
+    expect(textoDelCierre(0, 1)).toBe(
+      '1 no se enviará solo: necesita que lo completes, lo revises o lo descartes en Mis reportes. ' +
+        'Si este dispositivo no es tuyo, puedes descartarlos.',
+    );
+    expect(textoDelCierre(1, 2)).toMatch(
+      /^1 se enviará cuando vuelvas a entrar\. 2 no se enviarán solos: necesitan/,
+    );
+  });
+
+  it('con solo incompletos el dialogo no dice «se enviarán»', () => {
+    render(
+      <DialogoCierreConPendientes
+        cantidad={1}
+        seEnviaran={0}
+        requierenAccion={1}
+        onConservar={vi.fn()}
+        onDescartar={vi.fn()}
+      />,
+    );
+    const dialogo = screen.getByRole('alertdialog');
+    expect(dialogo).toHaveTextContent('Tienes 1 reporte sin enviar en este dispositivo.');
+    expect(dialogo).not.toHaveTextContent(/se enviarán/);
+    expect(dialogo).toHaveTextContent('1 no se enviará solo');
   });
 });

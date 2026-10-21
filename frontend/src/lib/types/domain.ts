@@ -60,7 +60,7 @@ export function esSeveridad(valor: unknown): valor is Severidad {
   return typeof valor === 'string' && (SEVERIDADES as readonly string[]).includes(valor);
 }
 
-export const PREFERENCIAS_NOTIFICACION =['PUSH', 'EMAIL', 'AMBAS'] as const;
+export const PREFERENCIAS_NOTIFICACION = ['PUSH', 'EMAIL', 'AMBAS'] as const;
 export type PreferenciaNotificacion = (typeof PREFERENCIAS_NOTIFICACION)[number];
 
 export const CANALES_NOTIFICACION = ['PUSH', 'EMAIL'] as const;

@@ -72,6 +72,19 @@ describe('EditarReporte (US-08 con categoría desactivada, US-29)', () => {
     expect(editar).toHaveBeenCalledWith(9, { categoriaId: 1, descripcion: 'Conos' });
   });
 
+  it('NC-02: un título cambiado e inválido se marca en su campo y no se envía', async () => {
+    render(<EditarReporte reporte={REPORTE} onActualizado={vi.fn()} />);
+    const usuario = userEvent.setup();
+    await screen.findByRole('option', { name: 'Bache' });
+
+    await usuario.clear(screen.getByLabelText('Título'));
+    await usuario.click(screen.getByRole('button', { name: 'Guardar cambios' }));
+
+    expect(await screen.findByText('Escribe un título para el reporte.')).toBeInTheDocument();
+    expect(screen.getByLabelText('Título')).toHaveAttribute('aria-invalid', 'true');
+    expect(editar).not.toHaveBeenCalled();
+  });
+
   it('NC-02: muestra título y severidad actuales y envía solo lo que cambió', async () => {
     editar.mockResolvedValue(REPORTE);
     render(<EditarReporte reporte={REPORTE} onActualizado={vi.fn()} />);

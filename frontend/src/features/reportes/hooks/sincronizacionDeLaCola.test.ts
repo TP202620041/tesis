@@ -444,7 +444,7 @@ describe('reportes incompletos (NC-02)', () => {
       { titulo: 'Bache en Surco', severidad: 'ALTA' },
       { almacen: colaDeReportes },
     );
-    expect(error).toMatch(/ya no está/);
+    expect(error).toMatch(/ya no está por completar/);
     expect(await claves()).toEqual([]);
   });
 

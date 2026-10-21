@@ -1,6 +1,7 @@
-import type {
-  DatosParaCompletar,
-  ReporteEnCola,
+import {
+  estaIncompleto,
+  type DatosParaCompletar,
+  type ReporteEnCola,
 } from '@/features/reportes/model/colaOffline';
 
 /**
@@ -38,7 +39,8 @@ export interface AlmacenDeCola {
    * clave (y `creadoEn`, que mide su vigencia) NO cambia: si la primera
    * peticion si llego al backend, el reenvio con la misma clave devuelve el
    * reporte original. Si la clave ya no esta (otra pestaña lo envio o se
-   * descarto), no hace nada y devuelve `false`.
+   * descarto) o el reporte ya no esta incompleto (otra pestaña lo completo),
+   * no escribe nada y devuelve `false`: no pisa lo que ya se completo.
    */
   completar(idempotencyKey: string, campos: DatosParaCompletar): Promise<boolean>;
   /** Quita `idempotencyKey` y guarda `nuevo` en una sola transaccion. */
@@ -154,7 +156,7 @@ export const colaDeReportes: AlmacenDeCola = {
       const lectura = a.get(idempotencyKey);
       lectura.onsuccess = () => {
         const actual = lectura.result as ReporteEnCola | undefined;
-        if (!actual) return;
+        if (!actual || !estaIncompleto(actual)) return;
         a.put({
           ...actual,
           datos: { ...actual.datos, titulo: campos.titulo, severidad: campos.severidad },

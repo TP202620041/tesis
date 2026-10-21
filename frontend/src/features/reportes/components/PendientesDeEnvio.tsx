@@ -4,7 +4,8 @@ import { useState } from 'react';
 import type { Severidad } from '@/lib/types/domain';
 import type { ErrorAlCompletar, ReporteEnColaVisible } from '../hooks/useColaOffline';
 import { useTituloSugerido } from '../hooks/useTituloSugerido';
-import type { ReporteEnCola } from '../model/colaOffline';
+import { avisoDeIncompleto, type ReporteEnCola } from '../model/colaOffline';
+import { erroresDeTituloYSeveridad } from '../model/titulo';
 import { CampoSeveridad, CampoTitulo } from './CamposTituloYSeveridad';
 
 type Accion = { clave: string; tipo: 'descartar' | 'reenviar' };
@@ -162,12 +163,19 @@ function CompletarReporte({
   const [severidad, setSeveridad] = useState<Severidad | null>(reporte.datos.severidad ?? null);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [intentado, setIntentado] = useState(false);
   const titulo = tituloEscrito ?? sugerido ?? '';
   const id = `completar-${reporte.idempotencyKey}`;
+  const errores = intentado
+    ? erroresDeTituloYSeveridad(titulo, severidad)
+    : { titulo: null, severidad: null };
 
   async function guardar(evento: React.FormEvent) {
     evento.preventDefault();
     setError(null);
+    setIntentado(true);
+    const campos = erroresDeTituloYSeveridad(titulo, severidad);
+    if (campos.titulo || campos.severidad) return;
     setGuardando(true);
     try {
       setError(await onCompletar(reporte.idempotencyKey, { titulo, severidad }));
@@ -180,16 +188,25 @@ function CompletarReporte({
 
   return (
     <form onSubmit={guardar} noValidate className="flex flex-col gap-2 border-t border-amber-200 pt-2 dark:border-amber-800">
-      <p role="alert" className="text-amber-900 dark:text-amber-100">
-        Le faltan el título y la severidad: complétalos para enviarlo.
-      </p>
+      {/* Aviso fijo, no una alerta: ya esta en la pantalla al llegar. */}
+      <p className="text-amber-900 dark:text-amber-100">{avisoDeIncompleto(reporte)}</p>
       {error && (
         <p role="alert" className="text-red-700 dark:text-red-300">
           {error}
         </p>
       )}
-      <CampoTitulo id={`${id}-titulo`} valor={titulo} onCambiar={setTitulo} />
-      <CampoSeveridad nombre={`${id}-severidad`} valor={severidad} onCambiar={setSeveridad} />
+      <CampoTitulo
+        id={`${id}-titulo`}
+        valor={titulo}
+        onCambiar={setTitulo}
+        error={errores.titulo}
+      />
+      <CampoSeveridad
+        nombre={`${id}-severidad`}
+        valor={severidad}
+        onCambiar={setSeveridad}
+        error={errores.severidad}
+      />
       <button
         type="submit"
         disabled={guardando}

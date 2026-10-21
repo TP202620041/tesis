@@ -95,6 +95,26 @@ describe('colaDeReportes (IndexedDB)', () => {
     });
   });
 
+  it('completar un reporte que ya no esta incompleto no escribe nada', async () => {
+    // Otra pestaña ya lo completo (y quiza ya esta en camino con esos datos).
+    await colaDeReportes.guardar(reporte('k1'));
+    const alCambiar = vi.fn();
+    const desuscribir = colaDeReportes.suscribir(alCambiar);
+
+    const completado = await colaDeReportes.completar('k1', {
+      titulo: 'Otro título distinto',
+      severidad: 'BAJA',
+    });
+    desuscribir();
+
+    expect(completado).toBe(false);
+    expect(alCambiar).not.toHaveBeenCalled();
+    expect((await colaDeReportes.listar())[0]?.datos).toMatchObject({
+      titulo: 'Bache en Miraflores',
+      severidad: 'ALTA',
+    });
+  });
+
   it('completar una clave que ya no esta no la resucita', async () => {
     expect(
       await colaDeReportes.completar('no-existe', { titulo: 'Bache en Surco', severidad: 'ALTA' }),

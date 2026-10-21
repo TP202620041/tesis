@@ -43,7 +43,10 @@ describe('PendientesDeEnvio: reporte incompleto (NC-02)', () => {
   it('sugiere «<categoría> en <distrito>» y no elige severidad', async () => {
     montar();
 
-    expect(screen.getByText(/Le faltan el título y la severidad/)).toBeInTheDocument();
+    const aviso = screen.getByText('Le faltan el título y la severidad: complétalos para enviarlo.');
+    // Aviso fijo, no una alerta (solo el error lo es).
+    expect(aviso).not.toHaveAttribute('role');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     await waitFor(() => expect(screen.getByLabelText('Título')).toHaveValue('Bache en Miraflores'));
     for (const nombre of ['Baja', 'Media', 'Alta']) {
       expect(screen.getByRole('radio', { name: nombre })).not.toBeChecked();
@@ -76,18 +79,49 @@ describe('PendientesDeEnvio: reporte incompleto (NC-02)', () => {
     expect(screen.getByLabelText('Título')).toHaveValue('');
   });
 
-  it('muestra el motivo si no se pudo completar, y se puede descartar', async () => {
-    const onCompletar = montar(vi.fn().mockResolvedValue('Elige la severidad del daño.'));
+  it('sin severidad marca el grupo y no intenta completar', async () => {
+    const onCompletar = montar();
     const usuario = userEvent.setup();
     await waitFor(() => expect(screen.getByLabelText('Título')).toHaveValue('Bache en Miraflores'));
 
     await usuario.click(screen.getByRole('button', { name: 'Completar' }));
 
+    const mensaje = await screen.findByText('Elige la severidad del daño.');
+    const grupo = screen.getByRole('group', { name: 'Severidad' });
+    expect(grupo).toHaveAttribute('aria-invalid', 'true');
+    expect(grupo.getAttribute('aria-describedby')).toContain(mensaje.id);
+    expect(onCompletar).not.toHaveBeenCalled();
+  });
+
+  it('muestra el motivo si no se pudo completar, y se puede descartar', async () => {
+    const motivo = 'Este reporte ya no está por completar: pudo haberse completado o enviado en otra pestaña.';
+    const onCompletar = montar(vi.fn().mockResolvedValue(motivo));
+    const usuario = userEvent.setup();
+    await waitFor(() => expect(screen.getByLabelText('Título')).toHaveValue('Bache en Miraflores'));
+
+    await usuario.click(screen.getByRole('radio', { name: 'Baja' }));
+    await usuario.click(screen.getByRole('button', { name: 'Completar' }));
+
     expect(onCompletar).toHaveBeenCalledWith('clave-vieja', {
       titulo: 'Bache en Miraflores',
-      severidad: null,
+      severidad: 'BAJA',
     });
-    expect(await screen.findByText('Elige la severidad del daño.')).toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent(motivo);
     expect(screen.getByRole('button', { name: 'Descartar' })).toBeInTheDocument();
+  });
+
+  it('si solo falta la severidad, el aviso lo dice', () => {
+    render(
+      <PendientesDeEnvio
+        pendientes={[{ ...INCOMPLETO, datos: { ...INCOMPLETO.datos, titulo: 'Bache en Surco' } }]}
+        onDescartar={vi.fn()}
+        onReenviarConClaveNueva={vi.fn()}
+        onCompletar={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByText('Le falta la severidad: complétala para enviarlo.'),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText('Título')).toHaveValue('Bache en Surco');
   });
 });

@@ -4,7 +4,7 @@ import { useCallback, useRef, useState } from 'react';
 import { mensajeDeError, NetworkError, type MensajeDeError } from '@/lib/api/errors';
 import type { Severidad } from '@/lib/types/domain';
 import { crearReporte } from '../api';
-import { errorDelTitulo } from '../model/titulo';
+import { errorDelTitulo, MENSAJE_SIN_SEVERIDAD } from '../model/titulo';
 import type { NuevoReporte, ReporteCreado } from '../model/tipos';
 import { useEncolarReporte } from './useColaOffline';
 
@@ -64,7 +64,7 @@ export function useCrearReporte(usuarioId: number) {
         return null;
       }
       if (datos.severidad == null) {
-        setError({ mensaje: 'Elige la severidad del daño.', detalles: [] });
+        setError({ mensaje: MENSAJE_SIN_SEVERIDAD, detalles: [] });
         return null;
       }
 

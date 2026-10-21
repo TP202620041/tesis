@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { registrarAntesDeCerrarSesion } from '@/lib/sesion/antesDeCerrarSesion';
+import { desglosar } from '../model/colaOffline';
 import { useReportesEnCola } from './useColaOffline';
 
 /**
@@ -20,13 +21,17 @@ import { useReportesEnCola } from './useColaOffline';
  *   espera (no deja una promesa huerfana).
  * - Responder dos veces (doble clic) no hace nada la segunda vez.
  *
- * `preguntando` es la cantidad a mostrar mientras se espera la decision.
+ * `preguntando` es la cantidad a mostrar mientras se espera la decision, y
+ * `desglose` separa los que se enviaran solos de los que necesitan que el
+ * ciudadano haga algo (incompletos, rechazados, caducados): el dialogo no
+ * debe decir «se enviarán» de estos.
  */
 export function useConfirmacionAlCerrarSesion(usuarioId: number) {
   const { pendientes, descartarTodos } = useReportesEnCola(usuarioId);
   const [preguntando, setPreguntando] = useState<number | null>(null);
   const espera = useRef<{ promesa: Promise<void>; resolver: () => void } | null>(null);
   const cantidad = pendientes.length;
+  const desglose = desglosar(pendientes.map((r) => r.visible));
   const hayPendientes = cantidad > 0;
   // La cantidad se lee de un ref: que cambie (p. ej. de 2 a 1 porque se envio
   // uno) no debe volver a registrar la guarda ni responder por el usuario.
@@ -73,5 +78,5 @@ export function useConfirmacionAlCerrarSesion(usuarioId: number) {
     terminar();
   }, [descartarTodos, terminar]);
 
-  return { preguntando, conservar, descartar };
+  return { preguntando, desglose, conservar, descartar };
 }

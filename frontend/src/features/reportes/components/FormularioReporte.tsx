@@ -5,6 +5,7 @@ import { AlertaError, Boton } from '@/components/ui/form';
 import type { Severidad } from '@/lib/types/domain';
 import { useCategoriasDeReporte } from '../hooks/useCategoriasDeReporte';
 import { useCrearReporte } from '../hooks/useCrearReporte';
+import { erroresDeTituloYSeveridad } from '../model/titulo';
 import type { ReporteCreado } from '../model/tipos';
 import { CampoSeveridad, CampoTitulo } from './CamposTituloYSeveridad';
 import { CampoFoto } from './CampoFoto';
@@ -33,6 +34,11 @@ export function FormularioReporte({
   const [titulo, setTitulo] = useState('');
   const [severidad, setSeveridad] = useState<Severidad | null>(null);
   const [descripcion, setDescripcion] = useState('');
+  // Los errores por campo se muestran recien tras el primer intento de envio.
+  const [intentado, setIntentado] = useState(false);
+  const errores = intentado
+    ? erroresDeTituloYSeveridad(titulo, severidad)
+    : { titulo: null, severidad: null };
   const [foto, setFoto] = useState<File | null>(null);
 
   const distritoId = ubicacion?.distrito?.id ?? null;
@@ -50,6 +56,11 @@ export function FormularioReporte({
 
   async function enviar(evento: React.FormEvent) {
     evento.preventDefault();
+    setIntentado(true);
+    // Titulo o severidad invalidos: se marcan en su campo y no se envia (el
+    // hook valida igual, pero asi el mensaje no sale dos veces).
+    const campos = erroresDeTituloYSeveridad(titulo, severidad);
+    if (campos.titulo || campos.severidad) return;
     const desenlace = await enviarReporte({
       ubicacion: ubicacion && {
         latitud: ubicacion.coordenadas.latitud,
@@ -103,9 +114,14 @@ export function FormularioReporte({
         )}
       </div>
 
-      <CampoTitulo id="titulo" valor={titulo} onCambiar={setTitulo} />
+      <CampoTitulo id="titulo" valor={titulo} onCambiar={setTitulo} error={errores.titulo} />
 
-      <CampoSeveridad nombre="severidad" valor={severidad} onCambiar={setSeveridad} />
+      <CampoSeveridad
+        nombre="severidad"
+        valor={severidad}
+        onCambiar={setSeveridad}
+        error={errores.severidad}
+      />
 
       <CampoFoto valor={foto} onCambiar={setFoto} />
 

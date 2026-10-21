@@ -62,7 +62,29 @@ describe('FormularioReporte: título y severidad (NC-02)', () => {
     await usuario.type(screen.getByLabelText('Título'), 'Bache profundo');
     await usuario.click(screen.getByRole('button', { name: 'Enviar reporte' }));
 
-    expect(await screen.findByText('Elige la severidad del daño.')).toBeInTheDocument();
+    const mensaje = await screen.findByText('Elige la severidad del daño.');
+    // El error queda en el grupo de severidad, enlazado por aria-describedby.
+    const grupo = screen.getByRole('group', { name: 'Severidad' });
+    expect(grupo).toHaveAttribute('aria-invalid', 'true');
+    expect(grupo.getAttribute('aria-describedby')).toContain(mensaje.id);
+    expect(screen.getByLabelText('Título')).not.toHaveAttribute('aria-invalid');
+    expect(crearReporte).not.toHaveBeenCalled();
+  });
+
+  it('un título corto se marca en su campo y no se envía', async () => {
+    const usuario = userEvent.setup();
+    render(<FormularioReporte usuarioId={7} onCreado={vi.fn()} onEncolado={vi.fn()} />);
+    await usuario.click(screen.getByRole('button', { name: 'Usar mi ubicación (GPS)' }));
+    await screen.findByText('Municipalidad de Miraflores');
+    await usuario.selectOptions(screen.getByLabelText('Tipo de daño'), '3');
+    await usuario.type(screen.getByLabelText('Título'), 'Hoyo');
+    await usuario.click(screen.getByRole('radio', { name: 'Alta' }));
+    await usuario.click(screen.getByRole('button', { name: 'Enviar reporte' }));
+
+    const mensaje = await screen.findByText(/al menos 5/);
+    const titulo = screen.getByLabelText('Título');
+    expect(titulo).toHaveAttribute('aria-invalid', 'true');
+    expect(titulo.getAttribute('aria-describedby')).toContain(mensaje.id);
     expect(crearReporte).not.toHaveBeenCalled();
   });
 

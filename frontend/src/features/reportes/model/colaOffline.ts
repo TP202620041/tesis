@@ -121,6 +121,48 @@ export function estaIncompleto(reporte: ReporteEnCola): boolean {
   return !esTituloValido(reporte.datos.titulo) || !esSeveridad(reporte.datos.severidad);
 }
 
+/** NC-02: lo que le falta a un reporte `incompleto`. */
+export type CampoQueFalta = 'titulo' | 'severidad';
+
+export function camposQueFaltan(reporte: ReporteEnCola): CampoQueFalta[] {
+  const faltan: CampoQueFalta[] = [];
+  if (!esTituloValido(reporte.datos.titulo)) faltan.push('titulo');
+  if (!esSeveridad(reporte.datos.severidad)) faltan.push('severidad');
+  return faltan;
+}
+
+/** Aviso de un reporte incompleto segun lo que le falte (titulo, severidad o ambos). */
+export function avisoDeIncompleto(reporte: ReporteEnCola): string {
+  const faltan = camposQueFaltan(reporte);
+  if (faltan.length === 2) return 'Le faltan el título y la severidad: complétalos para enviarlo.';
+  if (faltan[0] === 'titulo') return 'Le falta el título: complétalo para enviarlo.';
+  if (faltan[0] === 'severidad') return 'Le falta la severidad: complétala para enviarlo.';
+  return '';
+}
+
+/**
+ * Cuantos reportes en cola se enviaran solos y cuantos necesitan que el
+ * ciudadano haga algo (completarlos, revisarlos o descartarlos). Sirve para
+ * no decir «se enviarán» de los que no se envian solos.
+ */
+export interface DesgloseDeLaCola {
+  /** `pendiente`: se envian solos al volver la señal o la sesion. */
+  seEnviaran: number;
+  /** `incompleto`, `rechazado` o `caducado`. */
+  requierenAccion: number;
+  /** De los anteriores, los `incompleto` (NC-02). */
+  incompletos: number;
+}
+
+export function desglosar(visibles: readonly EstadoVisible[]): DesgloseDeLaCola {
+  const seEnviaran = visibles.filter((v) => v === 'pendiente').length;
+  return {
+    seEnviaran,
+    requierenAccion: visibles.length - seEnviaran,
+    incompletos: visibles.filter((v) => v === 'incompleto').length,
+  };
+}
+
 function edad(reporte: ReporteEnCola, ahora: Date): number {
   return ahora.getTime() - new Date(reporte.creadoEn).getTime();
 }
