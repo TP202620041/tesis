@@ -133,6 +133,11 @@ por defecto del framework, o compilar el SW como paso aparte. Se eligió lo
 segundo: Turbopack sigue siendo el bundler de la app y el SW deja de depender
 de su pipeline de bundling.
 
+`@serwist/cli` compila `src/pwa/sw.ts` con **esbuild**, pero lo declara como
+dependencia *peer* **opcional** (`>=0.25.0 <1.0.0`): npm no lo instala solo, y
+sin él `npm run build` falla en el paso `serwist build` («This command needs
+esbuild»). Por eso `esbuild` es una `devDependency` con versión exacta.
+
 **El API nunca se cachea** (`NetworkOnly` para `/api/**`, antes de
 `defaultCache`): su regla `cross-origin` guardaría respuestas que dependen del
 usuario (`/api/auth/me`, `mis-reportes`, `mi-distrito`) y el siguiente usuario
@@ -575,6 +580,12 @@ Verificado end-to-end contra el backend real:
 - **US-18/20** índice de desempeño (`/desempeno`), **público**: ranking de los
   43 distritos con tasa de resolución, tiempo promedio y satisfacción,
   ordenable por columna y filtrable por tipo de daño.
+- **US-19** comparar distritos en `/desempeno`: de 2 a 4 distritos (columna
+  «Comparar») lado a lado, con tasa, resueltos/total y tiempo promedio, más
+  una gráfica de barras de la tasa. El tipo de daño se aplica también a la
+  comparación (ver «Comparar distritos» en Decisiones técnicas). Verificado
+  el 20/10 con los datos seed (Miraflores 66.7 % frente a San Juan de
+  Lurigancho 10.7 %).
 - **NC-07b** consentimiento: aceptación de términos en el registro,
   `/privacidad`, pantalla `/aceptar-terminos` y «Privacidad y
   consentimientos» en el perfil (ver «Consentimiento» en Decisiones técnicas).
@@ -611,6 +622,28 @@ La barra de progreso usa **un solo color**, no una escala rojo-ámbar-verde:
 colorear por umbrales obligaría a inventar qué tasa cuenta como "mala", un
 juicio que ni el backlog ni el backend definen. El ranking y el número ya
 comunican la comparación sin que la interfaz emita su propia calificación.
+
+### Comparar distritos (US-19)
+
+- **El estado vive en la URL** (`?comparar=21,41&categoria=3`), no en estado
+  local: compartir la dirección comparte la comparación y el filtro. Se
+  escribe con `router.replace`, no `push`, para no llenar el historial con
+  cada casilla. `useSearchParams` obliga a envolver el índice en `Suspense`
+  (sin eso falla `next build`). El orden de la tabla sí es local: es de quien
+  mira. Una URL editada a mano se depura contra los catálogos: un distrito o
+  un tipo de daño inexistente no se usa.
+- **Gráfica en CSS, sin librería**, como la barra del ranking: con 2 a 4
+  barras de una sola magnitud basta, y se adapta sola al teléfono. Un solo
+  color, por la misma razón de arriba. Para lectores de pantalla es una
+  imagen (`role="img"`) con el resumen en texto, y la tabla de la
+  comparación (una columna por distrito) es su equivalente completo.
+- **El máximo de 4 no deshabilita las casillas:** al intentar marcar una
+  quinta, no se agrega y un aviso en una región `role="status"` explica por
+  qué. Una casilla deshabilitada no dice por qué lo está.
+- **`null` no es cero, también aquí:** con un tipo de daño elegido, el
+  backend solo devuelve los distritos con reportes de ese tipo; un distrito
+  comparado sin fila muestra «Sin datos» en todas sus cifras, nunca 0 % ni
+  «0 / 0».
 
 > **Nota de localización:** `es-PE` usa **punto** como separador decimal y
 > coma para miles (`1,234.56`), a diferencia de `es-ES` (`1.234,56`). Es la
