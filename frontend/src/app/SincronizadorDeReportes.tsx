@@ -60,7 +60,7 @@ function ConSesion({ ruta }: { ruta: string }) {
 
 function AvisoDeIncompletos({ usuarioId, ruta }: { usuarioId: number; ruta: string }) {
   const cantidad = useCantidadDeIncompletos(usuarioId);
-  return <AvisoReportesIncompletos cantidad={cantidad} ruta={ruta} />;
+  return <AvisoReportesIncompletos cantidad={cantidad} ruta={ruta} usuarioId={usuarioId} />;
 }
 
 function ConfirmacionAlCerrar({ usuarioId }: { usuarioId: number }) {

@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { CLAVE_AVISO_INCOMPLETOS_CERRADO } from '../hooks/useCierreDelAvisoDeIncompletos';
+import { claveDelCierre } from '../hooks/useCierreDelAvisoDeIncompletos';
 import {
   AvisoPendientesSinSesion,
   AvisoReportesIncompletos,
@@ -43,7 +43,7 @@ describe('AvisoReportesIncompletos (NC-02)', () => {
   });
 
   it('avisa sin bloquear y enlaza a «Pendiente de envío» en Mis reportes', () => {
-    render(<AvisoReportesIncompletos cantidad={2} ruta="/mapa" />);
+    render(<AvisoReportesIncompletos cantidad={2} ruta="/mapa" usuarioId={7} />);
 
     expect(screen.getByRole('status')).toHaveTextContent(
       'Tienes 2 reportes sin enviar a los que les faltan datos: complétalos en Mis reportes.',
@@ -57,20 +57,50 @@ describe('AvisoReportesIncompletos (NC-02)', () => {
 
   it('se cierra por la sesion de la pestaña y vuelve si aparecen mas incompletos', async () => {
     const usuario = userEvent.setup();
-    const { container, unmount } = render(<AvisoReportesIncompletos cantidad={1} ruta="/mapa" />);
+    const { container, unmount } = render(<AvisoReportesIncompletos cantidad={1} ruta="/mapa" usuarioId={7} />);
 
     await usuario.click(screen.getByRole('button', { name: 'Cerrar aviso' }));
     expect(container).toBeEmptyDOMElement();
-    expect(sessionStorage.getItem(CLAVE_AVISO_INCOMPLETOS_CERRADO)).toBe('1');
+    expect(sessionStorage.getItem(claveDelCierre(7))).toBe('1');
     unmount();
 
     // Otra pantalla, misma pestaña: sigue cerrado.
-    const otra = render(<AvisoReportesIncompletos cantidad={1} ruta="/desempeno" />);
+    const otra = render(<AvisoReportesIncompletos cantidad={1} ruta="/desempeno" usuarioId={7} />);
     expect(otra.container).toBeEmptyDOMElement();
 
     // Aparece otro incompleto: es informacion nueva, el aviso vuelve.
-    otra.rerender(<AvisoReportesIncompletos cantidad={2} ruta="/desempeno" />);
+    otra.rerender(<AvisoReportesIncompletos cantidad={2} ruta="/desempeno" usuarioId={7} />);
     expect(screen.getByRole('status')).toHaveTextContent('Tienes 2 reportes sin enviar');
+  });
+
+  it('si bajan los incompletos, el umbral baja: uno nuevo vuelve a avisar', async () => {
+    const usuario = userEvent.setup();
+    const { container, rerender } = render(
+      <AvisoReportesIncompletos cantidad={2} ruta="/mapa" usuarioId={7} />,
+    );
+    await usuario.click(screen.getByRole('button', { name: 'Cerrar aviso' }));
+    expect(container).toBeEmptyDOMElement();
+
+    // Completo uno: queda 1, sigue cerrado y el umbral baja a 1.
+    rerender(<AvisoReportesIncompletos cantidad={1} ruta="/mapa" usuarioId={7} />);
+    expect(container).toBeEmptyDOMElement();
+    expect(sessionStorage.getItem(claveDelCierre(7))).toBe('1');
+
+    // Aparece otro incompleto (vuelven a ser 2): es nuevo, el aviso vuelve.
+    rerender(<AvisoReportesIncompletos cantidad={2} ruta="/mapa" usuarioId={7} />);
+    expect(screen.getByRole('status')).toHaveTextContent('Tienes 2 reportes sin enviar');
+  });
+
+  it('el cierre es por usuario: en la misma pestaña, otro usuario si ve su aviso', async () => {
+    const usuario = userEvent.setup();
+    const { container, rerender } = render(
+      <AvisoReportesIncompletos cantidad={2} ruta="/mapa" usuarioId={7} />,
+    );
+    await usuario.click(screen.getByRole('button', { name: 'Cerrar aviso' }));
+    expect(container).toBeEmptyDOMElement();
+
+    rerender(<AvisoReportesIncompletos cantidad={1} ruta="/mapa" usuarioId={8} />);
+    expect(screen.getByRole('status')).toHaveTextContent('Tienes 1 reporte sin enviar');
   });
 
   it('sin sessionStorage se cierra igual (en memoria)', async () => {
@@ -81,7 +111,7 @@ describe('AvisoReportesIncompletos (NC-02)', () => {
       throw new Error('bloqueado');
     });
     const usuario = userEvent.setup();
-    const { container } = render(<AvisoReportesIncompletos cantidad={1} ruta="/mapa" />);
+    const { container } = render(<AvisoReportesIncompletos cantidad={1} ruta="/mapa" usuarioId={7} />);
 
     await usuario.click(screen.getByRole('button', { name: 'Cerrar aviso' }));
 
@@ -89,10 +119,10 @@ describe('AvisoReportesIncompletos (NC-02)', () => {
   });
 
   it('no aparece sin incompletos ni en Mis reportes, donde ya esta la lista', () => {
-    const { container, rerender } = render(<AvisoReportesIncompletos cantidad={0} ruta="/mapa" />);
+    const { container, rerender } = render(<AvisoReportesIncompletos cantidad={0} ruta="/mapa" usuarioId={7} />);
     expect(container).toBeEmptyDOMElement();
 
-    rerender(<AvisoReportesIncompletos cantidad={1} ruta="/mis-reportes" />);
+    rerender(<AvisoReportesIncompletos cantidad={1} ruta="/mis-reportes" usuarioId={7} />);
     expect(container).toBeEmptyDOMElement();
   });
 });

@@ -49,8 +49,16 @@ export const RUTA_PENDIENTES_DE_ENVIO = '/mis-reportes#pendientes-de-envio';
  * `/mapa` en un movil, pegado abajo tapaba la atribucion de OpenStreetMap
  * (obligatoria por su licencia).
  */
-export function AvisoReportesIncompletos({ cantidad, ruta }: { cantidad: number; ruta: string }) {
-  const { visible, cerrar } = useCierreDelAvisoDeIncompletos(cantidad);
+export function AvisoReportesIncompletos({
+  cantidad,
+  ruta,
+  usuarioId,
+}: {
+  cantidad: number;
+  ruta: string;
+  usuarioId: number;
+}) {
+  const { visible, cerrar } = useCierreDelAvisoDeIncompletos(cantidad, usuarioId);
   if (!visible || ruta === '/mis-reportes') return null;
   return (
     <div
@@ -73,7 +81,7 @@ export function AvisoReportesIncompletos({ cantidad, ruta }: { cantidad: number;
         type="button"
         onClick={cerrar}
         aria-label="Cerrar aviso"
-        className="-m-1 rounded p-1 leading-none text-amber-900 hover:bg-amber-100 dark:text-amber-100 dark:hover:bg-amber-900"
+        className="-m-1 inline-flex min-h-6 min-w-6 items-center justify-center rounded p-1 leading-none text-amber-900 hover:bg-amber-100 dark:text-amber-100 dark:hover:bg-amber-900"
       >
         <span aria-hidden="true">×</span>
       </button>
