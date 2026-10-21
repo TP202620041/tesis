@@ -574,7 +574,9 @@ export interface components {
             /** Format: double */
             longitud?: number;
             fotoUrl?: string;
+            titulo?: string;
             descripcion?: string;
+            severidad?: string;
             /** Format: int64 */
             categoriaId?: number;
             categoriaNombre?: string;
@@ -730,7 +732,10 @@ export interface components {
         EditarReporteRequest: {
             /** Format: int64 */
             categoriaId?: number;
+            titulo?: string;
             descripcion?: string;
+            /** @enum {string} */
+            severidad?: "BAJA" | "MEDIA" | "ALTA";
         };
         ReporteResumenResponse: {
             /** Format: int64 */
@@ -740,7 +745,9 @@ export interface components {
             /** Format: double */
             longitud?: number;
             fotoUrl?: string;
+            titulo?: string;
             descripcion?: string;
+            severidad?: string;
             /** Format: int64 */
             categoriaId?: number;
             categoriaNombre?: string;
@@ -768,7 +775,9 @@ export interface components {
             /** Format: double */
             longitud?: number;
             fotoUrl?: string;
+            titulo?: string;
             descripcion?: string;
+            severidad?: string;
             /** Format: int64 */
             categoriaId?: number;
             categoriaNombre?: string;
@@ -807,18 +816,18 @@ export interface components {
             preferenciaNotificacion: "PUSH" | "EMAIL" | "AMBAS";
         };
         PageTicketAdminResponse: {
-            /** Format: int32 */
-            totalPages?: number;
             /** Format: int64 */
             totalElements?: number;
+            /** Format: int32 */
+            totalPages?: number;
+            first?: boolean;
+            last?: boolean;
             /** Format: int32 */
             size?: number;
             content?: components["schemas"]["TicketAdminResponse"][];
             /** Format: int32 */
             number?: number;
             sort?: components["schemas"]["SortObject"];
-            first?: boolean;
-            last?: boolean;
             /** Format: int32 */
             numberOfElements?: number;
             pageable?: components["schemas"]["PageableObject"];
@@ -830,9 +839,9 @@ export interface components {
             sort?: components["schemas"]["SortObject"];
             paged?: boolean;
             /** Format: int32 */
-            pageNumber?: number;
-            /** Format: int32 */
             pageSize?: number;
+            /** Format: int32 */
+            pageNumber?: number;
             unpaged?: boolean;
         };
         SortObject: {
@@ -862,18 +871,18 @@ export interface components {
             sort?: string[];
         };
         PageReporteResumenResponse: {
-            /** Format: int32 */
-            totalPages?: number;
             /** Format: int64 */
             totalElements?: number;
+            /** Format: int32 */
+            totalPages?: number;
+            first?: boolean;
+            last?: boolean;
             /** Format: int32 */
             size?: number;
             content?: components["schemas"]["ReporteResumenResponse"][];
             /** Format: int32 */
             number?: number;
             sort?: components["schemas"]["SortObject"];
-            first?: boolean;
-            last?: boolean;
             /** Format: int32 */
             numberOfElements?: number;
             pageable?: components["schemas"]["PageableObject"];
@@ -1042,7 +1051,9 @@ export interface operations {
                 latitud?: number;
                 longitud?: number;
                 categoriaId: number;
+                titulo?: string;
                 descripcion?: string;
+                severidad?: "BAJA" | "MEDIA" | "ALTA";
                 ubicacionManual?: boolean;
             };
             header?: {
