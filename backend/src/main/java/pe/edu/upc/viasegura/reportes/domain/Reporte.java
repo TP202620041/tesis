@@ -21,6 +21,7 @@ import org.locationtech.jts.geom.Point;
 import pe.edu.upc.viasegura.auth.domain.Usuario;
 import pe.edu.upc.viasegura.common.domain.BaseAuditableEntity;
 import pe.edu.upc.viasegura.distritos.domain.Distrito;
+import pe.edu.upc.viasegura.municipalidades.domain.PeriodoGestion;
 
 /**
  * Reporte ciudadano de un dano vial (US-05..US-09).
@@ -49,8 +50,17 @@ public class Reporte extends BaseAuditableEntity {
     @Column(name = "foto_url", length = 500)
     private String fotoUrl;
 
+    /** Titulo corto del dano (NC-02): {@value #TITULO_MIN}-{@value #TITULO_MAX} caracteres, sin espacios al borde. */
+    @Column(nullable = false, length = TITULO_MAX)
+    private String titulo;
+
     @Column(length = 1000)
     private String descripcion;
+
+    /** Severidad declarada por el ciudadano (NC-02). */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 10)
+    private Severidad severidad;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "categoria_id", nullable = false)
@@ -83,4 +93,32 @@ public class Reporte extends BaseAuditableEntity {
     @Column(name = "posible_reincidencia", nullable = false)
     @Builder.Default
     private boolean posibleReincidencia = false;
+
+    /**
+     * Periodo de gestion de su fecha de creacion (NC-02), base de los KPIs
+     * por periodo (NC-06). Nulo si se creo fuera de todo periodo registrado.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "periodo_gestion_id")
+    private PeriodoGestion periodoGestion;
+
+    public static final int TITULO_MIN = 5;
+    public static final int TITULO_MAX = 120;
+
+    /**
+     * Titulo sin espacios al borde, validado: obligatorio y de
+     * {@value #TITULO_MIN} a {@value #TITULO_MAX} caracteres despues del trim.
+     * Invalido: {@link IllegalArgumentException} (400). Se cuentan code points,
+     * como el {@code char_length} del CHECK de V17: con {@code length()} un emoji
+     * contaria doble y el CHECK lo rechazaria con un 500 en vez de un 400.
+     */
+    public static String normalizarTitulo(String titulo) {
+        String limpio = titulo == null ? "" : titulo.strip();
+        int largo = limpio.codePointCount(0, limpio.length());
+        if (largo < TITULO_MIN || largo > TITULO_MAX) {
+            throw new IllegalArgumentException(
+                    "El titulo debe tener entre " + TITULO_MIN + " y " + TITULO_MAX + " caracteres");
+        }
+        return limpio;
+    }
 }

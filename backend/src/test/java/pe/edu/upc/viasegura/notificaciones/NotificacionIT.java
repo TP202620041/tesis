@@ -34,6 +34,7 @@ import pe.edu.upc.viasegura.notificaciones.service.NotificacionService;
 import pe.edu.upc.viasegura.reportes.domain.CategoriaDano;
 import pe.edu.upc.viasegura.reportes.domain.EstadoReporte;
 import pe.edu.upc.viasegura.reportes.domain.Reporte;
+import pe.edu.upc.viasegura.reportes.domain.Severidad;
 import pe.edu.upc.viasegura.reportes.repository.CategoriaDanoRepository;
 import pe.edu.upc.viasegura.reportes.repository.ReporteRepository;
 import pe.edu.upc.viasegura.support.AbstractPostgisMailIT;
@@ -117,6 +118,7 @@ class NotificacionIT extends AbstractPostgisMailIT {
 
     private Reporte reporte(Distrito distrito, EstadoReporte estado, Usuario creador) {
         return reporteRepository.save(Reporte.builder()
+                .titulo("Dano de prueba").severidad(Severidad.MEDIA)
                 .ubicacion(GeometryUtils.point(-77.0297, -12.1215))
                 .categoria(categoria())
                 .creador(creador)

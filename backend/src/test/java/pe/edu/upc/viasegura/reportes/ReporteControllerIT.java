@@ -100,6 +100,7 @@ class ReporteControllerIT extends AbstractPostgisIT {
                         .file(fotoPng())
                         .param("latitud", String.valueOf(LAT_MIRAFLORES))
                         .param("longitud", String.valueOf(LON_MIRAFLORES))
+                        .param("titulo", "Dano de prueba").param("severidad", "MEDIA")
                         .param("categoriaId", String.valueOf(categoriaEstandarId()))
                         .param("descripcion", "Bache frente al parque")
                         .header("Authorization", "Bearer " + token))
@@ -118,6 +119,7 @@ class ReporteControllerIT extends AbstractPostgisIT {
         String token = tokenCiudadano();
 
         mockMvc.perform(multipart("/api/reportes")
+                        .param("titulo", "Dano de prueba").param("severidad", "MEDIA")
                         .param("categoriaId", String.valueOf(categoriaEstandarId()))
                         .param("descripcion", "sin gps")
                         .header("Authorization", "Bearer " + token))
@@ -132,6 +134,7 @@ class ReporteControllerIT extends AbstractPostgisIT {
         mockMvc.perform(multipart("/api/reportes")
                         .param("latitud", "-16.409")
                         .param("longitud", "-71.5375")
+                        .param("titulo", "Dano de prueba").param("severidad", "MEDIA")
                         .param("categoriaId", String.valueOf(categoriaEstandarId()))
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isConflict())
@@ -148,6 +151,7 @@ class ReporteControllerIT extends AbstractPostgisIT {
         mockMvc.perform(multipart("/api/reportes")
                         .param("latitud", String.valueOf(LAT_MIRAFLORES))
                         .param("longitud", String.valueOf(LON_MIRAFLORES))
+                        .param("titulo", "Dano de prueba").param("severidad", "MEDIA")
                         .param("categoriaId", String.valueOf(categoriaId))
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isCreated())
@@ -165,6 +169,7 @@ class ReporteControllerIT extends AbstractPostgisIT {
         mockMvc.perform(multipart("/api/reportes")
                         .param("latitud", String.valueOf(LAT_MIRAFLORES))
                         .param("longitud", String.valueOf(LON_MIRAFLORES))
+                        .param("titulo", "Dano de prueba").param("severidad", "MEDIA")
                         .param("categoriaId", String.valueOf(categoriaDeSurco))
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isConflict());
@@ -175,6 +180,7 @@ class ReporteControllerIT extends AbstractPostgisIT {
         mockMvc.perform(multipart("/api/reportes")
                         .param("latitud", String.valueOf(LAT_MIRAFLORES))
                         .param("longitud", String.valueOf(LON_MIRAFLORES))
+                        .param("titulo", "Dano de prueba").param("severidad", "MEDIA")
                         .param("categoriaId", String.valueOf(categoriaEstandarId())))
                 .andExpect(status().isUnauthorized());
     }

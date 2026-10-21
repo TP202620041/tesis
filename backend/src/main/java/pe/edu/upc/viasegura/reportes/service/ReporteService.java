@@ -1,5 +1,7 @@
 package pe.edu.upc.viasegura.reportes.service;
 
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -19,6 +21,7 @@ import pe.edu.upc.viasegura.common.port.ArchivoSubido;
 import pe.edu.upc.viasegura.common.port.FotoStorageService;
 import pe.edu.upc.viasegura.distritos.domain.Distrito;
 import pe.edu.upc.viasegura.distritos.port.GeoAssignmentStrategy;
+import pe.edu.upc.viasegura.municipalidades.service.MunicipalidadService;
 import pe.edu.upc.viasegura.reportes.domain.AdhesionReporte;
 import pe.edu.upc.viasegura.reportes.domain.CategoriaDano;
 import pe.edu.upc.viasegura.reportes.domain.EstadoReporte;
@@ -52,6 +55,9 @@ public class ReporteService {
     /** Radio de acumulacion de reportes duplicados (US-09). */
     private static final double RADIO_DUPLICADO_METROS = 20.0;
 
+    /** Zona para decidir en que fecha (y periodo de gestion) se creo un reporte. */
+    private static final ZoneId ZONA_LIMA = ZoneId.of("America/Lima");
+
     private final ReporteRepository reporteRepository;
     private final AdhesionReporteRepository adhesionRepository;
     private final CategoriaDanoRepository categoriaRepository;
@@ -60,6 +66,7 @@ public class ReporteService {
     private final FotoStorageService fotoStorageService;
     private final HistorialEstadoReporteRepository historialRepository;
     private final IdempotencyKeyService idempotencyKeyService;
+    private final MunicipalidadService municipalidadService;
     private final ApplicationEventPublisher eventPublisher;
 
     /**
@@ -82,6 +89,13 @@ public class ReporteService {
         }
 
         validarUbicacion(cmd);
+        // NC-02: se valida despues de la idempotencia, para que el reintento de
+        // un envio ya procesado reciba su respuesta guardada aunque venga de
+        // una version del cliente que no mandaba estos campos.
+        String titulo = Reporte.normalizarTitulo(cmd.titulo());
+        if (cmd.severidad() == null) {
+            throw new IllegalArgumentException("La severidad es obligatoria (BAJA, MEDIA o ALTA)");
+        }
 
         CategoriaDano categoria = categoriaRepository.findById(cmd.categoriaId())
                 .orElseThrow(() -> new ResourceNotFoundException("Categoria no encontrada: " + cmd.categoriaId()));
@@ -108,7 +122,7 @@ public class ReporteService {
                 lon, lat, categoria.getId(), RADIO_DUPLICADO_METROS);
         ReporteResponse respuesta = cercano.isPresent()
                 ? adherir(cercano.get(), ciudadano)
-                : crearNuevo(cmd, ciudadano, categoria, distrito, ubicacion);
+                : crearNuevo(cmd, titulo, ciudadano, categoria, distrito, ubicacion);
 
         if (clave != null) {
             idempotencyKeyService.registrar(clave, ciudadano, respuesta);
@@ -116,8 +130,8 @@ public class ReporteService {
         return respuesta;
     }
 
-    private ReporteResponse crearNuevo(CrearReporteCommand cmd, Usuario ciudadano, CategoriaDano categoria,
-                                        Distrito distrito, Point ubicacion) {
+    private ReporteResponse crearNuevo(CrearReporteCommand cmd, String titulo, Usuario ciudadano,
+                                        CategoriaDano categoria, Distrito distrito, Point ubicacion) {
         String fotoUrl = null;
         ArchivoSubido foto = cmd.foto();
         if (foto != null && !foto.vacio()) {
@@ -127,13 +141,21 @@ public class ReporteService {
         Reporte reporte = reporteRepository.save(Reporte.builder()
                 .ubicacion(ubicacion)
                 .fotoUrl(fotoUrl)
+                .titulo(titulo)
                 .descripcion(cmd.descripcion())
+                .severidad(cmd.severidad())
                 .categoria(categoria)
                 .estado(EstadoReporte.PENDIENTE)
                 .distrito(distrito)
                 .creador(ciudadano)
                 .totalAdhesiones(1)
                 .build());
+
+        // NC-02: el periodo de gestion de su fecha de creacion (hora de Lima,
+        // la misma conversion que usa V17 para los reportes existentes).
+        reporte.setPeriodoGestion(municipalidadService
+                .periodoVigente(LocalDate.ofInstant(reporte.getCreatedAt(), ZONA_LIMA))
+                .orElse(null));
 
         // El creador tambien es un ciudadano afectado: adhesion_reporte es la
         // fuente unica de "afectados" y totalAdhesiones refleja su conteo.
@@ -180,9 +202,9 @@ public class ReporteService {
     }
 
     /**
-     * US-08: el creador edita categoria y/o descripcion mientras el reporte
-     * sigue PENDIENTE (antes de que la municipalidad lo reciba). Campos
-     * {@code null} en el request no se modifican.
+     * US-08: el creador edita categoria, titulo, descripcion y/o severidad
+     * mientras el reporte sigue PENDIENTE (antes de que la municipalidad lo
+     * reciba). Campos {@code null} en el request no se modifican.
      */
     @Transactional
     public ReporteResumenResponse editar(String emailCiudadano, Long reporteId, EditarReporteRequest req) {
@@ -205,8 +227,14 @@ public class ReporteService {
             validarCategoriaParaDistrito(categoria, reporte.getDistrito());
             reporte.setCategoria(categoria);
         }
+        if (req.titulo() != null) {
+            reporte.setTitulo(Reporte.normalizarTitulo(req.titulo()));
+        }
         if (req.descripcion() != null) {
             reporte.setDescripcion(req.descripcion());
+        }
+        if (req.severidad() != null) {
+            reporte.setSeveridad(req.severidad());
         }
 
         Reporte guardado = reporteRepository.save(reporte);

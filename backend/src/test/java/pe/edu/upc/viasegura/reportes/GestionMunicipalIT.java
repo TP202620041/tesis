@@ -35,6 +35,7 @@ import pe.edu.upc.viasegura.reportes.domain.EstadoReporte;
 import pe.edu.upc.viasegura.reportes.domain.HistorialEstadoReporte;
 import pe.edu.upc.viasegura.reportes.domain.Reporte;
 import pe.edu.upc.viasegura.reportes.domain.TipoEventoHistorial;
+import pe.edu.upc.viasegura.reportes.domain.Severidad;
 import pe.edu.upc.viasegura.reportes.repository.AdhesionReporteRepository;
 import pe.edu.upc.viasegura.reportes.repository.AsignacionResponsableRepository;
 import pe.edu.upc.viasegura.reportes.repository.CategoriaDanoRepository;
@@ -107,6 +108,7 @@ class GestionMunicipalIT extends AbstractPostgisMailIT {
 
     private Reporte reporte(Distrito distrito, EstadoReporte estado, Usuario creador) {
         return reporteRepository.save(Reporte.builder()
+                .titulo("Dano de prueba").severidad(Severidad.MEDIA)
                 .ubicacion(GeometryUtils.point(-77.0297, -12.1215))
                 .categoria(categoria())
                 .creador(creador)

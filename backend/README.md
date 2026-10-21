@@ -901,8 +901,56 @@ la fecha, o vacío fuera de todo periodo. Un reporte contará en el periodo de
 su fecha de creación (NC-02).
 
 **Pendiente.** GESTION_MUNICIPAL y REQUISITO_RECEPCION no se crean todavía:
-sus columnas no están definidas (propuesta
-`project-context/decisions/propuestas/2026-10-20-columnas-gestion-y-requisitos.md`).
+sus columnas no están definidas. Según la propuesta
+`project-context/decisions/propuestas/2026-10-20-columnas-gestion-y-requisitos.md`
+(aceptada, opción A), se crean con NC-06 y NC-05.
+
+## Título, severidad y periodo del reporte (NC-02)
+
+**Qué agrega.** `reporte` suma `titulo` (5–120 caracteres Unicode tras el trim, se
+guarda recortado), `severidad` (`BAJA < MEDIA < ALTA`) y `periodo_gestion_id`.
+El ciudadano fija título y severidad al crear y puede cambiarlos mientras el
+reporte está `PENDIENTE` (US-08), igual que la descripción. El funcionario los
+ve en la bandeja, pero ningún endpoint de gestión los edita.
+
+**La severidad es pública y no es una señal interna.** Va en
+`ReporteResumenResponse`, que leen también los anónimos. No contradice la regla
+de los DTO públicos: es un dato que *declara el ciudadano*, como la descripción
+o la foto. No sale de un detector y no es una prioridad que fije la
+municipalidad. Si algún día existe una severidad evaluada por el funcionario, o
+un puntaje de priorización, irá en un campo aparte y solo en la bandeja.
+
+**El periodo no se expone.** `periodo_gestion_id` lo asigna el servicio al
+crear, con `MunicipalidadService#periodoVigente` sobre la fecha de creación en
+hora de Lima. Fuera de todo periodo queda nulo. Lo usará el dashboard por
+periodo (NC-06); hoy no está en ningún DTO.
+
+**La idempotencia va antes que la validación.** En el controller, `titulo` y
+`severidad` son `@RequestParam(required = false)`. `ReporteService.crear`
+busca primero la `Idempotency-Key` y solo después los valida. Así, la cola
+offline (US-06) puede reenviar un reporte que llegó al backend *antes* de NC-02:
+con su clave ya registrada recibe la respuesta original y no un 400 por campos
+que su versión no conocía. Con una clave nueva, o sin clave, la falta de
+cualquiera de los dos da 400 y la clave no se registra, así que el cliente
+puede completar los datos y reenviar con la misma clave. `IdempotenciaReporteIT`
+cubre los dos caminos.
+
+**Migración V17 con datos.** Las columnas se agregan nulables, se rellenan y
+recién después pasan a `NOT NULL` con sus `CHECK`, así que la migración
+funciona sobre una base que ya tiene reportes. El relleno es este:
+
+- **`titulo`:** «&lt;categoría&gt; en &lt;distrito&gt;»; si el reporte no tiene
+  distrito, «Lima Metropolitana».
+- **`severidad`:** `MEDIA`.
+- **`periodo_gestion_id`:** el periodo de su `created_at`.
+
+El distrito se lee con una subconsulta porque en un `UPDATE … FROM` el `JOIN`
+del `FROM` no puede referirse a la tabla actualizada. La primera versión de V17
+fallaba justamente por eso; nunca llegó a aplicarse.
+
+Verificado en una copia de la base de desarrollo con 15 reportes: títulos
+como «Bache en Miraflores», severidad `MEDIA` y todos con periodo. También
+verificado en una base de test vacía.
 
 ## Deuda técnica conocida
 

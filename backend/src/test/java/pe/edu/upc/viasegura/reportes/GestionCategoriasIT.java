@@ -29,6 +29,7 @@ import pe.edu.upc.viasegura.distritos.repository.DistritoRepository;
 import pe.edu.upc.viasegura.reportes.domain.CategoriaDano;
 import pe.edu.upc.viasegura.reportes.domain.EstadoReporte;
 import pe.edu.upc.viasegura.reportes.domain.Reporte;
+import pe.edu.upc.viasegura.reportes.domain.Severidad;
 import pe.edu.upc.viasegura.reportes.repository.CategoriaDanoRepository;
 import pe.edu.upc.viasegura.reportes.repository.ReporteRepository;
 import pe.edu.upc.viasegura.support.AbstractPostgisIT;
@@ -278,6 +279,7 @@ class GestionCategoriasIT extends AbstractPostgisIT {
         mockMvc.perform(multipart("/api/reportes")
                         .param("latitud", String.valueOf(LAT))
                         .param("longitud", String.valueOf(LON))
+                        .param("titulo", "Dano de prueba").param("severidad", "MEDIA")
                         .param("categoriaId", cat.getId().toString())
                         .param("descripcion", "Con categoria desactivada")
                         .header("Authorization", "Bearer " + token(ciudadano())))
@@ -313,6 +315,7 @@ class GestionCategoriasIT extends AbstractPostgisIT {
         CategoriaDano otraInactiva = personalizada(miraflores, unico("Tambien inactiva"));
         Usuario creador = ciudadano();
         Reporte reporte = reporteRepository.save(Reporte.builder()
+                .titulo("Dano de prueba").severidad(Severidad.MEDIA)
                 .ubicacion(GeometryUtils.point(LON, LAT))
                 .categoria(cat).creador(creador).distrito(miraflores)
                 .estado(EstadoReporte.PENDIENTE).totalAdhesiones(1).build());
