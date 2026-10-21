@@ -4,7 +4,7 @@ const esDesarrollo = process.env.NODE_ENV === 'development';
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
 
 /** Servidores de tiles del mapa (Leaflet + OpenStreetMap). */
-const TILE_HOSTS = 'https://tile.openstreetmap.org https://*.tile.openstreetmap.org';
+const TILE_HOSTS = 'https://tile.openstreetmap.org';
 
 /**
  * Content-Security-Policy.

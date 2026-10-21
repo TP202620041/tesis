@@ -478,7 +478,20 @@ desarrollo no se nota porque el SW está desactivado.
 
 Verificado el 21/10 con la build de producción detrás de un túnel HTTPS:
 - con el SW bloqueado cargaban los 15 tiles;
-- con el SW controlando la página y solo `img-src`, cargaban 0 de 6.
+- con el SW controlando la página y solo `img-src`, cargaban 0 de 6;
+- con el SW controlando la página y los tiles en `connect-src`, cargaban 6 de 6 en tres recargas.
+
+**Los tiles se piden con `crossOrigin="anonymous"`.** Al pasar por el SW, los
+tiles entran en la caché de otros orígenes de `defaultCache` (`NetworkFirst`,
+32 entradas, 1 h). Un `<img>` sin CORS deja una respuesta opaca, y Chrome
+cuenta cada respuesta opaca como unos 7 MB de cuota. Esa cuota es la misma de
+la cola offline, que guarda fotos en IndexedDB. OpenStreetMap responde con
+`Access-Control-Allow-Origin: *`, así que con `crossOrigin` las respuestas
+dejan de ser opacas y ocupan lo que pesan.
+
+**Un solo host.** La CSP lista solo `https://tile.openstreetmap.org`, que es
+el que usan los dos mapas. Ya no incluye el comodín `*.tile.openstreetmap.org`
+de los antiguos subdominios a/b/c.
 
 ### Mapa de calor (US-11): círculos de Leaflet, sin plugin
 
