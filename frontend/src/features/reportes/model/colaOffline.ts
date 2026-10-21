@@ -1,4 +1,24 @@
+import { esSeveridad, type Severidad } from '@/lib/types/domain';
+import { esTituloValido } from './titulo';
 import type { NuevoReporte } from './tipos';
+
+/**
+ * Datos del formulario guardados con el reporte. `titulo` y `severidad`
+ * (NC-02) son opcionales AQUI aunque el formulario los exija: la cola puede
+ * tener reportes armados por la version anterior, que no los tenia. No se
+ * migra el esquema de IndexedDB: un reporte sin ellos se reconoce porque le
+ * faltan (ver {@link estaIncompleto}).
+ */
+export type DatosEnCola = Omit<NuevoReporte, 'foto' | 'idempotencyKey' | 'titulo' | 'severidad'> & {
+  titulo?: string;
+  severidad?: Severidad;
+};
+
+/** Lo que el ciudadano agrega a un reporte incompleto para poder enviarlo. */
+export interface DatosParaCompletar {
+  titulo: string;
+  severidad: Severidad;
+}
 
 /**
  * US-06: un reporte creado sin conexion, guardado en el dispositivo hasta
@@ -19,7 +39,7 @@ export interface ReporteEnCola {
   usuarioId: number;
   /** ISO-8601, para ordenar y mostrar desde cuando espera. */
   creadoEn: string;
-  datos: Omit<NuevoReporte, 'foto' | 'idempotencyKey'>;
+  datos: DatosEnCola;
   foto: FotoGuardada | null;
   /**
    * `pendiente`: se reintentara solo. `rechazado`: el backend lo rechazo por
@@ -89,30 +109,95 @@ export const VIGENCIA_DE_LA_CLAVE_MS = 48 * HORA;
 export const PLAZO_DE_PURGA_MS = 30 * 24 * HORA;
 
 /** Lo que ve el ciudadano de un reporte en cola. */
-export type EstadoVisible = 'pendiente' | 'rechazado' | 'caducado';
+export type EstadoVisible = 'pendiente' | 'rechazado' | 'caducado' | 'incompleto';
+
+/**
+ * NC-02: el reporte no tiene un titulo valido o una severidad (lo armo la
+ * version anterior del formulario). El backend lo rechazaria con 400, asi
+ * que no se envia hasta que el ciudadano lo complete. Se deduce de los
+ * datos, sin un campo nuevo en IndexedDB.
+ */
+export function estaIncompleto(reporte: ReporteEnCola): boolean {
+  return !esTituloValido(reporte.datos.titulo) || !esSeveridad(reporte.datos.severidad);
+}
+
+/** NC-02: lo que le falta a un reporte `incompleto`. */
+export type CampoQueFalta = 'titulo' | 'severidad';
+
+export function camposQueFaltan(reporte: ReporteEnCola): CampoQueFalta[] {
+  const faltan: CampoQueFalta[] = [];
+  if (!esTituloValido(reporte.datos.titulo)) faltan.push('titulo');
+  if (!esSeveridad(reporte.datos.severidad)) faltan.push('severidad');
+  return faltan;
+}
+
+/** Aviso de un reporte incompleto segun lo que le falte (titulo, severidad o ambos). */
+export function avisoDeIncompleto(reporte: ReporteEnCola): string {
+  const faltan = camposQueFaltan(reporte);
+  if (faltan.length === 2) return 'Le faltan el título y la severidad: complétalos para enviarlo.';
+  if (faltan[0] === 'titulo') return 'Le falta el título: complétalo para enviarlo.';
+  if (faltan[0] === 'severidad') return 'Le falta la severidad: complétala para enviarlo.';
+  return '';
+}
+
+/**
+ * Cuantos reportes en cola se enviaran solos y cuantos necesitan que el
+ * ciudadano haga algo (completarlos, revisarlos o descartarlos). Sirve para
+ * no decir «se enviarán» de los que no se envian solos.
+ */
+export interface DesgloseDeLaCola {
+  /** `pendiente`: se envian solos al volver la señal o la sesion. */
+  seEnviaran: number;
+  /** `incompleto`, `rechazado` o `caducado`. */
+  requierenAccion: number;
+  /** De los anteriores, los `incompleto` (NC-02). */
+  incompletos: number;
+}
+
+export function desglosar(visibles: readonly EstadoVisible[]): DesgloseDeLaCola {
+  const seEnviaran = visibles.filter((v) => v === 'pendiente').length;
+  return {
+    seEnviaran,
+    requierenAccion: visibles.length - seEnviaran,
+    incompletos: visibles.filter((v) => v === 'incompleto').length,
+  };
+}
 
 function edad(reporte: ReporteEnCola, ahora: Date): number {
   return ahora.getTime() - new Date(reporte.creadoEn).getTime();
 }
 
 /**
- * `caducado`: pendiente con la clave ya vencida en el backend. No se reenvia
- * solo: el ciudadano revisa "Mis reportes" (pudo haber llegado) y decide si
- * lo reenvia con una clave nueva o lo descarta.
+ * - `incompleto` (NC-02) va primero, aunque este `rechazado`: si el backend
+ *   lo rechazo con 400 por faltar el titulo o la severidad, completarlo es
+ *   justamente la salida (y completarlo lo vuelve a `pendiente`).
+ * - `caducado`: pendiente con la clave ya vencida en el backend. No se
+ *   reenvia solo: el ciudadano revisa "Mis reportes" (pudo haber llegado) y
+ *   decide si lo reenvia con una clave nueva o lo descarta. Un incompleto con
+ *   mas de 48 h pasa a `caducado` al completarlo.
  */
 export function estadoVisible(reporte: ReporteEnCola, ahora: Date): EstadoVisible {
+  if (estaIncompleto(reporte)) return 'incompleto';
   if (reporte.estado === 'rechazado') return 'rechazado';
   return edad(reporte, ahora) > VIGENCIA_DE_LA_CLAVE_MS ? 'caducado' : 'pendiente';
 }
 
-/** Se reenvia solo: pendiente y con la clave todavia vigente. */
+/** Se reenvia solo: pendiente, completo y con la clave todavia vigente. */
 export function seReenviaSolo(reporte: ReporteEnCola, ahora: Date): boolean {
   return estadoVisible(reporte, ahora) === 'pendiente';
 }
 
-/** Rechazado o caducado hace mas de {@link PLAZO_DE_PURGA_MS}: ya no se guarda. */
+/**
+ * Rechazado o caducado hace mas de {@link PLAZO_DE_PURGA_MS}: ya no se
+ * guarda. Un `incompleto` nunca se purga solo: el ciudadano no lo eligio
+ * dejar asi (lo armo la version anterior), asi que solo sale si lo completa
+ * y se envia, o si el lo descarta.
+ */
 export function debePurgarse(reporte: ReporteEnCola, ahora: Date): boolean {
-  return estadoVisible(reporte, ahora) !== 'pendiente' && edad(reporte, ahora) > PLAZO_DE_PURGA_MS;
+  const visible = estadoVisible(reporte, ahora);
+  return (
+    (visible === 'rechazado' || visible === 'caducado') && edad(reporte, ahora) > PLAZO_DE_PURGA_MS
+  );
 }
 
 /** Los reportes en cola de un ciudadano, del mas antiguo al mas nuevo. */

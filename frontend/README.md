@@ -1,4 +1,4 @@
-# ViaSegura — Frontend (PWA)
+# Ciudad Viva — Frontend (PWA)
 
 Frontend del **Sistema de crowdsourcing geoespacial para el reporte ciudadano
 y la gestión municipal de infraestructura vial en Lima Metropolitana**
@@ -133,6 +133,11 @@ por defecto del framework, o compilar el SW como paso aparte. Se eligió lo
 segundo: Turbopack sigue siendo el bundler de la app y el SW deja de depender
 de su pipeline de bundling.
 
+`@serwist/cli` compila `src/pwa/sw.ts` con **esbuild**, pero lo declara como
+dependencia *peer* **opcional** (`>=0.25.0 <1.0.0`): npm no lo instala solo, y
+sin él `npm run build` falla en el paso `serwist build` («This command needs
+esbuild»). Por eso `esbuild` es una `devDependency` con versión exacta.
+
 **El API nunca se cachea** (`NetworkOnly` para `/api/**`, antes de
 `defaultCache`): su regla `cross-origin` guardaría respuestas que dependen del
 usuario (`/api/auth/me`, `mis-reportes`, `mi-distrito`) y el siguiente usuario
@@ -256,9 +261,15 @@ Reglas de la cola:
 - **Rechazos de negocio** (otro 4xx, p. ej. fuera de cobertura): reintentar no
   cambia la respuesta, así que queda «No se pudo enviar: <motivo>» con un
   botón para descartarlo (con confirmación).
+- **Incompletos (NC-02)**: un reporte guardado por la versión anterior, sin
+  título ni severidad, no se reenvía solo ni se purga; el ciudadano lo completa
+  con la misma clave (ver «Título y severidad del reporte (NC-02)»).
 - **Dispositivo compartido**: al cerrar sesión con reportes propios en cola se
-  pregunta «Tienes N reportes sin enviar en este dispositivo. Se enviarán
-  cuando vuelvas a entrar. [Conservar] [Descartarlos]». `auth` no conoce la
+  pregunta «Tienes N reportes sin enviar en este dispositivo. X se enviarán
+  cuando vuelvas a entrar. [Conservar] [Descartarlos]». Desde NC-02 el texto
+  separa los que se envían solos (`pendiente`) de los que necesitan acción
+  (incompletos, rechazados, caducados: «no se enviarán solos…»): no se promete
+  enviar lo que no se envía (`desglosar` en `model/colaOffline.ts`). `auth` no conoce la
   cola: quien compone la app registra ese paso en
   `lib/sesion/antesDeCerrarSesion.ts` (D-14) y `useCerrarSesion` lo espera. El cierre
   **nunca se cuelga**: Escape equivale a «Conservar»; si la pregunta queda
@@ -281,6 +292,101 @@ Reglas de la cola:
   con **`fake-indexeddb`** (dependencia de desarrollo): jsdom no implementa
   IndexedDB, y con un doble en memoria no se probaría el clonado de la foto ni
   el reemplazo por clave.
+
+### Título y severidad del reporte (NC-02)
+
+El backend agregó dos datos que declara el ciudadano: un **título** (obligatorio,
+de 5 a 120 caracteres tras el trim) y una **severidad** (`BAJA < MEDIA < ALTA`).
+Contrato en `project-context/handoffs/2026-10-20-titulo-severidad-reporte.md`.
+
+- **Mismas reglas que el backend, contadas igual.** `model/titulo.ts` cuenta
+  *code points* (`[...titulo.trim()].length`), como `Reporte.normalizarTitulo`
+  y el `CHECK` de V17: un emoji es 1 carácter para el backend y 2 para
+  `'😀'.length`. Por eso el `<input>` del título **no lleva `maxLength`** (el
+  navegador cuenta unidades UTF-16 y cortaría títulos válidos); el límite se
+  valida antes de enviar y un contador muestra el largo. El título se envía
+  recortado, como lo guarda el backend.
+- **La severidad no tiene valor por defecto.** Tres radios, ninguno marcado al
+  empezar: un valor preseleccionado se enviaría sin que el ciudadano lo haya
+  decidido y sesgaría el dato hacia ese valor. `MEDIA` solo la usó la
+  migración para rellenar los reportes existentes.
+- **Edición en PENDIENTE (US-08).** El `PATCH` es parcial: título, severidad y
+  categoría viajan **solo si cambiaron** (`cambiosDeEdicion`). Así un título
+  que el ciudadano no tocó nunca provoca un 400, y uno cambiado se valida
+  antes de enviarlo.
+- **El funcionario los ve, no los edita.** La bandeja y el detalle de gestión
+  los muestran; no hay endpoint de gestión que los cambie.
+- **`null` → «Sin título».** El único caso en que llegan vacíos es el reenvío
+  idempotente de un envío que el backend procesó antes de NC-02 (devuelve la
+  respuesta guardada entonces). `lib/types/tituloYSeveridad.ts` muestra
+  «Sin título» y omite la severidad en vez de romper, como `estiloDeEstado`
+  con un estado desconocido. Vive en `lib/types` porque lo usan `reportes` y
+  `gestion`.
+- **Adhesión (US-09): se muestran los de la respuesta.** Si el `POST` termina
+  sumándose a un reporte cercano, el backend descarta el título y la severidad
+  enviados y devuelve los del reporte existente. La confirmación muestra esos
+  y avisa que los escritos no se usaron: presentar como propio un título que no
+  quedó registrado sería engañoso.
+
+#### Cola offline: el estado «incompleto»
+
+La cola puede tener reportes armados por la versión anterior del formulario,
+**sin** título ni severidad. El backend los rechaza con 400 si nunca llegaron
+(y si llegaron, la misma `Idempotency-Key` devuelve el original sin exigirlos).
+Decisión del usuario (20/10):
+
+- **Se deduce, no se migra.** `estaIncompleto` mira los datos guardados (título
+  inválido o severidad ausente). No hay campo nuevo ni versión nueva de
+  IndexedDB: un `onupgradeneeded` que recorra la cola es código que corre una
+  sola vez en cada navegador, en el peor momento (al abrir la app) y sin forma
+  de reintentarlo; deducirlo es puro y se prueba con un test de modelo.
+- **No se reenvía solo.** `seReenviaSolo` lo excluye y, además,
+  `comoNuevoReporte` devuelve `null` para un incompleto: la petición no se
+  puede armar, así que tampoco se puede enviar por descuido. Reenviarlo a
+  ciegas daría 400 (o, si la clave ya estaba registrada, un 201 que tampoco
+  necesita el título).
+- **No se purga.** El ciudadano no eligió dejarlo así; solo sale de la cola si
+  lo completa y se envía, o si lo descarta. Tiene prioridad sobre
+  `rechazado`: un reporte que la versión anterior ya intentó enviar y recibió
+  el 400 por faltar estos campos también se puede completar.
+- **Se completa en «Pendiente de envío»** (Mis reportes): título sugerido
+  «<categoría> en <distrito>» (el formato con que V17 rellenó los reportes
+  existentes; el distrito se pregunta al backend con las coordenadas y la
+  categoría sale del catálogo de ese distrito) pero **exigido**: se puede
+  editar y se valida igual. Si la sugerencia no se puede armar (sin red, fuera
+  de cobertura, categoría desactivada) el campo queda vacío. La severidad
+  tampoco trae valor por defecto aquí.
+- **Misma clave, una transacción.** `completar(clave)` lee y escribe en la
+  misma transacción de IndexedDB, conserva la `Idempotency-Key` y `creadoEn`, y
+  lo deja `pendiente`; si la clave ya no está (otra pestaña lo envió o se
+  descartó) no lo resucita. Nunca se regenera la clave: si la primera petición
+  sí había llegado al backend, el reenvío con la misma clave devuelve el
+  reporte original en vez de duplicarlo. Por lo mismo, un incompleto con más de
+  48 h pasa a **«Caducado»** al completarlo, con su flujo de siempre (revisar
+  Mis reportes antes de reenviarlo con clave nueva).
+- **Un 400 nunca borra un reporte de la cola**: lo marca `rechazado` con el
+  motivo (como antes) y solo el ciudadano lo descarta.
+- **Si ya no está incompleto, `completar` no escribe**: otra pestaña pudo
+  completarlo (y quizá enviarlo) con otros datos; pisarlo cambiaría lo que ya
+  está en camino. Devuelve `false` y la pantalla lo dice.
+- **El aviso dice qué falta** (título, severidad o ambos) y es texto fijo, no
+  una alerta: solo el error al completar se anuncia con `role="alert"`. Los
+  campos con error quedan `aria-invalid` y enlazan su mensaje con
+  `aria-describedby` (el título en el `<input>`, la severidad en el
+  `<fieldset>`).
+- **Aviso con sesión.** Fuera de Mis reportes, si el usuario con sesión tiene
+  reportes incompletos aparece un aviso no modal («Tienes N reportes sin enviar
+  a los que les faltan datos: complétalos en Mis reportes») con enlace a
+  «Pendiente de envío». Lo compone `app/SincronizadorDeReportes.tsx` con
+  `useCantidadDeIncompletos`; sin sesión sigue el aviso de siempre, que solo
+  cuenta los reenviables. Se puede **cerrar** por el resto de la sesión de la
+  pestaña (`sessionStorage`, o en memoria si no está disponible) y vuelve si
+  aparecen más incompletos; va un poco más arriba del borde para no tapar la
+  atribución de OpenStreetMap en `/mapa` en el móvil.
+- Tests: un incompleto nunca se envía sin completar (ni pendiente ni
+  rechazado); al completarlo usa la misma clave y la sincronización automática
+  lo envía; un 400 lo conserva; no se purga a los 30 días; completarlo pasadas
+  48 h no lo reenvía a ciegas; `completar` sobre uno ya completo no escribe.
 
 ### Consentimiento (NC-07b, D-12)
 
@@ -421,13 +527,19 @@ distrito cambia el estado de un reporte de ese ciudadano y llega el aviso.
 ### Fotos: dos visibilidades
 
 El backend devuelve `fotoUrl` **relativa** (no conoce su hostname público).
-Componerla es del cliente: `urlDeFoto()` en `lib/api/client.ts`.
+Componerla es del cliente, y se hace una sola vez en el gateway (FE-07): los
+`features/<f>/api.ts` devuelven `fotoUrl` ya absoluta (`conFotoAbsoluta` /
+`urlDeFoto()` de `lib/api/client.ts`), y páginas, componentes y `map/` la
+usan tal cual, sin importar el cliente HTTP.
 
 - **Foto de reporte** (`/media/fotos/reportes/…`) es **pública**: sirve
   directo en `<img src>`.
 - **Foto de perfil** (`/api/perfiles/fotos/…`) exige `Authorization`: un
   `<img src>` plano devuelve **401**; hay que traerla con `apiFetch` y
-  convertirla a `blob:`. `fotoRequiereAuth()` distingue ambos casos.
+  convertirla a `blob:`. `fotoRequiereAuth()` distingue ambos casos. Lo
+  hace `descargarFotoDePerfil` (`features/auth/api.ts`), y los componentes la
+  reciben del hook `useFotoDePerfil`, que libera la URL `blob:` al cambiar o
+  desmontar.
 
 ### Descargas autenticadas (US-28)
 
@@ -455,6 +567,32 @@ iconos rotos con bundlers y no obliga a abrir orígenes extra en la CSP.
 
 Los tiles de OpenStreetMap **sí** están listados en `img-src` de la CSP
 (hosts concretos, no `*`); sin eso el mapa se ve en blanco.
+
+**También en `connect-src`.** En producción el Service Worker intercepta las
+peticiones a otros orígenes (la regla de otros orígenes de `defaultCache`
+de Serwist) y las repite con `fetch()`. Ese `fetch()` se rige por
+`connect-src`, no por `img-src`. Mientras los tiles solo estaban en `img-src`,
+el mapa cargaba en la primera visita, antes de que el SW controlara la
+página, y desde la segunda quedaba sin calles (`net::ERR_FAILED` en cada
+tile). Pasaba en cualquier navegador, incluidos el iPhone y Android. En
+desarrollo no se nota porque el SW está desactivado.
+
+Verificado el 21/10 con la build de producción detrás de un túnel HTTPS:
+- con el SW bloqueado cargaban los 15 tiles;
+- con el SW controlando la página y solo `img-src`, cargaban 0 de 6;
+- con el SW controlando la página y los tiles en `connect-src`, cargaban 6 de 6 en tres recargas.
+
+**Los tiles se piden con `crossOrigin="anonymous"`.** Al pasar por el SW, los
+tiles entran en la caché de otros orígenes de `defaultCache` (`NetworkFirst`,
+32 entradas, 1 h). Un `<img>` sin CORS deja una respuesta opaca, y Chrome
+cuenta cada respuesta opaca como unos 7 MB de cuota. Esa cuota es la misma de
+la cola offline, que guarda fotos en IndexedDB. OpenStreetMap responde con
+`Access-Control-Allow-Origin: *`, así que con `crossOrigin` las respuestas
+dejan de ser opacas y ocupan lo que pesan.
+
+**Un solo host.** La CSP lista solo `https://tile.openstreetmap.org`, que es
+el que usan los dos mapas. Ya no incluye el comodín `*.tile.openstreetmap.org`
+de los antiguos subdominios a/b/c.
 
 ### Mapa de calor (US-11): círculos de Leaflet, sin plugin
 
@@ -569,6 +707,12 @@ Verificado end-to-end contra el backend real:
 - **US-18/20** índice de desempeño (`/desempeno`), **público**: ranking de los
   43 distritos con tasa de resolución, tiempo promedio y satisfacción,
   ordenable por columna y filtrable por tipo de daño.
+- **US-19** comparar distritos en `/desempeno`: de 2 a 4 distritos (columna
+  «Comparar») lado a lado, con tasa, resueltos/total y tiempo promedio, más
+  una gráfica de barras de la tasa. El tipo de daño se aplica también a la
+  comparación (ver «Comparar distritos» en Decisiones técnicas). Verificado
+  el 20/10 con los datos seed (Miraflores 66.7 % frente a San Juan de
+  Lurigancho 10.7 %).
 - **NC-07b** consentimiento: aceptación de términos en el registro,
   `/privacidad`, pantalla `/aceptar-terminos` y «Privacidad y
   consentimientos» en el perfil (ver «Consentimiento» en Decisiones técnicas).
@@ -591,6 +735,20 @@ Verificado end-to-end contra el backend real:
   jsdom. Verificado el 20/10 contra el backend real: la capa dibuja los
   círculos bajo los marcadores en un único canvas, y con un reporte por celda
   la leyenda dice «Baja» (piso de 4 en la escala).
+- **NC-02** título y severidad: obligatorios en `/reportar` (severidad sin
+  valor por defecto), editables en PENDIENTE (US-08) y visibles en el mapa, la
+  lista, los detalles, mis reportes y la bandeja (solo lectura). La cola
+  offline gana el estado «incompleto» para los reportes guardados antes (ver
+  «Título y severidad del reporte (NC-02)» en Decisiones técnicas).
+  Verificado el 21/10 en Chrome contra el backend real, vía túnel HTTPS:
+  crear con título y severidad (201, asignado a Miraflores); un título de 4
+  caracteres queda bloqueado con `aria-invalid`/`aria-describedby`; la edición
+  en PENDIENTE se guarda (confirmado en la BD); una adhesión muestra el título
+  y la severidad del reporte existente, con el aviso; un ítem incompleto
+  inyectado en IndexedDB no se envía solo; el aviso «faltan datos» aparece en
+  `/mapa`; completar sin severidad muestra «Elige la severidad del daño»; y,
+  tras completarlo, se envió con la MISMA `Idempotency-Key` (reporte #185) y
+  salió de la cola.
 
 ### `null` no es cero
 
@@ -605,6 +763,28 @@ La barra de progreso usa **un solo color**, no una escala rojo-ámbar-verde:
 colorear por umbrales obligaría a inventar qué tasa cuenta como "mala", un
 juicio que ni el backlog ni el backend definen. El ranking y el número ya
 comunican la comparación sin que la interfaz emita su propia calificación.
+
+### Comparar distritos (US-19)
+
+- **El estado vive en la URL** (`?comparar=21,41&categoria=3`), no en estado
+  local: compartir la dirección comparte la comparación y el filtro. Se
+  escribe con `router.replace`, no `push`, para no llenar el historial con
+  cada casilla. `useSearchParams` obliga a envolver el índice en `Suspense`
+  (sin eso falla `next build`). El orden de la tabla sí es local: es de quien
+  mira. Una URL editada a mano se depura contra los catálogos: un distrito o
+  un tipo de daño inexistente no se usa.
+- **Gráfica en CSS, sin librería**, como la barra del ranking: con 2 a 4
+  barras de una sola magnitud basta, y se adapta sola al teléfono. Un solo
+  color, por la misma razón de arriba. Para lectores de pantalla es una
+  imagen (`role="img"`) con el resumen en texto, y la tabla de la
+  comparación (una columna por distrito) es su equivalente completo.
+- **El máximo de 4 no deshabilita las casillas:** al intentar marcar una
+  quinta, no se agrega y un aviso en una región `role="status"` explica por
+  qué. Una casilla deshabilitada no dice por qué lo está.
+- **`null` no es cero, también aquí:** con un tipo de daño elegido, el
+  backend solo devuelve los distritos con reportes de ese tipo; un distrito
+  comparado sin fila muestra «Sin datos» en todas sus cifras, nunca 0 % ni
+  «0 / 0».
 
 > **Nota de localización:** `es-PE` usa **punto** como separador decimal y
 > coma para miles (`1,234.56`), a diferencia de `es-ES` (`1.234,56`). Es la

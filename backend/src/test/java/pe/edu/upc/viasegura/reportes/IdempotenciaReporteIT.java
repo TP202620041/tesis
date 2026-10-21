@@ -1,6 +1,7 @@
 package pe.edu.upc.viasegura.reportes;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -81,11 +82,24 @@ class IdempotenciaReporteIT extends AbstractPostgisIT {
     }
 
     private ResultActions crearReporte(String token, String idempotencyKey, long categoriaId) throws Exception {
+        return crearReporte(token, idempotencyKey, categoriaId, true);
+    }
+
+    /**
+     * @param conCamposNc02 false simula un envio de la cola offline armado por
+     *                      una version del cliente anterior a NC-02 (sin
+     *                      titulo ni severidad).
+     */
+    private ResultActions crearReporte(String token, String idempotencyKey, long categoriaId,
+                                       boolean conCamposNc02) throws Exception {
         MockHttpServletRequestBuilder request = multipart("/api/reportes")
                 .param("latitud", String.valueOf(LAT))
                 .param("longitud", String.valueOf(LON))
                 .param("categoriaId", String.valueOf(categoriaId))
                 .header("Authorization", "Bearer " + token);
+        if (conCamposNc02) {
+            request = request.param("titulo", "Dano de prueba").param("severidad", "MEDIA");
+        }
         if (idempotencyKey != null) {
             request = request.header("Idempotency-Key", idempotencyKey);
         }
@@ -121,6 +135,53 @@ class IdempotenciaReporteIT extends AbstractPostgisIT {
         // reporte y 1 sola adhesion (no una segunda por el reintento).
         assertThat(reporteRepository.count()).isEqualTo(1);
         assertThat(adhesionRepository.count()).isEqualTo(1);
+    }
+
+    /**
+     * NC-02: un envio de la cola offline que ya proceso el backend se reenvia
+     * con la misma clave, pero armado por un cliente anterior a NC-02 (sin
+     * titulo ni severidad). La repeticion se resuelve ANTES de validar esos
+     * campos: devuelve la respuesta original, no un 400.
+     */
+    @Test
+    void mismaClaveRegistrada_sinTituloNiSeveridad_devuelveLaOriginalSinValidar() throws Exception {
+        long categoria = categoriaEstandarId();
+        String token = tokenCiudadano();
+        String clave = UUID.randomUUID().toString();
+
+        MvcResult primera = crearReporte(token, clave, categoria)
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        MvcResult reintento = crearReporte(token, clave, categoria, false)
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        assertThat(objectMapper.readTree(reintento.getResponse().getContentAsString()))
+                .isEqualTo(objectMapper.readTree(primera.getResponse().getContentAsString()));
+        assertThat(reporteRepository.count()).isEqualTo(1);
+    }
+
+    /** NC-02: con una clave nueva, titulo y severidad si se exigen, y el 400 no registra la clave. */
+    @Test
+    void claveNueva_sinTituloNiSeveridad_400_yNoRegistraLaClave() throws Exception {
+        long categoria = categoriaEstandarId();
+        String token = tokenCiudadano();
+        String clave = UUID.randomUUID().toString();
+
+        crearReporte(token, clave, categoria, false)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", containsString("titulo")));
+
+        assertThat(reporteRepository.count()).isZero();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM idempotency_key WHERE clave = ?", Integer.class, clave)).isZero();
+
+        // Corregido y con la misma clave, se crea normalmente.
+        crearReporte(token, clave, categoria)
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.titulo", is("Dano de prueba")))
+                .andExpect(jsonPath("$.severidad", is("MEDIA")));
     }
 
     @Test

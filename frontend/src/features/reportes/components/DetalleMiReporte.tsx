@@ -4,6 +4,7 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { LineaDeTiempo } from '@/components/LineaDeTiempo';
 import { estiloDeEstado } from '@/lib/types/estados';
+import { textoDeSeveridad, tituloVisible } from '@/lib/types/tituloYSeveridad';
 import { useMiReporte } from '../hooks/useMiReporte';
 import { explicacionDeEstado, puedeCalificar, puedeEditar } from '../model/acciones';
 import { Calificar } from './Calificar';
@@ -67,8 +68,13 @@ export function DetalleMiReporte({
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-            {reporte.categoriaNombre}
+            {tituloVisible(reporte.titulo)}
           </h1>
+          <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
+            {[reporte.categoriaNombre, textoDeSeveridad(reporte.severidad)]
+              .filter(Boolean)
+              .join(' · ')}
+          </p>
           <p className="text-sm text-slate-600 dark:text-slate-400">
             {reporte.distritoNombre} ·{' '}
             {reporte.createdAt ? new Date(reporte.createdAt).toLocaleDateString('es-PE') : '—'}

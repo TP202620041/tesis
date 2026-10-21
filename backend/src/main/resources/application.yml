@@ -49,7 +49,7 @@ app:
     fotos-perfil-url: /api/perfiles/fotos
   # Notificaciones al ciudadano (US-16/US-21).
   notificaciones:
-    email-remitente: ${NOTIF_FROM:no-reply@viasegura.pe}
+    email-remitente: "${NOTIF_FROM:Ciudad Viva <no-reply@viasegura.pe>}"
     # Suscripciones Web Push (NC-07).
     push:
       # Lista blanca de servicios de push (contra SSRF cuando haya envio

@@ -9,7 +9,7 @@ export default function Home() {
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-2xl flex-col justify-center gap-8 px-4 py-10">
       <div>
-        <h1 className="text-3xl font-bold text-sky-700 dark:text-sky-400">ViaSegura</h1>
+        <h1 className="text-3xl font-bold text-sky-700 dark:text-sky-400">Ciudad Viva</h1>
         <p className="mt-2 text-slate-600 dark:text-slate-400">
           Reporta baches, veredas dañadas y semáforos averiados en Lima Metropolitana. Tu reporte
           llega automáticamente a la municipalidad del distrito donde ocurre.

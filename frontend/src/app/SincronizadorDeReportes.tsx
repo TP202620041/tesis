@@ -7,10 +7,12 @@ import {
 } from '@/features/auth/hooks/useSesionEnSegundoPlano';
 import {
   AvisoPendientesSinSesion,
+  AvisoReportesIncompletos,
   DialogoCierreConPendientes,
 } from '@/features/reportes/components/AvisosDeLaCola';
 import { useConfirmacionAlCerrarSesion } from '@/features/reportes/hooks/useConfirmacionAlCerrarSesion';
 import {
+  useCantidadDeIncompletos,
   useResumenDeLaCola,
   useSincronizacionAutomatica,
 } from '@/features/reportes/hooks/useColaOffline';
@@ -29,6 +31,8 @@ import {
  *   al volver la conexion.
  * - Con sesion y reportes propios en cola: al cerrar sesion pregunta si se
  *   conservan o se descartan (dispositivo compartido).
+ * - Con sesion y reportes propios incompletos (NC-02): aviso no modal con
+ *   enlace a «Pendiente de envío» para completarlos.
  */
 export function SincronizadorDeReportes() {
   const cola = useResumenDeLaCola();
@@ -37,23 +41,37 @@ export function SincronizadorDeReportes() {
 
   if (cola.total === 0) return null;
   if (!haySesion) return <AvisoPendientesSinSesion cantidad={cola.reenviables} ruta={ruta} />;
-  return <ConSesion />;
+  return <ConSesion ruta={ruta} />;
 }
 
-function ConSesion() {
+function ConSesion({ ruta }: { ruta: string }) {
   const identidad = useIdentidadEnSegundoPlano();
   useSincronizacionAutomatica(
     identidad ? { usuarioId: identidad.usuario.id, generacion: identidad.generacion } : null,
   );
-  return identidad ? <ConfirmacionAlCerrar usuarioId={identidad.usuario.id} /> : null;
+  if (!identidad) return null;
+  return (
+    <>
+      <AvisoDeIncompletos usuarioId={identidad.usuario.id} ruta={ruta} />
+      <ConfirmacionAlCerrar usuarioId={identidad.usuario.id} />
+    </>
+  );
+}
+
+function AvisoDeIncompletos({ usuarioId, ruta }: { usuarioId: number; ruta: string }) {
+  const cantidad = useCantidadDeIncompletos(usuarioId);
+  return <AvisoReportesIncompletos cantidad={cantidad} ruta={ruta} usuarioId={usuarioId} />;
 }
 
 function ConfirmacionAlCerrar({ usuarioId }: { usuarioId: number }) {
-  const { preguntando, conservar, descartar } = useConfirmacionAlCerrarSesion(usuarioId);
+  const { preguntando, desglose, conservar, descartar } =
+    useConfirmacionAlCerrarSesion(usuarioId);
   if (preguntando === null) return null;
   return (
     <DialogoCierreConPendientes
       cantidad={preguntando}
+      seEnviaran={desglose.seEnviaran}
+      requierenAccion={desglose.requierenAccion}
       onConservar={conservar}
       onDescartar={() => void descartar()}
     />

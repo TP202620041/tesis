@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { estiloDeEstado } from '@/lib/types/estados';
+import { textoDeSeveridad, tituloVisible } from '@/lib/types/tituloYSeveridad';
 import { useReportePublico } from '../hooks/useReportePublico';
 import { Comentarios } from './Comentarios';
 
@@ -55,8 +56,13 @@ export function DetalleReportePublico({
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-            {reporte.categoriaNombre}
+            {tituloVisible(reporte.titulo)}
           </h1>
+          <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
+            {[reporte.categoriaNombre, textoDeSeveridad(reporte.severidad)]
+              .filter(Boolean)
+              .join(' · ')}
+          </p>
           <p className="text-sm text-slate-600 dark:text-slate-400">
             {reporte.distritoNombre} ·{' '}
             {reporte.createdAt ? new Date(reporte.createdAt).toLocaleDateString('es-PE') : '—'}
@@ -82,7 +88,7 @@ export function DetalleReportePublico({
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={foto}
-          alt={`Foto del daño reportado: ${reporte.categoriaNombre ?? ''}`}
+          alt={`Foto del daño reportado: ${tituloVisible(reporte.titulo)}`}
           className="max-h-80 w-full rounded-md border border-slate-200 object-cover dark:border-slate-700"
         />
       )}

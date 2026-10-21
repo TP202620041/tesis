@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect } from 'react';
+import { useCierreDelAvisoDeIncompletos } from '../hooks/useCierreDelAvisoDeIncompletos';
 
 /** Rutas donde no tiene sentido pedir que inicie sesion: ya esta en eso. */
 const RUTAS_DE_ACCESO = ['/login', '/registro', '/recuperar-password'];
@@ -34,17 +35,99 @@ export function AvisoPendientesSinSesion({ cantidad, ruta }: { cantidad: number;
   );
 }
 
+/** Donde se completan los reportes incompletos (lista «Pendiente de envío»). */
+export const RUTA_PENDIENTES_DE_ENVIO = '/mis-reportes#pendientes-de-envio';
+
+/**
+ * NC-02: aviso NO modal, con sesion, cuando hay reportes propios en cola que
+ * estan incompletos (guardados por la version anterior, sin titulo o sin
+ * severidad): no se envian solos, asi que se invita a completarlos. No se
+ * muestra en «Mis reportes», donde ya esta la lista para completarlos.
+ *
+ * Se puede cerrar por el resto de la sesion de la pestaña (vuelve si
+ * aparecen mas incompletos), y va a `bottom-12` y no pegado al borde: en
+ * `/mapa` en un movil, pegado abajo tapaba la atribucion de OpenStreetMap
+ * (obligatoria por su licencia).
+ */
+export function AvisoReportesIncompletos({
+  cantidad,
+  ruta,
+  usuarioId,
+}: {
+  cantidad: number;
+  ruta: string;
+  usuarioId: number;
+}) {
+  const { visible, cerrar } = useCierreDelAvisoDeIncompletos(cantidad, usuarioId);
+  if (!visible || ruta === '/mis-reportes') return null;
+  return (
+    <div
+      role="status"
+      className="fixed inset-x-4 bottom-12 z-[1100] mx-auto flex max-w-lg items-start gap-3 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-lg dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100"
+    >
+      <p className="flex-1">
+        {cantidad === 1
+          ? 'Tienes 1 reporte sin enviar al que le faltan datos: '
+          : `Tienes ${cantidad} reportes sin enviar a los que les faltan datos: `}
+        <Link
+          href={RUTA_PENDIENTES_DE_ENVIO}
+          className="font-medium text-sky-700 underline dark:text-sky-400"
+        >
+          complétalos en Mis reportes
+        </Link>
+        .
+      </p>
+      <button
+        type="button"
+        onClick={cerrar}
+        aria-label="Cerrar aviso"
+        className="-m-1 inline-flex min-h-6 min-w-6 items-center justify-center rounded p-1 leading-none text-amber-900 hover:bg-amber-100 dark:text-amber-100 dark:hover:bg-amber-900"
+      >
+        <span aria-hidden="true">×</span>
+      </button>
+    </div>
+  );
+}
+
+/** Lo que dice el dialogo de cierre segun cuantos se enviaran solos y cuantos no. */
+export function textoDelCierre(seEnviaran: number, requierenAccion: number): string {
+  const partes: string[] = [];
+  if (seEnviaran > 0) {
+    partes.push(
+      seEnviaran === 1
+        ? '1 se enviará cuando vuelvas a entrar.'
+        : `${seEnviaran} se enviarán cuando vuelvas a entrar.`,
+    );
+  }
+  if (requierenAccion > 0) {
+    partes.push(
+      requierenAccion === 1
+        ? '1 no se enviará solo: necesita que lo completes, lo revises o lo descartes en Mis reportes.'
+        : `${requierenAccion} no se enviarán solos: necesitan que los completes, los revises o los descartes en Mis reportes.`,
+    );
+  }
+  partes.push('Si este dispositivo no es tuyo, puedes descartarlos.');
+  return partes.join(' ');
+}
+
 /**
  * US-06, dispositivo compartido: pregunta al cerrar sesion que hacer con los
  * reportes propios que siguen en el dispositivo. Escape equivale a
  * "Conservar", la opcion por defecto (no se pierde nada).
+ *
+ * NC-02: separa los que se enviaran solos de los que necesitan accion
+ * (incompletos, rechazados, caducados): de estos no se dice «se enviarán».
  */
 export function DialogoCierreConPendientes({
   cantidad,
+  seEnviaran = cantidad,
+  requierenAccion = 0,
   onConservar,
   onDescartar,
 }: {
   cantidad: number;
+  seEnviaran?: number;
+  requierenAccion?: number;
   onConservar: () => void;
   onDescartar: () => void;
 }) {
@@ -70,7 +153,7 @@ export function DialogoCierreConPendientes({
             : `Tienes ${cantidad} reportes sin enviar en este dispositivo.`}
         </h2>
         <p className="text-sm text-slate-700 dark:text-slate-300">
-          Se enviarán cuando vuelvas a entrar. Si este dispositivo no es tuyo, puedes descartarlos.
+          {textoDelCierre(seEnviaran, requierenAccion)}
         </p>
         <div className="flex flex-wrap justify-end gap-3">
           <button

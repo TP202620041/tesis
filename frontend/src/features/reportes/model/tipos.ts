@@ -8,14 +8,25 @@
  * `components/LineaDeTiempo`.
  */
 import type { components } from '@/lib/api/generated/schema';
+import type { Severidad } from '@/lib/types/domain';
 
 type Schemas = components['schemas'];
 
 /** Respuesta cruda de `POST /api/reportes`; `api.ts` la traduce a {@link ReporteCreado}. */
 export type ReporteResponse = Schemas['ReporteResponse'];
 
-/** Resumen de reporte que devuelve la busqueda publica (US-10/US-12). */
-export type ReporteResumen = Schemas['ReporteResumenResponse'];
+/**
+ * Resumen de reporte que devuelve la busqueda publica (US-10/US-12).
+ *
+ * NC-02: `severidad` se recupera como la union {@link Severidad} (springdoc
+ * la publica como `string`). `titulo` y `severidad` siempre vienen en el
+ * resumen (V17 relleno los reportes existentes), pero el tipo los deja
+ * opcionales como el resto de los campos del spec, y la UI muestra
+ * «Sin título» si faltan (`lib/types/tituloYSeveridad`).
+ */
+export type ReporteResumen = Omit<Schemas['ReporteResumenResponse'], 'severidad'> & {
+  severidad?: Severidad;
+};
 
 export type ComentarioPublico = Schemas['ComentarioPublicoResponse'];
 
@@ -53,12 +64,23 @@ export interface ReporteCreado {
   distritoNombre: string | null;
   categoriaNombre: string | null;
   fotoUrl: string | null;
+  /**
+   * NC-02: los del reporte que devolvio el backend. En una adhesion (US-09)
+   * son los del reporte EXISTENTE, no los que escribio el ciudadano. `null`
+   * solo en el reenvio idempotente de un envio procesado antes de NC-02.
+   */
+  titulo: string | null;
+  severidad: Severidad | null;
 }
 
 export interface NuevoReporte {
   latitud: number;
   longitud: number;
   categoriaId: number;
+  /** NC-02: obligatorio, 5-120 caracteres tras el trim (ver `model/titulo.ts`). */
+  titulo: string;
+  /** NC-02: obligatoria y sin valor por defecto: la elige el ciudadano. */
+  severidad: Severidad;
   descripcion?: string;
   /** true si el ciudadano marco el punto a mano (US-05, escenario 2). */
   ubicacionManual: boolean;

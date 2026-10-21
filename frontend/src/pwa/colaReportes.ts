@@ -1,4 +1,8 @@
-import type { ReporteEnCola } from '@/features/reportes/model/colaOffline';
+import {
+  estaIncompleto,
+  type DatosParaCompletar,
+  type ReporteEnCola,
+} from '@/features/reportes/model/colaOffline';
 
 /**
  * US-06: almacen en IndexedDB de los reportes creados sin conexion.
@@ -29,6 +33,16 @@ export interface AlmacenDeCola {
    * envio o el ciudadano lo descarto, no se resucita.
    */
   marcarRechazado(idempotencyKey: string, motivo: string | null): Promise<void>;
+  /**
+   * NC-02: agrega titulo y severidad a un reporte que no los tenia y lo
+   * vuelve a `pendiente`, leyendo y escribiendo en la MISMA transaccion. La
+   * clave (y `creadoEn`, que mide su vigencia) NO cambia: si la primera
+   * peticion si llego al backend, el reenvio con la misma clave devuelve el
+   * reporte original. Si la clave ya no esta (otra pestaña lo envio o se
+   * descarto) o el reporte ya no esta incompleto (otra pestaña lo completo),
+   * no escribe nada y devuelve `false`: no pisa lo que ya se completo.
+   */
+  completar(idempotencyKey: string, campos: DatosParaCompletar): Promise<boolean>;
   /** Quita `idempotencyKey` y guarda `nuevo` en una sola transaccion. */
   reemplazar(idempotencyKey: string, nuevo: ReporteEnCola): Promise<void>;
   /**
@@ -133,6 +147,27 @@ export const colaDeReportes: AlmacenDeCola = {
       };
     });
     avisar();
+  },
+
+  async completar(idempotencyKey, campos) {
+    if (!hayIndexedDb()) return false;
+    let completado = false;
+    await enTransaccion('readwrite', (a) => {
+      const lectura = a.get(idempotencyKey);
+      lectura.onsuccess = () => {
+        const actual = lectura.result as ReporteEnCola | undefined;
+        if (!actual || !estaIncompleto(actual)) return;
+        a.put({
+          ...actual,
+          datos: { ...actual.datos, titulo: campos.titulo, severidad: campos.severidad },
+          estado: 'pendiente',
+          motivo: null,
+        });
+        completado = true;
+      };
+    });
+    if (completado) avisar();
+    return completado;
   },
 
   async reemplazar(idempotencyKey, nuevo) {

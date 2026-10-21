@@ -104,7 +104,7 @@ Resolver lo que reporte `modulosSinCiclos`. **Ciclo real (almacén del 04/10): `
 ### [ ] BE-08 · Cierre
 - El almacén vacío, o con violaciones residuales que el arquitecto aceptó y que quedan listadas en `ARCHITECTURE.md` §9.
 - Actualizar la sección “Estructura del proyecto” de `backend/README.md` y la de arquitectura de `backend/CLAUDE.md`.
-- En `backend/CLAUDE.md` (sección Geoespacial), el Strategy pasa a `distritos/port/GeoAssignmentStrategy` → `distritos/infra/PointInPolygonAssignmentStrategy` (BE-06).
+- En `backend/CLAUDE.md` (sección Geoespacial), el Strategy pasa a `distritos/port/GeoAssignmentStrategy` → `distritos/infra/PointInPolygonAssignmentStrategy` (BE-06). **Hecho** (2026-10-20, junto con la marca Ciudad Viva).
 
 ### [x] BE-10 · El archivo subido no llega como tipo de Spring Web a `service/` (2026-10-20, PR #48)
 Decisión del usuario (13/10), a partir de la observación del revisor en BE-04: `reportes/service/CrearReporteCommand` lleva un `MultipartFile` (Spring Web) hasta el servicio, y §4.2 no permite HTTP en `service/` (ninguna regla de ArchUnit lo detecta).
@@ -292,16 +292,36 @@ Cierre (2026-10-20, rama `feature/fe-06-mutaciones-en-hooks`, sobre `develop` co
 | `gatewayDesdeUi` / `clienteHttp` | 12 / 6 | 0 / 0 |
 | `npm run build` | — | OK |
 
-### [ ] FE-07 · URLs de fotos en el gateway
+### [x] FE-07 · URLs de fotos en el gateway (2026-10-20)
 `features/<f>/api.ts` devuelve `fotoUrl` ya absoluta (`urlDeFoto`). Las páginas y los componentes dejan de importar `@/lib/api/client`. La foto de perfil (que requiere token) se resuelve en un hook de auth que devuelve la URL `blob:`.
 - Viene de FE-02: `features/auth/fotoPerfil.ts` (+ test) → `descargarFotoDePerfil` en `features/auth/api.ts` (test a `auth/api.test.ts`; siguen 8 archivos de test). Hacerlo **junto con** el hook, para que `auth/components/FotoDePerfil.tsx` use el hook y no importe `../api` (eso sería un aviso `gatewayDesdeUi` nuevo).
 
-### [ ] FE-08 · Dependencias entre features
+Cierre (2026-10-20, rama `feature/fe-07-urls-de-fotos`).
+- **Foto de perfil:** `descargarFotoDePerfil` pasa a `auth/api.ts` y sus 2 tests a `auth/api.test.ts`, ahora sobre el cliente real con `fetch` falso: comprueban que la petición lleva `Authorization` y que se lee como blob. Se borra `auth/fotoPerfil.ts`. El hook `auth/hooks/useFotoDePerfil` devuelve `{ src, fallo }` y libera la URL `blob:`; `FotoDePerfil.tsx` solo pinta. Test nuevo del hook: libera la URL al desmontar, libera sin mostrar una descarga que llega tarde y marca `fallo` si la descarga falla.
+- **Gateway:** `map/MapaReportes.tsx` deja de llamar a `urlDeFoto` y ya no importa `@/lib/api/client`, porque la foto llega absoluta de `buscarReportes`. Faltaban 3 respuestas que traen `fotoUrl`: `editarReporte` y `cancelarReporte` (`reportes/api.ts`) y `cambiarEstado` (`gestion/api.ts`). Ahora también pasan por `conFotoAbsoluta`. Fuera de los `api.ts` (y de sus tests), solo `lib/api/catalogos.ts` importa el cliente.
+- **CSP (bug previo, encontrado en la verificación en vivo):** `img-src` no listaba el origen del API, así que el navegador bloqueaba toda foto de reporte (estático del backend en `:8080`). No se había visto porque los reportes del seed no tienen foto. Se agrega `apiBaseUrl` a `img-src` en `next.config.ts`.
+- Verificación en vivo (Playwright, :3001, `ciudadano1`): se crea un reporte con foto y la foto carga con URL absoluta en la confirmación, Mis reportes, el detalle propio, el detalle público y el popup del mapa. La foto de perfil se sube y se ve como `blob:`, también tras recargar.
+
+| Métrica | Antes | Después |
+|---|---|---|
+| `npm run typecheck` | 0 errores | 0 errores |
+| `npm test` (con la guarda) | 547 tests en 76 archivos | 551 tests en 76 archivos (2 tests movidos al borrar `fotoPerfil.test.ts`; 4 nuevos en `useFotoDePerfil.test.ts`) |
+| `npm run lint`: código / avisos que no son de capas | 0 / 0 | 0 / 0 |
+| Avisos de capas (`contar-capas.mjs`) | 0 en 0 archivos | 0 en 0 archivos |
+| Imports de `@/lib/api/client` fuera de `api.ts`, `lib/api` y tests | 2 (`map/MapaReportes`, `auth/fotoPerfil`) | 0 |
+
+### [x] FE-08 · Dependencias entre features (2026-10-20)
 - `gestion` deja de importar `@/features/reportes/api`: usa `reportes/model/tipos` y su propio `api.ts`.
 - Catálogos compartidos: `listarDistritos`, `distritoPorCoordenadas` y `listarCategorias` → `src/lib/api/catalogos.ts`. Los hooks de cada feature lo usan.
   - **Hecho en FE-05 (2026-10-19)**, salvo la reexportación de `listarCategorias` en `reportes/api.ts` (la quitan los hooks de FE-06). Desde FE-05 `otraFeature` = 0.
 
 **Aceptación:** sin avisos `otraFeature`.
+
+Cierre (2026-10-20, rama `feature/fe-08-cierre`): no queda trabajo; solo se registra la evidencia, sobre `develop` en `1a46b48`.
+- `grep -rn "@/features/" src/features/gestion | grep -v /model`: sin resultados. `gestion` no importa nada de otra feature salvo `model/`.
+- `grep -rnE "from '@/features/[a-z]+/(api|hooks|components)"` en `src/features`, `src/map`, `src/lib`, `src/components` y `src/pwa` (sin tests): sin resultados.
+- `listarCategorias` solo se exporta desde `src/lib/api/catalogos.ts`. La reexportación de `reportes/api.ts` ya no existe (la quitó FE-06), y la usan los hooks `desempeno/useIndiceDesempeno`, `reportes/useCategoriasDeReporte`, `reportes/useCatalogosMapa` y `gestion/useBandeja`.
+- `contar-capas.mjs`: **0 avisos de capas en 0 archivos** (`otraFeature` = 0) y 0 avisos de lint que no son de capas.
 
 ### [ ] FE-09 · Cierre
 - `npm run lint` con 0 avisos de capas. El cambio de `SEVERIDAD` a `'error'` en `eslint.capas.mjs` lo hace la sesión de raíz, porque la guardia lo bloquea para el agente (WORKFLOW.md §5).
@@ -322,3 +342,7 @@ No es migración, es funcionalidad. Se lista aquí para fijar **dónde** va cada
 | NC-05 | Confirmación de reporte + ENVIO_CORREO | §4.3 pasos 3-4 | NC-01, requisitos por municipalidad |
 | NC-06 | Dashboard por periodo (`desempeno`) + `app/(municipal)/dashboard` | §4.3 paso 5 | NC-01, fórmulas de los KPIs |
 | NC-07 | CONSENTIMIENTO y SUSCRIPCION_PUSH | §8 | — |
+
+**NC-01, hecha (2026-10-20, PR #70, `c5d2e55`):** módulo `municipalidades` con MUNICIPALIDAD (`distrito_id NOT NULL UNIQUE`, `nombre NOT NULL UNIQUE`, `correo_contacto` nulable) y PERIODO_GESTION (fechas inclusivas, sin solape; seed 2023-01-01 → 2026-12-31), en V15 y V16. Las 43 municipalidades las siembra `municipalidades/infra/MunicipalidadSeeder` después de `DistritoSeeder`, no una migración (en una base vacía los distritos no existen al correr Flyway). API pública: `MunicipalidadService#deDistrito` y `#periodoVigente`. GESTION_MUNICIPAL y REQUISITO_RECEPCION quedan para NC-06 y NC-05 (propuesta `propuestas/2026-10-20-columnas-gestion-y-requisitos.md`, aceptada con la opción A). Failsafe `completed` 284 → 295, Surefire 57 → 59, ArchUnit 0 → 0.
+
+**NC-02 backend, hecha (2026-10-21, PR #74):** `reporte` suma `titulo` (5–120 code points tras el trim), `severidad` (`BAJA < MEDIA < ALTA`, la fija el ciudadano y es pública) y `periodo_gestion_id` (asignado al crear con `MunicipalidadService#periodoVigente`, no expuesto), en V17 con relleno de los reportes existentes. La `Idempotency-Key` ya registrada se resuelve antes de validar los campos nuevos (cola offline). Falta la parte del frontend (handoff `handoffs/2026-10-20-titulo-severidad-reporte.md`). Failsafe `completed` 295 → 309, Surefire 59 → 62, ArchUnit 0 → 0.

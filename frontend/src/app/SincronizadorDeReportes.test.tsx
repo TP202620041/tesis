@@ -29,7 +29,14 @@ function enCola(clave: string): ReporteEnCola {
     idempotencyKey: clave,
     usuarioId: 7,
     creadoEn: new Date().toISOString(),
-    datos: { latitud: -12.1, longitud: -77.0, categoriaId: 1, ubicacionManual: false },
+    datos: {
+      latitud: -12.1,
+      longitud: -77.0,
+      categoriaId: 1,
+      titulo: 'Bache en Miraflores',
+      severidad: 'MEDIA',
+      ubicacionManual: false,
+    },
     foto: null,
     estado: 'pendiente',
     motivo: null,
@@ -60,6 +67,8 @@ describe('SincronizadorDeReportes', () => {
       distritoNombre: null,
       categoriaNombre: null,
       fotoUrl: null,
+      titulo: null,
+      severidad: null,
     });
     render(<SincronizadorDeReportes />);
     await waitFor(() => expect(usuarioActualSinRedirigir).toHaveBeenCalledTimes(1));
@@ -73,6 +82,24 @@ describe('SincronizadorDeReportes', () => {
 
     await waitFor(() => expect(crearReporte).toHaveBeenCalledTimes(1));
     await waitFor(async () => expect(await colaDeReportes.listar()).toEqual([]));
+  });
+
+  it('con sesion y un incompleto propio (NC-02) avisa sin bloquear y no lo envia', async () => {
+    const viejo = enCola('viejo');
+    delete viejo.datos.titulo;
+    delete viejo.datos.severidad;
+    await colaDeReportes.quitar('k1');
+    await colaDeReportes.guardar(viejo);
+    guardarToken('t');
+    vi.mocked(usuarioActualSinRedirigir).mockResolvedValue(ANA);
+
+    render(<SincronizadorDeReportes />);
+
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'Tienes 1 reporte sin enviar al que le faltan datos: complétalos en Mis reportes.',
+    );
+    expect(screen.getByRole('link')).toHaveAttribute('href', '/mis-reportes#pendientes-de-envio');
+    expect(crearReporte).not.toHaveBeenCalled();
   });
 
   it('sin sesion muestra el aviso no modal con enlace al login', async () => {

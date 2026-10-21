@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 @AGENTS.md
 
-PWA de **ViaSegura**. El `CLAUDE.md` de la raíz del monorepo ya cubre el stack, los comandos y la arquitectura general del frontend; aquí va solo lo específico de trabajar dentro de `frontend/`. Código, comentarios y textos de UI en español. Las decisiones de diseño (con su justificación ante el jurado) están en `README.md`: revisarlo antes de "corregir" algo que parezca raro.
+PWA de **Ciudad Viva**. El `CLAUDE.md` de la raíz del monorepo ya cubre el stack, los comandos y la arquitectura general del frontend; aquí va solo lo específico de trabajar dentro de `frontend/`. Código, comentarios y textos de UI en español. Las decisiones de diseño (con su justificación ante el jurado) están en `README.md`: revisarlo antes de "corregir" algo que parezca raro.
 
 ## Capas (obligatorio — ver `../ARCHITECTURE.md` §5)
 
@@ -19,7 +19,7 @@ Cada feature: `components/` (presentación) → `hooks/` (aplicación) → `mode
 
 - Casi todo flujo necesita el backend corriendo en `:8080` (ver `../backend/CLAUDE.md`). La URL sale de `NEXT_PUBLIC_API_BASE_URL` en `.env.local` (copiar de `.env.local.example`).
 - El backend solo acepta por CORS el origen `http://localhost:3000` (`app.cors.allowed-origins`). Otro puerto de frontend → el preflight falla.
-- `next.config.ts` arma la CSP con `NEXT_PUBLIC_API_BASE_URL` en `connect-src` y los hosts de tiles de OSM en `img-src` (hosts concretos, nunca `*`). Cambiar el origen del API o agregar un origen externo exige tocar la CSP; si no, el navegador bloquea en silencio (el mapa queda en blanco).
+- `next.config.ts` arma la CSP con `NEXT_PUBLIC_API_BASE_URL` en `connect-src` y los hosts de tiles de OSM en `img-src` y en `connect-src` (hosts concretos, nunca `*`; `connect-src` porque el Service Worker repite con `fetch()` las peticiones de otro origen). Cambiar el origen del API o agregar un origen externo exige tocar la CSP; si no, el navegador bloquea en silencio (el mapa queda en blanco).
 
 ## Tests
 

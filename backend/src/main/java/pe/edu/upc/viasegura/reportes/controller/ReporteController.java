@@ -34,6 +34,7 @@ import org.springframework.web.multipart.MultipartFile;
 import pe.edu.upc.viasegura.common.exception.BusinessException;
 import pe.edu.upc.viasegura.common.port.ArchivoSubido;
 import pe.edu.upc.viasegura.reportes.domain.EstadoReporte;
+import pe.edu.upc.viasegura.reportes.domain.Severidad;
 import pe.edu.upc.viasegura.reportes.dto.CalificacionResponse;
 import pe.edu.upc.viasegura.reportes.dto.CalificarRequest;
 import pe.edu.upc.viasegura.reportes.dto.ComentarPublicoRequest;
@@ -138,8 +139,10 @@ public class ReporteController {
     }
 
     /**
-     * US-05: crear un reporte con foto (opcional), categoria, descripcion y
-     * coordenadas GPS. El distrito se asigna automaticamente.
+     * US-05: crear un reporte con foto (opcional), categoria, titulo,
+     * descripcion, severidad y coordenadas GPS. El distrito se asigna
+     * automaticamente. Titulo y severidad son obligatorios (NC-02): si
+     * faltan o no son validos, 400.
      *
      * <p>Recibe multipart/form-data para permitir la foto junto con los
      * datos. Solo ciudadanos autenticados pueden reportar.</p>
@@ -157,14 +160,19 @@ public class ReporteController {
             @RequestParam(value = "latitud", required = false) Double latitud,
             @RequestParam(value = "longitud", required = false) Double longitud,
             @RequestParam("categoriaId") Long categoriaId,
+            // NC-02: obligatorios, pero los valida el servicio despues de la
+            // idempotencia (ver ReporteService#crear); por eso required = false.
+            @RequestParam(value = "titulo", required = false) String titulo,
             @RequestParam(value = "descripcion", required = false) String descripcion,
+            @RequestParam(value = "severidad", required = false) Severidad severidad,
             @RequestParam(value = "ubicacionManual", defaultValue = "false") boolean ubicacionManual,
             @RequestPart(value = "foto", required = false) MultipartFile foto,
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
             Principal principal) {
 
         CrearReporteCommand cmd = new CrearReporteCommand(
-                latitud, longitud, categoriaId, descripcion, ubicacionManual, archivoSubido(foto));
+                latitud, longitud, categoriaId, titulo, descripcion, severidad, ubicacionManual,
+                archivoSubido(foto));
         ReporteResponse creado = reporteService.crear(principal.getName(), cmd, idempotencyKey);
         return ResponseEntity.status(HttpStatus.CREATED).body(creado);
     }

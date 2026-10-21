@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { estiloDeEstado } from '@/lib/types/estados';
+import { textoDeSeveridad, tituloVisible } from '@/lib/types/tituloYSeveridad';
 import { useReportesEnCola } from '../hooks/useColaOffline';
 import { useMisReportes } from '../hooks/useMisReportes';
 import { PendientesDeEnvio } from './PendientesDeEnvio';
@@ -84,6 +85,7 @@ export function ListaMisReportes({
         pendientes={cola.pendientes}
         onDescartar={(clave) => void cola.descartar(clave)}
         onReenviarConClaveNueva={(r) => void cola.reenviarConClaveNueva(r)}
+        onCompletar={cola.completar}
       />
 
       {cargando && <p className="text-slate-600 dark:text-slate-400">Cargando…</p>}
@@ -106,6 +108,7 @@ export function ListaMisReportes({
         <ul className="flex flex-col gap-2">
           {reportes.map((reporte) => {
             const estilo = estiloDeEstado(reporte.estado ?? '');
+            const severidad = textoDeSeveridad(reporte.severidad);
             // `api.ts` ya devuelve la URL absoluta de la foto.
             const foto = reporte.fotoUrl;
             return (
@@ -132,7 +135,7 @@ export function ListaMisReportes({
                   <span className="min-w-0 flex-1">
                     <span className="flex flex-wrap items-center gap-2">
                       <strong className="text-slate-900 dark:text-slate-100">
-                        {reporte.categoriaNombre}
+                        {tituloVisible(reporte.titulo)}
                       </strong>
                       <span
                         className="rounded-full px-2 py-0.5 text-xs font-medium text-white"
@@ -140,6 +143,10 @@ export function ListaMisReportes({
                       >
                         {estilo.etiqueta}
                       </span>
+                    </span>
+                    <span className="mt-0.5 block text-sm text-slate-600 dark:text-slate-400">
+                      {reporte.categoriaNombre}
+                      {severidad ? ` · ${severidad}` : ''}
                     </span>
                     <span className="mt-0.5 block text-sm text-slate-600 dark:text-slate-400">
                       {reporte.distritoNombre}

@@ -21,6 +21,8 @@ const REPORTE: ReporteResumen = {
   estado: 'PENDIENTE',
   categoriaId: 58,
   categoriaNombre: 'Ciclovia obstruida',
+  titulo: 'Conos en la ciclovía',
+  severidad: 'MEDIA',
   descripcion: 'Conos',
   distritoId: 15,
   totalAdhesiones: 1,
@@ -68,5 +70,39 @@ describe('EditarReporte (US-08 con categoría desactivada, US-29)', () => {
     await usuario.click(screen.getByRole('button', { name: 'Guardar cambios' }));
 
     expect(editar).toHaveBeenCalledWith(9, { categoriaId: 1, descripcion: 'Conos' });
+  });
+
+  it('NC-02: un título cambiado e inválido se marca en su campo y no se envía', async () => {
+    render(<EditarReporte reporte={REPORTE} onActualizado={vi.fn()} />);
+    const usuario = userEvent.setup();
+    await screen.findByRole('option', { name: 'Bache' });
+
+    await usuario.clear(screen.getByLabelText('Título'));
+    await usuario.click(screen.getByRole('button', { name: 'Guardar cambios' }));
+
+    expect(await screen.findByText('Escribe un título para el reporte.')).toBeInTheDocument();
+    expect(screen.getByLabelText('Título')).toHaveAttribute('aria-invalid', 'true');
+    expect(editar).not.toHaveBeenCalled();
+  });
+
+  it('NC-02: muestra título y severidad actuales y envía solo lo que cambió', async () => {
+    editar.mockResolvedValue(REPORTE);
+    render(<EditarReporte reporte={REPORTE} onActualizado={vi.fn()} />);
+    const usuario = userEvent.setup();
+    await screen.findByRole('option', { name: 'Bache' });
+
+    expect(screen.getByLabelText('Título')).toHaveValue('Conos en la ciclovía');
+    expect(screen.getByRole('radio', { name: 'Media' })).toBeChecked();
+
+    await usuario.clear(screen.getByLabelText('Título'));
+    await usuario.type(screen.getByLabelText('Título'), 'Conos en la ciclovía norte');
+    await usuario.click(screen.getByRole('radio', { name: 'Alta' }));
+    await usuario.click(screen.getByRole('button', { name: 'Guardar cambios' }));
+
+    expect(editar).toHaveBeenCalledWith(9, {
+      titulo: 'Conos en la ciclovía norte',
+      severidad: 'ALTA',
+      descripcion: 'Conos',
+    });
   });
 });

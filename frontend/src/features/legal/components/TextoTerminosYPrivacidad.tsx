@@ -6,7 +6,7 @@ import { VERSION_TERMINOS } from '@/features/auth/model/terminos';
  * version {@link VERSION_TERMINOS}.
  *
  * Copia del borrador `project-context/legal/terminos-y-privacidad-v1.md`
- * (secciones 1 a 10), sin agregar contenido. Es un BORRADOR pendiente de
+ * (secciones 1 a 11), sin agregar contenido. Es un BORRADOR pendiente de
  * revision legal: por eso el aviso visible y los `[COMPLETAR]` resaltados
  * tal como estan en el original. La nota interna del borrador (quien lo
  * redacto y que debe revisarse) se resume en el aviso; no es texto para el
@@ -21,7 +21,7 @@ export function TextoTerminosYPrivacidad({ conTitulo = true }: { conTitulo?: boo
     <article className="flex flex-col gap-4 text-sm leading-relaxed text-slate-700 dark:text-slate-300">
       {conTitulo && (
         <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-          Términos de uso y política de privacidad de ViaSegura
+          Términos de uso y política de privacidad de Ciudad Viva
         </h1>
       )}
 
@@ -38,7 +38,7 @@ export function TextoTerminosYPrivacidad({ conTitulo = true }: { conTitulo?: boo
 
       <Seccion titulo="1. Quiénes somos">
         <p>
-          ViaSegura es una plataforma de reporte ciudadano de daños en la infraestructura vial de
+          Ciudad Viva es una plataforma de reporte ciudadano de daños en la infraestructura vial de
           Lima Metropolitana. La desarrolla <Completar>nombres de los autores</Completar> como parte
           de una tesis de la Universidad Peruana de Ciencias Aplicadas (UPC).
         </p>
@@ -212,7 +212,33 @@ export function TextoTerminosYPrivacidad({ conTitulo = true }: { conTitulo?: boo
         <p>Podemos rechazar o retirar contenido que incumpla estas reglas.</p>
       </Seccion>
 
-      <Seccion titulo="10. Cambios a este documento">
+      <Seccion titulo="10. Responsabilidad sobre las fotografías y el contenido que subes">
+        <ul className="list-disc space-y-1 pl-5">
+          <li>
+            Las fotografías, descripciones y comentarios que adjuntas son de tu exclusiva
+            responsabilidad.
+          </li>
+          <li>
+            Al subir una foto declaras que la tomaste tú o que tienes derecho a usarla, y que no
+            vulnera derechos de terceros (imagen, intimidad, propiedad intelectual).
+          </li>
+          <li>
+            Ciudad Viva no revisa las fotos antes de publicarlas. En la medida en que la ley lo
+            permita, no se hace responsable de su contenido, su veracidad ni de los daños que su
+            publicación cause a terceros; esa responsabilidad recae en quien la subió.
+          </li>
+          <li>
+            Nos autorizas, de forma gratuita y no exclusiva, a mostrar la foto en la plataforma y a
+            compartirla con la municipalidad para atender el reporte.
+          </li>
+          <li>
+            Si una foto vulnera tus derechos, pide su retiro por Soporte. Podemos
+            retirar sin aviso el contenido que incumpla estos términos (§9).
+          </li>
+        </ul>
+      </Seccion>
+
+      <Seccion titulo="11. Cambios a este documento">
         <p>
           Cada versión lleva una fecha. Si cambia algo importante, te pediremos que aceptes la nueva
           versión la próxima vez que entres; hasta que lo hagas, no podrás seguir usando la cuenta.

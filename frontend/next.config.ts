@@ -4,7 +4,7 @@ const esDesarrollo = process.env.NODE_ENV === 'development';
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
 
 /** Servidores de tiles del mapa (Leaflet + OpenStreetMap). */
-const TILE_HOSTS = 'https://tile.openstreetmap.org https://*.tile.openstreetmap.org';
+const TILE_HOSTS = 'https://tile.openstreetmap.org';
 
 /**
  * Content-Security-Policy.
@@ -15,7 +15,8 @@ const TILE_HOSTS = 'https://tile.openstreetmap.org https://*.tile.openstreetmap.
  * modelo de almacenamiento del token.
  *
  * `connect-src` incluye el origen del API porque el backend se despliega
- * aparte; sin eso la propia CSP bloquearia las llamadas.
+ * aparte; sin eso la propia CSP bloquearia las llamadas. `img-src` tambien,
+ * por las fotos publicas de reporte que sirve el backend.
  *
  * Web Push (US-21) no necesita ningun origen nuevo: `pushManager.subscribe`
  * y la entrega de avisos los hace el propio navegador con su servicio de
@@ -33,9 +34,16 @@ const csp = [
   // Los tiles de OpenStreetMap son imagenes de otro origen: sin listarlas
   // aqui, el mapa (US-05 ubicacion manual, US-10) se ve en blanco. Se
   // enumeran los hosts concretos en vez de abrir `img-src *`.
-  `img-src 'self' data: blob: ${TILE_HOSTS}`,
+  // El origen del API, porque la foto de un reporte es un estatico publico
+  // del backend (`/media/fotos/reportes/…`) que va directo en `<img src>`.
+  `img-src 'self' data: blob: ${apiBaseUrl} ${TILE_HOSTS}`,
   "font-src 'self' data:",
-  `connect-src 'self' ${apiBaseUrl}${esDesarrollo ? ' ws: wss:' : ''}`,
+  // Los tiles tambien van aqui: en produccion el Service Worker intercepta las
+  // peticiones de otro origen (`defaultCache` de Serwist) y las repite con
+  // `fetch()`, que se rige por `connect-src` y no por `img-src`. Sin listarlos,
+  // en cuanto el SW controla la pagina el mapa queda sin calles en cualquier
+  // navegador (en desarrollo no pasa porque el SW esta desactivado).
+  `connect-src 'self' ${apiBaseUrl} ${TILE_HOSTS}${esDesarrollo ? ' ws: wss:' : ''}`,
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",

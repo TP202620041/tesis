@@ -229,11 +229,9 @@ export function urlDeFoto(fotoUrl: string | null | undefined): string | null {
  * usan los `api.ts` de las features para que paginas y componentes reciban
  * la URL lista para `<img src>`. Solo para fotos publicas (de reporte).
  *
- * Es idempotente (y por eso convive con los `urlDeFoto` que aun quedan en
- * `map/MapaReportes.tsx`) solo si `NEXT_PUBLIC_API_BASE_URL` es un origen
- * ABSOLUTO (`http(s)://…`), que es lo que exige la CSP de `next.config.ts`.
- * Con una base relativa, aplicarla dos veces duplicaria el prefijo: FE-07
- * debe quitar esas llamadas residuales.
+ * Se aplica UNA vez, en el gateway (FE-07): con una base relativa en
+ * `NEXT_PUBLIC_API_BASE_URL`, aplicarla dos veces duplicaria el prefijo.
+ * Por eso ningun componente vuelve a llamar a {@link urlDeFoto}.
  */
 export function conFotoAbsoluta<T extends { fotoUrl?: string | null }>(entidad: T): T {
   // Sin foto se devuelve tal cual: no se cambia un `undefined` por `null`.

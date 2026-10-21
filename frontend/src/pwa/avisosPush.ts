@@ -18,7 +18,7 @@ export interface AvisoPush {
 
 /** Lo que se muestra si el payload no se puede leer (con `userVisibleOnly` hay que mostrar algo). */
 export const AVISO_GENERICO: AvisoPush = {
-  titulo: 'ViaSegura',
+  titulo: 'Ciudad Viva',
   cuerpo: 'Hay novedades en tus reportes.',
   url: '/mis-reportes',
   tag: undefined,

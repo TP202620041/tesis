@@ -29,6 +29,22 @@ describe('TablaBandeja (SEC-02: la señal interna solo vive en la bandeja)', () 
     expect(sinSenal).not.toHaveTextContent(/reincidencia/i);
   });
 
+  it('NC-02: muestra título y severidad solo para leer', () => {
+    render(
+      <TablaBandeja
+        reportes={[reporte(1, { titulo: 'Bache en la berma', severidad: 'MEDIA' }), reporte(2)]}
+        orden="recientes"
+        onOrdenar={vi.fn()}
+      />,
+    );
+    const [conTitulo, sinTitulo] = screen.getAllByRole('link');
+    expect(conTitulo).toHaveTextContent('Bache en la berma');
+    expect(conTitulo).toHaveTextContent('Categoria 1 · Severidad media');
+    expect(sinTitulo).toHaveTextContent('Sin título');
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument();
+  });
+
   it('ordena por apoyos y desempata por el más antiguo', () => {
     const ordenados = ordenar(
       [

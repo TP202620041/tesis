@@ -9,6 +9,7 @@ import { crearReporte } from '../api';
 import type { ReporteEnCola } from '../model/colaOffline';
 import {
   INTERVALO_DE_REINTENTO,
+  useCantidadDeIncompletos,
   useReportesEnCola,
   useResumenDeLaCola,
   useSincronizacionAutomatica,
@@ -24,7 +25,14 @@ function enCola(clave: string, usuarioId: number, creadoEn = new Date().toISOStr
     idempotencyKey: clave,
     usuarioId,
     creadoEn,
-    datos: { latitud: -12.1, longitud: -77.0, categoriaId: 1, ubicacionManual: false },
+    datos: {
+      latitud: -12.1,
+      longitud: -77.0,
+      categoriaId: 1,
+      titulo: 'Bache en Miraflores',
+      severidad: 'MEDIA',
+      ubicacionManual: false,
+    },
     foto: null,
     estado: 'pendiente',
     motivo: null,
@@ -41,6 +49,8 @@ const CREADO = {
   distritoNombre: null,
   categoriaNombre: null,
   fotoUrl: null,
+  titulo: null,
+  severidad: null,
 };
 
 beforeEach(() => {
@@ -70,6 +80,65 @@ describe('useReportesEnCola', () => {
     });
 
     await waitFor(() => expect(result.current.pendientes).toHaveLength(1));
+  });
+});
+
+/** NC-02: como lo guardaba la version anterior del formulario. */
+function incompleto(clave: string, usuarioId: number): ReporteEnCola {
+  const datos = { ...enCola(clave, usuarioId).datos };
+  delete datos.titulo;
+  delete datos.severidad;
+  return { ...enCola(clave, usuarioId), datos };
+}
+
+describe('reporte incompleto (NC-02) de punta a punta', () => {
+  it('no se envia solo; al completarlo, la sincronizacion lo envia con la MISMA clave', async () => {
+    vi.mocked(crearReporte).mockResolvedValue(CREADO);
+    await colaDeReportes.guardar(incompleto('clave-vieja', 7));
+    const cola = renderHook(() => useReportesEnCola(7));
+    renderHook(() => useSincronizacionAutomatica(ana()));
+    await waitFor(() => expect(cola.result.current.pendientes[0]?.visible).toBe('incompleto'));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(crearReporte).not.toHaveBeenCalled();
+
+    let error: string | null = 'sin llamar';
+    await act(async () => {
+      error = await cola.result.current.completar('clave-vieja', {
+        titulo: 'Bache en Miraflores',
+        severidad: 'ALTA',
+      });
+    });
+
+    expect(error).toBeNull();
+    await waitFor(() => expect(crearReporte).toHaveBeenCalledTimes(1));
+    expect(crearReporte).toHaveBeenCalledWith(
+      expect.objectContaining({
+        idempotencyKey: 'clave-vieja',
+        titulo: 'Bache en Miraflores',
+        severidad: 'ALTA',
+      }),
+      { redirigirEn401: false },
+    );
+    await waitFor(async () => expect(await colaDeReportes.listar()).toEqual([]));
+  });
+
+  it('useCantidadDeIncompletos cuenta solo los incompletos del usuario', async () => {
+    await colaDeReportes.guardar(incompleto('k1', 7));
+    await colaDeReportes.guardar(incompleto('ajeno', 8));
+    await colaDeReportes.guardar(enCola('k2', 7));
+    const { result } = renderHook(() => useCantidadDeIncompletos(7));
+    await waitFor(() => expect(result.current).toBe(1));
+
+    await act(async () => {
+      await colaDeReportes.quitar('k1');
+    });
+    await waitFor(() => expect(result.current).toBe(0));
+  });
+
+  it('no cuenta como reenviable en el resumen del dispositivo', async () => {
+    await colaDeReportes.guardar(incompleto('k1', 7));
+    const { result } = renderHook(() => useResumenDeLaCola());
+    await waitFor(() => expect(result.current).toEqual({ total: 1, reenviables: 0 }));
   });
 });
 

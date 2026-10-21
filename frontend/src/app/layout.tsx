@@ -16,13 +16,13 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: 'ViaSegura — Reporte ciudadano de daños viales',
-    template: '%s · ViaSegura',
+    default: 'Ciudad Viva — Reporte ciudadano de daños viales',
+    template: '%s · Ciudad Viva',
   },
   description:
     'Plataforma de crowdsourcing geoespacial para el reporte ciudadano y la gestión ' +
     'municipal de infraestructura vial en Lima Metropolitana.',
-  applicationName: 'ViaSegura',
+  applicationName: 'Ciudad Viva',
   manifest: '/manifest.webmanifest',
 };
 

@@ -1,6 +1,6 @@
 # Diagramas de arquitectura
 
-Diagramas de ViaSegura en Mermaid, que GitHub dibuja al abrir cada archivo. La norma está en [`ARCHITECTURE.md`](../../ARCHITECTURE.md); estos diagramas la ilustran (los manuales) o muestran el código como es (los generados).
+Diagramas de Ciudad Viva en Mermaid, que GitHub dibuja al abrir cada archivo. La norma está en [`ARCHITECTURE.md`](../../ARCHITECTURE.md); estos diagramas la ilustran (los manuales) o muestran el código como es (los generados).
 
 | Diagrama | Archivo | Origen | Tipo Mermaid |
 |---|---|---|---|

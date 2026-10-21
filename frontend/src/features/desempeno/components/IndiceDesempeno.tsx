@@ -1,19 +1,36 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
-import { useCategoriasDelIndice, useRankingDistrital } from '../hooks/useIndiceDesempeno';
+import { useMemo, useState } from 'react';
+import { useComparacionEnUrl } from '../hooks/useComparacionEnUrl';
+import {
+  useCategoriasDelIndice,
+  useNombresDeDistritos,
+  useRankingDistrital,
+} from '../hooks/useIndiceDesempeno';
+import { distritosComparados, MAX_COMPARAR, MIN_COMPARAR } from '../model/comparacion';
 import { ORDEN_INICIAL, type Orden } from '../model/formato';
+import { ComparacionDistritos } from './ComparacionDistritos';
 import { TablaDesempeno } from './TablaDesempeno';
 
 /**
- * US-18/US-20: indice publico de desempeno distrital, con filtro por tipo de
- * dano y tabla ordenable.
+ * US-18/US-19/US-20: indice publico de desempeno distrital, con filtro por
+ * tipo de dano, tabla ordenable y comparacion de 2 a 4 distritos.
+ *
+ * El tipo de dano y los distritos comparados viven en la URL
+ * (`useComparacionEnUrl`) para poder compartir la comparacion; el orden de
+ * la tabla es solo de quien la mira y queda en estado local.
  */
 export function IndiceDesempeno() {
-  const [categoriaId, setCategoriaId] = useState<number | null>(null);
-  const [orden, setOrden] = useState<Orden>(ORDEN_INICIAL);
   const categorias = useCategoriasDelIndice();
+  const nombres = useNombresDeDistritos();
+  const idsDeCategorias = useMemo(
+    () => (categorias.length > 0 ? categorias.map((c) => c.id) : null),
+    [categorias],
+  );
+  const comparacion = useComparacionEnUrl(nombres, idsDeCategorias);
+  const { categoriaId } = comparacion;
+  const [orden, setOrden] = useState<Orden>(ORDEN_INICIAL);
   const ranking = useRankingDistrital(categoriaId);
 
   const cargando = ranking.estado === 'cargando';
@@ -21,6 +38,9 @@ export function IndiceDesempeno() {
   const filas = ranking.datos ?? [];
   const conDatos = filas.filter((f) => (f.totalReportes ?? 0) > 0).length;
   const calculado = filas[0]?.calculatedAt;
+  const comparados = distritosComparados(comparacion.distritos, filas, nombres);
+  const categoriaNombre =
+    categoriaId != null ? (categorias.find((c) => c.id === categoriaId)?.nombre ?? null) : null;
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-6">
@@ -68,7 +88,9 @@ export function IndiceDesempeno() {
           <select
             id="categoria"
             value={categoriaId ?? ''}
-            onChange={(e) => setCategoriaId(e.target.value ? Number(e.target.value) : null)}
+            onChange={(e) =>
+              comparacion.cambiarCategoria(e.target.value ? Number(e.target.value) : null)
+            }
             className="rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
           >
             <option value="">Todos los tipos</option>
@@ -99,8 +121,36 @@ export function IndiceDesempeno() {
         </p>
       )}
 
+      {!cargando && !error && (
+        <ComparacionDistritos
+          distritos={comparados}
+          categoriaNombre={categoriaNombre}
+          onQuitar={comparacion.quitar}
+          onLimpiar={comparacion.limpiar}
+        />
+      )}
+
       {!cargando && filas.length > 0 && (
-        <TablaDesempeno filas={filas} orden={orden} onOrdenar={setOrden} />
+        <>
+          <p className="text-sm text-slate-600 dark:text-slate-400">
+            Marca de {MIN_COMPARAR} a {MAX_COMPARAR} distritos en la columna «Comparar» para verlos
+            lado a lado. La dirección de la página guarda la comparación: puedes compartirla.
+          </p>
+          {/* Siempre montado: un aviso que aparece dentro de una region viva se anuncia. */}
+          <p
+            role="status"
+            className="text-sm font-medium text-amber-800 empty:hidden dark:text-amber-300"
+          >
+            {comparacion.aviso}
+          </p>
+          <TablaDesempeno
+            filas={filas}
+            orden={orden}
+            onOrdenar={setOrden}
+            comparados={comparacion.distritos}
+            onAlternarComparacion={comparacion.alternarDistrito}
+          />
+        </>
       )}
 
       <footer className="flex flex-col gap-1 border-t border-slate-200 pt-4 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">

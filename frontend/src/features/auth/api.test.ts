@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '@/lib/api/errors';
 import { borrarToken, guardarToken } from '@/lib/auth/token-storage';
-import { clavePublicaVapid, darDeBajaSuscripcionPush } from './api';
+import { clavePublicaVapid, darDeBajaSuscripcionPush, descargarFotoDePerfil } from './api';
 
 /*
  * US-21: el adaptador HTTP de push, sobre el cliente real con `fetch` falso
@@ -66,5 +66,36 @@ describe('clavePublicaVapid', () => {
   it('un 404 (servidor sin claves) es null: no se ofrece push', async () => {
     fetchFalso.mockResolvedValue(Response.json({ message: 'Sin claves' }, { status: 404 }));
     await expect(clavePublicaVapid()).resolves.toBeNull();
+  });
+});
+
+describe('descargarFotoDePerfil', () => {
+  beforeEach(() => {
+    vi.stubGlobal('URL', { ...URL, createObjectURL: vi.fn(() => 'blob:local/123') });
+  });
+
+  it('pide la foto de perfil con token y como blob, y devuelve una URL local', async () => {
+    fetchFalso.mockResolvedValue(new Response('x', { headers: { 'Content-Type': 'image/png' } }));
+
+    const src = await descargarFotoDePerfil('/api/perfiles/fotos/abc.png');
+
+    const [url, init] = fetchFalso.mock.calls[0]!;
+    expect(String(url)).toMatch(/\/api\/perfiles\/fotos\/abc\.png$/);
+    // Sin token el backend responde 401: un <img src> no puede mandarlo.
+    expect(new Headers(init?.headers).get('Authorization')).toBe('Bearer token-de-prueba');
+    // Si se leyera como texto/JSON, createObjectURL recibiria otra cosa.
+    expect(vi.mocked(URL.createObjectURL)).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'image/png', size: 1 }),
+    );
+    expect(src).toBe('blob:local/123');
+  });
+
+  it('no da el rodeo para una foto pública', async () => {
+    // Las fotos de reporte se sirven como estático público: pedirlas con
+    // fetch y convertirlas a blob sería trabajo inútil.
+    const src = await descargarFotoDePerfil('/media/fotos/reportes/abc.png');
+
+    expect(fetchFalso).not.toHaveBeenCalled();
+    expect(src).toBe('/media/fotos/reportes/abc.png');
   });
 });

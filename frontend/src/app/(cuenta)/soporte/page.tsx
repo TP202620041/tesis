@@ -20,7 +20,7 @@ export default function SoportePage() {
             <div>
               <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Soporte</h1>
               <p className="text-sm text-slate-600 dark:text-slate-400">
-                ¿Algo no funciona o tienes una duda sobre ViaSegura? Escríbenos.
+                ¿Algo no funciona o tienes una duda sobre Ciudad Viva? Escríbenos.
               </p>
             </div>
             <nav className="flex flex-wrap gap-2">

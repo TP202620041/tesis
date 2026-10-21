@@ -68,6 +68,7 @@ class FotoReporteIT extends AbstractPostgisIT {
                         .file(new MockMultipartFile("foto", "bache.png", "image/png", PNG_1X1))
                         .param("latitud", String.valueOf(LAT))
                         .param("longitud", String.valueOf(LON))
+                        .param("titulo", "Dano de prueba").param("severidad", "MEDIA")
                         .param("categoriaId", String.valueOf(categoriaEstandarId()))
                         .header("Authorization", "Bearer " + tokenCiudadano()))
                 .andExpect(status().isCreated())

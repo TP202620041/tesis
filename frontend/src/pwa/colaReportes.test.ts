@@ -18,7 +18,14 @@ function reporte(clave: string, foto: ReporteEnCola['foto'] = null): ReporteEnCo
     idempotencyKey: clave,
     usuarioId: 7,
     creadoEn: '2026-10-19T10:00:00.000Z',
-    datos: { latitud: -12.1, longitud: -77.0, categoriaId: 1, ubicacionManual: true },
+    datos: {
+      latitud: -12.1,
+      longitud: -77.0,
+      categoriaId: 1,
+      titulo: 'Bache en Miraflores',
+      severidad: 'ALTA',
+      ubicacionManual: true,
+    },
     foto,
     estado: 'pendiente',
     motivo: null,
@@ -58,6 +65,61 @@ describe('colaDeReportes (IndexedDB)', () => {
     const cola = await colaDeReportes.listar();
     expect(cola).toHaveLength(1);
     expect(cola[0]?.estado).toBe('rechazado');
+  });
+
+  it('completar (NC-02) agrega titulo y severidad con la MISMA clave y fecha, y lo deja pendiente', async () => {
+    const sinCampos = { ...reporte('k1').datos };
+    delete sinCampos.titulo;
+    delete sinCampos.severidad;
+    await colaDeReportes.guardar({
+      ...reporte('k1'),
+      datos: sinCampos,
+      estado: 'rechazado',
+      motivo: 'El titulo debe tener entre 5 y 120 caracteres',
+    });
+
+    const completado = await colaDeReportes.completar('k1', {
+      titulo: 'Bache en Surco',
+      severidad: 'BAJA',
+    });
+
+    expect(completado).toBe(true);
+    const cola = await colaDeReportes.listar();
+    expect(cola).toHaveLength(1);
+    expect(cola[0]).toMatchObject({
+      idempotencyKey: 'k1',
+      creadoEn: '2026-10-19T10:00:00.000Z',
+      estado: 'pendiente',
+      motivo: null,
+      datos: { categoriaId: 1, titulo: 'Bache en Surco', severidad: 'BAJA', ubicacionManual: true },
+    });
+  });
+
+  it('completar un reporte que ya no esta incompleto no escribe nada', async () => {
+    // Otra pestaña ya lo completo (y quiza ya esta en camino con esos datos).
+    await colaDeReportes.guardar(reporte('k1'));
+    const alCambiar = vi.fn();
+    const desuscribir = colaDeReportes.suscribir(alCambiar);
+
+    const completado = await colaDeReportes.completar('k1', {
+      titulo: 'Otro título distinto',
+      severidad: 'BAJA',
+    });
+    desuscribir();
+
+    expect(completado).toBe(false);
+    expect(alCambiar).not.toHaveBeenCalled();
+    expect((await colaDeReportes.listar())[0]?.datos).toMatchObject({
+      titulo: 'Bache en Miraflores',
+      severidad: 'ALTA',
+    });
+  });
+
+  it('completar una clave que ya no esta no la resucita', async () => {
+    expect(
+      await colaDeReportes.completar('no-existe', { titulo: 'Bache en Surco', severidad: 'ALTA' }),
+    ).toBe(false);
+    expect(await colaDeReportes.listar()).toEqual([]);
   });
 
   it('avisa a los suscriptores en cada cambio', async () => {

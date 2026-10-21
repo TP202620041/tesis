@@ -1,4 +1,4 @@
-import { api, apiFetch } from '@/lib/api/client';
+import { api, apiFetch, fotoRequiereAuth } from '@/lib/api/client';
 import { ApiError } from '@/lib/api/errors';
 import { borrarToken, guardarToken } from '@/lib/auth/token-storage';
 import type { components } from '@/lib/api/generated/schema';
@@ -209,6 +209,31 @@ export async function darDeBajaSuscripcionPush(
     if (e instanceof ApiError && e.status === 404) return;
     throw e;
   }
+}
+
+/**
+ * US-30: descarga la foto de PERFIL y devuelve una URL `blob:` local.
+ *
+ * No puede ser un `<img src>` normal: la foto de un reporte es publica y se
+ * sirve como estatico, pero la de perfil se entrega por
+ * `GET /api/perfiles/fotos/{archivo}`, que exige la cabecera `Authorization`
+ * y comprueba que quien la pide sea su dueno. El navegador no adjunta esa
+ * cabecera al resolver un `src`, asi que un `<img>` directo recibe 401.
+ * Se pide con `apiFetch` (que pone el token), se queda el `Blob` y se
+ * convierte en una URL local con `URL.createObjectURL`.
+ *
+ * Quien la use DEBE liberarla con `URL.revokeObjectURL` al cambiar de foto
+ * o desmontar (lo hace `hooks/useFotoDePerfil`); si no, el blob queda
+ * retenido toda la sesion.
+ */
+export async function descargarFotoDePerfil(fotoUrl: string): Promise<string> {
+  // Defensa contra un cambio futuro del backend: si la URL dejara de ser
+  // autenticada, no hace falta este rodeo.
+  if (!fotoRequiereAuth(fotoUrl)) {
+    return fotoUrl;
+  }
+  const blob = await apiFetch<Blob>(fotoUrl, { method: 'GET', comoBlob: true });
+  return URL.createObjectURL(blob);
 }
 
 /**

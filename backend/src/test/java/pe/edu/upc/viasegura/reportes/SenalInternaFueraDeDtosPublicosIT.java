@@ -29,6 +29,7 @@ import pe.edu.upc.viasegura.distritos.repository.DistritoRepository;
 import pe.edu.upc.viasegura.reportes.domain.CategoriaDano;
 import pe.edu.upc.viasegura.reportes.domain.EstadoReporte;
 import pe.edu.upc.viasegura.reportes.domain.Reporte;
+import pe.edu.upc.viasegura.reportes.domain.Severidad;
 import pe.edu.upc.viasegura.reportes.repository.CategoriaDanoRepository;
 import pe.edu.upc.viasegura.reportes.repository.ReporteRepository;
 import pe.edu.upc.viasegura.support.AbstractPostgisIT;
@@ -95,6 +96,7 @@ class SenalInternaFueraDeDtosPublicosIT extends AbstractPostgisIT {
     /** Reporte de Miraflores con el detector ya disparado. */
     private Reporte marcado(EstadoReporte estado, Usuario creador, Instant resolvedAt) {
         return reporteRepository.save(Reporte.builder()
+                .titulo("Dano de prueba").severidad(Severidad.MEDIA)
                 .ubicacion(GeometryUtils.point(-77.0297, -12.1215))
                 .categoria(categoria()).creador(creador).distrito(miraflores())
                 .estado(estado).totalAdhesiones(1).resolvedAt(resolvedAt)
@@ -207,6 +209,7 @@ class SenalInternaFueraDeDtosPublicosIT extends AbstractPostgisIT {
         mockMvc.perform(multipart("/api/reportes")
                         .param("latitud", "-12.1215")
                         .param("longitud", "-77.0297")
+                        .param("titulo", "Dano de prueba").param("severidad", "MEDIA")
                         .param("categoriaId", String.valueOf(categoria().getId()))
                         .header("Authorization", bearer(ciudadano())))
                 .andExpect(status().is2xxSuccessful())
