@@ -92,6 +92,7 @@ export default function MapaSelectorUbicacion({ valor, onSeleccionar, alto = '20
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+        crossOrigin="anonymous"
         maxZoom={19}
       />
       <CapturarClic onSeleccionar={onSeleccionar} />

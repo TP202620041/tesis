@@ -171,6 +171,7 @@ export default function MapaReportes({
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+        crossOrigin="anonymous"
         maxZoom={19}
       />
       <ObservarArea onAreaCambiada={onAreaCambiada} />
