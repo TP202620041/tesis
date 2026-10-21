@@ -30,6 +30,7 @@ Versiones de Ciudad Viva (antes ViaSegura) según GitFlow (`WORKFLOW.md` §8): c
 - **US-01:** Playwright en modo headed, 15/15: el diálogo abre y cierra con el botón y con Esc, conserva los valores, no abre otra pestaña y el registro responde 201.
 - **US-11 y desempeño:** con datos de prueba locales (166 reportes en 11 distritos), `/api/reportes/densidad` y `/api/desempeno/distritos` responden con datos y la PWA los consume sin errores de CORS.
 
+## v0.4.0 — Sprint 3 (2026-10-20)
 
 ### Historias de usuario
 - **NC-07b · Consentimiento por finalidad y versión** (D-12; #42 backend, #46 PWA):
