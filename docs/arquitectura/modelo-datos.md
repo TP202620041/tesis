@@ -9,7 +9,7 @@
 <!-- generado:inicio modelo-datos -->
 <!-- No editar a mano: lo regenera /diagramas (.claude/skills/diagramas/modelo-datos.mjs). -->
 
-Esquema que resulta de aplicar 14 migraciones (V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12, V13, V14).
+Esquema que resulta de aplicar 17 migraciones (V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12, V13, V14, V15, V16, V17).
 
 ## Tablas
 
@@ -59,6 +59,11 @@ erDiagram
     bigint id PK
     bigint usuario_id FK
   }
+  municipalidad {
+    bigint id PK
+    bigint distrito_id FK, UK
+    varchar nombre UK
+  }
   notificacion {
     bigint id PK
     bigint usuario_id FK
@@ -71,6 +76,10 @@ erDiagram
     bigint usuario_id FK
     varchar token UK
   }
+  periodo_gestion {
+    bigint id PK
+    date fecha_inicio UK
+  }
   reporte {
     bigint id PK
     geography ubicacion "Point, 4326"
@@ -78,6 +87,8 @@ erDiagram
     varchar estado "PENDIENTE, RECIBIDO, EN_PROCESO, RESUELTO, RECHAZADO, CANCELADO"
     bigint distrito_id FK "nullable"
     bigint creador_id FK
+    varchar severidad "BAJA, MEDIA, ALTA"
+    bigint periodo_gestion_id FK "nullable"
   }
   suscripcion_push {
     bigint id PK
@@ -99,6 +110,8 @@ erDiagram
   distrito |o--o{ categoria_dano : "distrito_id"
   distrito |o--o{ reporte : "distrito_id"
   distrito |o--o{ usuario : "distrito_id"
+  distrito ||--o| municipalidad : "distrito_id"
+  periodo_gestion |o--o{ reporte : "periodo_gestion_id"
   reporte |o--o{ notificacion : "reporte_id"
   reporte ||--o{ adhesion_reporte : "reporte_id"
   reporte ||--o{ asignacion_responsable : "reporte_id"
@@ -130,9 +143,11 @@ erDiagram
 | `distrito` | 4 | — | V1 | — |
 | `historial_estado_reporte` | 8 | — | V1 | V4 |
 | `idempotency_key` | 6 | (clave, usuario_id) | V11 | — |
+| `municipalidad` | 4 | — | V15 | — |
 | `notificacion` | 10 | — | V1 | — |
 | `password_reset_token` | 6 | — | V8 | — |
-| `reporte` | 13 | — | V1 | V6, V7 |
+| `periodo_gestion` | 3 | — | V15 | V16 |
+| `reporte` | 16 | — | V1 | V6, V7, V17 |
 | `suscripcion_push` | 9 | — | V12 | — |
 | `ticket_soporte` | 9 | — | V1 | V9 |
 | `usuario` | 12 | — | V1 | V10 |
