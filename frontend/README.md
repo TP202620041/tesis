@@ -379,7 +379,10 @@ Decisión del usuario (20/10):
   a los que les faltan datos: complétalos en Mis reportes») con enlace a
   «Pendiente de envío». Lo compone `app/SincronizadorDeReportes.tsx` con
   `useCantidadDeIncompletos`; sin sesión sigue el aviso de siempre, que solo
-  cuenta los reenviables.
+  cuenta los reenviables. Se puede **cerrar** por el resto de la sesión de la
+  pestaña (`sessionStorage`, o en memoria si no está disponible) y vuelve si
+  aparecen más incompletos; va un poco más arriba del borde para no tapar la
+  atribución de OpenStreetMap en `/mapa` en el móvil.
 - Tests: un incompleto nunca se envía sin completar (ni pendiente ni
   rechazado); al completarlo usa la misma clave y la sincronización automática
   lo envía; un 400 lo conserva; no se purga a los 30 días; completarlo pasadas
@@ -719,15 +722,20 @@ Verificado end-to-end contra el backend real:
   jsdom. Verificado el 20/10 contra el backend real: la capa dibuja los
   círculos bajo los marcadores en un único canvas, y con un reporte por celda
   la leyenda dice «Baja» (piso de 4 en la escala).
-
-Implementado y cubierto por tests, **pendiente de verificación en vivo**
-contra el backend real:
-
 - **NC-02** título y severidad: obligatorios en `/reportar` (severidad sin
   valor por defecto), editables en PENDIENTE (US-08) y visibles en el mapa, la
   lista, los detalles, mis reportes y la bandeja (solo lectura). La cola
   offline gana el estado «incompleto» para los reportes guardados antes (ver
   «Título y severidad del reporte (NC-02)» en Decisiones técnicas).
+  Verificado el 21/10 en Chrome contra el backend real, vía túnel HTTPS:
+  crear con título y severidad (201, asignado a Miraflores); un título de 4
+  caracteres queda bloqueado con `aria-invalid`/`aria-describedby`; la edición
+  en PENDIENTE se guarda (confirmado en la BD); una adhesión muestra el título
+  y la severidad del reporte existente, con el aviso; un ítem incompleto
+  inyectado en IndexedDB no se envía solo; el aviso «faltan datos» aparece en
+  `/mapa`; completar sin severidad muestra «Elige la severidad del daño»; y,
+  tras completarlo, se envió con la MISMA `Idempotency-Key` (reporte #185) y
+  salió de la cola.
 
 ### `null` no es cero
 
