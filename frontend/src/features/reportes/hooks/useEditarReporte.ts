@@ -3,12 +3,18 @@
 import { useCallback, useState } from 'react';
 import { mensajeDeError, type MensajeDeError } from '@/lib/api/errors';
 import { cancelarReporte, editarReporte } from '../api';
-import { cambiosDeEdicion, opcionesDeCategoria } from '../model/edicion';
+import {
+  cambiosDeEdicion,
+  errorDeEdicion,
+  opcionesDeCategoria,
+  type EdicionElegida,
+} from '../model/edicion';
 import type { ReporteResumen } from '../model/tipos';
 import { useCategoriasDeReporte } from './useCategoriasDeReporte';
 
 /**
- * US-08: el creador edita o retira su reporte mientras sigue PENDIENTE.
+ * US-08: el creador edita o retira su reporte mientras sigue PENDIENTE
+ * (NC-02: tambien su titulo y su severidad).
  *
  * El backend valida igual y responde 403 (no eres el creador) o 409 (ya no
  * esta PENDIENTE) si algo cambio mientras la pantalla estaba abierta; los
@@ -23,6 +29,8 @@ export function useEditarReporte(reporte: ReporteResumen) {
 
   const reporteId = reporte.id ?? 0;
   const categoriaOriginal = reporte.categoriaId ?? null;
+  const tituloOriginal = reporte.titulo ?? null;
+  const severidadOriginal = reporte.severidad ?? null;
 
   // Una categoria desactivada (US-29) ya no viene en el catalogo, pero sigue
   // siendo la del reporte: se ofrece igual, marcada.
@@ -47,14 +55,24 @@ export function useEditarReporte(reporte: ReporteResumen) {
 
   /**
    * US-29: la categoria solo se reenvia si cambio (puede estar desactivada;
-   * el backend lo acepta, pero no hace falta).
+   * el backend lo acepta, pero no hace falta). NC-02: titulo y severidad,
+   * igual; un titulo cambiado se valida antes de enviarlo (el backend
+   * responderia 400).
    */
   const guardar = useCallback(
-    (categoriaId: number | null, descripcion: string) =>
-      ejecutar(() =>
-        editarReporte(reporteId, cambiosDeEdicion(categoriaOriginal, categoriaId, descripcion)),
-      ),
-    [ejecutar, reporteId, categoriaOriginal],
+    async (elegido: EdicionElegida): Promise<boolean> => {
+      const cambios = cambiosDeEdicion(
+        { categoriaId: categoriaOriginal, titulo: tituloOriginal, severidad: severidadOriginal },
+        elegido,
+      );
+      const invalido = errorDeEdicion(cambios);
+      if (invalido) {
+        setError({ mensaje: invalido, detalles: [] });
+        return false;
+      }
+      return ejecutar(() => editarReporte(reporteId, cambios));
+    },
+    [ejecutar, reporteId, categoriaOriginal, tituloOriginal, severidadOriginal],
   );
 
   /** Pasa el reporte a CANCELADO, tambien para los vecinos adheridos. */

@@ -15,7 +15,14 @@ function enCola(clave: string, usuarioId: number): ReporteEnCola {
     idempotencyKey: clave,
     usuarioId,
     creadoEn: new Date().toISOString(),
-    datos: { latitud: -12.1, longitud: -77.0, categoriaId: 1, ubicacionManual: false },
+    datos: {
+      latitud: -12.1,
+      longitud: -77.0,
+      categoriaId: 1,
+      titulo: 'Bache en Miraflores',
+      severidad: 'MEDIA',
+      ubicacionManual: false,
+    },
     foto: null,
     estado: 'pendiente',
     motivo: null,
@@ -173,6 +180,25 @@ describe('useConfirmacionAlCerrarSesion', () => {
 
     await waitFor(() => expect(cerrado).toBe(true));
     expect((await colaDeReportes.listar()).map((r) => r.idempotencyKey)).toEqual(['ajeno']);
+    unmount();
+  });
+});
+
+describe('useConfirmacionAlCerrarSesion: desglose (NC-02)', () => {
+  it('separa los que se enviaran solos de los incompletos y rechazados', async () => {
+    const incompleto = enCola('viejo', 7);
+    delete incompleto.datos.titulo;
+    delete incompleto.datos.severidad;
+    await colaDeReportes.guardar(enCola('k1', 7));
+    await colaDeReportes.guardar(incompleto);
+    await colaDeReportes.guardar({ ...enCola('k3', 7), estado: 'rechazado', motivo: 'Fuera de Lima' });
+    await colaDeReportes.guardar(enCola('ajeno', 8));
+
+    const { result, unmount } = renderHook(() => useConfirmacionAlCerrarSesion(7));
+
+    await waitFor(() =>
+      expect(result.current.desglose).toEqual({ seEnviaran: 1, requierenAccion: 2, incompletos: 1 }),
+    );
     unmount();
   });
 });

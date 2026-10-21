@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { CategoriaDano } from '@/lib/types/domain';
-import { cambiosDeEdicion, etiquetaDeOpcion, opcionesDeCategoria } from './edicion';
+import {
+  cambiosDeEdicion,
+  errorDeEdicion,
+  etiquetaDeOpcion,
+  opcionesDeCategoria,
+} from './edicion';
 
 const CATALOGO: CategoriaDano[] = [
   { id: 1, nombre: 'Bache', esEstandar: true },
@@ -27,11 +32,40 @@ describe('opcionesDeCategoria', () => {
 });
 
 describe('cambiosDeEdicion', () => {
-  it('no reenvía la categoría si el ciudadano no la cambió', () => {
-    expect(cambiosDeEdicion(58, 58, 'Más detalle')).toEqual({ descripcion: 'Más detalle' });
+  const ORIGINAL = { categoriaId: 58, titulo: 'Bache en la ciclovía', severidad: 'MEDIA' };
+  const SIN_CAMBIOS = {
+    categoriaId: 58,
+    titulo: 'Bache en la ciclovía',
+    severidad: 'MEDIA' as const,
+    descripcion: 'Más detalle',
+  };
+
+  it('no reenvía categoría, título ni severidad si el ciudadano no los cambió', () => {
+    expect(cambiosDeEdicion(ORIGINAL, SIN_CAMBIOS)).toEqual({ descripcion: 'Más detalle' });
   });
 
   it('envía la categoría nueva cuando cambió', () => {
-    expect(cambiosDeEdicion(58, 1, 'x')).toEqual({ categoriaId: 1, descripcion: 'x' });
+    expect(cambiosDeEdicion(ORIGINAL, { ...SIN_CAMBIOS, categoriaId: 1, descripcion: 'x' })).toEqual({
+      categoriaId: 1,
+      descripcion: 'x',
+    });
+  });
+
+  it('NC-02: envía el título recortado y la severidad solo si cambiaron', () => {
+    expect(
+      cambiosDeEdicion(ORIGINAL, { ...SIN_CAMBIOS, titulo: '  Bache en la ciclovía  ' }),
+    ).toEqual({ descripcion: 'Más detalle' });
+    expect(
+      cambiosDeEdicion(ORIGINAL, { ...SIN_CAMBIOS, titulo: ' Bache grande ', severidad: 'ALTA' }),
+    ).toEqual({ titulo: 'Bache grande', severidad: 'ALTA', descripcion: 'Más detalle' });
+  });
+});
+
+describe('errorDeEdicion (NC-02)', () => {
+  it('valida el título solo si se va a enviar', () => {
+    expect(errorDeEdicion({ descripcion: 'x' })).toBeNull();
+    expect(errorDeEdicion({ titulo: 'Bache', descripcion: 'x' })).toBeNull();
+    expect(errorDeEdicion({ titulo: '', descripcion: 'x' })).toBe('Escribe un título para el reporte.');
+    expect(errorDeEdicion({ titulo: 'x'.repeat(121), descripcion: 'x' })).toMatch(/como máximo 120/);
   });
 });

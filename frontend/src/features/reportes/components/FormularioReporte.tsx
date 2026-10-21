@@ -2,14 +2,18 @@
 
 import { useState } from 'react';
 import { AlertaError, Boton } from '@/components/ui/form';
+import type { Severidad } from '@/lib/types/domain';
 import { useCategoriasDeReporte } from '../hooks/useCategoriasDeReporte';
 import { useCrearReporte } from '../hooks/useCrearReporte';
+import { erroresDeTituloYSeveridad } from '../model/titulo';
 import type { ReporteCreado } from '../model/tipos';
+import { CampoSeveridad, CampoTitulo } from './CamposTituloYSeveridad';
 import { CampoFoto } from './CampoFoto';
 import { CampoUbicacion, type UbicacionElegida } from './CampoUbicacion';
 
 /**
- * US-05: crear un reporte con foto, categoría y GPS.
+ * US-05: crear un reporte con foto, categoría y GPS. NC-02: con título
+ * (obligatorio) y severidad (obligatoria, sin valor por defecto).
  *
  * US-06: sin conexión, el reporte se guarda en el dispositivo con su
  * `Idempotency-Key` (`onEncolado`) y se envía solo al volver la señal. La
@@ -24,10 +28,17 @@ export function FormularioReporte({
   onCreado: (r: ReporteCreado) => void;
   onEncolado: () => void;
 }) {
-  const { enviar: enviarReporte, enviando, error } = useCrearReporte(usuarioId);
+  const { enviar: enviarReporte, enviando, error, limpiarError } = useCrearReporte(usuarioId);
   const [ubicacion, setUbicacion] = useState<UbicacionElegida | null>(null);
   const [categoriaElegida, setCategoriaElegida] = useState<number | null>(null);
+  const [titulo, setTitulo] = useState('');
+  const [severidad, setSeveridad] = useState<Severidad | null>(null);
   const [descripcion, setDescripcion] = useState('');
+  // Los errores por campo se muestran recien tras el primer intento de envio.
+  const [intentado, setIntentado] = useState(false);
+  const errores = intentado
+    ? erroresDeTituloYSeveridad(titulo, severidad)
+    : { titulo: null, severidad: null };
   const [foto, setFoto] = useState<File | null>(null);
 
   const distritoId = ubicacion?.distrito?.id ?? null;
@@ -45,6 +56,15 @@ export function FormularioReporte({
 
   async function enviar(evento: React.FormEvent) {
     evento.preventDefault();
+    setIntentado(true);
+    // Titulo o severidad invalidos: se marcan en su campo y no se envia (el
+    // hook valida igual, pero asi el mensaje no sale dos veces).
+    const campos = erroresDeTituloYSeveridad(titulo, severidad);
+    if (campos.titulo || campos.severidad) {
+      // El error anterior (p. ej. un 409 del intento previo) ya no aplica.
+      limpiarError();
+      return;
+    }
     const desenlace = await enviarReporte({
       ubicacion: ubicacion && {
         latitud: ubicacion.coordenadas.latitud,
@@ -52,6 +72,8 @@ export function FormularioReporte({
         manual: ubicacion.manual,
       },
       categoriaId,
+      titulo,
+      severidad,
       descripcion,
       foto,
     });
@@ -95,6 +117,15 @@ export function FormularioReporte({
           </p>
         )}
       </div>
+
+      <CampoTitulo id="titulo" valor={titulo} onCambiar={setTitulo} error={errores.titulo} />
+
+      <CampoSeveridad
+        nombre="severidad"
+        valor={severidad}
+        onCambiar={setSeveridad}
+        error={errores.severidad}
+      />
 
       <CampoFoto valor={foto} onCambiar={setFoto} />
 

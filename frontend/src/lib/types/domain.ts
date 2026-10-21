@@ -42,6 +42,24 @@ export const ESTADOS_REPORTE = [
 ] as const;
 export type EstadoReporte = (typeof ESTADOS_REPORTE)[number];
 
+/**
+ * NC-02: severidad del daño, declarada por el ciudadano al reportar
+ * (`reportes/domain/Severidad.java`), en orden BAJA < MEDIA < ALTA. Es un
+ * dato publico (va en el resumen), no una señal operativa. No tiene valor
+ * por defecto en el API: el formulario obliga a elegirla.
+ *
+ * Nulabilidad: en `ReporteResumen` y `ReporteGestion` siempre viene (la
+ * migracion V17 relleno los reportes existentes). En la respuesta del POST
+ * puede llegar `null` si es el reenvio idempotente de un envio que el
+ * backend proceso antes de NC-02 (la respuesta guardada no la tiene).
+ */
+export const SEVERIDADES = ['BAJA', 'MEDIA', 'ALTA'] as const;
+export type Severidad = (typeof SEVERIDADES)[number];
+
+export function esSeveridad(valor: unknown): valor is Severidad {
+  return typeof valor === 'string' && (SEVERIDADES as readonly string[]).includes(valor);
+}
+
 export const PREFERENCIAS_NOTIFICACION = ['PUSH', 'EMAIL', 'AMBAS'] as const;
 export type PreferenciaNotificacion = (typeof PREFERENCIAS_NOTIFICACION)[number];
 

@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { estiloDeEstado } from '@/lib/types/estados';
+import { textoDeSeveridad, tituloVisible } from '@/lib/types/tituloYSeveridad';
 import type { ReporteGestion } from '../model/tipos';
 
 /** Criterios de orden de la bandeja. */
@@ -75,8 +76,10 @@ export function TablaBandeja({ reportes, orden, onOrdenar }: Props) {
                 />
                 <span className="min-w-0 flex-1">
                   <span className="flex flex-wrap items-center gap-2">
+                    {/* NC-02: el titulo y la severidad los declara el ciudadano;
+                        el funcionario los ve pero no los cambia. */}
                     <strong className="text-slate-900 dark:text-slate-100">
-                      {reporte.categoriaNombre}
+                      {tituloVisible(reporte.titulo)}
                     </strong>
                     <span className="text-xs text-slate-500 dark:text-slate-400">
                       {estilo.etiqueta}
@@ -88,6 +91,11 @@ export function TablaBandeja({ reportes, orden, onOrdenar }: Props) {
                         Posible reincidencia
                       </span>
                     )}
+                  </span>
+                  <span className="mt-0.5 block text-sm text-slate-700 dark:text-slate-300">
+                    {[reporte.categoriaNombre, textoDeSeveridad(reporte.severidad)]
+                      .filter(Boolean)
+                      .join(' · ')}
                   </span>
                   {reporte.descripcion && (
                     <span className="mt-0.5 block truncate text-sm text-slate-600 dark:text-slate-400">

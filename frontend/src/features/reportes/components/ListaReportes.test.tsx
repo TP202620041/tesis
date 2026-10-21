@@ -35,6 +35,22 @@ describe('ListaReportes', () => {
     expect(enlace).toHaveTextContent('3 vecinos lo reportaron');
   });
 
+  it('NC-02: muestra título, categoría y severidad', () => {
+    render(
+      <ListaReportes consultaHecha cargando={false}
+        reportes={[reporte(7, { titulo: 'Bache en la berma', categoriaNombre: 'Bache', severidad: 'ALTA' })]}
+      />,
+    );
+    const enlace = screen.getByRole('link');
+    expect(within(enlace).getByText('Bache en la berma')).toBeInTheDocument();
+    expect(within(enlace).getByText('Bache · Severidad alta')).toBeInTheDocument();
+  });
+
+  it('NC-02: sin título muestra «Sin título»', () => {
+    render(<ListaReportes consultaHecha cargando={false} reportes={[reporte(1)]} />);
+    expect(within(screen.getByRole('link')).getByText('Sin título')).toBeInTheDocument();
+  });
+
   it('muestra la fecha del reporte', () => {
     render(<ListaReportes consultaHecha cargando={false} reportes={[reporte(1)]} />);
     const fecha = new Date('2026-10-05T15:00:00Z').toLocaleDateString('es-PE', {

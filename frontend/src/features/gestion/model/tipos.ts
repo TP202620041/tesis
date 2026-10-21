@@ -4,6 +4,7 @@
  * (`HistorialEntrada`) es de `lib/types/domain`.
  */
 import type { components } from '@/lib/api/generated/schema';
+import type { Severidad } from '@/lib/types/domain';
 
 /**
  * US-13/US-14 (SEC-02): reporte tal como lo ve el funcionario en la bandeja.
@@ -13,7 +14,13 @@ import type { components } from '@/lib/api/generated/schema';
  * el flag solo viaja en `GET /bandeja` y `PATCH /{id}/estado`, y ninguna vista
  * publica ni del ciudadano debe poder leerlo (regla del proyecto).
  */
-export type ReporteGestion = components['schemas']['ReporteGestionResponse'];
+export type ReporteGestion = Omit<components['schemas']['ReporteGestionResponse'], 'severidad'> & {
+  /**
+   * NC-02: declarada por el ciudadano; el funcionario la ve pero no la
+   * cambia (no hay endpoint de gestion que la edite). Igual que `titulo`.
+   */
+  severidad?: Severidad;
+};
 
 /** US-15: responsable interno vigente de un reporte. */
 export type AsignacionResponsable = components['schemas']['AsignacionResponsableResponse'];

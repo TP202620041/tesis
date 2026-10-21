@@ -1,12 +1,30 @@
 import { describe, expect, it } from 'vitest';
-import { desenlaceDeEnvio, pendientesDe, type ReporteEnCola } from './colaOffline';
+import {
+  avisoDeIncompleto,
+  camposQueFaltan,
+  debePurgarse,
+  desenlaceDeEnvio,
+  desglosar,
+  estadoVisible,
+  estaIncompleto,
+  pendientesDe,
+  seReenviaSolo,
+  type ReporteEnCola,
+} from './colaOffline';
 
 function enCola(clave: string, usuarioId: number, creadoEn: string): ReporteEnCola {
   return {
     idempotencyKey: clave,
     usuarioId,
     creadoEn,
-    datos: { latitud: -12.1, longitud: -77.0, categoriaId: 1, ubicacionManual: false },
+    datos: {
+      latitud: -12.1,
+      longitud: -77.0,
+      categoriaId: 1,
+      titulo: 'Bache en Miraflores',
+      severidad: 'MEDIA',
+      ubicacionManual: false,
+    },
     foto: null,
     estado: 'pendiente',
     motivo: null,
@@ -49,5 +67,81 @@ describe('pendientesDe', () => {
 
     expect(pendientesDe(cola, 1).map((r) => r.idempotencyKey)).toEqual(['a', 'b']);
     expect(pendientesDe(cola, 3)).toEqual([]);
+  });
+});
+
+describe('estado «incompleto» (NC-02)', () => {
+  const CREADO = '2026-10-19T10:00:00.000Z';
+  const HORA = 60 * 60 * 1000;
+  const tras = (horas: number) => new Date(new Date(CREADO).getTime() + horas * HORA);
+  /** Como lo guardaba la version anterior: sin titulo ni severidad. */
+  function viejo(extra: Partial<ReporteEnCola> = {}): ReporteEnCola {
+    const datos = { ...enCola('v', 1, CREADO).datos };
+    delete datos.titulo;
+    delete datos.severidad;
+    return { ...enCola('v', 1, CREADO), datos, ...extra };
+  }
+
+  it('se deduce de que falten (o no sean validos) el titulo o la severidad', () => {
+    expect(estaIncompleto(enCola('k', 1, CREADO))).toBe(false);
+    expect(estaIncompleto(viejo())).toBe(true);
+    const base = enCola('k', 1, CREADO);
+    expect(estaIncompleto({ ...base, datos: { ...base.datos, titulo: 'Hoyo' } })).toBe(true);
+    expect(estaIncompleto({ ...base, datos: { ...base.datos, severidad: undefined } })).toBe(true);
+  });
+
+  it('no se reenvia solo', () => {
+    expect(estadoVisible(viejo(), tras(1))).toBe('incompleto');
+    expect(seReenviaSolo(viejo(), tras(1))).toBe(false);
+  });
+
+  it('prevalece sobre rechazado y caducado: completarlo es la salida', () => {
+    expect(estadoVisible(viejo({ estado: 'rechazado', motivo: 'El titulo…' }), tras(1))).toBe(
+      'incompleto',
+    );
+    expect(estadoVisible(viejo(), tras(72))).toBe('incompleto');
+  });
+
+  it('nunca se purga, aunque pasen 30 dias', () => {
+    expect(debePurgarse(viejo(), tras(40 * 24))).toBe(false);
+    expect(debePurgarse(viejo({ estado: 'rechazado', motivo: 'x' }), tras(40 * 24))).toBe(false);
+    // Un completo caducado de la misma edad si.
+    expect(debePurgarse(enCola('k', 1, CREADO), tras(40 * 24))).toBe(true);
+  });
+});
+
+describe('lo que le falta a un incompleto (NC-02)', () => {
+  const base = enCola('k', 1, '2026-10-19T10:00:00.000Z');
+  const con = (datos: Partial<ReporteEnCola['datos']>): ReporteEnCola => ({
+    ...base,
+    datos: { ...base.datos, ...datos },
+  });
+
+  it('arma el aviso segun falte el titulo, la severidad o ambos', () => {
+    expect(camposQueFaltan(base)).toEqual([]);
+    expect(avisoDeIncompleto(con({ titulo: undefined }))).toBe(
+      'Le falta el título: complétalo para enviarlo.',
+    );
+    expect(avisoDeIncompleto(con({ severidad: undefined }))).toBe(
+      'Le falta la severidad: complétala para enviarlo.',
+    );
+    expect(camposQueFaltan(con({ titulo: undefined, severidad: undefined }))).toEqual([
+      'titulo',
+      'severidad',
+    ]);
+    expect(avisoDeIncompleto(con({ titulo: undefined, severidad: undefined }))).toBe(
+      'Le faltan el título y la severidad: complétalos para enviarlo.',
+    );
+  });
+});
+
+describe('desglosar', () => {
+  it('separa los que se enviaran solos de los que necesitan accion', () => {
+    expect(desglosar(['pendiente', 'incompleto', 'rechazado', 'caducado', 'pendiente'])).toEqual({
+      seEnviaran: 2,
+      requierenAccion: 3,
+      incompletos: 1,
+    });
+    expect(desglosar([])).toEqual({ seEnviaran: 0, requierenAccion: 0, incompletos: 0 });
   });
 });

@@ -15,8 +15,17 @@ const REPORTE: ReporteResumen = {
   estado: 'PENDIENTE',
   categoriaId: 58,
   categoriaNombre: 'Ciclovia obstruida',
+  titulo: 'Conos en la ciclovía',
+  severidad: 'BAJA',
   descripcion: 'Conos',
   distritoId: 15,
+};
+
+const ELEGIDO = {
+  categoriaId: 58,
+  titulo: 'Conos en la ciclovía',
+  severidad: 'BAJA' as const,
+  descripcion: 'Conos',
 };
 
 beforeEach(() => {
@@ -57,7 +66,7 @@ describe('useEditarReporte (US-08 + US-29)', () => {
 
     let ok = false;
     await act(async () => {
-      ok = await result.current.guardar(58, 'Conos en la ciclovía');
+      ok = await result.current.guardar({ ...ELEGIDO, descripcion: 'Conos en la ciclovía' });
     });
 
     expect(ok).toBe(true);
@@ -68,9 +77,33 @@ describe('useEditarReporte (US-08 + US-29)', () => {
     vi.mocked(editarReporte).mockResolvedValue(REPORTE);
     const { result } = renderHook(() => useEditarReporte(REPORTE));
     await act(async () => {
-      await result.current.guardar(1, 'Conos');
+      await result.current.guardar({ ...ELEGIDO, categoriaId: 1 });
     });
     expect(editarReporte).toHaveBeenCalledWith(9, { categoriaId: 1, descripcion: 'Conos' });
+  });
+
+  it('NC-02: envía título y severidad cambiados', async () => {
+    vi.mocked(editarReporte).mockResolvedValue(REPORTE);
+    const { result } = renderHook(() => useEditarReporte(REPORTE));
+    await act(async () => {
+      await result.current.guardar({ ...ELEGIDO, titulo: 'Conos y arena', severidad: 'ALTA' });
+    });
+    expect(editarReporte).toHaveBeenCalledWith(9, {
+      titulo: 'Conos y arena',
+      severidad: 'ALTA',
+      descripcion: 'Conos',
+    });
+  });
+
+  it('NC-02: un título inválido no llega al backend', async () => {
+    const { result } = renderHook(() => useEditarReporte(REPORTE));
+    let ok = true;
+    await act(async () => {
+      ok = await result.current.guardar({ ...ELEGIDO, titulo: 'Ab' });
+    });
+    expect(ok).toBe(false);
+    expect(editarReporte).not.toHaveBeenCalled();
+    expect(result.current.error?.mensaje).toMatch(/al menos 5/);
   });
 
   it('el 409 (ya no está PENDIENTE) llega con su mensaje', async () => {
