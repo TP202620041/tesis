@@ -31,6 +31,14 @@ import pe.edu.upc.viasegura.support.AbstractPostgisIT;
  * uno sobre los textos viejos de V3 (lo que encuentra una base de producción)
  * y otro con una categoría de distrito que ya tiene el nombre corregido, el
  * caso en que la migración debe detenerse.</p>
+ *
+ * <p>La comprobación de V18 compara con {@code lower()}, que depende del
+ * {@code LC_CTYPE} de la base: con uno UTF-8 (el del contenedor, {@code en_US.utf8})
+ * baja también las letras con tilde («vereda DAÑADA» → «vereda dañada»); con
+ * el locale {@code C} solo las ASCII. Producción arranca sin categorías de
+ * distrito, así que ahí no hay nada que comparar. Se anota aquí y en el
+ * README, no en el SQL: V18 ya está aplicada y un comentario nuevo cambiaría
+ * su checksum.</p>
  */
 class CategoriasEstandarConTildesIT extends AbstractPostgisIT {
 

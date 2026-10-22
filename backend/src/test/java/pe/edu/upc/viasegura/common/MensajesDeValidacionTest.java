@@ -28,7 +28,13 @@ import org.junit.jupiter.api.Test;
  */
 class MensajesDeValidacionTest {
 
-    private static final String PAQUETE_RESTRICCIONES = "jakarta.validation.constraints";
+    /** Restricciones estandar y las propias de Hibernate Validator ({@code @Length}, {@code @Range}…). */
+    private static final List<String> PAQUETES_RESTRICCIONES =
+            List.of("jakarta.validation.constraints", "org.hibernate.validator.constraints");
+
+    /** Prefijos de las plantillas de mensaje por defecto de ambos. */
+    private static final List<String> PLANTILLAS_POR_DEFECTO =
+            List.of("{jakarta.validation.", "{org.hibernate.validator.");
 
     @Test
     void cadaRestriccionDeUnDtoTieneMensajePropio() throws Exception {
@@ -43,7 +49,7 @@ class MensajesDeValidacionTest {
             }
             for (Field campo : clase.reflect().getDeclaredFields()) {
                 for (Annotation anotacion : campo.getAnnotations()) {
-                    if (!anotacion.annotationType().getPackageName().equals(PAQUETE_RESTRICCIONES)) {
+                    if (!PAQUETES_RESTRICCIONES.contains(anotacion.annotationType().getPackageName())) {
                         continue;
                     }
                     String donde = "%s.%s @%s".formatted(clase.getSimpleName(), campo.getName(),
@@ -51,7 +57,7 @@ class MensajesDeValidacionTest {
                     revisadas.add(donde);
                     Method message = anotacion.annotationType().getMethod("message");
                     String plantilla = (String) message.invoke(anotacion);
-                    if (plantilla.startsWith("{jakarta.validation.")) {
+                    if (PLANTILLAS_POR_DEFECTO.stream().anyMatch(plantilla::startsWith)) {
                         sinMensajePropio.add(donde);
                     }
                 }
