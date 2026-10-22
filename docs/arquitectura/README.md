@@ -33,7 +33,7 @@ La salida es estable (orden alfabético, sin fechas): sin cambios en el código,
 
 ## Qué parte es manual
 
-- Todo `c4-contexto.md`, `c4-contenedores.md` y `capas.md`.
+- Todo `c4-contexto.md`, `c4-contenedores.md`, `c4-despliegue.md` y `capas.md`.
 - En `modulos.md` y `modelo-datos.md`, todo lo que está **fuera** de los marcadores `<!-- generado:inicio <bloque> -->` / `<!-- generado:fin <bloque> -->`. Lo de adentro se sobrescribe en cada corrida.
 
 Los diagramas manuales se revisan a mano en la misma rama cuando cambia lo que dibujan: un actor, un contenedor, un protocolo o una sección de `ARCHITECTURE.md`.

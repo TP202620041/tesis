@@ -1,9 +1,9 @@
-# Decisiones pendientes del usuario (consolidado al 21/10/2026)
+# Decisiones pendientes del usuario (índice al 21/10/2026)
 
-- **Estado:** abierta <!-- abierta | aceptada | rechazada -->
+- **Tipo:** **índice**, no una propuesta. No se acepta ni se rechaza en bloque: cada decisión vive en su propuesta de origen o en el plan, y aquí solo se lista con su urgencia y un enlace.
 - **Fecha:** 2026-10-21
 - **Origen:** subagente arquitecto, encargo ARQ-1
-- **Decide:** el usuario, una por una. Cuando se decida una, la sesión de raíz la registra (D-xx en ARCHITECTURE.md, el plan o la propuesta de origen) y la marca aquí como decidida.
+- **Mantenimiento:** cuando el usuario decide un punto, la sesión de raíz lo registra donde corresponde (D-xx en ARCHITECTURE.md, el plan o la propuesta de origen) y aquí lo marca como decidido, con la fecha y el lugar del registro.
 
 Reúne **todo** lo que hoy espera una decisión del usuario, venga de esta ronda (despliegue, correo, fotos, ML, §4.3) o de antes (D-10, KPIs, OB2, US-19, legal). Cada fila dice qué bloquea, la recomendación y la urgencia:
 
@@ -22,7 +22,7 @@ Reúne **todo** lo que hoy espera una decisión del usuario, venga de esta ronda
 | 5 | Primer ADMIN y funcionarios de la demo | Alta | DEP-04, DEP-05 | Una cuenta del equipo como ADMIN; funcionarios solo con permiso de su titular | §5 |
 | 6 | Datos de demostración en producción | Alta | Mostrar el sistema al jurado | No sembrar datos falsos en producción | §6 |
 | 7 | Legal: `[COMPLETAR]`, titular, ANPD, edad, transcripción en el repo | Alta | Abrir a usuarios reales | Completar y registrar antes de abrir | §7 |
-| 8 | Fotos: recodificar a JPEG y dos buckets | Alta | DEP-12 | Sí (opción A de la propuesta de fotos) | §8 |
+| 8 | Fotos: recodificar a JPEG, dos buckets y ajuste a D-08 | Alta | DEP-12 (y NC-04 por D-08) | Sí (opción A de la propuesta de fotos) | §8 |
 | 9 | Previews de Vercel y Swagger en producción | Baja | Nada grave | Previews apagadas; Swagger apagado salvo variable | §9 |
 | 10 | CI como chequeo obligatorio de los PR | Media | Protección de ramas | Sí, cuando DEP-07 esté verde una semana | §10 |
 | 11 | D-10: jurisdicción del funcionario | Media | NC-05, NC-06; el script DEP-05 | `municipalidad_id` con NC-06 (o confirmar `distrito_id`) | §11 |
@@ -82,13 +82,13 @@ No es asesoría legal; es la lista para revisar con un asesor. Fuentes oficiales
 | **Registros de acceso por 2 años** (art. 46), **documento de seguridad** (art. 47) | Confirmar si aplican a esta plataforma y cómo cumplirlos (los logs de Railway duran poco). | Media |
 | **Incidentes** | Aviso a la ANPD y a los afectados en 48 h (art. 34). Designar quién lo hace (runbook §9). | Alta |
 | **Fotos con personas o placas** | ¿Basta la §10 de los términos (responsabilidad del ciudadano) o se difumina? ¿Es válida la exclusión de responsabilidad de la §10 en Perú? | Media |
-| **Transcripción de entrevista en el repo público** | `Fabrizio Leon's Zoom Meeting - corregido.txt` está versionado desde el primer commit y nombra a participantes. Confirmar que tienen su consentimiento para publicarla; si no, sacarla del repo (y del historial, con cuidado: reescribir la historia exige coordinación y está fuera de lo que puede hacer un agente). | Alta |
+| **Transcripción de entrevista en el repo público** | La transcripción de una reunión de Zoom versionada en la raíz del repo (desde el primer commit) nombra a los participantes. Confirmar que tienen su consentimiento para publicarla; si no, sacarla del repo (y del historial, con cuidado: reescribir la historia exige coordinación y está fuera de lo que puede hacer un agente). | Alta |
 | **Oficial de Datos Personales** | Probablemente no obligatorio (menos de 10.000 titulares y sin datos sensibles). Confirmar. | Baja |
 
 ## 8. Fotos (DEP-12)
 
-- **Qué:** aprobar que las fotos se **recodifiquen a JPEG** (máx. 2048 px, calidad 0,85) para quitar todo metadato, en lugar de quitar el EXIF formato por formato; y usar **dos buckets** (reportes y perfiles) en lugar de uno.
-- **Recomendación:** sí a las dos. Detalle: `2026-10-21-fotos-r2.md`.
+- **Qué:** aprobar que las fotos se **recodifiquen a JPEG** (máx. 2048 px, calidad 0,85) para quitar todo metadato, en lugar de quitar el EXIF formato por formato, detrás de un puerto `common/port/SaneadorDeImagen`; usar **dos buckets** (reportes y perfiles) en lugar de uno; y el **ajuste a D-08**: la vista previa de NC-04 clasifica la foto pasada por el mismo saneado, para que vea lo mismo que la sugerencia oficial.
+- **Recomendación:** sí a las tres. Detalle: `2026-10-21-fotos-r2.md`.
 
 ## 9. Previews de Vercel y Swagger en producción
 

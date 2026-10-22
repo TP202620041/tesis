@@ -65,12 +65,16 @@ Además, mientras espera al servidor de correo retiene una conexión del pool de
 
 Propuesta, con el patrón de D-13:
 
-1. `PasswordResetService#solicitarRecuperacion` (transaccional y corto) guarda el token y publica `auth/event/RecuperacionSolicitadaEvent(usuarioId)`. Si la cuenta no existe, no hace nada más. No envía.
-2. `auth/listener/RecuperacionSolicitadaListener` (`@TransactionalEventListener(AFTER_COMMIT)`) encola en el ejecutor acotado de `AsyncConfig` (`@Async(AsyncConfig.EJECUTOR)`); el envío por `CorreoSaliente` corre **sin transacción**. Si falla, se registra con el id del usuario (no el correo) y el token queda guardado: el ciudadano puede volver a pedirlo.
+1. `PasswordResetService#solicitarRecuperacion` (transaccional y corto) guarda el token y publica `auth/event/RecuperacionSolicitadaEvent(tokenId)`: el **id** del token recién creado, que identifica cuál enviar aunque la cuenta tenga varios vigentes. El valor del token nunca viaja en el evento (un evento puede terminar en un log). Si la cuenta no existe, no hace nada más. No envía.
+2. `auth/listener/RecuperacionSolicitadaListener` (`@TransactionalEventListener(AFTER_COMMIT)`) encola en el ejecutor acotado de `AsyncConfig` (`@Async(AsyncConfig.EJECUTOR)`). En el hilo asíncrono:
+   1. llama a `PasswordResetService#mensajeDeRecuperacion(tokenId)`, de solo lectura y corto, que devuelve el `MensajeCorreo` ya armado (destinatario, asunto y texto con el token y su vigencia), o vacío si el token ya se usó o venció mientras esperaba en la cola;
+   2. envía ese mensaje por `CorreoSaliente` **sin transacción abierta**.
+
+   Así el listener no toca repositorios ni arma textos: el contenido sigue en el servicio de `auth`, donde está hoy. Si el envío falla, se registra con el id del token (no el correo) y el token queda guardado: el ciudadano puede volver a pedirlo.
 3. El controller responde **202 siempre** que el cuerpo sea válido, exista o no la cuenta, y con el mismo tiempo de respuesta en la práctica (una consulta y, si existe, un `INSERT`).
 4. **Tope por cuenta** (nuevo, sin migración): si la cuenta ya tiene N tokens creados en la última hora (`password_reset_token.created_at`, N = 3), no se crea otro ni se envía, y la respuesta sigue siendo 202. Sin este tope, cualquiera puede gastar la cuota diaria gratuita del proveedor con un bucle sobre `POST /api/auth/recuperar-password` y dejar sin avisos a todos los ciudadanos.
 
-La respuesta del ticket (US-25) sigue el mismo camino: `TicketSoporteService#responder` guarda la respuesta y publica `soporte/event/TicketRespondidoEvent`; `soporte/listener/TicketRespondidoListener` envía después del commit. **Cambio de comportamiento:** hoy un fallo del correo revierte la respuesta y da 500; después la respuesta queda guardada (el ciudadano la ve en `GET /mis-tickets`) y el fallo solo se registra. Es lo correcto: el correo es un aviso, no la respuesta.
+La respuesta del ticket (US-25) sigue el mismo camino: `TicketSoporteService#responder` guarda la respuesta y publica `soporte/event/TicketRespondidoEvent(ticketId)`; `soporte/listener/TicketRespondidoListener`, después del commit y en el ejecutor asíncrono, pide a `TicketSoporteService#mensajeDeRespuesta(ticketId)` el `MensajeCorreo` armado y lo envía sin transacción. **Cambio de comportamiento:** hoy un fallo del correo revierte la respuesta y da 500; después la respuesta queda guardada (el ciudadano la ve en `GET /mis-tickets`) y el fallo solo se registra. Es lo correcto: el correo es un aviso, no la respuesta.
 
 `EmailNotificacionAdapter` cambia solo su transporte: llama a `CorreoSaliente` en vez de a `JavaMailSender`. Su ejecución ya es asíncrona y fuera de transacción (D-13).
 

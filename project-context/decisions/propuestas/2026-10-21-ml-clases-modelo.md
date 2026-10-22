@@ -101,7 +101,7 @@ Una categoría sin `clase_modelo` **nunca** se sugiere; el ciudadano la elige a 
 
 | Fase | Tarea | Qué entrega | Depende de |
 |---|---|---|---|
-| **0** | NC-04 (ya, con adaptador falso) | Módulo `clasificacion`: `port/ClasificadorDano`, `infra/FalsoClasificadorAdapter` (respuestas fijas por configuración, incluido «falla» para probar el camino de error), `domain/PoliticaDeSugerencia` con tests puros, `POST /api/clasificaciones` (vista previa, CIUDADANO autenticado, no guarda), `reportes.listener.SugerenciaCategoriaListener` (`AFTER_COMMIT` + `@Async` + escritura corta, D-08/D-13), la migración de datos (abajo) y la vista previa en `features/reportes`. IT: la creación responde aunque la clasificación falle, la sugerencia se escribe una sola vez, lo que envía el cliente se ignora. Se elige el adaptador con `app.clasificacion.tipo=falso\|http`. | Ninguna decisión de esta propuesta salvo el vocabulario de clases (A) |
+| **0** | NC-04 (ya, con adaptador falso) | Módulo `clasificacion`: `port/ClasificadorDano`, `infra/FalsoClasificadorAdapter` (respuestas fijas por configuración, incluido «falla» para probar el camino de error), `domain/PoliticaDeSugerencia` con tests puros, `POST /api/clasificaciones` (vista previa, CIUDADANO autenticado, no guarda; **pasa la foto por el mismo `common/port/SaneadorDeImagen` que el almacenamiento** antes de clasificarla, para que el modelo vea lo mismo que verá en la sugerencia oficial: ajuste a D-08 propuesto en `2026-10-21-fotos-r2.md`), `reportes.listener.SugerenciaCategoriaListener` (lee la foto guardada, ya saneada; `AFTER_COMMIT` + `@Async` + escritura corta, D-08/D-13), la migración de datos (abajo) y la vista previa en `features/reportes`. IT: la creación responde aunque la clasificación falle, la sugerencia se escribe una sola vez, lo que envía el cliente se ignora. Se elige el adaptador con `app.clasificacion.tipo=falso\|http`. | Ninguna decisión de esta propuesta salvo el vocabulario de clases (A) |
 | **1** | NC-03a | `inferencia/` con las capas de §6, el contrato `/v1/detecciones`, el modelo elegido exportado a ONNX, pruebas con imágenes fijas, imagen Docker y medición de latencia y RAM en 2 vCPU (`intra_op_num_threads` fijo). | Elegir los pesos y su licencia |
 | **2** | NC-03b | Conjunto de validación de Lima (≥ 200 fotos del equipo), calibración del umbral, informe de precisión y cobertura por categoría. | Fase 1 |
 | **3** | NC-04b | `clasificacion/infra/InferenciaHttpAdapter` (RestClient, timeout 3 s) y el servicio `inferencia` en Railway por la red privada, sin dominio público. Costo estimado + US$ 5–10/mes. | Fases 1 y 2 |
@@ -128,6 +128,7 @@ Una categoría sin `clase_modelo` **nunca** se sugiere; el ciudadano la elige a 
 - **Umbral inicial 0,50**, calibrado en la fase 2.
 - **Desactivar «Hueco en calzada»** antes de abrir a usuarios reales.
 - **NC-04 ya**, con el adaptador falso: no depende de los pesos ni del umbral, solo del vocabulario de clases.
+- **Ajuste a D-08:** la vista previa clasifica la foto saneada por `common/port/SaneadorDeImagen`, igual que la que se guarda (detalle en `2026-10-21-fotos-r2.md`). Sin eso, la vista previa y la sugerencia oficial verían imágenes distintas (orientación, tamaño, compresión).
 
 ## Qué decide el usuario
 

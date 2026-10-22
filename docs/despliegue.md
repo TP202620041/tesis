@@ -140,7 +140,7 @@ railway connect postgis               # abre psql por túnel SSH (requiere psql 
    | `VAPID_SUBJECT` | `mailto:<correo de contacto real del proyecto>` |
    | `JAVA_TOOL_OPTIONS` | `-Xms256m -Xmx512m -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError` |
 
-   `PORT` lo inyecta Railway. Los nombres definitivos de `CORREO_*` y `FOTOS_S3_*` los fijan DEP-08 y DEP-12: si cambian, se actualiza esta tabla.
+   `PORT` lo inyecta Railway. El heap de 512 MB está medido para el saneado de fotos de DEP-12 (decodificación submuestreada y como máximo 2 saneados simultáneos); si los logs muestran `OutOfMemoryError`, subir a `-Xmx768m` y avisar para revisar el límite de saneados. Los nombres definitivos de `CORREO_*` y `FOTOS_S3_*` los fijan DEP-08 y DEP-12: si cambian, se actualiza esta tabla.
 
 **Verificar** (logs del primer despliegue y luego `curl`):
 
@@ -263,8 +263,10 @@ docker exec -i viasegura-db pg_restore -U viasegura -d restaurada --no-owner --n
 #    SQL plano comprimido:
 gunzip -c volcado.sql.gz | docker exec -i viasegura-db psql -U viasegura -d restaurada -v ON_ERROR_STOP=1
 # 4. Arrancar el API contra la copia (sin migraciones pendientes: Flyway valida y no aplica nada)
-SPRING_PROFILES_ACTIVE=dev DB_URL=jdbc:postgresql://localhost:${POSTGRES_PORT:-5432}/restaurada \
-  DB_USERNAME=viasegura DB_PASSWORD=viasegura JWT_SECRET=<uno de desarrollo> mvn spring-boot:run
+#    (desde backend/; el perfil dev exige DB_* y JWT_SECRET)
+DB_URL=jdbc:postgresql://localhost:${POSTGRES_PORT:-5432}/restaurada \
+  DB_USERNAME=viasegura DB_PASSWORD=viasegura JWT_SECRET=$(openssl rand -base64 48) \
+  mvn spring-boot:run -Dspring-boot.run.profiles=dev
 # 5. Comprobar: login con una cuenta conocida, conteo de reportes igual al de producción en la fecha del volcado.
 # 6. Borrar la copia: contiene datos personales de producción.
 docker exec viasegura-db psql -U viasegura -d viasegura -c "DROP DATABASE restaurada;"
