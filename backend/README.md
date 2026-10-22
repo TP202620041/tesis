@@ -82,7 +82,7 @@ preferible que no arranque y que el log diga qué falta.
 | `CORS_ALLOWED_ORIGINS` | sí | Origen exacto de la PWA (`https://<proyecto>.vercel.app`); varios, separados por coma. |
 | `FOTOS_DIR` | sí | Directorio de las fotos. La imagen ya trae `FOTOS_DIR=/data/fotos`. |
 | `PORT` | no (8080) | Lo inyecta la plataforma. |
-| `SWAGGER_ENABLED` | no (`false`) | `true` publica `/v3/api-docs` y Swagger UI. |
+| `SPRINGDOC_HABILITADO` | no (`false`) | `true` publica `/v3/api-docs` y Swagger UI. |
 | `JWT_EXPIRATION_MINUTES`, `VAPID_*`, `PUSH_*`, `MAIL_*`, `NOTIF_FROM`, `LEGAL_VERSION_TERMINOS`, `ASYNC_*` | no | Las mismas de `application.yml`, con sus valores por defecto. |
 
 ### Qué cambia respecto de `local`
@@ -94,7 +94,7 @@ preferible que no arranque y que el log diga qué falta.
   conservan su `message`, que es el que muestra el frontend
   (`frontend/src/lib/api/errors.ts`); `PerfilProdIT` lo comprueba con un 409
   conocido.
-- **OpenAPI y Swagger UI** apagados salvo `SWAGGER_ENABLED=true`: la
+- **OpenAPI y Swagger UI** apagados salvo `SPRINGDOC_HABILITADO=true`: la
   documentación del contrato se consulta en local.
 - **Flyway** con `baseline-on-migrate: false`. En una base con tablas pero sin
   historial de Flyway, la aplicación falla en vez de tomarla como línea base
@@ -159,6 +159,16 @@ docker run -p 8080:8080 -e JWT_SECRET=… -e DB_URL=… -e DB_USERNAME=… \
   IDE y `.env`, para que un archivo con secretos nunca llegue al contexto de
   build.
 
+**Tamaño (2026-10-21): unos 391 MB** sin comprimir (la suma de las capas de
+`docker history`: Ubuntu 88 MB, paquetes de Temurin 49 MB, JRE 166 MB,
+dependencias 87 MB, código 0,4 MB) y **178 MB comprimida** (la columna
+*CONTENT SIZE* de `docker image ls`, lo que se descarga). El criterio de
+DEP-03 pide menos de 400 MB: se cumple, con poco margen. La columna *DISK
+USAGE* de Docker Desktop (568 MB) suma la imagen comprimida y la
+descomprimida, así que no es el tamaño de la imagen. Las dependencias que
+sumen DEP-08 y DEP-12 (cliente HTTP de correo, SDK de S3, saneado de
+imágenes) pueden pasar el límite; conviene volver a medir en esas tareas.
+
 **Verificación (2026-10-21)**, con la imagen contra un PostGIS 16-3.4 vacío y
 temporal:
 
@@ -188,10 +198,13 @@ como código. El paso a paso está en el runbook de despliegue
 - **Health check.** `GET /actuator/health` responde `UP` en cuanto Tomcat
   arranca; los *seeders* de distritos y municipalidades terminan alrededor de
   un segundo después (solo hacen algo en el primer despliegue).
-- **Volumen de fotos.** Railway monta los volúmenes como `root` y la imagen
-  corre como `viasegura`: un volumen en `/data/fotos` exige
-  `RAILWAY_RUN_UID=0` para poder escribir (documentación de Railway). Las
-  fotos pasan a R2 en otra tarea; mientras tanto, esa es la condición.
+- **Volumen de fotos (temporal, hasta DEP-12).** Railway monta los
+  volúmenes como `root` y la imagen corre como `viasegura`: un volumen en
+  `/data/fotos` exige `RAILWAY_RUN_UID=0` para poder escribir (documentación
+  de Railway). Esa variable **hace correr el contenedor como root**, es
+  decir, anula el usuario sin privilegios de la imagen. Se acepta solo
+  mientras las fotos vayan a un volumen: con DEP-12 pasan a R2, el volumen
+  sobra y la variable se quita.
 
 ## Endpoints implementados (vertical slice inicial)
 

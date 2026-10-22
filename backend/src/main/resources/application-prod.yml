@@ -50,12 +50,12 @@ server:
     include-stacktrace: never
 
 springdoc:
-  # OpenAPI y Swagger UI apagados salvo SWAGGER_ENABLED=true (p. ej. en un
-  # entorno de pruebas). El contrato se consulta en local.
+  # OpenAPI y Swagger UI apagados salvo SPRINGDOC_HABILITADO=true (p. ej.
+  # en un entorno de pruebas). El contrato se consulta en local.
   api-docs:
-    enabled: ${SWAGGER_ENABLED:false}
+    enabled: ${SPRINGDOC_HABILITADO:false}
   swagger-ui:
-    enabled: ${SWAGGER_ENABLED:false}
+    enabled: ${SPRINGDOC_HABILITADO:false}
 
 logging:
   level:
