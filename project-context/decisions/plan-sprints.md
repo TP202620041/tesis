@@ -39,9 +39,9 @@ Hay un carril de backend y uno de frontend en paralelo. En un mismo sprint el fr
 | Despliegue | DEP-01..DEP-05 · DEP-08 · DEP-11 · DEP-12 · correcciones de QA-1 · CI (DEP-07) | DEP-06 · correcciones de QA-1 · fase 1 del diseño «Cívica» (DIS-1, con US-23) | v0.7.0 |
 | S6 | NC-05 · NC-06 · BE-08 | NC-06 (dashboard por periodo, reemplaza US-17 v1) · FE-09 | v0.8.0 |
 | S7 | NC-03 (`inferencia/`) · NC-04 (`clasificacion`) | NC-04 (vista previa al reportar) | v0.9.0 |
-| S8 | Ajustes que pida el diseño | **Diseño de la interfaz**: sistema visual (tokens, tipografía y color), componentes, revisión de cada pantalla, US-23 (modo oscuro y alto contraste) y US-24 (guía de uso) | v1.0.0 |
+| S8 | Ajustes que pida el diseño | **Diseño de la interfaz, fase 2** (mapa con hoja inferior, reporte en pasos, bandeja con panel, portada y desempeño), revisión de cada pantalla y US-24 (guía de uso) | v1.0.0 |
 
-El sprint «Despliegue» se intercaló el 21/10 por decisión del usuario (v0.7.0 = MVP desplegado), así que S6 y S7 se corren una versión. El sistema visual y US-23 del S8 se adelantaron en ese sprint con la dirección «Cívica» (`docs/diseno/`); en el S8 quedan la fase 2 del rediseño y US-24.
+El sprint «Despliegue» se intercaló el 21/10 por decisión del usuario, así que S6 y S7 se corren una versión. v0.7.0 es el MVP listo para desplegar: el primer despliegue (DEP-09) y su prueba de humo (DEP-10) esperan las cuentas del usuario, y lo que exijan corregir sale como hotfix `v0.7.x`. El sistema visual y US-23 del S8 se adelantaron en ese sprint con la dirección «Cívica» (`docs/diseno/`); en el S8 quedan la fase 2 del rediseño y US-24.
 
 Ya hechas antes de S1: BE-01, BE-02, BE-07, FE-01 y FE-02.
 
@@ -73,7 +73,7 @@ Ya hechas antes de S1: BE-01, BE-02, BE-07, FE-01 y FE-02.
 - **Despliegue (2026-10-21/22, v0.7.0):** sprint intercalado para dejar el MVP listo para Railway, Vercel, R2 y Resend (decisiones del usuario del 21/10).
   - **Equipo y CI:** agentes del equipo (#83) y CI con el check `ci` obligatorio (#84, #88).
   - **Propuestas** (#87): despliegue, correo, R2 y ML, aceptadas; la de §4.3 sigue abierta.
-  - **Configuración de producción e imagen** (#89), con el runbook (#91).
+  - **Configuración de producción e imagen** (#89), con el runbook (#87, #91).
   - **PWA instalable** (#85) y foto de perfil validada (#99).
   - **QA-1 sobre v0.6.0** (#88: 0 bloqueantes, 5 importantes), con correcciones en la PWA (#92) y en el backend (#100, con V18 y SEC-04).
   - **Primer ADMIN** (#93).
@@ -85,5 +85,5 @@ Ya hechas antes de S1: BE-01, BE-02, BE-07, FE-01 y FE-02.
     - Failsafe 309 → 418, Surefire 62 → 230, ArchUnit 0 → 0;
     - frontend 646 → 1015 tests (83 → 118 archivos), avisos de capas 0.
   - **Imagen del backend:** probada con `prod` contra un PostGIS vacío y S3Mock: V1–V18 y health UP en 9 s.
-  - **Despliegue real (fase 3):** espera las cuentas del usuario y un dominio verificado para Resend.
+  - **Pendiente:** el primer despliegue (DEP-09) y su prueba de humo (DEP-10) esperan las cuentas del usuario y un dominio verificado para Resend. El usuario pidió cortar v0.7.0 antes de desplegar (22/10).
   - **Siguen abiertos:** D-10, las fórmulas de los KPIs, las columnas de OB2, el Gherkin de US-19, los `[COMPLETAR]` legales, §4.3 y el pool del índice (#97).

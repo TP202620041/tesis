@@ -23,12 +23,13 @@ Reúne **todo** lo que hoy espera una decisión del usuario, venga de esta ronda
 | 14 | Modelo de detección | Clases `bache` y `grieta`, RF-DETR Apache-2.0, umbral 0,50, desactivar «Hueco en calzada» | `2026-10-21-ml-clases-modelo.md`, «Decisión» |
 | 5 (parte) | Cómo se crea el primer ADMIN (22/10) | **Crear desde variables** (`ADMIN_INICIAL_*`) y **solo si no hay ningún ADMIN**; nunca promover; falla el arranque si el correo ya existe con otro rol | `2026-10-21-despliegue-mvp.md` (DEP-04, ajuste del 22/10) y `backend/README.md` |
 | 17 | Dirección visual | **A · Cívica** (tinta azul marino y blanco, Public Sans, foco amarillo; deja el celeste) | Canvas «Rediseño Ciudad Viva» y la propuesta de diseño |
+| 1 | Versionado (22/10) | El usuario pidió cortar **v0.7.0** con la preparación del despliegue (DEP-01..DEP-08, DEP-11, DEP-12) **antes** del primer despliegue: es el MVP listo para desplegar. DEP-09 y DEP-10 quedan pendientes de sus cuentas, y lo que exijan corregir sale como hotfix `v0.7.x`. S6, S7 y S8 pasan a v0.8.0, v0.9.0 y v1.0.0 | `plan-sprints.md` y `CHANGELOG.md` (v0.7.0) |
 
 ## Resumen
 
 | # | Decisión | Urgencia | Bloquea | Recomendación corta | Detalle |
 |---|---|---|---|---|---|
-| 1 | Versionado: v0.7.0 = MVP desplegado | Alta | Planificar el próximo sprint | Sí; S6..S8 pasan a v0.8.0, v0.9.0 y v1.0.0 | §1 |
+| 1 | Versionado: v0.7.0 = MVP desplegado (**decidida el 22/10**: v0.7.0 sale antes del primer despliegue) | Alta | Planificar el próximo sprint | Sí; S6..S8 pasan a v0.8.0, v0.9.0 y v1.0.0 | §1 |
 | 2 | Proveedor de correo y remitente | Alta | DEP-08 → US-03, US-16 (correo), US-25 en producción | Brevo; remitente propio si hay dominio | §2 |
 | 3 | Dominio propio: sí o no, y cuándo | Alta | Invitar usuarios reales (push, sesión y cola offline dependen del origen) | Decidirlo antes de invitar a nadie; si se compra, DNS en Cloudflare | §3 |
 | 4 | Plan de Railway, respaldos y gasto aceptado | Alta | Crear el proyecto (runbook §1) | Hobby + cron `pg_dump` a R2; ~US$ 10/mes | §4 |

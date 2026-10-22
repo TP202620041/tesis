@@ -8,7 +8,7 @@ Prepara el MVP para publicarlo según la propuesta aceptada el 21/10 (`project-c
 - **Infraestructura:** Railway (backend y PostGIS) y Vercel (PWA).
 - **Servicios:** fotos en Cloudflare R2 y correo por Resend.
 
-El despliegue en sí no entra en esta versión: necesita las cuentas y las claves del usuario (`docs/despliegue.md`). Es un sprint intercalado en el plan («Despliegue»), así que el S6 pasa a v0.8.0 y el S7 a v0.9.0.
+El despliegue en sí no entra en esta versión: v0.7.0 es el MVP **listo para desplegar**. El primer despliegue con el runbook (DEP-09) y su prueba de humo (DEP-10) quedan pendientes de las cuentas y las claves del usuario (`docs/despliegue.md`); lo que exijan corregir saldrá como hotfix `v0.7.x`. Es un sprint intercalado en el plan («Despliegue»), así que el S6 pasa a v0.8.0 y el S7 a v0.9.0.
 
 ### Preparación para desplegar
 - **DEP-07 · Integración continua** (#84):
@@ -18,9 +18,10 @@ El despliegue en sí no entra en esta versión: necesita las cuentas y las clave
   - **Protección:** el check `ci` es obligatorio en `develop` y `main` desde el 21/10 (#88).
 - **DEP-01, DEP-02, DEP-03 y DEP-11 · Configuración de producción e imagen** (#89):
   - **Secreto JWT (SEC-03):** no tiene valor por defecto. La aplicación no arranca si falta, si es corto o si es el de desarrollo publicado.
-  - **Perfil `prod`:** variables obligatorias y actuator solo con `health`. Swagger solo se publica con `SPRINGDOC_HABILITADO=true`.
+  - **Perfil `prod`:** variables obligatorias. Swagger solo se publica con `SPRINGDOC_HABILITADO=true`. El actuator expone solo `health` en todos los perfiles.
   - **Imagen:** `backend/Dockerfile` multietapa sobre `eclipse-temurin:21-jre-noble`, sin root.
   - **Errores (DEP-11):** una foto de más de 10 MB, un método no admitido o una petición mal formada responden 413, 405 y 400, en lugar de 500.
+  - **En la PWA (DEP-11, #99):** la foto de perfil se valida antes de subirla, con la misma regla que el backend.
 - **DEP-04 y DEP-05 · Primer ADMIN y funcionarios** (#93):
   - **Primer ADMIN:** `AdministradorInicialSeeder` lo crea desde `ADMIN_INICIAL_*` solo si la base no tiene ninguno, como decidió el usuario el 22/10. Nunca promueve una cuenta existente.
   - **Funcionarios:** `backend/scripts/asignar-funcionario.sql` les asigna o revoca el distrito.
@@ -38,7 +39,6 @@ El despliegue en sí no entra en esta versión: necesita las cuentas y las clave
   - **Instalación:** iconos `any` y `maskable`, y un manifest con `id` y `scope`.
   - **Configuración:** `.env.example` queda versionada y la versión de Node es la 24.
   - **Build en Vercel:** falla si falta `NEXT_PUBLIC_API_BASE_URL`.
-  - **Foto de perfil:** se valida antes de subirla, con la misma regla que el backend (#99).
 - **Runbook y C4 de despliegue:** `docs/despliegue.md` y `docs/arquitectura/c4-despliegue.md` (#87, #91).
 
 ### Diseño
@@ -78,7 +78,7 @@ El agente `qa-e2e` recorrió v0.6.0 en modo headed con los 4 roles, en escritori
   - I-5, `/privacidad` con `[COMPLETAR]`, espera el texto legal del usuario.
 
 ### Arquitectura y decisiones
-- **Agentes del equipo** (#83): `backend-dev`, `frontend-dev`, `qa-e2e`, `arquitecto` y `disenador-ui` en `.claude/agents/`. Los lanza la sesión coordinadora, y `WORKFLOW.md` incorpora esa modalidad y la CI como guarda (#88).
+- **Agentes del equipo** (#83): `backend-dev`, `frontend-dev`, `qa-e2e`, `arquitecto` y `disenador-ui` en `.claude/agents/`. Los lanza la sesión coordinadora, y `WORKFLOW.md` incorpora esa modalidad (#83) y la CI como guarda (#88).
 - **Propuestas** (#87), aceptadas el 21/10:
   - **Despliegue:** la configuración descrita al inicio de esta versión.
   - **Correo:** por HTTP, con Resend.
@@ -101,7 +101,7 @@ El agente `qa-e2e` recorrió v0.6.0 en modo headed con los 4 roles, en escritori
 | Violaciones congeladas de ArchUnit | 0 | 0 |
 | Tests frontend (archivos) | 646 (83) | 1015 (118) |
 | Avisos de capas frontend | 0 | 0 |
-| Imagen del backend (sin comprimir / comprimida) | — | 399,75 MB / 186 MB |
+| Imagen del backend (sin comprimir / comprimida) | — | 399,75 MB (medida en #98) / 186 MB |
 
 Los mínimos de la guarda de la CI suben a 418 y 230 (`.github/workflows/ci.yml`).
 
@@ -119,7 +119,7 @@ Los mínimos de la guarda de la CI suben a 418 y 230 (`.github/workflows/ci.yml`
   - **Arranque y datos:** aplica V1–V18 y siembra 43 distritos y 43 municipalidades. Las categorías estándar quedan con tildes y se crea un solo ADMIN desde `ADMIN_INICIAL_*`. `/actuator/health` responde UP en 9 s.
   - **Superficie expuesta:** Swagger y `/v3/api-docs` dan 404 y `/actuator/env` da 401. El login del ADMIN da 200 y el log no tiene errores ni muestra la contraseña.
 - **Antes, en cada PR:**
-  - la imagen real contra una base vacía (#89, #93, #98);
+  - la imagen real contra una base vacía (#89, #98) y el jar (#93);
   - 8 subidas simultáneas de fotos de 24 a 40 MP sin quedarse sin memoria (#96);
   - Resend real, que responde 401 con una clave inventada (#98);
   - pasadas en Chrome en modo headed, en escritorio y móvil (#92, #95, #101).
