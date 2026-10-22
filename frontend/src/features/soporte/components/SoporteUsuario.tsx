@@ -64,7 +64,7 @@ function TicketDeUsuario({ ticket }: { ticket: TicketPropio }) {
         {ticket.mensaje}
       </p>
       {ticket.respuesta ? (
-        <div className="rounded-control bg-info-fondo px-3 py-2 text-sm">
+        <div className="border border-info-borde rounded-control bg-info-fondo px-3 py-2 text-sm">
           <p className="font-medium text-info-texto">Respuesta de soporte</p>
           <p className="whitespace-pre-line text-info-texto">{ticket.respuesta}</p>
         </div>

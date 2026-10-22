@@ -121,10 +121,10 @@ function EnlaceDeCabecera({ item, actual }: { item: ItemNavegacion; actual: bool
       href={item.href}
       aria-current={actual ? 'page' : undefined}
       className={[
-        'inline-flex min-h-objetivo items-center px-3 whitespace-nowrap',
+        'inline-flex min-h-objetivo items-center border-y-[3px] border-t-transparent px-3 whitespace-nowrap',
         actual
-          ? 'font-bold text-texto shadow-[inset_0_-3px_0_var(--cv-primario)]'
-          : 'font-semibold text-texto-2 hover:text-texto',
+          ? 'border-b-primario font-bold text-texto'
+          : 'border-b-transparent font-semibold text-texto-2 hover:text-texto',
       ].join(' ')}
     >
       {item.etiqueta}
@@ -166,10 +166,10 @@ export function BarraInferiorDeLaApp({ usuario, ruta, extrasDeCuenta }: BarraInf
                 href={item.href}
                 aria-current={actual ? 'page' : undefined}
                 className={[
-                  'flex h-full flex-col items-center justify-center gap-0.5 px-1 text-center text-xs leading-tight',
+                  'flex h-full flex-col items-center justify-center gap-0.5 border-t-[3px] text-center text-xs leading-tight whitespace-nowrap',
                   actual
-                    ? 'font-bold text-texto shadow-[inset_0_3px_0_var(--cv-primario)]'
-                    : 'font-semibold text-texto-2',
+                    ? 'border-t-primario font-bold text-texto'
+                    : 'border-t-transparent font-semibold text-texto-2',
                 ].join(' ')}
               >
                 {item.destacado ? (

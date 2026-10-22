@@ -82,14 +82,14 @@ function DetalleCargado({ reporteId }: { reporteId: number }) {
       </header>
 
       {carga.datos?.errorDeRecarga && (
-        <p role="alert" className="rounded-control bg-error-fondo px-3 py-2 text-sm text-error-texto">
+        <p role="alert" className="border border-error-borde rounded-control bg-error-fondo px-3 py-2 text-sm text-error-texto">
           No se pudo actualizar el reporte: {carga.datos.errorDeRecarga.mensaje} Lo que ves puede
           no estar al día.
         </p>
       )}
 
       {reporte.posibleReincidencia && (
-        <p className="rounded-control bg-aviso-fondo px-3 py-2 text-sm text-aviso-texto">
+        <p className="border border-aviso-borde rounded-control bg-aviso-fondo px-3 py-2 text-sm text-aviso-texto">
           Un vecino comentó que este daño reapareció o quedó mal reparado (US-27).
         </p>
       )}

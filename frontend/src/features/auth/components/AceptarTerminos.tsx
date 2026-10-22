@@ -73,7 +73,7 @@ export function AceptarTerminos({ usuario, texto }: Props) {
   if (fallidos !== null) {
     return (
       <Marco>
-        <p className="rounded-control bg-exito-fondo px-3 py-2 text-sm text-exito-texto">
+        <p className="border border-exito-borde rounded-control bg-exito-fondo px-3 py-2 text-sm text-exito-texto">
           Aceptaste los términos de uso y la política de privacidad.
         </p>
         <AlertaError

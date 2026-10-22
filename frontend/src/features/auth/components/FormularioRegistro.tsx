@@ -68,7 +68,7 @@ export function FormularioRegistro({ textoLegal }: { textoLegal: ReactNode }) {
       {terminosDesactualizados && (
         <p
           role="status"
-          className="rounded-control bg-aviso-fondo px-3 py-2 text-sm text-aviso-texto"
+          className="border border-aviso-borde rounded-control bg-aviso-fondo px-3 py-2 text-sm text-aviso-texto"
         >
           Los términos cambiaron y no se creó la cuenta. La aplicación se está actualizando;
           vuelve a intentarlo en unos minutos y lee el texto nuevo antes de aceptar.{' '}

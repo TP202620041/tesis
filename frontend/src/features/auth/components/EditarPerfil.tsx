@@ -52,7 +52,7 @@ export function EditarPerfil({ inicial, textoLegal }: { inicial: Usuario; textoL
       {guardado && (
         <p
           aria-live="polite"
-          className="rounded-control bg-exito-fondo px-3 py-2 text-sm text-exito-texto"
+          className="border border-exito-borde rounded-control bg-exito-fondo px-3 py-2 text-sm text-exito-texto"
         >
           Tus datos quedaron guardados.
         </p>

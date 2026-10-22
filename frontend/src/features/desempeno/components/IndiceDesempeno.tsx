@@ -55,7 +55,7 @@ export function IndiceDesempeno() {
       </header>
 
       {error && (
-        <p role="alert" className="rounded-control bg-error-fondo px-3 py-2 text-sm text-error-texto">
+        <p role="alert" className="border border-error-borde rounded-control bg-error-fondo px-3 py-2 text-sm text-error-texto">
           {error}
         </p>
       )}

@@ -78,8 +78,8 @@ export function MenuCuenta({ usuario, items, variante, ruta, children }: MenuCue
         className={
           enCabecera
             ? 'inline-flex min-h-objetivo items-center gap-2 rounded-full border border-linea bg-superficie py-1 pr-3 pl-1 font-semibold text-texto hover:bg-superficie-2'
-            : `flex h-full w-full flex-col items-center justify-center gap-0.5 text-xs ${
-                abierto ? 'font-bold text-texto' : 'font-semibold text-texto-2'
+            : `flex h-full w-full flex-col items-center justify-center gap-0.5 border-t-[3px] text-xs leading-tight ${
+                abierto ? 'border-t-primario font-bold text-texto' : 'border-t-transparent font-semibold text-texto-2'
               }`
         }
       >

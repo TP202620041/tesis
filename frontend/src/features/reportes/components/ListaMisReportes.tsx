@@ -33,14 +33,14 @@ export function ListaMisReportes({ usuarioId }: { usuarioId: number }) {
       </header>
 
       {error && (
-        <p role="alert" className="rounded-control bg-error-fondo px-3 py-2 text-sm text-error-texto">
+        <p role="alert" className="border border-error-borde rounded-control bg-error-fondo px-3 py-2 text-sm text-error-texto">
           {error}
         </p>
       )}
 
       {/* Aviso no intrusivo: US-26 Escenario 2. */}
       {porCalificar.length > 0 && (
-        <p className="rounded-control bg-aviso-fondo px-3 py-2 text-sm text-aviso-texto">
+        <p className="border border-aviso-borde rounded-control bg-aviso-fondo px-3 py-2 text-sm text-aviso-texto">
           Tienes {porCalificar.length}{' '}
           {porCalificar.length === 1 ? 'reporte resuelto' : 'reportes resueltos'} sin calificar. Tu
           opinión alimenta el índice público de desempeño de tu municipalidad.

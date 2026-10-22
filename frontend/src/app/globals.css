@@ -387,11 +387,11 @@ html .leaflet-bar a:hover {
   color: var(--cv-texto);
   border-color: var(--cv-linea);
 }
-html .leaflet-control-attribution {
-  background: color-mix(in srgb, var(--cv-superficie) 85%, transparent);
+html .leaflet-container .leaflet-control-attribution {
+  background: color-mix(in srgb, var(--cv-superficie) 90%, transparent);
   color: var(--cv-texto-2);
 }
-html .leaflet-control-attribution a {
+html .leaflet-container .leaflet-control-attribution a {
   color: var(--cv-enlace);
 }
 html .leaflet-popup-content-wrapper,

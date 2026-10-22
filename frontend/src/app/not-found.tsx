@@ -13,7 +13,7 @@ export const metadata: Metadata = {
  */
 export default function NoEncontrada() {
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-lg flex-col justify-center gap-4 px-4 py-10">
+    <main className="mx-auto flex w-full max-w-lg flex-1 flex-col justify-center gap-4 px-4 py-10">
       <p className="text-sm font-medium text-texto-2">Error 404</p>
       <h1 className="text-2xl font-bold text-texto">Página no encontrada</h1>
       <p className="text-texto-2">

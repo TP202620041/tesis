@@ -303,7 +303,7 @@ function Seccion({ titulo, children }: { titulo: string; children: ReactNode }) 
 /** Lo que el borrador deja por definir, visible como tal. */
 function Completar({ children }: { children: ReactNode }) {
   return (
-    <mark className="rounded bg-aviso-fondo px-1 text-aviso-texto">
+    <mark className="border border-aviso-borde rounded bg-aviso-fondo px-1 text-aviso-texto">
       [COMPLETAR: {children}]
     </mark>
   );

@@ -8,7 +8,7 @@ import { clasesDeBoton } from '@/components/ui/Boton';
  */
 export default function Home() {
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-2xl flex-col justify-center gap-8 px-4 py-10">
+    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col justify-center gap-8 px-4 py-10">
       <div>
         <h1 className="text-3xl font-bold text-texto">Ciudad Viva</h1>
         <p className="mt-2 text-texto-2">

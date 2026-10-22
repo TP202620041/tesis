@@ -79,7 +79,7 @@ export function TablaBandeja({ reportes, orden, onOrdenar }: Props) {
                     {reporte.posibleReincidencia && (
                       // Marcado por US-27: un vecino comentó que el daño
                       // reaparecio o quedo mal reparado.
-                      <span className="rounded-full bg-aviso-fondo px-2 py-0.5 text-xs text-aviso-texto">
+                      <span className="border border-aviso-borde rounded-full bg-aviso-fondo px-2 py-0.5 text-xs text-aviso-texto">
                         Posible reincidencia
                       </span>
                     )}

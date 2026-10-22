@@ -74,7 +74,7 @@ function MapaConFiltros() {
       <h1 className="sr-only">Mapa de reportes</h1>
 
       {busqueda.error && (
-        <p role="alert" className="bg-error-fondo px-4 py-2 text-sm text-error-texto">
+        <p role="alert" className="border border-error-borde bg-error-fondo px-4 py-2 text-sm text-error-texto">
           {busqueda.error}
         </p>
       )}
@@ -130,7 +130,7 @@ function MapaConFiltros() {
       </div>
 
       {busqueda.total > MAXIMO_MARCADORES && (
-        <p className="bg-aviso-fondo px-4 py-2 text-sm text-aviso-texto">
+        <p className="border border-aviso-borde bg-aviso-fondo px-4 py-2 text-sm text-aviso-texto">
           Se muestran {MAXIMO_MARCADORES} de {busqueda.total} reportes. Acerca el mapa o aplica un
           filtro para verlos todos.
         </p>
