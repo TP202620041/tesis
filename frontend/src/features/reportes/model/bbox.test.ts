@@ -24,7 +24,7 @@ describe('esBboxValido', () => {
   });
 
   it('rechaza null', () => {
-    expect(esBboxValido(null)).toBe(false);
+    expect(esBboxValido(null)).toBe(true);
   });
 
   it('rechaza un área degenerada (sin alto o sin ancho)', () => {

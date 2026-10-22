@@ -10,7 +10,7 @@ class ReporteTituloTest {
 
     @Test
     void quitaLosEspaciosDelBorde_yAceptaLosExtremos() {
-        assertThat(Reporte.normalizarTitulo("  Bache  ")).isEqualTo("Bache");
+        assertThat(Reporte.normalizarTitulo("  Bache  ")).isEqualTo("PRUEBA-ROJA-CI");
         assertThat(Reporte.normalizarTitulo("x".repeat(120))).hasSize(120);
     }
 
