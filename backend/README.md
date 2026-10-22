@@ -87,7 +87,7 @@ preferible que no arranque y que el log diga qué falta.
 | `FOTOS_S3_ACCESS_KEY_ID`, `FOTOS_S3_SECRET_ACCESS_KEY` | con `s3` | Token de R2 con *Object Read & Write* limitado a esos dos buckets. |
 | `FOTOS_DIR` | con `local` | Directorio de las fotos. La imagen ya trae `FOTOS_DIR=/data/fotos`. |
 | `FOTOS_SANEADO_MAX_CONCURRENTES` | no (2) | Saneados de fotos simultáneos; con `-Xmx512m`, 2. |
-| `CORREO_TIPO` | sí | `resend` (el plan de Railway bloquea el SMTP saliente); `smtp` solo en local y en los tests. Sin ella no arranca (DEP-08, ver «Correo saliente»). |
+| `CORREO_TIPO` | sí | `resend` (el plan de Railway bloquea el SMTP saliente); `smtp` solo en local y en los tests. Sin ella no arranca (DEP-08, ver «Correo saliente»). Con otro valor tampoco: `common/config/ValidacionCorreoSaliente` lo rechaza antes de crear ningún bean, con un mensaje que nombra la variable y los valores admitidos. |
 | `NOTIF_FROM` | sí | Remitente de todos los correos: `Ciudad Viva <no-reply@<dominio verificado en Resend>>`. Sin ella no arranca. |
 | `CORREO_API_KEY` | con `CORREO_TIPO=resend` | Clave de la API de Resend (secreto). Sin ella el adaptador no arranca. |
 | `PORT` | no (8080) | Lo inyecta la plataforma. |
@@ -184,17 +184,18 @@ TwelveMonkeys suman unos 9 MB, aun usando solo el módulo `s3` del SDK con el
 cliente HTTP de `URLConnection` (sin Apache HttpClient, Netty, CRT ni firma
 de *event streams*) y quitando `tomcat-embed-websocket`, que la API no usa.
 Con esas exclusiones la primera medición (400,07 MB) bajó a 399,7 MB. La
-próxima dependencia (p. ej. DEP-08) pasará el límite: si importa, la salida
-de fondo es un JRE propio con `jlink` (unos 80 MB menos) o medir el criterio
-sobre la imagen comprimida. La columna *DISK USAGE* de Docker Desktop
+próxima dependencia pasará el límite: si importa, la salida de fondo es un
+JRE propio con `jlink` (unos 80 MB menos) o medir el criterio sobre la imagen
+comprimida. La columna *DISK USAGE* de Docker Desktop
 (586 MB) suma la imagen comprimida y la descomprimida, así que no es el
 tamaño de la imagen.
 
-**DEP-08 (2026-10-22) no suma dependencias:** el correo por HTTP usa el
-`RestClient` de Spring y el `HttpClient` del JDK, sin el SDK de Resend. La
-imagen medida sobre `develop` con DEP-08 da 390,6 MB sin comprimir (las mismas
-capas; dependencias 87,1 MB y código 0,42 MB) y 178 MB comprimida: el código
-nuevo pesa unos 35 KB.
+**Con DEP-08 (2026-10-22): 399,75 MB** sin comprimir (399.749.120 bytes,
+381,23 MiB; la suma exacta de `docker history --human=false`) y 186 MB
+comprimida. DEP-08 no suma dependencias: el correo por HTTP usa el
+`RestClient` de Spring y el `HttpClient` del JDK, sin el SDK de Resend, y su
+código agrega unos 29 KB a la capa de la aplicación (0,45 MB). El criterio se
+sigue cumpliendo, con unos 250 KB de margen.
 
 **Verificación (2026-10-21)**, con la imagen contra un PostGIS 16-3.4 vacío y
 temporal:
@@ -1544,10 +1545,15 @@ WARN. Cuota del plan gratuito: 100 correos al día y 3.000 al mes.
 **Arranque.** En `prod`, `CORREO_TIPO` y `NOTIF_FROM` no tienen valor por
 defecto (`ArranqueCorreoIT`, `PerfilProdIT`): con el `smtp` de desarrollo,
 cada correo fallaría contra `localhost:1025` sin que nada lo advirtiera al
-desplegar. Con `resend`, `ResendCorreoAdapter` no arranca sin
-`CORREO_API_KEY` o sin remitente, y el mensaje nombra la variable sin repetir
-valores. El health sigue sin incluir el correo
-(`management.health.mail.enabled: false`).
+desplegar. Con un valor que no elige ningún adaptador (`brevo`, `resend `
+con un espacio), `common/config/ValidacionCorreoSaliente` (un
+`BeanFactoryPostProcessor`, como `ValidacionAlmacenDeFotos` de DEP-12) lo
+rechaza antes de crear ningún bean y de tocar la base, con un mensaje que
+nombra `CORREO_TIPO` y los valores admitidos; sin ella el error sería un
+genérico «required a bean of type CorreoSaliente». Con `resend`,
+`ResendCorreoAdapter` no arranca sin `CORREO_API_KEY` o sin remitente, y el
+mensaje nombra la variable sin repetir valores. El health sigue sin incluir
+el correo (`management.health.mail.enabled: false`).
 
 **Fuera de la petición y de la transacción (patrón de D-13).** Antes, la
 recuperación de contraseña y la respuesta de soporte enviaban con
@@ -1605,8 +1611,10 @@ cuerpo JSON exacto, respuestas 4xx y 5xx con su status, la falta de respuesta
 y dos casos con un socket local: un servidor que nunca responde (corta en el
 timeout de lectura) y un puerto cerrado. Todos comprueban que el mensaje del
 error no lleva la clave, el destinatario ni el token. Además
-`SmtpCorreoAdapterTest`, `MensajeCorreoTest` y los tests de los dos
-listeners (cola llena, token vencido, proveedor caído). En los IT los correos
+`SmtpCorreoAdapterTest`, `MensajeCorreoTest`, `ValidacionCorreoSalienteTest`
+y los tests de los dos listeners (cola llena, token vencido, proveedor
+caído). `ArranqueCorreoIT` arranca la aplicación real sin base: sin
+`CORREO_TIPO` en `prod` y con `CORREO_TIPO=brevo`, no arranca. En los IT los correos
 siguen por SMTP a GreenMail (`app.correo.tipo: smtp` literal en
 `application-test.yml`, para que un `CORREO_TIPO` del entorno no mande la
 suite a Resend): `PasswordResetIT` (misma respuesta con y sin cuenta, 202 con
