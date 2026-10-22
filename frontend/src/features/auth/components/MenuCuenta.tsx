@@ -30,7 +30,8 @@ interface MenuCuentaProps {
  * Es un **desplegable** (botón con `aria-expanded` que muestra un panel), no
  * un `role="menu"`: adentro hay enlaces y un grupo de opciones de radio, que
  * se recorren con Tab como en cualquier página. Se cierra con Escape (y el
- * foco vuelve al botón), al tocar fuera y al navegar.
+ * foco vuelve al botón), al tocar fuera, al navegar y al pulsar «Cerrar
+ * sesión».
  */
 export function MenuCuenta({ usuario, items, variante, ruta, children }: MenuCuentaProps) {
   const [abierto, setAbierto] = useState(false);
@@ -144,7 +145,18 @@ export function MenuCuenta({ usuario, items, variante, ruta, children }: MenuCue
           {children}
 
           <div className="border-t border-linea pt-1">
-            <BotonCerrarSesion variante="menu" />
+            {/* Se cierra antes de empezar el cierre de sesión: si hay una
+                pregunta previa (reportes en cola), el diálogo no queda encima
+                de un menú abierto que también atiende Escape, y el foco no se
+                queda en un botón tapado (vuelve al de «Cuenta»; el diálogo lo
+                toma después). */}
+            <BotonCerrarSesion
+              variante="menu"
+              alActivar={() => {
+                setAbierto(false);
+                boton.current?.focus();
+              }}
+            />
           </div>
         </div>
       )}

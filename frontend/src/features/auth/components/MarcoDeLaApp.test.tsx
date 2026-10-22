@@ -18,7 +18,11 @@ vi.mock('next/link', () => ({
 vi.mock('../hooks/useUsuarioDelMarco', () => ({ useUsuarioDelMarco: vi.fn() }));
 // El cierre real (preguntas de la cola, push, navegación) lo cubre BotonCerrarSesion.test.
 vi.mock('./BotonCerrarSesion', () => ({
-  BotonCerrarSesion: () => <button type="button">Cerrar sesión</button>,
+  BotonCerrarSesion: ({ alActivar }: { alActivar?: () => void }) => (
+    <button type="button" onClick={alActivar}>
+      Cerrar sesión
+    </button>
+  ),
 }));
 
 const ANA = {
@@ -94,6 +98,20 @@ describe('MarcoDeLaApp (DIS-1)', () => {
     // Escape cierra y devuelve el foco al botón.
     await usuario.keyboard('{Escape}');
     expect(boton).toHaveAttribute('aria-expanded', 'false');
+    expect(boton).toHaveFocus();
+  });
+
+  it('«Cerrar sesión» cierra el menú y devuelve el foco a «Cuenta»', async () => {
+    // Si hay reportes en cola, el diálogo de la pregunta no queda encima de un
+    // menú abierto que también atiende Escape, ni el foco en un botón tapado.
+    como({ estado: 'identificado', usuario: ANA });
+    const usuario = userEvent.setup();
+    const boton = within(barraInferior()).getByRole('button', { name: 'Cuenta' });
+    await usuario.click(boton);
+    const panel = document.getElementById(boton.getAttribute('aria-controls')!)!;
+    await usuario.click(within(panel).getByRole('button', { name: 'Cerrar sesión' }));
+    expect(boton).toHaveAttribute('aria-expanded', 'false');
+    expect(document.getElementById(boton.getAttribute('aria-controls')!)).toBeNull();
     expect(boton).toHaveFocus();
   });
 

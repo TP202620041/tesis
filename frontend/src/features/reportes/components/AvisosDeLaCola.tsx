@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import { BotonIcono } from '@/components/ui/Icono';
 import { useCierreDelAvisoDeIncompletos } from '../hooks/useCierreDelAvisoDeIncompletos';
@@ -110,7 +110,9 @@ export function textoDelCierre(seEnviaran: number, requierenAccion: number): str
 /**
  * US-06, dispositivo compartido: pregunta al cerrar sesion que hacer con los
  * reportes propios que siguen en el dispositivo. Escape equivale a
- * "Conservar", la opcion por defecto (no se pierde nada).
+ * "Conservar", la opcion por defecto (no se pierde nada). Al abrirse, el
+ * foco va a "Conservar" (DIS-1): la accion menos destructiva, y asi el foco
+ * no queda en lo que el dialogo tapa (el menu de cuenta desde donde se pidio).
  *
  * NC-02: separa los que se enviaran solos de los que necesitan accion
  * (incompletos, rechazados, caducados): de estos no se dice «se enviarán».
@@ -128,6 +130,11 @@ export function DialogoCierreConPendientes({
   onConservar: () => void;
   onDescartar: () => void;
 }) {
+  const conservar = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    conservar.current?.focus();
+  }, []);
+
   useEffect(() => {
     const alPulsar = (evento: KeyboardEvent) => {
       if (evento.key === 'Escape') onConservar();
@@ -161,6 +168,7 @@ export function DialogoCierreConPendientes({
             Descartarlos
           </button>
           <button
+            ref={conservar}
             type="button"
             onClick={onConservar}
             className={clasesDeBoton('primario')}

@@ -55,6 +55,20 @@ describe('BotonCerrarSesion', () => {
     expect(replace).toHaveBeenCalledWith('/login');
   });
 
+  it('DIS-1: avisa a quien lo contiene (el menú) antes de empezar el cierre', async () => {
+    vi.mocked(bajaDePushAlCerrarSesion).mockResolvedValue();
+    const alActivar = vi.fn();
+    render(<BotonCerrarSesion variante="menu" alActivar={alActivar} />);
+
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Cerrar sesión' }));
+
+    expect(alActivar).toHaveBeenCalledTimes(1);
+    const [ordenAviso] = alActivar.mock.invocationCallOrder;
+    const [ordenBaja] = vi.mocked(bajaDePushAlCerrarSesion).mock.invocationCallOrder;
+    expect(ordenAviso).toBeLessThan(ordenBaja ?? 0);
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/login'));
+  });
+
   it('si la baja de push falla, la sesión se cierra igual', async () => {
     vi.mocked(bajaDePushAlCerrarSesion).mockRejectedValue(new Error('sin red'));
     render(<BotonCerrarSesion />);
