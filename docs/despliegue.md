@@ -35,7 +35,7 @@ En los comandos, `$API` es la URL pública del API (`https://<algo>.up.railway.a
 | Railway | **Hobby** (US$ 5/mes con US$ 5 de uso) | dueño del proyecto | El plan Free no alcanza (0,5 GB por servicio). |
 | Vercel | **Hobby** | dueño del proyecto, con login de GitHub | Uso no comercial. |
 | Cloudflare | Free, con **R2 activado** | dueño del proyecto | Activar R2 pide completar un *checkout* (verificar si pide tarjeta). |
-| Brevo (o Resend) | Free | dueño del proyecto | Según la decisión de la propuesta de correo. |
+| Resend | Free | dueño del proyecto | 100 correos al día y 3.000 al mes. Exige un dominio propio verificado (§3). |
 
 ## 2. Cloudflare R2
 
@@ -55,24 +55,27 @@ En los comandos, `$API` es la URL pública del API (`https://<algo>.up.railway.a
 
 ## 3. Correo
 
-**Decisión del usuario (21/10): Resend.** Resend exige un **dominio propio verificado**: sin él solo envía a la cuenta del dueño. Mientras no haya dominio, el despliegue puede salir con el correo limitado a las direcciones del equipo. Las instrucciones de Brevo quedan como alternativa.
+**Decisión del usuario (21/10): Resend** (`project-context/decisions/propuestas/2026-10-21-correo-saliente-http.md`). El backend envía por su API HTTP (`CORREO_TIPO=resend`, `ResendCorreoAdapter`), porque el plan Hobby de Railway bloquea el SMTP saliente. Detalle del adaptador: `backend/README.md`, «Correo saliente (DEP-08)».
 
-Con **Brevo** (alternativa):
-
-1. Senders, Domains & Dedicated IPs › Senders: agregar el remitente y verificarlo con el código que llega por correo. Con dominio propio: Domains › autenticar el dominio con los registros SPF, DKIM y DMARC que indica Brevo.
-2. **Seguridad › IPs autorizadas: desactivar el bloqueo de IP desconocidas.** Railway Hobby no tiene IP de salida fija; con el bloqueo activo, los envíos se cortan sin aviso.
-3. SMTP & API › API Keys › generar una clave → será `CORREO_API_KEY`.
+1. **Dominio** (Domains › Add Domain): agregar el dominio propio del proyecto y cargar en su DNS los registros que muestra Resend: **DKIM** (`TXT` en `resend._domainkey`) y **SPF** (`MX` y `TXT` en el subdominio `send`, que no chocan con el `MX` del dominio raíz). DMARC es recomendado (`TXT` en `_dmarc`). Esperar a que el dominio quede **Verified**.
+   - **Sin dominio verificado**, Resend solo entrega al correo del dueño de la cuenta (desde `onboarding@resend.dev`) y responde 403 a cualquier otro destinatario. El despliegue puede salir así, con el correo limitado a esa dirección: cada envío rechazado queda como un `WARN` en el log del backend, y la recuperación de contraseña sigue respondiendo 202.
+2. **Clave** (API Keys › Create API Key): nombre `ciudadviva-backend`, permiso **Sending access** (solo envía) y, en *Domain*, **solo el dominio verificado**. Resend la muestra una sola vez: al gestor de contraseñas. Es `CORREO_API_KEY` (§5.2).
+3. **Remitente:** `NOTIF_FROM=Ciudad Viva <no-reply@<dominio verificado>>` (§5.2).
 
 **Verificar** (desde la máquina local, con la clave en una variable de la terminal y nunca escrita en un archivo):
 
 ```bash
-curl -s -o /dev/null -w "%{http_code}\n" https://api.brevo.com/v3/smtp/email \
-  -H "api-key: $CORREO_API_KEY" -H "content-type: application/json" \
-  -d '{"sender":{"email":"<remitente verificado>"},"to":[{"email":"<tu correo>"}],"subject":"Prueba Ciudad Viva","textContent":"Prueba de despliegue"}'
-# 201 y el correo llega (revisar también la carpeta de spam)
+curl -s -w "\n%{http_code}\n" https://api.resend.com/emails \
+  -H "Authorization: Bearer $CORREO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "User-Agent: CiudadViva-despliegue" \
+  -d '{"from":"Ciudad Viva <no-reply@<dominio verificado>>","to":["<tu correo>"],"subject":"Prueba Ciudad Viva","text":"Prueba de despliegue"}'
+# 200 y {"id":"…"}, y el correo llega (revisar también la carpeta de spam).
 ```
 
-Con **Resend**: verificar el dominio (SPF y DKIM, DMARC recomendado), crear la clave y probar con `POST https://api.resend.com/emails` (requiere cabecera `User-Agent`).
+Si no es 200: `401`, la clave no es válida; `403`, el remitente no es del dominio verificado (o la clave está limitada a otro dominio), o falta la cabecera `User-Agent` (error 1010). El backend envía las mismas tres cabeceras.
+
+> **Brevo** se comparó en la propuesta, pero el backend no tiene un `BrevoCorreoAdapter`: usarlo exigiría escribir antes ese adaptador de `CorreoSaliente` (y desactivar en Brevo el bloqueo de IP desconocidas, porque Railway Hobby no tiene IP de salida fija). Hoy `CORREO_TIPO=brevo` no arranca.
 
 ## 4. Secretos que se generan una vez
 
@@ -129,7 +132,7 @@ railway connect postgis               # abre psql por túnel SSH (requiere psql 
    | `JWT_SECRET` | §4 |
    | `JWT_EXPIRATION_MINUTES` | `120` |
    | `CORS_ALLOWED_ORIGINS` | `$PWA` (se completa en §6; mientras tanto, `http://localhost:3000`) |
-   | `NOTIF_FROM` | `Ciudad Viva <remitente verificado en §3>` (**obligatoria** en `prod` con cualquier tipo de correo) |
+   | `NOTIF_FROM` | `Ciudad Viva <no-reply@<dominio verificado en §3>>` (**obligatoria** en `prod` con cualquier tipo de correo) |
    | `CORREO_TIPO` | `resend` (decisión del 21/10). **Obligatoria** en `prod`: sin ella, o con un valor distinto de `smtp` o `resend`, la app no arranca. |
    | `CORREO_API_KEY` | §3 |
    | `FOTOS_ALMACEN` | `s3` |
