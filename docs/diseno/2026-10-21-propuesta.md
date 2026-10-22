@@ -41,13 +41,13 @@ estado. La decisión de fondo que hay detrás es dejar el celeste actual, que ho
 
 ## 3. Crítica de la PWA actual (v0.6.0, capturada en modo headed)
 
-Capturas en `capturas/actual/` (escritorio 1440×900 y móvil 390×844): `portada-*`, `mapa-*` (`mapa-movil-scroll.png`), `desempeno-*`, `reportar-*`, `mis-reportes-*`, `mi-reporte-*`, `bandeja-*`, `bandeja-detalle-*`, `dashboard-*`, `login-escritorio.png`.
+Capturas (no versionadas, en el entorno de trabajo del diseñador) en `capturas/actual/` (escritorio 1440×900 y móvil 390×844): `portada-*`, `mapa-*` (`mapa-movil-scroll.png`), `desempeno-*`, `reportar-*`, `mis-reportes-*`, `mi-reporte-*`, `bandeja-*`, `bandeja-detalle-*`, `dashboard-*`, `login-escritorio.png`.
 
 **Sistema**
 - `globals.css` es el de create-next-app. El body usa Arial aunque `layout.tsx` carga Geist y Geist Mono sin usarlas. Hay 1 111 clases `sky-*`/`slate-*` repartidas en 63 archivos `.tsx` y no hay tokens semánticos.
-- No hay logo: el favicon es el de Next. **Los íconos del manifest dan 404** (`/icons/icon-192.png` y `/icon-512.png` no existen en `public/`), así que la PWA no ofrece un ícono instalable propio.
+- No hay logo: el favicon es el de Next. **Los íconos del manifest daban 404 en v0.6.0** (`/icons/icon-192.png` y `/icon-512.png` no existían en `public/`; después DEP-06, #85, agregó iconos provisionales), así que la PWA no ofrece un ícono instalable propio.
 
-**Contraste medido** (`herramientas/contraste.mjs actual.json`; WCAG 2.1):
+**Contraste medido** (`contraste/contraste.mjs contraste/actual.json`; WCAG 2.1):
 
 | Par | Ratio | Exige |
 |---|---|---|
@@ -136,7 +136,7 @@ Los estados se distinguen por **color + icono Lucide + nombre**. «En proceso» 
 | `Bandeja-escritorio.dc.html` | 1440×1100, página | sí | Pestañas por estado con «Por atender» por defecto, filtros, tabla densa, panel con transiciones válidas (comentario obligatorio al rechazar), responsable e historial, y la señal interna de reincidencia. |
 | `Desempeno-escritorio.dc.html` | 1440×1600, página | sí | Ranking con barra de un solo color, «0 %» frente a «Sin datos», comparación de 2 a 4 distritos con gráfica y tabla, y el aviso al intentar un quinto. |
 
-**Iteración** (HTML normal en `iteraciones/`, que se ve con `dc-shim.js`, una vista previa local del formato; capturas en modo headed):
+**Iteración** (HTML normal con una vista previa local del formato y capturas en modo headed; ni las iteraciones ni las capturas están versionadas):
 - **Ronda 1** (`capturas/iter1/`): las etiquetas de los marcadores se encimaban y los logotipos se partían en dos líneas en `Main`. En el mapa, la barra de scroll de los chips era visible, el marcador elegido no se distinguía y el resumen ocupaba 470 px. En la navegación inferior, «Reportar» no estaba alineado. En `/reportar`, los íconos de categoría eran débiles, el título quedaba pegado a la cabecera y «Cambiar» no tenía contexto para el lector de pantalla. Los chips de las listas no llevaban icono. En la bandeja, «Sin asignar» iba en rojo. En desempeño, las filas medían 60 px y la gráfica desaparecía en móvil.
 - **Ronda 2** (`capturas/iter2/`): todo lo anterior quedó corregido; se agregaron los estados en oscuro y alto contraste y las variantes B, C y oscuro. Nuevos hallazgos: la leyenda de calor tapaba marcadores, la marca de selección amarilla se confundía con «En proceso», la fila elegida de la bandeja llevaba borde izquierdo de color (un tropo) y los enlaces de la cabecera se partían en móvil.
 - **Ronda 3** (`capturas/iter3/` y `capturas/final/`): la leyenda va abajo a la izquierda y se oculta con un reporte elegido. La selección es un anillo tinta. La fila elegida solo cambia de fondo. Los enlaces de la cabecera ya no se parten. A 390 px ninguna página tiene scroll horizontal (`scrollWidth` 375 con la barra).
@@ -223,14 +223,13 @@ Respeta `ARCHITECTURE.md`: `app/` compone, la lógica vive en `features/` y lo p
 7. **US-23**: alto contraste como tercer tema y el selector en el perfil y el menú de cuenta.
 8. **Tiles del mapa** desaturados (e invertidos en oscuro) con filtro CSS, sin cambiar de proveedor.
 9. **Backend**: aprobar la migración que corrige «Vereda danada», «Semaforo averiado» y «Senalizacion faltante».
-10. **Ícono de la PWA**: hoy no existe (404). Generar los PNG a partir de `marca/icono-pwa-a*.svg` una vez elegida la dirección.
+10. **Ícono de la PWA**: reemplazar los iconos provisionales de DEP-06 (#85) por PNG generados a partir de `marca/icono-pwa-a*.svg` (con `frontend/scripts/generar-iconos.mjs`).
 
 ## 9. Archivos
 
-- `propuesta-diseno.md` (este documento)
-- el canvas (Artifact) — `canvas.json` y 11 artboards `.dc.html` (§6)
-- `iteraciones/` — las mismas pantallas en HTML normal y `dc-shim.js` (vista previa local)
+- `2026-10-21-propuesta.md` (este documento)
+- `prototipo/` — los 11 artboards `.dc.html` finales y `support.js` (vista previa local); el índice `canvas.json` vive solo en el canvas (Artifact)
+- Las iteraciones en HTML normal y sus capturas quedaron en el entorno de trabajo del diseñador, no versionadas
 - `prototipo/` — los artboards finales con el shim, para revisarlos en un navegador
-- `marca/` — logos e íconos PWA en SVG (A, B, C) y `hoja.html`
-- `capturas/actual/`, `capturas/iter1/`, `capturas/iter2/`, `capturas/iter3/`, `capturas/final/`
+- `marca/` — logos e íconos PWA en SVG (A, B, C)
 - `contraste/contraste.mjs` y los pares en `actual.json` y `propuesta.json`; scripts de iteración y conversión

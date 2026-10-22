@@ -1,9 +1,8 @@
 /*
- * dc-shim.js — vista previa LOCAL de artboards .dc.html en un navegador normal.
- * Solo para iterar en el scratchpad: interpreta lo mínimo del formato
- * (<x-dc>, <helmet>, {{ruta}}, <sc-if>, <sc-for>, onClick="{{fn}}",
- * clase Component extends DCLogic con state/setState). No es el runtime real
- * del canvas: el artboard final carga ./support.js.
+ * support.js — vista previa LOCAL de los artboards .dc.html en un navegador normal.
+ * Interpreta lo mínimo del formato (<x-dc>, <helmet>, {{ruta}}, <sc-if>, <sc-for>,
+ * onClick="{{fn}}", clase Component extends DCLogic con state/setState).
+ * No es el runtime real del canvas de diseño: allí el mismo nombre lo sirve el canvas.
  */
 (function () {
   function lookup(path, scope) {
