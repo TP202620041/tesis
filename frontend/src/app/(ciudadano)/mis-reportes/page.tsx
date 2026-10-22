@@ -1,6 +1,5 @@
 'use client';
 
-import { BotonCerrarSesion } from '@/features/auth/components/BotonCerrarSesion';
 import { GuardiaDeRol } from '@/features/auth/components/GuardiaDeRol';
 import { ListaMisReportes } from '@/features/reportes/components/ListaMisReportes';
 
@@ -8,9 +7,7 @@ import { ListaMisReportes } from '@/features/reportes/components/ListaMisReporte
 export default function MisReportesPage() {
   return (
     <GuardiaDeRol rolesPermitidos={['CIUDADANO']}>
-      {(usuario) => (
-        <ListaMisReportes usuarioId={usuario.id} cierreDeSesion={<BotonCerrarSesion />} />
-      )}
+      {(usuario) => <ListaMisReportes usuarioId={usuario.id} />}
     </GuardiaDeRol>
   );
 }

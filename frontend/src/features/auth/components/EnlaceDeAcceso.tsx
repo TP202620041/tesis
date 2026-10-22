@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { conRedirect } from '../model/rutas';
 
-const CLASES = 'font-medium text-sky-700 hover:underline dark:text-sky-400';
+const CLASES = 'font-medium text-enlace hover:underline';
 
 /**
  * Enlace entre el login y el registro que conserva el `?redirect=` (QA-1

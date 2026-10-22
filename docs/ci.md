@@ -7,7 +7,7 @@
 | Job | Cuándo | Qué hace |
 |---|---|---|
 | `cambios` | Siempre | Con `dorny/paths-filter`, decide qué carpetas cambiaron. `backend/**` y `frontend/**` cuentan cada una para su job. El workflow, sus scripts (`.github/scripts/**`) y los contadores de `/verificar` (`.claude/skills/verificar/**`) cuentan para los dos. Un push a `main` y una corrida manual validan todo. |
-| `backend` | Si cambió `backend/` | Levanta PostGIS `16-3.4` como servicio, con la base `viasegura_test` y el usuario y la clave `viasegura`, y espera a que `pg_isready` responda por TCP. Instala JDK 21 Temurin con caché de Maven y corre `mvn -B -ntp clean verify` (Surefire, Failsafe y JaCoCo). Después corre la **guarda de completitud** (`.github/scripts/verificar-backend.mjs`), porque un `BUILD SUCCESS` sin tests no basta. Sube el informe JaCoCo como artefacto `jacoco-backend` y, si algo falló, los informes de Surefire y Failsafe (`informes-tests-backend`). |
+| `backend` | Si cambió `backend/` | Levanta PostGIS `16-3.4` como servicio, con la base `viasegura_test` y el usuario y la clave `viasegura`, y espera a que `pg_isready` responda por TCP. Levanta también **Adobe S3Mock** (`adobe/s3mock:5.2.3`, puerto 9090) y define `FOTOS_S3_TEST_ENDPOINT`, para que `S3FotoStorageServiceIT` pruebe el adaptador de fotos en R2 (DEP-12). Instala JDK 21 Temurin con caché de Maven y corre `mvn -B -ntp clean verify` (Surefire, Failsafe y JaCoCo). Después corre la **guarda de completitud** (`.github/scripts/verificar-backend.mjs`), porque un `BUILD SUCCESS` sin tests no basta. Sube el informe JaCoCo como artefacto `jacoco-backend` y, si algo falló, los informes de Surefire y Failsafe (`informes-tests-backend`). |
 | `frontend` | Si cambió `frontend/` | Usa el Node de `frontend/.nvmrc` o, mientras no exista, Node 24. Corre `npm ci` y luego `npm run lint`, `npm run typecheck`, `npm test` (con la guarda `scripts/verificar-tests.mjs`), el conteo de avisos de capas y `npm run build` con `NEXT_PUBLIC_API_BASE_URL=https://api.example.invalid`. Los cuatro chequeos corren aunque falle uno, así una corrida muestra todos los errores. |
 | `ci` | Siempre (`if: always()`) | Junta los resultados y falla si `cambios` falló, si un job cuya carpeta cambió no terminó en `success` (falló, se canceló o se omitió) o si uno que no aplicaba no quedó `skipped`. |
 
@@ -18,7 +18,7 @@
 - Failsafe o Surefire tienen `errors` o `failures`;
 - los tests ejecutados (`completed - skipped`, así que una suite toda en `@Disabled` no pasa) son 0 o quedan por debajo de los mínimos `MIN_IT_FAILSAFE` y `MIN_SUREFIRE` del job.
 
-Una clase con todos sus tests omitidos deja solo un aviso. Las abstractas, como `AbstractPostgisIT` y `AbstractPostgisMailIT`, no se exigen.
+Una clase con todos sus tests omitidos deja solo un aviso, salvo las listadas en `CLASES_OBLIGATORIAS` (hoy `S3FotoStorageServiceIT`): si quedan omitidas o sin informe, la guarda falla. Así, si desaparecen el servicio `s3mock` o la variable, el check se pone en rojo en vez de omitir en silencio la única prueba automática del adaptador que va a producción. Las abstractas, como `AbstractPostgisIT` y `AbstractPostgisMailIT`, no se exigen.
 
 **Línea base.** La CI exige los mínimos declarados en `ci.yml`, no la línea base exacta del plan y del CHANGELOG. Hay cosas que siguen siendo trabajo de `/verificar` y del PR:
 

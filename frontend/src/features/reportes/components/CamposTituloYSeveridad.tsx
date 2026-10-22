@@ -11,9 +11,8 @@ import { largoDelTitulo, TITULO_MAXIMO, TITULO_MINIMO } from '../model/titulo';
  */
 
 const CLASES_INPUT =
-  'rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 ' +
-  'focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 ' +
-  'dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100';
+  'min-h-objetivo rounded-control border border-linea-campo bg-superficie px-3 py-2 text-texto ' +
+  'aria-[invalid=true]:border-2 aria-[invalid=true]:border-error';
 
 /**
  * Titulo con su contador. Sin `maxLength`: el navegador cuenta unidades
@@ -46,7 +45,7 @@ export function CampoTitulo({
   const idError = `${id}-error`;
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-sm font-medium text-slate-700 dark:text-slate-200">
+      <label htmlFor={id} className="text-sm font-medium text-texto">
         Título
       </label>
       <input
@@ -58,17 +57,17 @@ export function CampoTitulo({
         placeholder={placeholder}
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? `${idError} ${idAyuda}` : idAyuda}
-        className={`${CLASES_INPUT} aria-[invalid=true]:border-red-500`}
+        className={`${CLASES_INPUT} aria-[invalid=true]:border-error`}
       />
       <p
         id={idAyuda}
         data-fuera-de-rango={fueraDeRango ? 'true' : undefined}
-        className={`text-xs ${fueraDeRango ? 'text-red-700 dark:text-red-300' : 'text-slate-500 dark:text-slate-400'}`}
+        className={`text-xs ${fueraDeRango ? 'text-error' : 'text-texto-2'}`}
       >
         De {TITULO_MINIMO} a {TITULO_MAXIMO} caracteres ({largo}/{TITULO_MAXIMO}).
       </p>
       {error && (
-        <p id={idError} role="alert" className="text-sm text-red-600 dark:text-red-400">
+        <p id={idError} role="alert" className="text-sm text-error">
           {error}
         </p>
       )}
@@ -108,19 +107,19 @@ export function CampoSeveridad({
       aria-invalid={error ? true : undefined}
       aria-describedby={error ? `${idError} ${idAyuda}` : idAyuda}
     >
-      <legend id={idLeyenda} className="text-sm font-medium text-slate-700 dark:text-slate-200">
+      <legend id={idLeyenda} className="text-sm font-medium text-texto">
         Severidad
       </legend>
-      <p id={idAyuda} className="text-xs text-slate-500 dark:text-slate-400">
+      <p id={idAyuda} className="text-xs text-texto-2">
         ¿Qué tan grave es el daño?
       </p>
       <div className="flex flex-wrap gap-2">
         {OPCIONES_DE_SEVERIDAD.map((opcion) => (
           <label
             key={opcion.valor}
-            className="flex cursor-pointer items-center gap-2 rounded-md border border-slate-300 px-3 py-1.5
-                       text-sm text-slate-800 has-[:checked]:border-sky-500 has-[:checked]:bg-sky-50
-                       dark:border-slate-600 dark:text-slate-100 dark:has-[:checked]:bg-sky-950"
+            className="flex min-h-objetivo cursor-pointer items-center gap-2 rounded-control border border-linea-campo px-3 py-1.5
+                       text-sm text-texto has-[:checked]:border-2 has-[:checked]:border-primario has-[:checked]:bg-superficie-2
+                       has-[:checked]:font-semibold"
           >
             <input
               type="radio"
@@ -134,7 +133,7 @@ export function CampoSeveridad({
         ))}
       </div>
       {error && (
-        <p id={idError} role="alert" className="text-sm text-red-600 dark:text-red-400">
+        <p id={idError} role="alert" className="text-sm text-error">
           {error}
         </p>
       )}

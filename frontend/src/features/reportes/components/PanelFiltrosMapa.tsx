@@ -9,6 +9,7 @@ import {
   type FiltrosMapa,
 } from '../model/bbox';
 import type { CategoriaDano, Distrito } from '@/lib/types/domain';
+import { clasesDeBoton } from '@/components/ui/Boton';
 
 /**
  * Filtros y leyenda del mapa publico (US-10, escenario 2; fechas de US-12).
@@ -60,13 +61,13 @@ export function PanelFiltrosMapa({
   const [abierto, setAbierto] = useState(false);
 
   return (
-    <aside className="flex w-full shrink-0 flex-col border-b border-slate-200 bg-white md:w-72 md:overflow-y-auto md:border-r md:border-b-0 dark:border-slate-700 dark:bg-slate-800">
+    <aside className="flex w-full shrink-0 flex-col border-b border-linea bg-superficie md:w-72 md:overflow-y-auto md:border-r md:border-b-0">
       <div className="flex items-center justify-between gap-3 px-4 py-2 md:block md:px-4 md:pt-4 md:pb-0">
         <div>
-          <h2 className="hidden text-sm font-semibold text-slate-900 md:block dark:text-slate-100">
+          <h2 className="hidden text-sm font-semibold text-texto md:block">
             Filtros
           </h2>
-          <p aria-live="polite" className="text-sm text-slate-600 md:mt-0.5 dark:text-slate-400">
+          <p aria-live="polite" className="text-sm text-texto-2 md:mt-0.5">
             {/* Con filtros invalidos no se consulta: el mapa y la lista siguen
                 mostrando la busqueda anterior, y un conteo aqui pareceria vigente. */}
             {errorFiltros
@@ -81,14 +82,13 @@ export function PanelFiltrosMapa({
           aria-expanded={abierto}
           aria-controls={ID_CONTENIDO}
           onClick={() => setAbierto((a) => !a)}
-          className="flex shrink-0 items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium
-                     text-slate-700 md:hidden dark:border-slate-600 dark:text-slate-200"
+          className={`${clasesDeBoton('secundario', 'compacto')} shrink-0 md:hidden`}
         >
           <span>Filtros, capas y leyenda</span>
           {activos > 0 && (
             <>
               {' '}
-              <span className="rounded-full bg-sky-600 px-1.5 text-xs text-white">
+              <span className="rounded-full bg-primario px-1.5 text-xs text-sobre-primario">
                 {activos}
                 <span className="sr-only">{` ${activos === 1 ? 'filtro aplicado' : 'filtros aplicados'}`}</span>
               </span>
@@ -127,7 +127,7 @@ export function PanelFiltrosMapa({
         <div className="flex flex-col gap-1.5">
           <label
             htmlFor="filtro-estado"
-            className="text-sm font-medium text-slate-700 dark:text-slate-200"
+            className="text-sm font-medium text-texto"
           >
             Estado
           </label>
@@ -135,8 +135,7 @@ export function PanelFiltrosMapa({
             id="filtro-estado"
             value={filtros.estado ?? ''}
             onChange={(e) => onCambiar({ ...filtros, estado: e.target.value || null })}
-            className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm
-                       dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+            className="min-h-objetivo rounded-control border border-linea-campo bg-superficie px-3 py-2 text-sm text-texto"
           >
             <option value="">Todos</option>
             {ESTADOS_EN_MAPA.map((estado) => (
@@ -148,7 +147,7 @@ export function PanelFiltrosMapa({
         </div>
 
         <fieldset className="flex flex-col gap-2">
-          <legend className="text-sm font-medium text-slate-700 dark:text-slate-200">
+          <legend className="text-sm font-medium text-texto">
             Fecha del reporte
           </legend>
           <div className="grid grid-cols-2 gap-2">
@@ -168,7 +167,7 @@ export function PanelFiltrosMapa({
             />
           </div>
           {errorFiltros && (
-            <p id="filtro-fecha-error" role="alert" className="text-sm text-red-700 dark:text-red-300">
+            <p id="filtro-fecha-error" role="alert" className="text-sm text-error">
               {errorFiltros}
             </p>
           )}
@@ -178,7 +177,7 @@ export function PanelFiltrosMapa({
           <button
             type="button"
             onClick={() => onCambiar(FILTROS_VACIOS)}
-            className="self-start text-sm font-medium text-sky-700 hover:underline dark:text-sky-400"
+            className="self-start text-sm font-medium text-enlace hover:underline"
           >
             Limpiar filtros
           </button>
@@ -186,8 +185,8 @@ export function PanelFiltrosMapa({
 
         {children}
 
-        <div className="mt-2 border-t border-slate-200 pt-4 dark:border-slate-700">
-          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Leyenda</h2>
+        <div className="mt-2 border-t border-linea pt-4">
+          <h2 className="text-sm font-semibold text-texto">Leyenda</h2>
           <ul aria-label="Leyenda de estados" className="mt-2 flex flex-col gap-1.5">
             {ESTADOS_EN_MAPA.map((estado) => {
               const estilo = estiloDeEstado(estado);
@@ -195,12 +194,12 @@ export function PanelFiltrosMapa({
                 <li key={estado} className="flex items-start gap-2 text-sm">
                   <span
                     aria-hidden="true"
-                    className="mt-1 inline-block size-3 shrink-0 rounded-full border-2 border-white shadow"
+                    className="mt-1 inline-block size-3 shrink-0 rounded-full border-2 border-superficie shadow-tarjeta"
                     style={{ background: estilo.color }}
                   />
                   <span>
-                    <span className="text-slate-900 dark:text-slate-100">{estilo.etiqueta}</span>
-                    <span className="block text-xs text-slate-500 dark:text-slate-400">
+                    <span className="text-texto">{estilo.etiqueta}</span>
+                    <span className="block text-xs text-texto-2">
                       {estilo.descripcion}
                     </span>
                   </span>
@@ -233,7 +232,7 @@ function CampoFecha({
 }) {
   return (
     <div className="flex min-w-0 flex-col gap-1">
-      <label htmlFor={id} className="text-xs text-slate-600 dark:text-slate-400">
+      <label htmlFor={id} className="text-xs text-texto-2">
         {etiqueta}
       </label>
       <input
@@ -243,8 +242,7 @@ function CampoFecha({
         onChange={(e) => onCambiar(e.target.value || null)}
         aria-invalid={invalido || undefined}
         aria-describedby={invalido ? 'filtro-fecha-error' : undefined}
-        className="min-w-0 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm
-                   aria-invalid:border-red-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+        className="min-h-objetivo text-texto min-w-0 rounded-control border border-linea-campo bg-superficie px-2 py-1.5 text-sm aria-invalid:border-error"
       />
     </div>
   );
@@ -265,15 +263,14 @@ function Selector({
 }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-sm font-medium text-slate-700 dark:text-slate-200">
+      <label htmlFor={id} className="text-sm font-medium text-texto">
         {etiqueta}
       </label>
       <select
         id={id}
         value={valor ?? ''}
         onChange={(e) => onCambiar(e.target.value ? Number(e.target.value) : null)}
-        className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm
-                   dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+        className="min-h-objetivo text-texto rounded-control border border-linea-campo bg-superficie px-3 py-2 text-sm"
       >
         <option value="">Todos</option>
         {opciones.map((o) => (

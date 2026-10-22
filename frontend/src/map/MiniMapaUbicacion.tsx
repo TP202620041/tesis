@@ -46,8 +46,10 @@ function crearIcono(etiqueta: string): DivIcon {
     'height:1.75rem',
     'border-radius:9999px 9999px 9999px 2px',
     'transform:rotate(-45deg)',
-    'background:#dc2626',
-    'border:3px solid #fff',
+    // DIS-1: neutro (el texto del tema), no rojo: un punto rojo se leeria
+    // como el estado «Pendiente», y la tinta de la marca no va en marcadores.
+    'background:var(--cv-texto)',
+    'border:3px solid var(--cv-superficie)',
     'box-shadow:0 2px 6px rgba(0,0,0,.45)',
   ].join(';');
   return new DivIcon({

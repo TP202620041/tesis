@@ -43,7 +43,7 @@ function crearIcono(): DivIcon {
       display:block; width:1.5rem; height:1.5rem;
       border-radius:9999px 9999px 9999px 2px;
       transform: rotate(-45deg);
-      background:#0284c7; border:3px solid #fff;
+      background:var(--cv-texto); border:3px solid var(--cv-superficie);
       box-shadow:0 2px 6px rgba(0,0,0,.4);"></span>`,
     iconSize: [24, 24],
     iconAnchor: [12, 24],

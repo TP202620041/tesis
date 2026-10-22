@@ -46,6 +46,7 @@ import org.springframework.web.multipart.MultipartFile;
 import pe.edu.upc.viasegura.auth.domain.Rol;
 import pe.edu.upc.viasegura.auth.domain.Usuario;
 import pe.edu.upc.viasegura.common.exception.GlobalExceptionHandler;
+import pe.edu.upc.viasegura.common.exception.ServicioNoDisponibleException;
 import pe.edu.upc.viasegura.common.security.JwtService;
 import pe.edu.upc.viasegura.support.AbstractPostgisIT;
 
@@ -95,6 +96,12 @@ class ErroresHttpIT extends AbstractPostgisIT {
         @PostMapping("/fallo")
         String falla(@RequestBody String cuerpo) {
             throw new IllegalStateException("fallo inesperado de prueba");
+        }
+
+        /** Lo que lanza el saneado sin turno o el almacenamiento de fotos caido (DEP-12). */
+        @PostMapping("/ocupado")
+        String ocupado() {
+            throw new ServicioNoDisponibleException("Hay muchas fotos procesandose en este momento.");
         }
     }
 
@@ -246,6 +253,19 @@ class ErroresHttpIT extends AbstractPostgisIT {
                 .andExpect(jsonPath("$.error").value("Bad Request"))
                 .andExpect(jsonPath("$.message").value("Falta la parte obligatoria 'archivo' del formulario"))
                 .andExpect(jsonPath("$.path").value("/api/prueba-errores-http/parte"));
+    }
+
+    @Test
+    void servicioNoDisponible_503ConSuMensajeYNoUn500() throws Exception {
+        // La PWA muestra el mensaje: es una respuesta del servidor, no un
+        // error de red, asi que el reporte no queda en la cola offline.
+        mockMvc.perform(post("/api/prueba-errores-http/ocupado")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDeCiudadano()))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.status").value(503))
+                .andExpect(jsonPath("$.error").value("Service Unavailable"))
+                .andExpect(jsonPath("$.message").value("Hay muchas fotos procesandose en este momento."))
+                .andExpect(jsonPath("$.path").value("/api/prueba-errores-http/ocupado"));
     }
 
     @Test

@@ -12,15 +12,10 @@ import { ordenar, TablaBandeja, type OrdenBandeja } from './TablaBandeja';
 /**
  * US-13: bandeja de reportes del distrito del funcionario.
  *
- * `cierreDeSesion` lo pasa la pagina (es un componente de `auth`).
+ * La navegacion del area municipal (panel, categorias, soporte) y «Cerrar
+ * sesión» son del marco comun de la app (DIS-1).
  */
-export function BandejaMunicipal({
-  usuario,
-  cierreDeSesion,
-}: {
-  usuario: Usuario;
-  cierreDeSesion: ReactNode;
-}) {
+export function BandejaMunicipal({ usuario }: { usuario: Usuario }) {
   const [filtros, setFiltros] = useState<FiltrosBandeja>(FILTROS_BANDEJA_VACIOS);
   const [orden, setOrden] = useState<OrdenBandeja>('apoyos');
   const categorias = useCategoriasDelDistrito(usuario.distritoId ?? null);
@@ -32,41 +27,18 @@ export function BandejaMunicipal({
 
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-6">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-            Bandeja municipal
-          </h1>
-          <p className="text-sm text-slate-600 dark:text-slate-400">
-            Reportes de {usuario.distritoNombre ?? 'tu distrito'} · {usuario.nombre}{' '}
-            {usuario.apellido}
-          </p>
-        </div>
-        <nav className="flex flex-wrap gap-2">
-          <Link
-            href="/dashboard"
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm dark:border-slate-600 dark:text-slate-200"
-          >
-            Dashboard del distrito
-          </Link>
-          <Link
-            href="/categorias"
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm dark:border-slate-600 dark:text-slate-200"
-          >
-            Categorías
-          </Link>
-          <Link
-            href="/soporte"
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm dark:border-slate-600 dark:text-slate-200"
-          >
-            Soporte
-          </Link>
-          {cierreDeSesion}
-        </nav>
+      <header>
+        <h1 className="text-2xl font-bold text-texto">
+          Bandeja municipal
+        </h1>
+        <p className="text-sm text-texto-2">
+          Reportes de {usuario.distritoNombre ?? 'tu distrito'} · {usuario.nombre}{' '}
+          {usuario.apellido}
+        </p>
       </header>
 
       {error && (
-        <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-800 dark:bg-red-950 dark:text-red-200">
+        <p role="alert" className="border border-error-borde rounded-control bg-error-fondo px-3 py-2 text-sm text-error-texto">
           {error}
         </p>
       )}
@@ -75,7 +47,7 @@ export function BandejaMunicipal({
 
       <ExportarReportes filtros={filtros} />
 
-      <p aria-live="polite" className="text-sm text-slate-600 dark:text-slate-400">
+      <p aria-live="polite" className="text-sm text-texto-2">
         {cargando
           ? 'Cargando…'
           : `${visibles.length} ${visibles.length === 1 ? 'reporte' : 'reportes'}`}
@@ -83,7 +55,7 @@ export function BandejaMunicipal({
 
       {!cargando && <TablaBandeja reportes={visibles} orden={orden} onOrdenar={setOrden} />}
 
-      <Link href="/mapa" className="text-sm text-sky-700 hover:underline dark:text-sky-400">
+      <Link href="/mapa" className="text-sm text-enlace hover:underline">
         Ver el mapa público
       </Link>
     </main>
@@ -112,13 +84,13 @@ function Filtros({
   const hayFiltros = Object.values(filtros).some((v) => v !== null);
 
   return (
-    <section className="flex flex-wrap items-end gap-3 rounded-md border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800">
+    <section className="flex flex-wrap items-end gap-3 rounded-control border border-linea bg-superficie p-3">
       <Campo etiqueta="Estado" id="f-estado">
         <select
           id="f-estado"
           value={filtros.estado ?? ''}
           onChange={(e) => onCambiar({ ...filtros, estado: e.target.value || null })}
-          className="rounded-md border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+          className="min-h-objetivo rounded-control border border-linea-campo bg-superficie px-2 py-1.5 text-sm text-texto"
         >
           <option value="">Todos</option>
           {ESTADOS_EN_BANDEJA.map((estado) => (
@@ -136,7 +108,7 @@ function Filtros({
           onChange={(e) =>
             onCambiar({ ...filtros, categoriaId: e.target.value ? Number(e.target.value) : null })
           }
-          className="rounded-md border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+          className="min-h-objetivo rounded-control border border-linea-campo bg-superficie px-2 py-1.5 text-sm text-texto"
         >
           <option value="">Todos</option>
           {categorias.map((c) => (
@@ -153,7 +125,7 @@ function Filtros({
           type="date"
           value={filtros.fechaDesde ?? ''}
           onChange={(e) => onCambiar({ ...filtros, fechaDesde: e.target.value || null })}
-          className="rounded-md border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+          className="min-h-objetivo rounded-control border border-linea-campo bg-superficie px-2 py-1.5 text-sm text-texto"
         />
       </Campo>
 
@@ -163,7 +135,7 @@ function Filtros({
           type="date"
           value={filtros.fechaHasta ?? ''}
           onChange={(e) => onCambiar({ ...filtros, fechaHasta: e.target.value || null })}
-          className="rounded-md border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+          className="min-h-objetivo rounded-control border border-linea-campo bg-superficie px-2 py-1.5 text-sm text-texto"
         />
       </Campo>
 
@@ -171,7 +143,7 @@ function Filtros({
         <button
           type="button"
           onClick={() => onCambiar(FILTROS_BANDEJA_VACIOS)}
-          className="text-sm font-medium text-sky-700 hover:underline dark:text-sky-400"
+          className="text-sm font-medium text-enlace hover:underline"
         >
           Limpiar
         </button>
@@ -191,7 +163,7 @@ function Campo({
 }) {
   return (
     <div className="flex flex-col gap-1">
-      <label htmlFor={id} className="text-xs font-medium text-slate-600 dark:text-slate-300">
+      <label htmlFor={id} className="text-xs font-medium text-texto-2">
         {etiqueta}
       </label>
       {children}

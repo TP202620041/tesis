@@ -39,14 +39,14 @@ export function Comentarios({
 
   return (
     <section className="flex flex-col gap-4">
-      <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+      <h2 className="text-sm font-semibold text-texto">
         ¿Quedó bien la reparación?
       </h2>
 
       {cargando ? (
-        <p className="text-sm text-slate-500">Cargando comentarios…</p>
+        <p className="text-sm text-texto-2">Cargando comentarios…</p>
       ) : comentarios.length === 0 ? (
-        <p className="text-sm text-slate-500 dark:text-slate-400">
+        <p className="text-sm text-texto-2">
           Todavía nadie comentó sobre esta reparación.
         </p>
       ) : (
@@ -54,10 +54,10 @@ export function Comentarios({
           {comentarios.map((c) => (
             <li
               key={c.id}
-              className="rounded-md border border-slate-200 p-3 text-sm dark:border-slate-700"
+              className="rounded-control border border-linea p-3 text-sm"
             >
-              <p className="text-slate-800 dark:text-slate-200">{c.contenido}</p>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              <p className="text-texto">{c.contenido}</p>
+              <p className="mt-1 text-xs text-texto-2">
                 {c.autor}
                 {c.createdAt ? ` · ${new Date(c.createdAt).toLocaleDateString('es-PE')}` : ''}
               </p>
@@ -69,7 +69,7 @@ export function Comentarios({
       {puedeComentar ? (
         <form onSubmit={enviar} className="flex flex-col gap-2" noValidate>
           {error && <AlertaError mensaje={error.mensaje} detalles={error.detalles} />}
-          <label htmlFor="comentario-publico" className="text-sm text-slate-700 dark:text-slate-200">
+          <label htmlFor="comentario-publico" className="text-sm text-texto">
             Escribe tu comentario
           </label>
           <textarea
@@ -79,14 +79,14 @@ export function Comentarios({
             value={contenido}
             onChange={(e) => setContenido(e.target.value)}
             placeholder="¿Pasaste por ahí? Cuéntanos si el daño quedó reparado o volvió a aparecer."
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+            className="bg-superficie text-texto rounded-control border border-linea-campo px-3 py-2 text-sm"
           />
           <Boton cargando={enviando} disabled={!contenido.trim()}>
             Publicar comentario
           </Boton>
         </form>
       ) : (
-        <p className="text-sm text-slate-500 dark:text-slate-400">
+        <p className="text-sm text-texto-2">
           Inicia sesión para comentar sobre esta reparación.
         </p>
       )}

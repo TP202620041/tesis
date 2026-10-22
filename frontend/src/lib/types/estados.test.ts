@@ -21,6 +21,33 @@ describe('estiloDeEstado', () => {
     expect(new Set(colores).size).toBe(ESTADOS_EN_MAPA.length);
   });
 
+  it('DIS-1: distingue cada estado por color, icono y nombre, no solo por color', () => {
+    const estilos = ESTADOS_REPORTE.map(estiloDeEstado);
+    expect(new Set(estilos.map((e) => e.icono)).size).toBe(ESTADOS_REPORTE.length);
+    expect(new Set(estilos.map((e) => e.etiqueta)).size).toBe(ESTADOS_REPORTE.length);
+    expect(new Set(estilos.map((e) => e.clave)).size).toBe(ESTADOS_REPORTE.length);
+  });
+
+  it('DIS-1: Recibido es azul y En proceso lleva glifo oscuro (propuesta §4)', () => {
+    expect(estiloDeEstado('RECIBIDO').color).toBe('#2e6be6');
+    expect(estiloDeEstado('RECIBIDO').icono).toBe('bandeja');
+    expect(estiloDeEstado('EN_PROCESO').glifo).toBe('#1a1a1a');
+  });
+
+  it('el glifo sobre el marcador tiene contraste de texto (4.5:1)', () => {
+    const lum = (hex: string) => {
+      const [r, g, b] = [1, 3, 5]
+        .map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+        .map((x) => (x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4));
+      return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
+    };
+    for (const estado of ESTADOS_EN_MAPA) {
+      const { color, glifo } = estiloDeEstado(estado);
+      const [a, b] = [lum(color), lum(glifo)].sort((x, y) => y - x);
+      expect((a! + 0.05) / (b! + 0.05), estado).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
   it('degrada a un estilo neutro ante un estado desconocido', () => {
     // `estado` llega como string del API; un valor nuevo no debe romper.
     const estilo = estiloDeEstado('ALGO_NUEVO');

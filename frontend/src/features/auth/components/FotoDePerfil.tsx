@@ -30,7 +30,7 @@ export function FotoDePerfil({
         src={src}
         alt={`Foto de perfil de ${nombre}`}
         style={estilo}
-        className="shrink-0 rounded-full border border-slate-200 object-cover dark:border-slate-700"
+        className="shrink-0 rounded-full border border-linea object-cover"
       />
     );
   }
@@ -41,8 +41,8 @@ export function FotoDePerfil({
       aria-hidden={fallo ? undefined : 'true'}
       title={fallo ? 'No se pudo cargar tu foto' : undefined}
       style={estilo}
-      className="flex shrink-0 items-center justify-center rounded-full bg-slate-200 text-2xl
-                 font-semibold text-slate-500 dark:bg-slate-700 dark:text-slate-300"
+      className="flex shrink-0 items-center justify-center rounded-full bg-superficie-2 text-2xl
+                 font-semibold text-texto-2"
     >
       {nombre.charAt(0).toUpperCase()}
     </span>

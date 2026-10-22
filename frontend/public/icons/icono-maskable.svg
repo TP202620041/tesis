@@ -1,14 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <title>Ciudad Viva</title>
-  <!-- Variante maskable del icono PROVISIONAL (DEP-06): fondo a sangre y el
-       dibujo de icono.svg al 80 %, dentro de la zona segura (circulo de radio
-       40 % centrado), para que Android pueda recortarlo en circulo, gota o
-       cuadrado sin cortar el pin. Fuente de icon-maskable-192.png,
-       icon-maskable-512.png y src/app/apple-icon.png, que genera
-       scripts/generar-iconos.mjs. -->
-  <rect width="512" height="512" fill="#0369a1"/>
-  <g transform="translate(256 256) scale(0.8) translate(-256 -256)">
-    <rect x="136" y="410" width="240" height="28" rx="14" fill="#7dd3fc"/>
-    <path fill="#ffffff" fill-rule="evenodd" d="M256 74C184.2 74 126 132.2 126 204C126 302 256 426 256 426C256 426 386 302 386 204C386 132.2 327.8 74 256 74ZM256 156A48 48 0 1 0 256 252A48 48 0 1 0 256 156Z"/>
-  </g>
+  <!-- Variante maskable del icono «Cívica» (DIS-1; docs/diseno/marca/icono-pwa-a-maskable.svg):
+       fondo a sangre y el pin dentro de la zona segura (círculo de radio 40 %
+       centrado), para que Android pueda recortarlo en círculo, gota o cuadrado
+       sin cortar el pin. Fuente de icon-maskable-192.png, icon-maskable-512.png
+       y src/app/apple-icon.png, que genera scripts/generar-iconos.mjs. -->
+  <rect width="512" height="512" fill="#1F3350"/>
+  <defs><clipPath id="pin"><path d="M256 112c-66.3 0-120 52.6-120 117.9C136 314.7 256 424 256 424s120-109.3 120-194.1C376 164.6 322.3 112 256 112Z"/></clipPath></defs>
+  <path d="M256 112c-66.3 0-120 52.6-120 117.9C136 314.7 256 424 256 424s120-109.3 120-194.1C376 164.6 322.3 112 256 112Z" fill="#FFFFFF"/>
+  <g clip-path="url(#pin)"><path d="M96 330 416 150" stroke="#1F3350" stroke-width="56"/><path d="M96 330 416 150" stroke="#FFD43B" stroke-width="14" stroke-dasharray="30 24"/></g>
 </svg>

@@ -1,6 +1,7 @@
 package pe.edu.upc.viasegura.auth.service;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -14,6 +15,7 @@ import pe.edu.upc.viasegura.auth.dto.AuthResponse;
 import pe.edu.upc.viasegura.auth.dto.LoginRequest;
 import pe.edu.upc.viasegura.auth.dto.RegistroRequest;
 import pe.edu.upc.viasegura.auth.dto.UsuarioResponse;
+import pe.edu.upc.viasegura.auth.event.FotoDePerfilReemplazadaEvent;
 import pe.edu.upc.viasegura.auth.repository.UsuarioRepository;
 import pe.edu.upc.viasegura.common.exception.BusinessException;
 import pe.edu.upc.viasegura.common.exception.ResourceNotFoundException;
@@ -36,6 +38,7 @@ public class AuthService {
     private final DistritoService distritoService;
     private final FotoStorageService fotoStorageService;
     private final ConsentimientoService consentimientoService;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * US-01: registra una cuenta ciudadana y devuelve un token de sesion.
@@ -132,7 +135,16 @@ public class AuthService {
         if (foto != null && !foto.vacio()) {
             // Foto de perfil, no de reporte: se guarda aparte y su URL apunta
             // al endpoint autenticado, no al directorio publico (US-30).
+            String anterior = PerfilFotoService.nombreDeArchivo(usuario.getFotoUrl());
             usuario.setFotoUrl(fotoStorageService.almacenarFotoPerfil(foto));
+            if (anterior != null) {
+                // DEP-12: la foto reemplazada ya no tiene finalidad y es un
+                // dato personal (Ley N.° 29733). La borra
+                // FotoDePerfilReemplazadaListener despues del commit, fuera
+                // del hilo de la peticion (D-13): si el cambio de perfil
+                // hiciera rollback, el ciudadano conservaria su foto anterior.
+                eventPublisher.publishEvent(new FotoDePerfilReemplazadaEvent(usuario.getId(), anterior));
+            }
         }
 
         return respuesta(usuarioRepository.save(usuario));

@@ -16,7 +16,9 @@ import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import pe.edu.upc.viasegura.common.port.FotoStorageService;
 import pe.edu.upc.viasegura.support.AbstractPostgisIT;
+import pe.edu.upc.viasegura.support.ImagenesDePrueba;
 
 /**
  * La foto de perfil (US-30) solo la puede ver su dueno.
@@ -27,13 +29,12 @@ import pe.edu.upc.viasegura.support.AbstractPostgisIT;
  */
 class FotoPerfilIT extends AbstractPostgisIT {
 
-    private static final byte[] PNG_1X1 = java.util.Base64.getDecoder().decode(
-            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==");
-
     @Autowired
     MockMvc mockMvc;
     @Autowired
     ObjectMapper objectMapper;
+    @Autowired
+    FotoStorageService fotoStorageService;
 
     private String tokenCiudadano() throws Exception {
         MvcResult res = mockMvc.perform(post("/api/auth/registro")
@@ -48,12 +49,20 @@ class FotoPerfilIT extends AbstractPostgisIT {
 
     /** Sube una foto de perfil y devuelve la `fotoUrl` registrada. */
     private String subirFotoDePerfil(String token) throws Exception {
+        return subirFotoDePerfil(token, ImagenesDePrueba.jpegConExif(48, 64, 1));
+    }
+
+    private String subirFotoDePerfil(String token, byte[] foto) throws Exception {
         MvcResult res = mockMvc.perform(multipart(HttpMethod.PATCH, "/api/auth/me")
-                        .file(new MockMultipartFile("foto", "yo.png", "image/png", PNG_1X1))
+                        .file(new MockMultipartFile("foto", "yo.jpg", "image/jpeg", foto))
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andReturn();
         return objectMapper.readTree(res.getResponse().getContentAsString()).get("fotoUrl").asText();
+    }
+
+    private static String nombre(String url) {
+        return url.substring(url.lastIndexOf('/') + 1);
     }
 
     @Test
@@ -62,14 +71,51 @@ class FotoPerfilIT extends AbstractPostgisIT {
         String fotoUrl = subirFotoDePerfil(token);
 
         // Debe apuntar al endpoint autenticado, NO al directorio publico.
-        assertThat(fotoUrl).startsWith("/api/perfiles/fotos/");
+        assertThat(fotoUrl).startsWith("/api/perfiles/fotos/").endsWith(".jpg");
         assertThat(fotoUrl).doesNotContain("/media/");
 
         MvcResult descarga = mockMvc.perform(get(fotoUrl).header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
-                .andExpect(header().string("Content-Type", "image/png"))
+                .andExpect(header().string("Content-Type", "image/jpeg"))
+                .andExpect(header().string("Cache-Control", "max-age=2592000, private"))
                 .andReturn();
-        assertThat(descarga.getResponse().getContentAsByteArray()).isEqualTo(PNG_1X1);
+        // La foto subida, saneada: mismas medidas y sin el EXIF del telefono (DEP-12).
+        byte[] cuerpo = descarga.getResponse().getContentAsByteArray();
+        assertThat(ImagenesDePrueba.leer(cuerpo).getWidth()).isEqualTo(48);
+        assertThat(ImagenesDePrueba.tieneApp1(cuerpo)).isFalse();
+        assertThat(ImagenesDePrueba.contiene(cuerpo, ImagenesDePrueba.MARCA_EXIF)).isFalse();
+    }
+
+    @Test
+    void alReemplazarLaFoto_laAnteriorSeBorraDelAlmacenamiento() throws Exception {
+        String token = tokenCiudadano();
+        String primera = subirFotoDePerfil(token);
+        assertThat(fotoStorageService.cargarFotoPerfil(nombre(primera))).isNotNull();
+
+        String segunda = subirFotoDePerfil(token, ImagenesDePrueba.png(30, 30));
+
+        // Ley N.° 29733: la foto reemplazada ya no tiene finalidad.
+        assertThat(segunda).isNotEqualTo(primera);
+        assertThat(fotoStorageService.cargarFotoPerfil(nombre(primera))).isNull();
+        assertThat(fotoStorageService.cargarFotoPerfil(nombre(segunda))).isNotNull();
+        mockMvc.perform(get(primera).header("Authorization", "Bearer " + token))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get(segunda).header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void unArchivoQueNoEsImagen_409YLaFotoAnteriorSeConserva() throws Exception {
+        String token = tokenCiudadano();
+        String fotoUrl = subirFotoDePerfil(token);
+
+        mockMvc.perform(multipart(HttpMethod.PATCH, "/api/auth/me")
+                        .file(new MockMultipartFile("foto", "yo.png", "image/png", "no soy un png".getBytes()))
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isConflict());
+
+        mockMvc.perform(get(fotoUrl).header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk());
     }
 
     @Test

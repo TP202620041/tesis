@@ -9,6 +9,7 @@ import {
   MAX_NOMBRE_CATEGORIA,
   type CategoriaGestion,
 } from '../model/categorias';
+import { clasesDeBoton } from '@/components/ui/Boton';
 
 /**
  * US-29: crear (sin `categoria`) o editar una categoría personalizada.
@@ -64,7 +65,7 @@ export function FormularioCategoria({
           <button
             type="button"
             onClick={onCancelar}
-            className="rounded-md border border-slate-300 px-4 py-2 text-sm dark:border-slate-600 dark:text-slate-200"
+            className={clasesDeBoton('secundario')}
           >
             Cancelar
           </button>

@@ -29,23 +29,23 @@ export function Responsable({ reporteId, estado }: { reporteId: number; estado: 
 
   return (
     <section className="flex flex-col gap-3">
-      <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+      <h2 className="text-sm font-semibold text-texto">
         Responsable interno
       </h2>
 
       {cargando ? (
-        <p className="text-sm text-slate-500">Cargando…</p>
+        <p className="text-sm text-texto-2">Cargando…</p>
       ) : actual ? (
-        <div className="rounded-md border border-slate-200 p-3 text-sm dark:border-slate-700">
-          <p className="font-medium text-slate-900 dark:text-slate-100">{actual.responsable}</p>
-          {actual.notas && <p className="text-slate-600 dark:text-slate-400">{actual.notas}</p>}
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+        <div className="rounded-control border border-linea p-3 text-sm">
+          <p className="font-medium text-texto">{actual.responsable}</p>
+          {actual.notas && <p className="text-texto-2">{actual.notas}</p>}
+          <p className="mt-1 text-xs text-texto-2">
             Asignado el{' '}
             {actual.createdAt ? new Date(actual.createdAt).toLocaleDateString('es-PE') : '—'}
           </p>
         </div>
       ) : (
-        <p className="text-sm text-slate-500 dark:text-slate-400">Sin responsable asignado.</p>
+        <p className="text-sm text-texto-2">Sin responsable asignado.</p>
       )}
 
       {puedeAsignar ? (
@@ -72,7 +72,7 @@ export function Responsable({ reporteId, estado }: { reporteId: number; estado: 
           </Boton>
         </form>
       ) : (
-        <p className="text-xs text-slate-500 dark:text-slate-400">
+        <p className="text-xs text-texto-2">
           Solo se puede asignar un responsable cuando el reporte está recibido o en proceso.
         </p>
       )}

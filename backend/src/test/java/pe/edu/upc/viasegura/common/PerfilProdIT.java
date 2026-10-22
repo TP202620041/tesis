@@ -47,6 +47,8 @@ import pe.edu.upc.viasegura.support.AbstractPostgisIT;
 @ActiveProfiles("prod")
 @TestPropertySource(properties = {
         "CORS_ALLOWED_ORIGINS=https://pwa.ciudadviva.test",
+        // DEP-12: obligatoria en prod; disco local en los tests.
+        "FOTOS_ALMACEN=local",
         // DEP-08: obligatorias en prod. `smtp` para que los correos sigan
         // yendo a GreenMail y no a un proveedor real.
         "CORREO_TIPO=smtp",
@@ -98,6 +100,8 @@ class PerfilProdIT extends AbstractPostgisIT {
         assertThat(environment.getProperty("springdoc.api-docs.enabled")).isEqualTo("false");
         assertThat(environment.getProperty("springdoc.swagger-ui.enabled")).isEqualTo("false");
         assertThat(environment.getProperty("app.cors.allowed-origins")).isEqualTo("https://pwa.ciudadviva.test");
+        // DEP-12: en prod el almacen de fotos sale de FOTOS_ALMACEN, sin default.
+        assertThat(environment.getProperty("app.storage.tipo")).isEqualTo("local");
         // DEP-08: en prod el tipo de correo y el remitente salen del entorno, sin default.
         assertThat(environment.getProperty("app.correo.tipo")).isEqualTo("smtp");
         assertThat(environment.getProperty("app.notificaciones.email-remitente"))

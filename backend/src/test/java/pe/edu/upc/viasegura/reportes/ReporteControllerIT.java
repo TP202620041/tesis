@@ -76,8 +76,9 @@ class ReporteControllerIT extends AbstractPostgisIT {
     }
 
     private MockMultipartFile fotoPng() {
+        // Una imagen real: desde DEP-12 la foto se decodifica al guardarse.
         return new MockMultipartFile("foto", "bache.png", "image/png",
-                new byte[]{(byte) 0x89, 'P', 'N', 'G', 1, 2, 3, 4});
+                pe.edu.upc.viasegura.support.ImagenesDePrueba.png(8, 8));
     }
 
     private Distrito distrito(String nombre) {

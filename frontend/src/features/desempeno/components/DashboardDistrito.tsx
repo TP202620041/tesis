@@ -21,7 +21,7 @@ export function DashboardDistrito() {
 
   if (carga.estado === 'cargando') {
     return (
-      <p aria-live="polite" className="text-sm text-slate-600 dark:text-slate-400">
+      <p aria-live="polite" className="text-sm text-texto-2">
         Cargando métricas…
       </p>
     );
@@ -34,7 +34,7 @@ export function DashboardDistrito() {
         <button
           type="button"
           onClick={carga.recargar}
-          className="self-start text-sm font-medium text-sky-700 hover:underline dark:text-sky-400"
+          className="self-start text-sm font-medium text-enlace hover:underline"
         >
           Reintentar
         </button>
@@ -47,7 +47,7 @@ export function DashboardDistrito() {
 
   return (
     <div className="flex flex-col gap-6">
-      <p className="text-sm text-slate-600 dark:text-slate-400">
+      <p className="text-sm text-texto-2">
         {resumen.distritoNombre ?? 'Tu distrito'}
         {actualizado && ` · Índice actualizado el ${actualizado}`}
       </p>
@@ -79,24 +79,24 @@ function Seccion({
   return (
     <section aria-labelledby={idTitulo} className="flex flex-col gap-3">
       <div>
-        <h2 id={idTitulo} className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+        <h2 id={idTitulo} className="text-lg font-semibold text-texto">
           {titulo}
         </h2>
-        <p className="text-sm text-slate-600 dark:text-slate-400">{nota}</p>
+        <p className="text-sm text-texto-2">{nota}</p>
       </div>
       <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {indicadores.map((indicador) => (
           <div
             key={indicador.id}
-            className="flex flex-col gap-1 rounded-md border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800"
+            className="flex flex-col gap-1 rounded-control border border-linea bg-superficie p-4"
           >
-            <dt className="text-sm font-medium text-slate-600 dark:text-slate-300">
+            <dt className="text-sm font-medium text-texto-2">
               {indicador.etiqueta}
             </dt>
-            <dd className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
+            <dd className="text-2xl font-semibold text-texto">
               {indicador.valor}
             </dd>
-            <dd className="text-xs text-slate-500 dark:text-slate-400">{indicador.descripcion}</dd>
+            <dd className="text-xs text-texto-2">{indicador.descripcion}</dd>
           </div>
         ))}
       </dl>
