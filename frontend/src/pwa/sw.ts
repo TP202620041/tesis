@@ -3,7 +3,7 @@
 import { defaultCache } from '@serwist/next/worker';
 import type { PrecacheEntry, SerwistGlobalConfig } from 'serwist';
 import { NetworkOnly, Serwist } from 'serwist';
-import { AVISO_GENERICO, elegirVentana, leerAvisoPush, rutaInterna } from './avisosPush';
+import { AVISO_GENERICO, elegirVentana, leerAvisoPush, opcionesDeNotificacion, rutaInterna } from './avisosPush';
 import { esPeticionAlApi } from './cachesDeSesion';
 
 /**
@@ -65,13 +65,7 @@ self.addEventListener('push', (event) => {
   }
   const aviso = leerAvisoPush(datos);
   // `userVisibleOnly: true` obliga a mostrar una notificacion por cada push.
-  event.waitUntil(
-    self.registration.showNotification(aviso.titulo, {
-      body: aviso.cuerpo,
-      tag: aviso.tag,
-      data: { url: aviso.url },
-    }),
-  );
+  event.waitUntil(self.registration.showNotification(aviso.titulo, opcionesDeNotificacion(aviso)));
 });
 
 self.addEventListener('notificationclick', (event) => {

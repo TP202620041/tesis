@@ -23,11 +23,16 @@ Consume el API REST de Spring Boot del directorio hermano `../backend`.
 POSTGRES_PORT=5433 docker compose up -d
 POSTGRES_PORT=5433 mvn spring-boot:run     # queda en :8080
 
-# 2. Frontend
-cp .env.local.example .env.local
+# 2. Frontend (Node 24, ver .nvmrc)
+cp .env.example .env.local
 npm install
 npm run dev                                 # queda en :3000
 ```
+
+`.env.example` es la única plantilla de variables y la única que se versiona
+(`.gitignore` ignora `.env*` salvo ella). Reemplaza a `.env.local.example`,
+que estaba documentada pero nunca entró al repositorio porque ese mismo patrón
+la ignoraba: en un clon limpio el `cp` de arriba fallaba.
 
 > El backend permite el origen `http://localhost:3000` vía CORS
 > (`app.cors.allowed-origins`). Si cambias el puerto del frontend, ajusta esa
@@ -42,6 +47,38 @@ npm run dev                                 # queda en :3000
 | `npm run typecheck` | `tsc --noEmit`. |
 | `npm test` | Suite de Vitest. |
 | `npm run api:sync` | Descarga el OpenAPI del backend y regenera los tipos. |
+| `node scripts/generar-iconos.mjs` | Regenera los PNG y el ICO de la PWA desde los SVG de `public/icons/`. |
+
+## Despliegue en Vercel
+
+- **Proyecto**: *Root Directory* `frontend/`, *framework* Next.js, rama de
+  producción `main`. El *Build Command* se deja en el predeterminado: Vercel
+  ejecuta el script `build` del `package.json` (`next build` + `serwist
+  build`). Sobrescribirlo con `next build` a secas dejaría la PWA sin Service
+  Worker.
+- **Node**: `engines.node` fija `24.x`, y Vercel lo respeta por encima del
+  valor del panel (despliega el último 24.x). `.nvmrc` es para nvm o fnm en
+  local.
+- **Variable**: `NEXT_PUBLIC_API_BASE_URL` (Production y Preview), con el
+  origen HTTPS del API, sin barra final. Se **hornea en el build**: va al
+  bundle del cliente y a la CSP (`connect-src` e `img-src`) que arma
+  `next.config.ts`. Cambiar la URL del API exige volver a construir (un
+  *Redeploy*); editarla en el panel no cambia un despliegue ya hecho. Si
+  falta, está vacía o no empieza por `https://`, **el build de Vercel falla**
+  con un mensaje que lo dice: sin ella la PWA quedaría apuntando a
+  `localhost:8080`, rota y sin ningún aviso, y una página HTTPS no puede
+  llamar a un `http://`. `next.config.ts` lo comprueba solo si `VERCEL_ENV` es
+  `production` o `preview`, no con `VERCEL` a secas: `vercel env pull` deja
+  `VERCEL=1` (con `VERCEL_ENV=development`) en `.env.local` y la guarda
+  rompería el desarrollo local. En local y en la CI no se exige y vale el
+  respaldo `http://localhost:8080`. Ver `.env.example`.
+- **CORS**: el backend debe aceptar el dominio de Vercel
+  (`app.cors.allowed-origins`). Las *Preview* tienen una URL por despliegue,
+  así que contra el API de producción solo funcionan si se agrega su origen.
+- **Service Worker**: `public/sw.js` no está en git; lo genera el build. Tras
+  desplegar, `/sw.js` debe responder 200 con JavaScript y `/manifest.webmanifest`
+  y cada `/icons/*.png` también 200; en Chrome, *DevTools → Application →
+  Manifest* no debe mostrar errores.
 
 ## Testing
 
@@ -144,6 +181,61 @@ usuario (`/api/auth/me`, `mis-reportes`, `mi-distrito`) y el siguiente usuario
 del dispositivo podría recibirlas offline. Al cerrar sesión (US-04) además se
 borra esa caché, por si la llenó una versión anterior del SW
 (`src/pwa/cachesDeSesion.ts`).
+
+### Iconos y tipografía (provisionales, DEP-06)
+
+Son **provisionales** hasta la identidad visual definitiva: un pin de mapa
+sobre una calle, en el color de tema `#0369a1`. Lo que sí es definitivo es la
+estructura, para que el cambio sea reemplazar los SVG de `public/icons/` y correr
+`node scripts/generar-iconos.mjs`:
+
+- **`any` y `maskable` por separado** (`src/app/manifest.ts`). Un mismo PNG no
+  sirve para ambos: el `maskable` necesita fondo a sangre y el dibujo dentro de
+  la zona segura (círculo de radio 40 %), porque Android lo recorta en círculo
+  o gota; usado como `any`, en cambio, se vería con un margen excesivo. Las
+  fuentes son `public/icons/icono.svg` y `public/icons/icono-maskable.svg`.
+- **`apple-icon.png` opaco y a sangre** (convención de archivo de Next en
+  `src/app/`, que emite el `<link rel="apple-touch-icon">`): iOS rellena de
+  negro la transparencia y redondea las esquinas por su cuenta.
+- **`favicon.ico` con PNG de 16, 32 y 48 px** dentro del ICO.
+- **Avisos push con icono e insignia** (`src/pwa/avisosPush.ts`): el icono es
+  `icon-192.png`; la insignia, `badge-96.png`, que sale de
+  `public/icons/icono-badge.svg` (la silueta del pin en blanco sobre
+  transparente), porque Android solo usa el canal alfa de la insignia para la
+  barra de estado y un icono a color se vería como un cuadrado lleno.
+- Dos tests evitan que vuelva a pasar lo que motivó DEP-06 (el manifest
+  declaraba iconos que no existían y nada fallaba): `src/app/manifest.test.ts`
+  y `src/pwa/avisosPush.test.ts` comprueban que cada icono declarado está en
+  `public/` y que el PNG mide lo que dice `sizes`, leyendo ancho y alto del
+  encabezado `IHDR`, sin dependencias.
+- **Sin `orientation` en el manifest.** El scaffold fijaba `portrait`, que
+  bloquea la rotación de la PWA instalada: quien tiene el teléfono montado en
+  horizontal (en una silla de ruedas, por ejemplo) no podría usarla, y eso
+  incumple WCAG 2.1, criterio 1.3.4 (Orientación). Sin el campo, la app sigue
+  la orientación del dispositivo.
+- Los PNG se versionan en vez de generarse en cada build: el script usa
+  `sharp`, que Next instala como dependencia opcional, y un build de Vercel no
+  debería depender de ella. No se agregó ninguna dependencia.
+
+**Tipografía**: se usa la Geist que `layout.tsx` carga con `next/font`, vía
+`--font-sans` del `@theme` de Tailwind, que el preflight aplica a `html`. El
+`body` del scaffold fijaba `font-family: Arial` fuera de toda capa (`@layer`) de
+Tailwind, así que ganaba siempre y la app se veía en Arial; se quitó esa línea.
+Por la misma razón, el `background` y el `color` de ese `body` también ganan a
+las clases `bg-slate-50`/`dark:bg-slate-900` de `layout.tsx`; no se tocan
+aquí porque cambiarían el aspecto de todas las pantallas: queda para el diseño.
+
+Se mantiene **`next/font/google`** (`src/app/layout.tsx`) en vez de
+`next/font/local` con los archivos de la fuente en el repo: no agrega ninguna
+dependencia ni binarios que mantener, y la tipografía es provisional. El
+costo es que **el build necesita red** para descargar Geist de Google Fonts
+(en Vercel y en la CI la hay; un build sin conexión falla con «Failed to
+fetch `Geist` from Google Fonts», mientras que `next dev` solo avisa y usa la
+fuente de respaldo). En ejecución, en
+cambio, el navegador no llama a Google: `next/font` empaqueta la fuente en los
+estáticos de la app y la sirve desde el propio origen, así que a la CSP le
+basta `font-src 'self'`. Si la identidad definitiva trae su propia fuente,
+lo natural es pasar a `next/font/local`.
 
 ### Seguridad: dónde vive el JWT
 
