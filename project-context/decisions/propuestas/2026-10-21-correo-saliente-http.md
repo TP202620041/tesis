@@ -1,6 +1,6 @@
 # Propuesta: correo saliente por API HTTP detrás de un puerto (`CorreoSaliente`)
 
-- **Estado:** abierta <!-- abierta | aceptada | rechazada -->
+- **Estado:** aceptada (2026-10-21) <!-- abierta | aceptada | rechazada -->
 - **Fecha:** 2026-10-21
 - **Origen:** subagente arquitecto, encargo ARQ-1 (despliegue del MVP, paquete DEP-08)
 - **Decide:** el usuario. Si se acepta, la sesión de raíz actualiza ARCHITECTURE.md o el plan.
@@ -114,3 +114,7 @@ Consultado el 21/10/2026 en las páginas oficiales citadas. El volumen esperado 
 ## Qué queda bloqueado mientras no se decida
 
 DEP-08 y, con él, la salida a producción con correo: sin un proveedor no funcionan la recuperación de contraseña (US-03), la respuesta de soporte por correo (US-25) ni el aviso por correo (US-16). El resto del despliegue puede avanzar: el adaptador SMTP sigue en desarrollo y en los IT.
+
+## Decisión (2026-10-21)
+
+El usuario eligió **Resend** como proveedor HTTP (no Brevo). Se adopta el puerto `common/port/CorreoSaliente` con el adaptador SMTP para desarrollo y tests (GreenMail) y un adaptador HTTP para Resend, elegido con `app.correo.tipo`, y el envío asíncrono fuera de la transacción para la recuperación de contraseña y la respuesta de tickets. **Consecuencia:** Resend solo envía a cualquier destinatario desde un dominio verificado (SPF/DKIM), así que hace falta un dominio propio antes de activar el correo en producción; mientras tanto, el despliegue puede salir con el correo desactivado o limitado a las direcciones del equipo.

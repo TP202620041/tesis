@@ -11,6 +11,18 @@ Reúne **todo** lo que hoy espera una decisión del usuario, venga de esta ronda
 - **Media:** bloquea el siguiente sprint funcional (NC-05, NC-06, NC-03).
 - **Baja:** antes de v1.0 o solo documental.
 
+## Decididas el 21/10/2026
+
+| # | Decisión | Qué se decidió | Dónde quedó registrada |
+|---|---|---|---|
+| 2 | Proveedor de correo | **Resend** (exige dominio verificado: la decisión 3 pasa a ser requisito del correo en producción) | `2026-10-21-correo-saliente-http.md`, «Decisión» |
+| 4 | Hosting | **Railway + Vercel**, fotos en **R2** (plan y gasto mensual aún por confirmar) | `2026-10-21-despliegue-mvp.md`, «Decisión» |
+| 7 (parte) | Transcripción de Zoom en el repo | Se quita de las ramas (PR #88); el historial no se reescribe | PR #88 |
+| 8 | Fotos | R2 privado, mismas URLs, sin EXIF; diseño de la propuesta | `2026-10-21-fotos-r2.md`, «Decisión» |
+| 10 | CI obligatoria | Check `ci` exigido en `develop` y `main` desde el 21/10 | `WORKFLOW.md` §5, `docs/ci.md` |
+| 14 | Modelo de detección | Clases `bache` y `grieta`, RF-DETR Apache-2.0, umbral 0,50, desactivar «Hueco en calzada» | `2026-10-21-ml-clases-modelo.md`, «Decisión» |
+| 17 | Dirección visual | **A · Cívica** (tinta azul marino y blanco, Public Sans, foco amarillo; deja el celeste) | Canvas «Rediseño Ciudad Viva» y la propuesta de diseño |
+
 ## Resumen
 
 | # | Decisión | Urgencia | Bloquea | Recomendación corta | Detalle |

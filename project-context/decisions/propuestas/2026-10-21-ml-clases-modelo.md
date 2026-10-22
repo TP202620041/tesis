@@ -1,6 +1,6 @@
 # Propuesta: clases del modelo de detección, política de sugerencia y plan NC-03/NC-04
 
-- **Estado:** abierta <!-- abierta | aceptada | rechazada -->
+- **Estado:** aceptada (2026-10-21) <!-- abierta | aceptada | rechazada -->
 - **Fecha:** 2026-10-21
 - **Origen:** subagente arquitecto, encargo ARQ-1 (decisión del usuario del 21/10: «proponer clases y avanzar»; NC-04 avanza con un adaptador falso mientras tanto)
 - **Decide:** el usuario. Si se acepta, la sesión de raíz actualiza ARCHITECTURE.md (§6, §8) y el plan (NC-03, NC-04).
@@ -142,3 +142,7 @@ Una categoría sin `clase_modelo` **nunca** se sugiere; el ciudadano la elige a 
 ## Qué queda bloqueado mientras no se decida
 
 NC-03 (pesos, licencia y umbral). NC-04 solo necesita la decisión 1 para fijar el seed de `clase_modelo`; con el adaptador falso puede avanzar en todo lo demás.
+
+## Decisión (2026-10-21)
+
+El usuario aprobó la propuesta completa: clases **`bache`** (D40) y **`grieta`** (D00, D10 y D20) de RDD2022, pesos RF-DETR bajo **Apache-2.0** (no los YOLO de Ultralytics, AGPL), umbral inicial **0,50** a calibrar con fotos de Lima, y **desactivar la categoría estándar «Hueco en calzada»** (no se distingue de «Bache» en una foto). Orden: NC-04 primero con el adaptador falso; después NC-03 (`inferencia/`, FastAPI + ONNX). La sesión de raíz actualizará ARCHITECTURE.md (§6 y §8) y el plan al abrir esas tareas.
