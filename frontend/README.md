@@ -683,8 +683,26 @@ la cola offline, que guarda fotos en IndexedDB. OpenStreetMap responde con
 dejan de ser opacas y ocupan lo que pesan.
 
 **Un solo host.** La CSP lista solo `https://tile.openstreetmap.org`, que es
-el que usan los dos mapas. Ya no incluye el comodín `*.tile.openstreetmap.org`
+el que usan los tres mapas. Ya no incluye el comodín `*.tile.openstreetmap.org`
 de los antiguos subdominios a/b/c.
+
+**Dónde está el daño (QA-1 I-1).** Los tres detalles de reporte (público,
+del ciudadano y de la bandeja municipal) muestran la sección «Ubicación»
+(`components/UbicacionDelReporte.tsx`, compartida porque la usan `reportes` y
+`gestion`) con tres formas del mismo dato: un mini mapa, las coordenadas en
+texto (latitud, longitud, 5 decimales ≈ 1 m: se pueden copiar y un lector de
+pantalla las lee) y el enlace «Abrir en OpenStreetMap» en otra pestaña.
+- El mini mapa (`map/MiniMapaUbicacion.tsx`) es de **solo lectura**: sin
+  arrastre, zoom táctil, rueda, doble clic ni teclado de Leaflet, para que al
+  desplazar la página con el dedo no se mueva el mapa ni se pierda el punto.
+  Quedan los botones +/-, que acercan siempre sobre el punto.
+- El marcador no es interactivo: es una imagen con nombre accesible
+  («Ubicación del daño: <título>»). Se arma como elemento del DOM y no como
+  HTML en texto, porque lleva el título que escribió el ciudadano.
+- El enlace es navegación externa, no un recurso que cargue la página: no
+  pasa por la CSP, que no cambia.
+- Sin coordenadas válidas dice «Sin ubicación registrada», nunca un punto en
+  (0, 0).
 
 ### Mapa de calor (US-11): círculos de Leaflet, sin plugin
 

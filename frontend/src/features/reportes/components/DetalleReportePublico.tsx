@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { UbicacionDelReporte } from '@/components/UbicacionDelReporte';
 import { estiloDeEstado } from '@/lib/types/estados';
 import { textoDeSeveridad, tituloVisible } from '@/lib/types/tituloYSeveridad';
 import { useReportePublico } from '../hooks/useReportePublico';
@@ -92,6 +93,12 @@ export function DetalleReportePublico({
           className="max-h-80 w-full rounded-md border border-slate-200 object-cover dark:border-slate-700"
         />
       )}
+
+      <UbicacionDelReporte
+        latitud={reporte.latitud}
+        longitud={reporte.longitud}
+        titulo={tituloVisible(reporte.titulo)}
+      />
 
       {/* US-27: solo tiene sentido opinar sobre una reparacion que ocurrio. */}
       {estado === 'RESUELTO' ? (

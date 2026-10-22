@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { LineaDeTiempo } from '@/components/LineaDeTiempo';
+import { UbicacionDelReporte } from '@/components/UbicacionDelReporte';
 import { estiloDeEstado } from '@/lib/types/estados';
 import { textoDeSeveridad, tituloVisible } from '@/lib/types/tituloYSeveridad';
 import { useMiReporte } from '../hooks/useMiReporte';
@@ -115,6 +116,12 @@ export function DetalleMiReporte({
           className="max-h-72 w-full rounded-md border border-slate-200 object-cover dark:border-slate-700"
         />
       )}
+
+      <UbicacionDelReporte
+        latitud={reporte.latitud}
+        longitud={reporte.longitud}
+        titulo={tituloVisible(reporte.titulo)}
+      />
 
       {puedeEditar(estado) && (
         <section className="rounded-md border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
