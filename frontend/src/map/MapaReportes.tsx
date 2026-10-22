@@ -13,6 +13,7 @@ import {
   useMap,
   useMapEvents,
 } from 'react-leaflet';
+import { ControlDeZoom } from './ControlDeZoom';
 import type { BoundingBox } from '@/features/reportes/model/bbox';
 import { estiloDeNivel, textoDeRango, type CeldaCalor } from '@/features/reportes/model/densidad';
 import { nombreDeMarcador } from '@/features/reportes/model/marcador';
@@ -203,6 +204,7 @@ export default function MapaReportes({
       zoom={ZOOM_INICIAL}
       style={{ height: alto, width: '100%' }}
       keyboard
+      zoomControl={false}
     >
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
@@ -210,6 +212,7 @@ export default function MapaReportes({
         crossOrigin="anonymous"
         maxZoom={19}
       />
+      <ControlDeZoom />
       <ObservarArea onAreaCambiada={onAreaCambiada} />
       <AjustarAlContenedor />
 

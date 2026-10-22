@@ -21,8 +21,10 @@ import type { Ubicacion } from '@/lib/types/ubicacion';
  * - sin zoom con la rueda ni con doble clic: la rueda sigue desplazando la
  *   pagina;
  * - sin teclado de Leaflet: el contenedor no es una parada de tabulacion
- *   (no hay nada que hacer con el); los botones +/- si lo son, y como el
- *   mapa no se puede arrastrar, acercan y alejan siempre sobre el punto.
+ *   (no hay nada que hacer con el);
+ * - sin botones +/- (`zoomControl={false}`): en un mapa de solo lectura no
+ *   aportan, y Leaflet los nombra en ingles («Zoom in»/«Zoom out»). Para
+ *   verlo en grande o pedir la ruta esta el enlace a OpenStreetMap.
  *
  * El marcador no es interactivo (no abre nada): es una imagen con nombre
  * accesible. Se construye como elemento del DOM, no con `html` en texto,
@@ -80,6 +82,7 @@ export default function MiniMapaUbicacion({ latitud, longitud, etiqueta, alto = 
       doubleClickZoom={false}
       boxZoom={false}
       keyboard={false}
+      zoomControl={false}
     >
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'

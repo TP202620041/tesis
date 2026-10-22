@@ -734,7 +734,11 @@ pantalla las lee) y el enlace «Abrir en OpenStreetMap» en otra pestaña.
 - El mini mapa (`map/MiniMapaUbicacion.tsx`) es de **solo lectura**: sin
   arrastre, zoom táctil, rueda, doble clic ni teclado de Leaflet, para que al
   desplazar la página con el dedo no se mueva el mapa ni se pierda el punto.
-  Quedan los botones +/-, que acercan siempre sobre el punto.
+  Tampoco lleva botones +/-: no aportan en un mapa que solo muestra un punto,
+  y para verlo en grande está el enlace a OpenStreetMap.
+- Los otros dos mapas usan `map/ControlDeZoom.tsx` en vez del control por
+  defecto, que nombraba los botones «Zoom in»/«Zoom out» (Leaflet usa ese
+  texto como `title` y `aria-label`): ahora dicen «Acercar» y «Alejar».
 - El marcador no es interactivo: es una imagen con nombre accesible
   («Ubicación del daño: <título>»). Se arma como elemento del DOM y no como
   HTML en texto, porque lleva el título que escribió el ciudadano.
