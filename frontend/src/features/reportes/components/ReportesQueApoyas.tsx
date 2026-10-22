@@ -23,9 +23,11 @@ import {
  *
  * `arribaYaCargo`: si lo de arriba en la página (los reportes propios) ya
  * cargó. Al llegar desde «Ver los reportes que apoyas» (la confirmación de
- * una adhesión, con el ancla en la URL), el foco va al título de la sección
- * cuando ya no se mueve: el ancla no existe hasta que la sección carga, así
- * que Next no puede desplazarse a ella por su cuenta.
+ * una adhesión, con el ancla en la URL), Next no puede desplazarse a ella por
+ * su cuenta: el ancla (el título) aparece recién cuando `GuardiaDeRol`
+ * resuelve la sesión y monta la página, y después la lista de arriba, al
+ * cargar, la empuja hacia abajo. Por eso el foco va al título cuando ya no se
+ * mueve: cuando esta sección y la lista de arriba ya cargaron.
  */
 export function ReportesQueApoyas({ arribaYaCargo }: { arribaYaCargo: boolean }) {
   const carga = useReportesQueApoyas();

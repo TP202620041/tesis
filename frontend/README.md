@@ -1169,9 +1169,11 @@ propios:
   vacío con `EstadoVacio` que explica cómo se llega a apoyar un reporte.
 - **Tras una adhesión**, la confirmación de `/reportar` ofrece «Ver los
   reportes que apoyas» (`/mis-reportes#reportes-que-apoyas`) en vez de «Ver
-  mis reportes». El ancla no existe hasta que la sección carga, así que Next
-  no puede desplazarse a ella: la sección lleva el foco a su título (y con él
-  la vista) cuando ella y la lista de arriba ya cargaron.
+  mis reportes». Next no puede desplazarse al ancla por su cuenta: el título
+  de la sección aparece recién cuando `GuardiaDeRol` resuelve la sesión, y la
+  lista de arriba lo desplaza hacia abajo al cargar. Por eso la sección lleva
+  el foco a su título (y con él la vista) cuando ella y la lista de arriba ya
+  cargaron.
 - **Los avisos no cambian**: push y correo siguen yendo solo al creador, y la
   sección lo dice. Avisar también a quien apoya sería una decisión aparte.
 
