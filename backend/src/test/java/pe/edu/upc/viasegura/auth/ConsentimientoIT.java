@@ -134,8 +134,8 @@ class ConsentimientoIT extends AbstractPostgisIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(registro(correo(), "")))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.details", hasItem(containsString("aceptaTerminos"))))
-                .andExpect(jsonPath("$.details", hasItem(containsString("versionTerminos"))));
+                .andExpect(jsonPath("$.details", hasItem("Debes aceptar los términos de uso y la política de privacidad")))
+                .andExpect(jsonPath("$.details", hasItem("Falta la versión de los términos que aceptas")));
     }
 
     @Test
@@ -146,7 +146,7 @@ class ConsentimientoIT extends AbstractPostgisIT {
                         .content(registro(email,
                                 ",\"aceptaTerminos\":false,\"versionTerminos\":\"" + versionVigente + "\"")))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.details", hasItem(containsString("aceptaTerminos"))));
+                .andExpect(jsonPath("$.details", hasItem("Debes aceptar los términos de uso y la política de privacidad")));
         assertThat(usuarioRepository.existsByEmail(email)).isFalse();
     }
 

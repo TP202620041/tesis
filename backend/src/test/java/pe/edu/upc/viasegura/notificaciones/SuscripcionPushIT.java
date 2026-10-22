@@ -389,7 +389,7 @@ class SuscripcionPushIT extends AbstractPostgisIT {
         mockMvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON)
                         .content(cuerpo(endpointNuevo(), "", "auth")).header("Authorization", auth))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.details[0]", containsString("keys.p256dh")));
+                .andExpect(jsonPath("$.details[0]", is("Falta la clave p256dh de la suscripción push")));
         mockMvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON)
                         .content(cuerpo(endpointNuevo(), "p256", " ")).header("Authorization", auth))
                 .andExpect(status().isBadRequest());

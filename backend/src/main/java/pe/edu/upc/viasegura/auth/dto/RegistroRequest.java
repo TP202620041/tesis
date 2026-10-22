@@ -16,11 +16,23 @@ import jakarta.validation.constraints.Size;
  * cliente mostro un texto que ya no rige).</p>
  */
 public record RegistroRequest(
-        @NotBlank @Email @Size(max = 150) String email,
-        @NotBlank @Size(min = 8, max = 72) String password,
-        @NotBlank @Size(max = 100) String nombre,
-        @NotBlank @Size(max = 100) String apellido,
-        @NotNull @AssertTrue(message = "debe aceptar los terminos y la politica de privacidad")
+        @NotBlank(message = "Ingresa tu correo")
+        @Email(message = "El correo no tiene un formato válido")
+        @Size(max = 150, message = "El correo puede tener como máximo {max} caracteres")
+        String email,
+        @NotBlank(message = "Ingresa una contraseña")
+        @Size(min = 8, max = 72, message = "La contraseña debe tener entre {min} y {max} caracteres")
+        String password,
+        @NotBlank(message = "Ingresa tu nombre")
+        @Size(max = 100, message = "El nombre puede tener como máximo {max} caracteres")
+        String nombre,
+        @NotBlank(message = "Ingresa tu apellido")
+        @Size(max = 100, message = "El apellido puede tener como máximo {max} caracteres")
+        String apellido,
+        @NotNull(message = "Debes aceptar los términos de uso y la política de privacidad")
+        @AssertTrue(message = "Debes aceptar los términos de uso y la política de privacidad")
         Boolean aceptaTerminos,
-        @NotBlank @Size(max = 40) String versionTerminos
+        @NotBlank(message = "Falta la versión de los términos que aceptas")
+        @Size(max = 40, message = "La versión de los términos puede tener como máximo {max} caracteres")
+        String versionTerminos
 ) {}

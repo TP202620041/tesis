@@ -7,5 +7,6 @@ import jakarta.validation.constraints.NotNull;
  * Desactivar solo hace que deje de ofrecerse para reportes nuevos.
  */
 public record CambiarActivaCategoriaRequest(
-        @NotNull Boolean activa
+        @NotNull(message = "Indica si la categoría queda activa")
+        Boolean activa
 ) {}

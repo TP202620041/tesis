@@ -12,6 +12,8 @@ import pe.edu.upc.viasegura.reportes.domain.EstadoReporte;
  *                   RECHAZADO (validado en el servicio)
  */
 public record CambiarEstadoRequest(
-        @NotNull EstadoReporte estado,
-        @Size(max = 1000) String comentario
+        @NotNull(message = "Elige el nuevo estado")
+        EstadoReporte estado,
+        @Size(max = 1000, message = "El comentario puede tener como máximo {max} caracteres")
+        String comentario
 ) {}

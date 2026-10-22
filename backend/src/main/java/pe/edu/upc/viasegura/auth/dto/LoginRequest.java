@@ -5,6 +5,9 @@ import jakarta.validation.constraints.NotBlank;
 
 /** Credenciales de inicio de sesion (US-02). */
 public record LoginRequest(
-        @NotBlank @Email String email,
-        @NotBlank String password
+        @NotBlank(message = "Ingresa tu correo")
+        @Email(message = "El correo no tiene un formato válido")
+        String email,
+        @NotBlank(message = "Ingresa tu contraseña")
+        String password
 ) {}

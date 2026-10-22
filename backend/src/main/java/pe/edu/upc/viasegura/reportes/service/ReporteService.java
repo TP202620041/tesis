@@ -93,6 +93,7 @@ public class ReporteService {
         // un envio ya procesado reciba su respuesta guardada aunque venga de
         // una version del cliente que no mandaba estos campos.
         String titulo = Reporte.normalizarTitulo(cmd.titulo());
+        Reporte.validarDescripcion(cmd.descripcion());
         if (cmd.severidad() == null) {
             throw new IllegalArgumentException("La severidad es obligatoria (Baja, Media o Alta)");
         }

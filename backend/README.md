@@ -734,6 +734,40 @@ con una categoría de distrito «vereda DAÑADA», se detiene con el mensaje.
   UTF-8. `NotificacionIT` y `PasswordResetIT` leen el asunto y el cuerpo
   decodificados que llegan a GreenMail.
 
+### Errores de validación sin nombres técnicos (M-2)
+
+Un 400 de `@Valid` decía «Error de validacion / password: el tamaño debe
+estar entre 8 y 72»: el nombre del campo en inglés delante del mensaje por
+defecto de Bean Validation, que no tiene sujeto. Ahora cada restricción de
+cada DTO lleva su propio mensaje, una oración que nombra el dato en palabras
+(«La contraseña debe tener entre 8 y 72 caracteres», «Ingresa tu nombre»,
+«El correo no tiene un formato válido»), con `{min}` y `{max}` interpolados
+desde la anotación para que el número no se duplique. La forma del `ApiError`
+no cambia: `message` sigue siendo «Error de validación» y `details`, una
+lista de textos, ahora sin el prefijo `campo: `.
+
+- **Por qué mensajes en los DTO y no un mapa de etiquetas en
+  `GlobalExceptionHandler`.** Con un mapa, el texto seguiría siendo el de
+  Bean Validation («Contraseña: el tamaño debe estar entre 8 y 72») y el
+  mapa sería una segunda lista de campos que mantener. El mensaje junto a la
+  restricción se lee donde se declara la regla.
+- **Guarda de completitud.** `MensajesDeValidacionTest` (Surefire) recorre las
+  clases de todos los paquetes `dto` y falla si alguna restricción de
+  `jakarta.validation.constraints` conserva su mensaje por defecto (y si no
+  encuentra ninguna, para no pasar en vacío). Si aun así llegara una,
+  `GlobalExceptionHandler` le antepone el campo, como antes.
+- **Las rutas multipart no pasan por `@Valid`.** La creación del reporte y la
+  edición del perfil validan en el servicio; ahí faltaban dos topes que
+  terminaban en **500** al chocar con la columna: la descripción del reporte
+  (más de 1000 caracteres) y el nombre o el apellido del perfil (más de 100).
+  Ahora son 400 con su mensaje (`Reporte.validarDescripcion`,
+  `AuthService.exigirLargoMaximo`), contando code points como el `varchar`.
+- Los mensajes de parámetros de query mal tipados siguen nombrando el
+  parámetro (`Valor inválido para el parámetro 'fechaDesde'…`): los arma un
+  cliente del API, no una persona en un formulario. El rango de fechas
+  invertido ahora dice «La fecha de inicio no puede ser posterior a la fecha
+  de fin».
+
 ## Catálogos de referencia (descubribilidad)
 
 Dos endpoints **públicos** de solo lectura que existen para que un cliente

@@ -10,6 +10,9 @@ import jakarta.validation.constraints.Size;
  * de estado del reporte (409).
  */
 public record CalificarRequest(
-        @Min(1) @Max(5) int estrellas,
-        @Size(max = 1000) String comentario
+        @Min(value = 1, message = "La calificación debe ser de 1 a 5 estrellas")
+        @Max(value = 5, message = "La calificación debe ser de 1 a 5 estrellas")
+        int estrellas,
+        @Size(max = 1000, message = "El comentario puede tener como máximo {max} caracteres")
+        String comentario
 ) {}

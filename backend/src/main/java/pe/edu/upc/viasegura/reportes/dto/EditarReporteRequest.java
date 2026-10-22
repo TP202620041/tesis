@@ -14,6 +14,7 @@ import pe.edu.upc.viasegura.reportes.domain.Severidad;
 public record EditarReporteRequest(
         Long categoriaId,
         String titulo,
-        @Size(max = 1000) String descripcion,
+        @Size(max = 1000, message = "La descripción puede tener como máximo {max} caracteres")
+        String descripcion,
         Severidad severidad
 ) {}

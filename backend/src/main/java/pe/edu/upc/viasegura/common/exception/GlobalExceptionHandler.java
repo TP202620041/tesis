@@ -1,6 +1,7 @@
 package pe.edu.upc.viasegura.common.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.ConstraintViolation;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
@@ -259,8 +260,30 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.INTERNAL_SERVER_ERROR, "Error interno del servidor", req, List.of());
     }
 
+    /**
+     * Detalle de un error de {@code @Valid} listo para mostrar (QA-1 M-2).
+     *
+     * <p>Las restricciones de los DTO llevan su propio mensaje, una oracion
+     * completa que nombra el dato en palabras («La contraseña debe tener
+     * entre 8 y 72 caracteres»): se devuelve tal cual, sin el nombre tecnico
+     * del campo. {@code MensajesDeValidacionTest} exige ese mensaje en cada
+     * restriccion de un DTO. Si aun asi llega uno con el mensaje por defecto
+     * de Bean Validation («el tamaño debe estar entre 8 y 72»), se antepone
+     * el campo para que el detalle no quede sin sujeto.</p>
+     */
     private String formatFieldError(FieldError fe) {
+        if (tieneMensajePropio(fe)) {
+            return fe.getDefaultMessage();
+        }
         return "%s: %s".formatted(fe.getField(), fe.getDefaultMessage());
+    }
+
+    private static boolean tieneMensajePropio(FieldError fe) {
+        if (!fe.contains(ConstraintViolation.class)) {
+            return false;
+        }
+        String plantilla = fe.unwrap(ConstraintViolation.class).getMessageTemplate();
+        return !plantilla.startsWith("{jakarta.validation.") && !plantilla.startsWith("{org.hibernate.validator.");
     }
 
     private ResponseEntity<ApiError> build(HttpStatus status, String message, HttpServletRequest req, List<String> details) {
