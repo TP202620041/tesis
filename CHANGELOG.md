@@ -2,6 +2,128 @@
 
 Versiones de Ciudad Viva (antes ViaSegura) según GitFlow (`WORKFLOW.md` §8): cada sprint cierra con una versión minor en `main`. Plan: `project-context/decisions/plan-sprints.md`.
 
+## v0.7.0 — Despliegue del MVP (2026-10-22)
+
+Prepara el MVP para publicarlo según la propuesta aceptada el 21/10 (`project-context/decisions/propuestas/2026-10-21-despliegue-mvp.md`):
+- **Infraestructura:** Railway (backend y PostGIS) y Vercel (PWA).
+- **Servicios:** fotos en Cloudflare R2 y correo por Resend.
+
+El despliegue en sí no entra en esta versión: necesita las cuentas y las claves del usuario (`docs/despliegue.md`). Es un sprint intercalado en el plan («Despliegue»), así que el S6 pasa a v0.8.0 y el S7 a v0.9.0.
+
+### Preparación para desplegar
+- **DEP-07 · Integración continua** (#84):
+  - **Backend:** un job con PostGIS 16-3.4 y, desde #96, Adobe S3Mock.
+  - **Frontend:** un job con lint, typecheck, tests y build.
+  - **Guarda de completitud:** un `BUILD SUCCESS` sin tests no pasa.
+  - **Protección:** el check `ci` es obligatorio en `develop` y `main` desde el 21/10 (#88).
+- **DEP-01, DEP-02, DEP-03 y DEP-11 · Configuración de producción e imagen** (#89):
+  - **Secreto JWT (SEC-03):** no tiene valor por defecto. La aplicación no arranca si falta, si es corto o si es el de desarrollo publicado.
+  - **Perfil `prod`:** variables obligatorias y actuator solo con `health`. Swagger solo se publica con `SPRINGDOC_HABILITADO=true`.
+  - **Imagen:** `backend/Dockerfile` multietapa sobre `eclipse-temurin:21-jre-noble`, sin root.
+  - **Errores (DEP-11):** una foto de más de 10 MB, un método no admitido o una petición mal formada responden 413, 405 y 400, en lugar de 500.
+- **DEP-04 y DEP-05 · Primer ADMIN y funcionarios** (#93):
+  - **Primer ADMIN:** `AdministradorInicialSeeder` lo crea desde `ADMIN_INICIAL_*` solo si la base no tiene ninguno, como decidió el usuario el 22/10. Nunca promueve una cuenta existente.
+  - **Funcionarios:** `backend/scripts/asignar-funcionario.sql` les asigna o revoca el distrito.
+- **DEP-12 · Fotos en Cloudflare R2** (#96):
+  - **Almacén:** un adaptador S3 con dos buckets privados. `FOTOS_ALMACEN` es obligatoria en `prod`.
+  - **Contrato:** las URLs de las fotos no cambian, ni tampoco el contrato ni la CSP.
+  - **Saneado:** cada foto se sanea al subirla (aplica la orientación EXIF, quita los metadatos y la reduce a 2048 px en JPEG).
+  - **Concurrencia:** se sanean a lo sumo 2 fotos a la vez. Cuando no hay turno, responde 503.
+- **DEP-08 · Correo por HTTP con Resend** (#98):
+  - **Puerto `CorreoSaliente`:** el proveedor se elige con `CORREO_TIPO`, con un adaptador SMTP para desarrollo y tests y otro para Resend.
+  - **Envío asíncrono:** la recuperación de contraseña y la respuesta de soporte se envían después del commit (patrón D-13).
+  - **Recuperación de contraseña:** responde 202 siempre, sin revelar si la cuenta existe, con un tope de 3 tokens por cuenta y hora.
+  - **Requisito:** sin dominio verificado, Resend solo entrega a la cuenta dueña.
+- **DEP-06 · PWA instalable** (#85):
+  - **Instalación:** iconos `any` y `maskable`, y un manifest con `id` y `scope`.
+  - **Configuración:** `.env.example` queda versionada y la versión de Node es la 24.
+  - **Build en Vercel:** falla si falta `NEXT_PUBLIC_API_BASE_URL`.
+  - **Foto de perfil:** se valida antes de subirla, con la misma regla que el backend (#99).
+- **Runbook y C4 de despliegue:** `docs/despliegue.md` y `docs/arquitectura/c4-despliegue.md` (#87, #91).
+
+### Diseño
+- **DIS-1 · Sistema de diseño «Cívica», fase 1** (#95). La propuesta, el prototipo y la decisión del usuario del 21/10 están en `docs/diseno/` (#90).
+  - **Tokens y temas:** tokens semánticos en tres temas.
+  - **Tipografía y marca:** Public Sans, iconos de `lucide-react`, y un logo e iconos PWA nuevos.
+  - **Componentes:** componentes base y un marco común con navegación por rol. El ciudadano tiene una barra inferior en móvil.
+  - **Colores:** unas 1 250 clases de color pasan a tokens, y un test impide que vuelvan.
+  - **Contraste:** 99 pares sin fallos AA.
+- **US-23 · Apariencia** (#95):
+  - **Temas:** claro, oscuro, alto contraste o el del sistema.
+  - **Aplicación:** el tema se aplica antes de pintar (`public/tema.js`).
+  - **Dónde se elige:** en el perfil o en el menú de cuenta.
+
+La fase 2 (mapa con hoja inferior, reporte en pasos, bandeja con panel y portada) queda para una próxima versión.
+
+### Correcciones del informe QA-1
+El agente `qa-e2e` recorrió v0.6.0 en modo headed con los 4 roles, en escritorio y en móvil (`docs/qa/2026-10-21-mvp-v0.6.0.md`, #88). Encontró 0 bloqueantes, 5 importantes, 13 menores y 8 mejoras.
+- **PWA** (#92):
+  - **Ubicación del daño (I-1):** aparece en los tres detalles, con un mini mapa.
+  - **Registro (I-2):** lleva al mismo destino que el inicio de sesión. Se elimina `/sesion`, que era de depuración.
+  - **Mapa en móvil (I-4):** ocupa la primera pantalla.
+  - **Menores y mejoras:** títulos por ruta, filtros en la URL, marcadores accesibles y una página 404 en castellano.
+- **Backend** (#100):
+  - **V18:** corrige las tildes de las categorías estándar sin tocar V3 (propuesta aceptada el 22/10, #94).
+  - **Textos:** los mensajes del API, los correos y los push llevan tildes y etiquetas legibles. Los errores de validación están en español.
+  - **Responsable sin asignar:** `GET /api/reportes/{id}/responsable` responde 204. Es un cambio de contrato, atendido en la PWA en #101.
+  - **Exportación:**
+    - suma columnas;
+    - las fechas van en hora de Lima;
+    - el CSV lleva BOM UTF-8.
+  - **SEC-04:** el CSV neutraliza el texto libre que empieza como fórmula (CWE-1236). Se detectó en la revisión, antes de llegar a `develop`.
+  - **Textos largos:** una descripción, un nombre o un apellido demasiado largos daban 500; ahora dan 400.
+- **«Reportes que apoyas» (M-6):** `GET /api/reportes/mis-adhesiones` (#100) y una sección nueva en «Mis reportes» (#101) con los reportes de otros vecinos que el ciudadano apoya.
+- **Los otros dos importantes:**
+  - I-3, los iconos de la PWA, se resolvió en #85.
+  - I-5, `/privacidad` con `[COMPLETAR]`, espera el texto legal del usuario.
+
+### Arquitectura y decisiones
+- **Agentes del equipo** (#83): `backend-dev`, `frontend-dev`, `qa-e2e`, `arquitecto` y `disenador-ui` en `.claude/agents/`. Los lanza la sesión coordinadora, y `WORKFLOW.md` incorpora esa modalidad y la CI como guarda (#88).
+- **Propuestas** (#87), aceptadas el 21/10:
+  - **Despliegue:** la configuración descrita al inicio de esta versión.
+  - **Correo:** por HTTP, con Resend.
+  - **Fotos:** en R2.
+  - **Modelo de ML:** clases `bache` y `grieta` de RDD2022 con pesos RF-DETR (Apache-2.0) y umbral de 0,50. «Hueco en calzada» se desactivará con NC-04.
+- **Abiertas:**
+  - las diferencias con ARCHITECTURE §4.3;
+  - el refresco asíncrono del índice de desempeño (#97): con 16 creaciones simultáneas de reportes con foto, el pool de conexiones se agota durante unos 30 s. No bloquea esta versión: DEP-12 cumple su criterio con 8 subidas simultáneas.
+
+  Las decisiones pendientes del usuario están indexadas en `propuestas/2026-10-21-decisiones-pendientes.md`.
+- **ARCHITECTURE.md §4.3:** `common` reúne los puertos de fotos y correo (#98).
+- **Diagramas de arquitectura** (#102): R2 y Resend en los C4, el despliegue con las decisiones aceptadas y V18 en el modelo de datos.
+- **Privacidad:** salió del repositorio una transcripción de reunión que no debía versionarse (#88). El historial no se reescribió.
+
+### Cifras
+| Métrica | v0.6.0 | v0.7.0 |
+|---|---|---|
+| Tests de integración backend (Failsafe `completed`) | 309 | 418 |
+| Tests unitarios backend (Surefire) | 62 | 230 |
+| Violaciones congeladas de ArchUnit | 0 | 0 |
+| Tests frontend (archivos) | 646 (83) | 1015 (118) |
+| Avisos de capas frontend | 0 | 0 |
+| Imagen del backend (sin comprimir / comprimida) | — | 399,75 MB / 186 MB |
+
+Los mínimos de la guarda de la CI suben a 418 y 230 (`.github/workflows/ci.yml`).
+
+**Verificación** (22/10, Windows, sobre el código de esta versión):
+- **Backend:** `mvn clean verify` con S3Mock local, como en la CI.
+  - **Tests:** Failsafe `completed` 418, sin errores, fallos ni omitidos; el IT de S3 incluido.
+  - **Unitarios:** Surefire 230.
+  - **Cobertura y capas:** JaCoCo 93,4 % de líneas y 80,5 % de ramas; ArchUnit 0.
+  - **Guarda:** la de la CI pasa con los mínimos nuevos.
+- **Frontend:**
+  - lint con 0 avisos (0 de capas) y typecheck OK;
+  - `npm test` con 1015 tests en 118 archivos, todos ejecutados;
+  - build OK.
+- **Imagen del backend** con el perfil `prod`, contra un PostGIS 16-3.4 vacío y S3Mock en lugar de R2:
+  - **Arranque y datos:** aplica V1–V18 y siembra 43 distritos y 43 municipalidades. Las categorías estándar quedan con tildes y se crea un solo ADMIN desde `ADMIN_INICIAL_*`. `/actuator/health` responde UP en 9 s.
+  - **Superficie expuesta:** Swagger y `/v3/api-docs` dan 404 y `/actuator/env` da 401. El login del ADMIN da 200 y el log no tiene errores ni muestra la contraseña.
+- **Antes, en cada PR:**
+  - la imagen real contra una base vacía (#89, #93, #98);
+  - 8 subidas simultáneas de fotos de 24 a 40 MP sin quedarse sin memoria (#96);
+  - Resend real, que responde 401 con una clave inventada (#98);
+  - pasadas en Chrome en modo headed, en escritorio y móvil (#92, #95, #101).
+
 ## v0.6.0 — Sprint 5 (2026-10-21)
 
 ### Historias de usuario
