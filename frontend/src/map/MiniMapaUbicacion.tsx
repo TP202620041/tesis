@@ -52,9 +52,10 @@ function crearIcono(etiqueta: string): DivIcon {
     className: '',
     html: marca,
     iconSize: [28, 28],
-    // La punta de la gota (esquina inferior izquierda antes de rotar) queda
-    // abajo al centro: ahi esta el punto exacto.
-    iconAnchor: [14, 28],
+    // La punta de la gota es la esquina inferior izquierda del cuadrado de
+    // 28 px antes de rotarlo: girado 45° queda abajo al centro, a media
+    // diagonal (14·√2 ≈ 20 px) del centro, o sea en y ≈ 34. Ahi esta el punto.
+    iconAnchor: [14, 34],
   });
 }
 
