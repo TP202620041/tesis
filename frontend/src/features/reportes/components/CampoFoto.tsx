@@ -18,13 +18,18 @@ import { ACEPTA_FOTO, AYUDA_DE_FOTO, errorDeFoto } from '@/lib/types/fotoParaSub
  *
  * DEP-11: el tamaño y el formato se validan al elegir, con la misma regla que
  * la foto de perfil (`lib/types/fotoParaSubir`). Una foto rechazada no llega
- * al formulario (ni a la cola offline): queda la anterior, si la habia, y el
- * motivo se asocia al campo (`aria-invalid`, `aria-describedby`).
+ * al formulario (ni a la cola offline) y el motivo se asocia al campo
+ * (`aria-describedby`). Sin foto, el campo queda `aria-invalid`; si habia una
+ * foto valida, se conserva y es la que se enviara, asi que el campo NO se
+ * marca invalido y el aviso lo aclara ({@link AVISO_FOTO_ANTERIOR}).
  */
 
 const ID = 'foto';
 const ID_AYUDA = `${ID}-ayuda`;
 const ID_ERROR = `${ID}-error`;
+
+/** Se agrega al motivo del rechazo cuando la foto ya elegida no cambia. */
+const AVISO_FOTO_ANTERIOR = 'Se mantiene la foto anterior.';
 
 interface Props {
   valor: File | null;
@@ -66,6 +71,9 @@ export function CampoFoto({ valor, onCambiar }: Props) {
   }
 
   const descripcion = error ? `${ID_ERROR} ${ID_AYUDA}` : ID_AYUDA;
+  // Con una foto valida conservada, el rechazo fue de la nueva eleccion: lo
+  // que se enviara es valido.
+  const invalido = error != null && valor == null;
 
   return (
     <div className="flex flex-col gap-2">
@@ -79,7 +87,7 @@ export function CampoFoto({ valor, onCambiar }: Props) {
         type="file"
         accept={ACEPTA_FOTO}
         capture="environment"
-        aria-invalid={error ? true : undefined}
+        aria-invalid={invalido ? true : undefined}
         aria-describedby={descripcion}
         className="sr-only"
         onChange={(e) => seleccionar(e.currentTarget)}
@@ -106,6 +114,7 @@ export function CampoFoto({ valor, onCambiar }: Props) {
               type="button"
               onClick={() => {
                 onCambiar(null);
+                setError(null);
                 if (inputRef.current) inputRef.current.value = '';
               }}
               className={clasesDeBoton('secundario', 'compacto')}
@@ -132,7 +141,7 @@ export function CampoFoto({ valor, onCambiar }: Props) {
 
       {error && (
         <p id={ID_ERROR} role="alert" className="text-sm text-error">
-          {error}
+          {valor ? `${error} ${AVISO_FOTO_ANTERIOR}` : error}
         </p>
       )}
     </div>

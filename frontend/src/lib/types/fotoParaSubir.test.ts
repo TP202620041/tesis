@@ -4,6 +4,7 @@ import {
   AYUDA_DE_FOTO,
   errorDeFoto,
   MENSAJE_FORMATO_DE_FOTO,
+  MENSAJE_FOTO_VACIA,
   MENSAJE_TAMANO_DE_FOTO,
   type FotoElegida,
 } from './fotoParaSubir';
@@ -55,6 +56,15 @@ describe('errorDeFoto (DEP-11)', () => {
 
   it('un tipo vacío no se rechaza si la extensión es válida (el contenido lo mira el backend)', () => {
     expect(errorDeFoto(foto({ name: 'bache.webp', type: '' }))).toBeNull();
+  });
+
+  it('rechaza un archivo vacío, lo primero que mira el backend (409 «La foto esta vacia»)', () => {
+    expect(errorDeFoto(foto({ size: 0 }))).toBe('La foto está vacía. Elige otra.');
+    // Como en el backend, va antes que el formato.
+    expect(errorDeFoto(foto({ name: 'nada.gif', type: 'image/gif', size: 0 }))).toBe(
+      MENSAJE_FOTO_VACIA,
+    );
+    expect(errorDeFoto(foto({ size: 1 }))).toBeNull();
   });
 
   it('el formato va antes que el tamaño', () => {

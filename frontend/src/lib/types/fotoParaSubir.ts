@@ -7,6 +7,8 @@
  * Repite lo que el backend comprueba primero, para no enviar (ni guardar en
  * la cola offline) una foto que va a rechazar igual:
  *
+ * - **Vacía**: un archivo de 0 bytes. Es lo primero que rechaza
+ *   `ImageIoSaneadorDeImagen` (409 «La foto esta vacia»).
  * - **Tamaño**: hasta 10 MB, los 10 × 1024 × 1024 bytes de
  *   `spring.servlet.multipart.max-file-size`. Más que eso recibe 413; por
  *   encima de 32 MB el servidor corta la conexión y la PWA solo vería
@@ -39,6 +41,7 @@ export const ACEPTA_FOTO = TIPOS_DE_FOTO.join(',');
 /** Indicación que se ve antes de elegir la foto. */
 export const AYUDA_DE_FOTO = `JPG, PNG o WEBP, de hasta ${TAMANO_MAXIMO_DE_FOTO_MB} MB.`;
 
+export const MENSAJE_FOTO_VACIA = 'La foto está vacía. Elige otra.';
 export const MENSAJE_FORMATO_DE_FOTO = 'Formato no permitido. Usa JPG, PNG o WEBP.';
 export const MENSAJE_TAMANO_DE_FOTO = `La foto supera ${TAMANO_MAXIMO_DE_FOTO_MB} MB.`;
 
@@ -46,11 +49,12 @@ export const MENSAJE_TAMANO_DE_FOTO = `La foto supera ${TAMANO_MAXIMO_DE_FOTO_MB
 export type FotoElegida = Pick<File, 'name' | 'type' | 'size'>;
 
 /**
- * Motivo por el que la foto no se puede subir, o `null` si se puede. El
- * formato va primero: a un archivo que no es una foto no le sirve saber
- * cuánto pesa.
+ * Motivo por el que la foto no se puede subir, o `null` si se puede. En el
+ * orden del backend: vacía, formato y, al final, tamaño (a un archivo que no
+ * es una foto no le sirve saber cuánto pesa).
  */
 export function errorDeFoto(foto: FotoElegida): string | null {
+  if (foto.size === 0) return MENSAJE_FOTO_VACIA;
   if (!tieneFormatoPermitido(foto)) return MENSAJE_FORMATO_DE_FOTO;
   if (foto.size > TAMANO_MAXIMO_DE_FOTO_MB * BYTES_POR_MB) return MENSAJE_TAMANO_DE_FOTO;
   return null;

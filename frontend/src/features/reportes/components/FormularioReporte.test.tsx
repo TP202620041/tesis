@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { distritoPorCoordenadas, listarCategorias } from '@/lib/api/catalogos';
 import { ApiError, NetworkError } from '@/lib/api/errors';
@@ -175,6 +175,17 @@ describe('FormularioReporte: la foto (DEP-11)', () => {
       createObjectURL: vi.fn(() => 'blob:vista-previa'),
       revokeObjectURL: vi.fn(),
     });
+  });
+
+  afterEach(() => {
+    // Primero se desmonta: la limpieza de la vista previa llama a
+    // `revokeObjectURL`, y el `cleanup` de vitest.setup corre DESPUES de este
+    // afterEach (los `after` van en orden inverso).
+    cleanup();
+    // Se quitan para no dejar el global de jsdom modificado en otros archivos.
+    const urlMutable = URL as unknown as Record<string, unknown>;
+    delete urlMutable.createObjectURL;
+    delete urlMutable.revokeObjectURL;
   });
 
   it('una foto de más de 10 MB no viaja con el reporte (ni a la cola)', async () => {

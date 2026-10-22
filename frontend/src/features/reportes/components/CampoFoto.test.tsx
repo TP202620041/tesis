@@ -1,5 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { useState } from 'react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CampoFoto } from './CampoFoto';
 
@@ -77,5 +78,75 @@ describe('CampoFoto (US-05, DEP-11)', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(input).not.toHaveAttribute('aria-invalid');
     expect(onCambiar).toHaveBeenCalledWith(buena);
+  });
+});
+
+describe('CampoFoto con una foto ya elegida (DEP-11)', () => {
+  beforeEach(() => {
+    // jsdom no implementa las URL `blob:` de la vista previa.
+    Object.assign(URL, {
+      createObjectURL: vi.fn(() => 'blob:vista-previa'),
+      revokeObjectURL: vi.fn(),
+    });
+  });
+
+  afterEach(() => {
+    // Primero se desmonta: la limpieza de la vista previa llama a
+    // `revokeObjectURL`, y el `cleanup` de vitest.setup corre DESPUES de este
+    // afterEach (los `after` van en orden inverso).
+    cleanup();
+    // Se quitan para no dejar el global de jsdom modificado en otros archivos.
+    const urlMutable = URL as unknown as Record<string, unknown>;
+    delete urlMutable.createObjectURL;
+    delete urlMutable.revokeObjectURL;
+  });
+
+  /** El campo con su estado, como en el formulario. */
+  function ConEstado({ alCambiar }: { alCambiar: (foto: File | null) => void }) {
+    const [foto, setFoto] = useState<File | null>(null);
+    return (
+      <CampoFoto
+        valor={foto}
+        onCambiar={(f) => {
+          setFoto(f);
+          alCambiar(f);
+        }}
+      />
+    );
+  }
+
+  async function conFotoValida() {
+    const alCambiar = vi.fn();
+    const usuario = userEvent.setup({ applyAccept: false });
+    render(<ConEstado alCambiar={alCambiar} />);
+    const input = screen.getByLabelText('Foto del daño (opcional)');
+    await usuario.upload(input, archivo('bache.jpg', 'image/jpeg'));
+    await usuario.upload(input, archivo('enorme.jpg', 'image/jpeg', 12 * MB));
+    return { alCambiar, usuario, input };
+  }
+
+  it('un rechazo conserva la foto válida: el campo no queda inválido y el aviso lo aclara', async () => {
+    const { alCambiar, input } = await conFotoValida();
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'La foto supera 10 MB. Se mantiene la foto anterior.',
+    );
+    expect(screen.getByAltText('Vista previa de la foto seleccionada')).toBeInTheDocument();
+    expect(input).not.toHaveAttribute('aria-invalid');
+    expect(input.getAttribute('aria-describedby')).toContain(screen.getByRole('alert').id);
+    // Solo pasó la primera foto.
+    expect(alCambiar).toHaveBeenCalledTimes(1);
+  });
+
+  it('«Quitar» borra la foto y el aviso', async () => {
+    const { alCambiar, usuario, input } = await conFotoValida();
+
+    await usuario.click(screen.getByRole('button', { name: 'Quitar' }));
+
+    expect(alCambiar).toHaveBeenLastCalledWith(null);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByAltText('Vista previa de la foto seleccionada')).not.toBeInTheDocument();
+    expect(input).not.toHaveAttribute('aria-invalid');
+    expect(input).toHaveAccessibleDescription('JPG, PNG o WEBP, de hasta 10 MB.');
   });
 });
