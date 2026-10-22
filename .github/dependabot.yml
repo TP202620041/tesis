@@ -1,0 +1,20 @@
+# Actualizaciones de las acciones de GitHub Actions (DEP-07, docs/ci.md).
+# Una vez por semana, en un solo PR contra develop (la rama por defecto).
+# Las de actions/* van por versión mayor y Dependabot propone la siguiente
+# mayor; paths-filter va fijada a un SHA y Dependabot actualiza el SHA y su
+# comentario de versión.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      timezone: America/Lima
+    target-branch: develop
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: 'DEP-07'
+    groups:
+      acciones:
+        patterns: ['*']
