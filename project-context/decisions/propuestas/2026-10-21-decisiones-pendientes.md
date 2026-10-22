@@ -45,6 +45,7 @@ Reúne **todo** lo que hoy espera una decisión del usuario, venga de esta ronda
 | 16 | Dependencias de §4.3 | Baja | Cierre de BE-08 | Actualizar §4.3 (opción C) | §16 |
 | 17 | Dirección visual del rediseño | Baja | S8; los iconos de DEP-06 son provisionales | Definirla antes del S8 | §17 |
 | 18 | Límite de tasa (abuso) | Media | Nada para v0.7.0 | Tope por cuenta en DEP-08; limitador general después | §18 |
+| 19 | Migración que corrige las tildes de las categorías estándar (**aprobada el 22/10**: opción A, en QA-1 backend) | Baja | QA-1 M-1 (parte de datos); puede ir con la de NC-04 que desactiva «Hueco en calzada» | Sí, una migración nueva sin editar V3 (opción A) | `2026-10-22-tildes-categorias-estandar.md` |
 
 ## 1. Versionado
 
