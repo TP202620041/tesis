@@ -53,4 +53,23 @@ class ArranqueAlmacenDeFotosIT {
                 .rootCause()
                 .hasMessageContaining("Could not resolve placeholder 'FOTOS_ALMACEN'");
     }
+
+    @Test
+    void conUnValorNoAdmitido_noArrancaAntesDeTocarLaBase() {
+        byte[] clave = new byte[48];
+        new SecureRandom().nextBytes(clave);
+
+        // La URL apunta a un puerto cerrado: si el fallo llegara despues de
+        // conectarse a la base, el mensaje seria el de la conexion. La
+        // excepcion sale tal cual del refresh del contexto, sin envolver
+        // (ValidacionAlmacenDeFotos, un BeanFactoryPostProcessor).
+        assertThatThrownBy(() -> new SpringApplication(ViaSeguraApplication.class).run(
+                "--app.storage.tipo=r2",
+                "--security.jwt.secret=" + Base64.getEncoder().encodeToString(clave),
+                "--server.port=0",
+                "--spring.datasource.url=jdbc:postgresql://127.0.0.1:1/ninguna"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasNoCause()
+                .hasMessageStartingWith("FOTOS_ALMACEN (app.storage.tipo) tiene un valor no admitido: 'r2'");
+    }
 }

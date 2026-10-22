@@ -3,21 +3,19 @@ package pe.edu.upc.viasegura.common.config;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.security.SecureRandom;
-import java.util.Base64;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.support.DefaultListableBeanFactory;
-import org.springframework.boot.SpringApplication;
 import org.springframework.mock.env.MockEnvironment;
-import pe.edu.upc.viasegura.ViaSeguraApplication;
 
 /**
  * {@code FOTOS_ALMACEN} con un valor que no elige ningun adaptador de fotos
  * (DEP-12): el arranque falla nombrando la variable y los valores admitidos,
  * no con el generico «No qualifying bean of type FotoStorageService». Sin
- * base de datos: la validacion corre antes de crear cualquier bean.
+ * base de datos ni contexto de Spring: la validacion corre antes de crear
+ * cualquier bean. El arranque real con un valor no admitido lo prueba
+ * {@code ArranqueAlmacenDeFotosIT}.
  */
 class ValidacionAlmacenDeFotosTest {
 
@@ -55,23 +53,5 @@ class ValidacionAlmacenDeFotosTest {
                 .hasMessageContaining("'" + valor + "'")
                 .hasMessageContaining("'s3'")
                 .hasMessageContaining("'local'");
-    }
-
-    @Test
-    void laAplicacionReal_noArrancaConUnValorNoAdmitido_antesDeTocarLaBase() {
-        byte[] clave = new byte[48];
-        new SecureRandom().nextBytes(clave);
-
-        // La URL apunta a un puerto cerrado: si el fallo llegara despues de
-        // conectarse a la base, el mensaje seria el de la conexion. La
-        // excepcion sale tal cual del refresh del contexto, sin envolver.
-        assertThatThrownBy(() -> new SpringApplication(ViaSeguraApplication.class).run(
-                "--app.storage.tipo=r2",
-                "--security.jwt.secret=" + Base64.getEncoder().encodeToString(clave),
-                "--server.port=0",
-                "--spring.datasource.url=jdbc:postgresql://127.0.0.1:1/ninguna"))
-                .isInstanceOf(IllegalStateException.class)
-                .hasNoCause()
-                .hasMessageStartingWith("FOTOS_ALMACEN (app.storage.tipo) tiene un valor no admitido: 'r2'");
     }
 }
