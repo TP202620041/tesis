@@ -13,8 +13,12 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.zip.CRC32;
+import javax.imageio.IIOImage;
 import javax.imageio.ImageIO;
+import javax.imageio.ImageWriteParam;
+import javax.imageio.ImageWriter;
 import javax.imageio.stream.ImageInputStream;
+import javax.imageio.stream.MemoryCacheImageOutputStream;
 
 /**
  * Fotos de prueba armadas en memoria (DEP-12): imagenes reales que el
@@ -37,6 +41,74 @@ public final class ImagenesDePrueba {
     /** JPEG de {@code ancho} x {@code alto} (mismo dibujo que {@link #png}), sin EXIF. */
     public static byte[] jpeg(int ancho, int alto) {
         return codificar(dibujo(ancho, alto, BufferedImage.TYPE_3BYTE_BGR), "jpeg");
+    }
+
+    /** JPEG progresivo (marcador SOF2), como los que guardan algunas aplicaciones y la web. */
+    public static byte[] jpegProgresivo(int ancho, int alto) {
+        try {
+            ImageWriter escritor = ImageIO.getImageWritersByFormatName("jpeg").next();
+            ByteArrayOutputStream salida = new ByteArrayOutputStream();
+            try (MemoryCacheImageOutputStream destino = new MemoryCacheImageOutputStream(salida)) {
+                ImageWriteParam parametros = escritor.getDefaultWriteParam();
+                parametros.setProgressiveMode(ImageWriteParam.MODE_DEFAULT);
+                escritor.setOutput(destino);
+                escritor.write(null, new IIOImage(dibujo(ancho, alto, BufferedImage.TYPE_3BYTE_BGR), null, null),
+                        parametros);
+            } finally {
+                escritor.dispose();
+            }
+            return salida.toByteArray();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
+     * Copia del JPEG con otras dimensiones en su marcador SOF: el encabezado
+     * declara {@code ancho} x {@code alto} aunque los datos sean de una
+     * imagen chica. Sirve para probar los topes sin armar imagenes enormes.
+     */
+    public static byte[] conDimensionesJpeg(byte[] jpeg, int ancho, int alto) {
+        byte[] copia = jpeg.clone();
+        int i = 2;
+        while (i + 3 < copia.length) {
+            int marcador = copia[i + 1] & 0xFF;
+            int largo = ((copia[i + 2] & 0xFF) << 8) | (copia[i + 3] & 0xFF);
+            if (marcador >= 0xC0 && marcador <= 0xCF && marcador != 0xC4 && marcador != 0xC8 && marcador != 0xCC) {
+                // FF Cn, largo(2), precision(1), alto(2), ancho(2)
+                copia[i + 5] = (byte) (alto >> 8);
+                copia[i + 6] = (byte) alto;
+                copia[i + 7] = (byte) (ancho >> 8);
+                copia[i + 8] = (byte) ancho;
+                return copia;
+            }
+            i += 2 + largo;
+        }
+        throw new IllegalArgumentException("JPEG sin marcador SOF");
+    }
+
+    /**
+     * Encabezado de un WEBP extendido ({@code VP8X}) de {@code ancho} x
+     * {@code alto} con canal alfa ({@code ALPH}, cuyo primer byte lleva la
+     * {@code compresion}: 0 sin comprimir, 1 sin perdida) y un {@code VP8 }
+     * con perdida sin datos de imagen validos.
+     */
+    public static byte[] webpConAlfa(int ancho, int alto, int compresion) {
+        ByteBuffer webp = ByteBuffer.allocate(12 + 18 + 24 + 40).order(ByteOrder.LITTLE_ENDIAN);
+        webp.put("RIFF".getBytes(StandardCharsets.US_ASCII)).putInt(4 + 18 + 24 + 40);
+        webp.put("WEBP".getBytes(StandardCharsets.US_ASCII));
+        // VP8X: banderas (0x10 = alfa), 3 reservados, ancho-1 y alto-1 en 24 bits.
+        webp.put("VP8X".getBytes(StandardCharsets.US_ASCII)).putInt(10).put((byte) 0x10)
+                .put((byte) 0).put((byte) 0).put((byte) 0);
+        tresBytes(webp, ancho - 1);
+        tresBytes(webp, alto - 1);
+        webp.put("ALPH".getBytes(StandardCharsets.US_ASCII)).putInt(16).put((byte) compresion).put(new byte[15]);
+        webp.put("VP8 ".getBytes(StandardCharsets.US_ASCII)).putInt(32).put(new byte[32]);
+        return webp.array();
+    }
+
+    private static void tresBytes(ByteBuffer b, int valor) {
+        b.put((byte) valor).put((byte) (valor >> 8)).put((byte) (valor >> 16));
     }
 
     /** GIF real: un formato que el saneado no admite aunque se suba como {@code .png}. */

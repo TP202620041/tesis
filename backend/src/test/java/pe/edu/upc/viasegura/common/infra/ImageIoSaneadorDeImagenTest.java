@@ -2,6 +2,7 @@ package pe.edu.upc.viasegura.common.infra;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 import java.awt.image.BufferedImage;
 import java.time.Duration;
@@ -23,6 +24,8 @@ import pe.edu.upc.viasegura.support.ImagenesDePrueba;
  * traduce a 409 y {@code ServicioNoDisponibleException}, a 503.
  */
 class ImageIoSaneadorDeImagenTest {
+
+    private static final String MENSAJE_16_MP = "La foto supera el maximo de 16 megapixeles";
 
     private final ImageIoSaneadorDeImagen saneador = new ImageIoSaneadorDeImagen(2, Duration.ofSeconds(10));
 
@@ -181,11 +184,81 @@ class ImageIoSaneadorDeImagenTest {
     void webpSinPerdidaDeMasDe16Megapixeles_seRechazaSinDecodificar() {
         // Su decodificador arma la imagen entera: el tope baja a 16 MP.
         byte[] webp = ImagenesDePrueba.webpSinPerdidaConDimensiones(5000, 4000);
-        assertThat(ImageIoSaneadorDeImagen.esWebpSinPerdida(webp)).isTrue();
+        assertThat(ImageIoSaneadorDeImagen.esWebpSinSubmuestreo(webp)).isTrue();
 
         assertThatThrownBy(() -> sanear(webp, "grande.webp"))
                 .isInstanceOf(BusinessException.class)
-                .hasMessage("La foto supera el maximo de 16 megapixeles");
+                .hasMessage(MENSAJE_16_MP);
+    }
+
+    @Test
+    void webpConAlfaSinPerdidaDeMasDe16Megapixeles_seRechazaSinDecodificar() {
+        // Con perdida (VP8), pero su canal alfa comprimido sin perdida se
+        // decodifica entero en un raster de 4 bytes por pixel.
+        byte[] webp = ImagenesDePrueba.webpConAlfa(5000, 4000, 1);
+        assertThat(ImageIoSaneadorDeImagen.esWebpSinSubmuestreo(webp)).isTrue();
+
+        assertThatThrownBy(() -> sanear(webp, "transparente.webp"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage(MENSAJE_16_MP);
+    }
+
+    @Test
+    void webpConAlfaSinComprimir_conservaElTopeDe40Megapixeles() {
+        byte[] webp = ImagenesDePrueba.webpConAlfa(5000, 4000, 0);
+        assertThat(ImageIoSaneadorDeImagen.esWebpSinSubmuestreo(webp)).isFalse();
+
+        // 20 MP pasan el tope; el archivo no trae una imagen decodificable,
+        // asi que termina en el error de formato, no en el de tamano.
+        assertThat(catchThrowable(() -> sanear(webp, "transparente.webp")))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage(ImageIoSaneadorDeImagen.MENSAJE_INVALIDA);
+    }
+
+    @Test
+    void jpegProgresivo_seSaneaYSeReconoceComoNoSecuencial() {
+        byte[] progresivo = ImagenesDePrueba.jpegProgresivo(300, 200);
+        assertThat(ImageIoSaneadorDeImagen.esJpegSecuencial(progresivo)).isFalse();
+        assertThat(ImageIoSaneadorDeImagen.esJpegSecuencial(ImagenesDePrueba.jpeg(300, 200))).isTrue();
+        assertThat(ImageIoSaneadorDeImagen.esJpegSecuencial(ImagenesDePrueba.jpegConExif(300, 200, 6))).isTrue();
+
+        BufferedImage saneada = ImagenesDePrueba.leer(sanear(progresivo, "web.jpg").contenido());
+
+        assertThat(saneada.getWidth()).isEqualTo(300);
+        assertThat(saneada.getHeight()).isEqualTo(200);
+    }
+
+    @Test
+    void jpegProgresivoDeMasDe16Megapixeles_seRechazaSinDecodificar() {
+        // La libreria nativa del JDK guardaria los coeficientes de toda la
+        // imagen fuera del heap: el tope baja a 16 MP.
+        byte[] progresivo = ImagenesDePrueba.conDimensionesJpeg(ImagenesDePrueba.jpegProgresivo(300, 200), 5000, 4000);
+
+        assertThatThrownBy(() -> sanear(progresivo, "web.jpg"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage(MENSAJE_16_MP);
+    }
+
+    @Test
+    void jpegSecuencialDe20Megapixeles_noSeRechazaPorTamano() {
+        // El mismo encabezado de 5000 x 4000 en un JPEG secuencial pasa el
+        // tope (40 MP): lo que pase despues depende de los datos, pero nunca
+        // es el rechazo por megapixeles.
+        byte[] secuencial = ImagenesDePrueba.conDimensionesJpeg(ImagenesDePrueba.jpeg(300, 200), 5000, 4000);
+        assertThat(ImageIoSaneadorDeImagen.esJpegSecuencial(secuencial)).isTrue();
+
+        Throwable error = catchThrowable(() -> sanear(secuencial, "camara.jpg"));
+
+        assertThat(error == null ? "" : error.getMessage()).doesNotContain("megapixeles");
+    }
+
+    @Test
+    void jpegSinMarcadorSof_seTrataConElTopePrudente() {
+        byte[] soloEncabezado = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, (byte) 0xDA, 0, 2};
+        assertThat(ImageIoSaneadorDeImagen.esJpegSecuencial(soloEncabezado)).isFalse();
+        assertThat(ImageIoSaneadorDeImagen.seDecodificaEntera("jpeg", soloEncabezado)).isTrue();
+        // PNG se decodifica siempre fila por fila.
+        assertThat(ImageIoSaneadorDeImagen.seDecodificaEntera("png", ImagenesDePrueba.png(10, 10))).isFalse();
     }
 
     @ParameterizedTest

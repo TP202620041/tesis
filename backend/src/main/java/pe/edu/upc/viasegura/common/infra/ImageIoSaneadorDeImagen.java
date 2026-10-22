@@ -51,7 +51,10 @@ import pe.edu.upc.viasegura.common.port.SaneadorDeImagen;
  * <ol>
  *   <li>Se leen las dimensiones del encabezado, sin decodificar, y se rechaza
  *       lo que pase de {@value #MAX_PIXELES} pixeles (una "bomba de
- *       descompresion": pocos bytes que se expanden a gigas).</li>
+ *       descompresion": pocos bytes que se expanden a gigas), o de
+ *       {@value #MAX_PIXELES_SIN_SUBMUESTREO} si el archivo es de un tipo que
+ *       se decodifica entero (JPEG progresivo, WEBP sin perdida o con alfa
+ *       sin perdida).</li>
  *   <li>Se decodifica <b>ya submuestreado</b>
  *       ({@code ImageReadParam#setSourceSubsampling}, con paso
  *       {@code n = ceil(lado mayor / 2048)}): el lector descarta filas y
@@ -88,11 +91,24 @@ public class ImageIoSaneadorDeImagen implements SaneadorDeImagen {
     /** Mas pixeles que esto se rechaza sin decodificar (40 MP, la camara principal de un telefono alto). */
     static final long MAX_PIXELES = 40_000_000L;
     /**
-     * WEBP sin perdida (VP8L): su decodificador arma la imagen entera antes de
-     * submuestrear (4 bytes por pixel), asi que el tope baja a 16 MP (64 MB).
-     * Un telefono no produce estos archivos; el tope es contra abusos.
+     * Tope para lo que no se puede decodificar submuestreado
+     * ({@link #seDecodificaEntera}): 16 MP. El decodificador retiene la
+     * imagen entera, o todos sus coeficientes, antes de reducirla:
+     * <ul>
+     *   <li>JPEG progresivo, sin perdida o de cualquier otro tipo que no sea
+     *       secuencial ({@code SOF0}/{@code SOF1}): la libreria nativa del JDK
+     *       guarda los coeficientes DCT de toda la imagen <b>fuera del heap</b>
+     *       (3 a 6 bytes por pixel; 16 MP, hasta ~96 MB), y el lector sin
+     *       perdida de TwelveMonkeys no submuestrea;</li>
+     *   <li>WEBP sin perdida ({@code VP8L}), animado ({@code ANMF}) o con un
+     *       canal alfa comprimido sin perdida ({@code ALPH} con compresion 1):
+     *       el decodificador arma un raster entero de 4 bytes por pixel
+     *       (16 MP, 64 MB).</li>
+     * </ul>
+     * Las camaras de los telefonos producen JPEG secuencial: el tope es contra
+     * abusos.
      */
-    static final long MAX_PIXELES_WEBP_SIN_PERDIDA = 16_000_000L;
+    static final long MAX_PIXELES_SIN_SUBMUESTREO = 16_000_000L;
 
     static final String MENSAJE_VACIA = "La foto esta vacia";
     static final String MENSAJE_FORMATO = "Formato de foto no permitido (use JPG, PNG o WEBP)";
@@ -219,9 +235,7 @@ public class ImageIoSaneadorDeImagen implements SaneadorDeImagen {
             throw new BusinessException(MENSAJE_INVALIDA);
         }
         long pixeles = (long) ancho * alto;
-        long maximo = "webp".equals(formato) && esWebpSinPerdida(contenido)
-                ? MAX_PIXELES_WEBP_SIN_PERDIDA
-                : MAX_PIXELES;
+        long maximo = seDecodificaEntera(formato, contenido) ? MAX_PIXELES_SIN_SUBMUESTREO : MAX_PIXELES;
         if (pixeles > maximo) {
             throw new BusinessException("La foto supera el maximo de %d megapixeles".formatted(maximo / 1_000_000));
         }
@@ -234,17 +248,73 @@ public class ImageIoSaneadorDeImagen implements SaneadorDeImagen {
     }
 
     /**
-     * {@code true} si el WEBP tiene una imagen sin perdida (fragmento
-     * {@code VP8L}) o animada ({@code ANMF}, cuyos cuadros pueden serlo).
-     * Recorre los fragmentos RIFF: {@code "RIFF" tamano "WEBP"} y luego
-     * {@code fourcc(4) tamano(4, little endian) datos (rellenados a par)}.
+     * {@code true} si el decodificador de este archivo retiene la imagen
+     * entera antes de submuestrear (ver {@link #MAX_PIXELES_SIN_SUBMUESTREO}).
+     * PNG siempre se decodifica fila por fila.
      */
-    static boolean esWebpSinPerdida(byte[] b) {
+    static boolean seDecodificaEntera(String formato, byte[] contenido) {
+        return switch (formato) {
+            case "jpeg" -> !esJpegSecuencial(contenido);
+            case "webp" -> esWebpSinSubmuestreo(contenido);
+            default -> false;
+        };
+    }
+
+    /**
+     * {@code true} si el primer marcador SOF del JPEG es secuencial
+     * ({@code SOF0} baseline o {@code SOF1} extendido): el unico que la
+     * libreria del JDK decodifica fila por fila. Progresivo ({@code SOF2}),
+     * sin perdida ({@code SOF3}), jerarquico o aritmetico: {@code false}. Sin
+     * SOF antes de los datos ({@code SOS}): {@code false}, el tope prudente.
+     *
+     * <p>Recorre los segmentos desde el SOI: {@code FF xx} y, salvo los
+     * marcadores sin datos, un largo de 2 bytes (big endian) que lo incluye.</p>
+     */
+    static boolean esJpegSecuencial(byte[] b) {
+        int i = 2; // despues del SOI (FF D8)
+        while (i + 3 < b.length) {
+            if ((b[i] & 0xFF) != 0xFF) {
+                return false;
+            }
+            int marcador = b[i + 1] & 0xFF;
+            if (marcador == 0xFF) {
+                i++; // relleno
+            } else if (marcador == 0x01 || marcador == 0xD8 || (marcador >= 0xD0 && marcador <= 0xD7)) {
+                i += 2; // sin datos
+            } else if (esSof(marcador)) {
+                return marcador == 0xC0 || marcador == 0xC1;
+            } else if (marcador == 0xDA || marcador == 0xD9) {
+                return false; // SOS o EOI antes de un SOF
+            } else {
+                i += 2 + (((b[i + 2] & 0xFF) << 8) | (b[i + 3] & 0xFF));
+            }
+        }
+        return false;
+    }
+
+    /** SOF0 a SOF15, sin DHT ({@code C4}), JPG ({@code C8}) ni DAC ({@code CC}). */
+    private static boolean esSof(int marcador) {
+        return marcador >= 0xC0 && marcador <= 0xCF && marcador != 0xC4 && marcador != 0xC8 && marcador != 0xCC;
+    }
+
+    /**
+     * {@code true} si el WEBP tiene una imagen sin perdida ({@code VP8L}),
+     * animada ({@code ANMF}, cuyos cuadros pueden serlo) o un canal alfa
+     * comprimido sin perdida ({@code ALPH} cuyo primer byte tiene compresion
+     * 1 en sus 2 bits bajos): los tres se decodifican enteros. Recorre los
+     * fragmentos RIFF: {@code "RIFF" tamano "WEBP"} y luego
+     * {@code fourcc(4) tamano(4, little endian) datos (rellenados a par)};
+     * el {@code ALPH} siempre va antes del {@code VP8 } con perdida.
+     */
+    static boolean esWebpSinSubmuestreo(byte[] b) {
         long posicion = 12;
         while (posicion + 8 <= b.length) {
             int p = (int) posicion;
             String fourcc = new String(b, p, 4, StandardCharsets.US_ASCII);
             if ("VP8L".equals(fourcc) || "ANMF".equals(fourcc)) {
+                return true;
+            }
+            if ("ALPH".equals(fourcc) && p + 8 < b.length && (b[p + 8] & 0x03) == 1) {
                 return true;
             }
             if ("VP8 ".equals(fourcc)) {

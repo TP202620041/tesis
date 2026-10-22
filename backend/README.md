@@ -1160,21 +1160,33 @@ curso ocupa el archivo subido (hasta 10 MB), la imagen decodificada
 (`app.storage.saneado.max-concurrentes`, 2 por defecto): una subida espera
 turno hasta 10 s y, si no lo obtiene, responde **503** «Hay muchas fotos
 procesándose en este momento» (no un error de red: la PWA muestra el mensaje
-y el reporte no entra a la cola offline). Dos casos con un tope propio:
+y el reporte no entra a la cola offline).
 
-- **WEBP sin pérdida** (`VP8L`): su decodificador arma la imagen entera antes
-  de submuestrear (4 bytes por píxel), así que el tope baja a 16 MP (64 MB).
-  Un teléfono no produce estos archivos.
-- **JPEG progresivo:** la librería nativa del JDK guarda los coeficientes de
-  toda la imagen (~120 MB para 40 MP) **fuera del heap**. No provoca un
-  `OutOfMemoryError` de Java, pero suma memoria al contenedor; las cámaras de
-  los teléfonos producen JPEG *baseline*.
+**Tope de 16 MP para lo que no se decodifica submuestreado.** El tope de
+40 MP supone que el lector descarta filas al leer. Hay archivos cuyo
+decodificador retiene la imagen entera, o todos sus coeficientes, antes de
+reducirla; para esos el tope baja a **16 MP**, también sin decodificar
+(`ImageIoSaneadorDeImagen#seDecodificaEntera`, que solo lee los
+encabezados):
+
+- **JPEG no secuencial** (el primer marcador SOF no es `SOF0` ni `SOF1`):
+  progresivo (`SOF2`), sin pérdida, jerárquico o aritmético. Con un
+  progresivo, la librería nativa del JDK guarda los coeficientes DCT de toda
+  la imagen **fuera del heap** (3 a 6 bytes por píxel: ~240 MB con 40 MP,
+  ~96 MB con 16 MP): no provoca un `OutOfMemoryError` de Java, pero suma
+  memoria al contenedor. El lector sin pérdida de TwelveMonkeys no
+  submuestrea. Las cámaras de los teléfonos producen JPEG secuencial
+  (*baseline*); los progresivos vienen de la web o de algunas aplicaciones.
+- **WEBP sin pérdida** (`VP8L`), **animado** (`ANMF`) o **con un canal alfa
+  comprimido sin pérdida** (`ALPH` con compresión 1, aunque la imagen sea
+  `VP8` con pérdida): el decodificador arma un raster entero de 4 bytes por
+  píxel (64 MB con 16 MP). Un teléfono no produce estos archivos.
 
 ### Pruebas de las fotos
 
 | Prueba | Tipo | Qué afirma |
 |---|---|---|
-| `ImageIoSaneadorDeImagenTest` | unitaria | Un JPEG con GPS y fabricante en el EXIF sale sin APP1; las 8 orientaciones EXIF dejan los píxeles donde se verían; una foto de 4200 px sale de 1400 px (submuestreo al decodificar, no reescalado); PNG transparente → fondo blanco; mismos bytes → mismos bytes; no imagen, GIF disfrazado o PNG roto → 409; más de 40 MP (o un WEBP sin pérdida de más de 16 MP) se rechaza **sin decodificar**; con los turnos ocupados, la tercera espera y a los 10 s es 503, y si un turno se libera a tiempo, pasa. |
+| `ImageIoSaneadorDeImagenTest` | unitaria | Un JPEG con GPS y fabricante en el EXIF sale sin APP1; las 8 orientaciones EXIF dejan los píxeles donde se verían; una foto de 4200 px sale de 1400 px (submuestreo al decodificar, no reescalado); PNG transparente → fondo blanco; mismos bytes → mismos bytes; no imagen, GIF disfrazado o PNG roto → 409; más de 40 MP se rechaza **sin decodificar**, y más de 16 MP si el archivo se decodifica entero (JPEG progresivo, WEBP sin pérdida o con alfa sin pérdida, con encabezados armados en el test), mientras un JPEG secuencial o un WEBP con alfa sin comprimir de 20 MP no se rechaza por tamaño; con los turnos ocupados, la tercera espera y a los 10 s es 503, y si un turno se libera a tiempo, pasa. |
 | `S3FotoStorageServiceTest` | unitaria, `S3Client` simulado | Cada foto a su bucket con `image/jpeg`; la misma URL que el local; nombres que no son `<uuid>.<ext>` no llegan al bucket; inexistente → `null`; bucket caído → 503; no arranca sin endpoint, token o bucket, ni con un solo bucket para las dos visibilidades. |
 | `LocalFotoStorageServiceTest` | unitaria | Lo de antes, más que se guarda el JPEG saneado y `cargarFotoReporte` y `eliminarFotoPerfil` no salen del directorio. |
 | `FotoReporteIT`, `FotoPerfilIT` | IT (`local`) | Misma URL y visibilidad; la foto descargada ya no trae EXIF y se ve derecha; `Cache-Control`, 304 y 206; nombres raros → 404; foto inválida → 409; al reemplazar la foto de perfil, la anterior se borra. |
