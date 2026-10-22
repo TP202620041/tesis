@@ -940,6 +940,13 @@ mal desempeño a una municipalidad que simplemente no recibió reportes. Por la
 misma razón, al ordenar, los `null` van siempre al final aunque se invierta la
 dirección — igual que el `NULLS LAST` del backend.
 
+El caso contrario también se cuida (QA-1 M-12): un tiempo promedio de
+menos de una hora se muestra «< 1 h», no «0 h». San Miguel promedió 0,01 h
+y, redondeado, parecía cero o falta de dato cuando era la atención más
+rápida. En el móvil la tabla del ranking (46rem) no cabe: va en una región
+con foco (se desplaza también con el teclado) y una indicación visible solo
+en pantallas angostas dice que se desliza hacia los lados.
+
 La barra de progreso usa **un solo color**, no una escala rojo-ámbar-verde:
 colorear por umbrales obligaría a inventar qué tasa cuenta como "mala", un
 juicio que ni el backlog ni el backend definen. El ranking y el número ya

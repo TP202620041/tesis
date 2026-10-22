@@ -42,14 +42,22 @@ export function formatearTasa(tasa: number | null | undefined): string {
   return `${tasa.toLocaleString('es-PE', { maximumFractionDigits: 1 })} %`;
 }
 
+/** Lo que se muestra para un promedio de menos de una hora (QA-1 M-12). */
+export const MENOS_DE_UNA_HORA = '< 1 h';
+
 /**
  * Horas a una duracion legible: `5.5` -> `"5,5 h"`, `36` -> `"1 d 12 h"`.
  *
  * Por encima de un dia, las horas crudas dejan de decir algo ("847,25 h" no
  * se interpreta de un vistazo), que es justo lo que esta pantalla busca.
+ *
+ * Por debajo de una hora, «< 1 h» (QA-1 M-12): 0,01 h redondeaba a «0 h», que
+ * se lee como cero o como «sin dato», cuando es la atencion mas rapida. Es
+ * un dato real, no la ausencia de uno: `null` sigue siendo «Sin datos».
  */
 export function formatearTiempo(horas: number | null | undefined): string {
   if (horas == null) return SIN_DATOS;
+  if (horas < 1) return MENOS_DE_UNA_HORA;
   if (horas < 24) {
     return `${horas.toLocaleString('es-PE', { maximumFractionDigits: 1 })} h`;
   }

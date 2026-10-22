@@ -39,80 +39,96 @@ export function TablaDesempeno({ filas, orden, onOrdenar, comparados, onAlternar
   const ordenadas = ordenar(filas, orden);
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[46rem] border-collapse text-sm">
-        <caption className="sr-only">
-          Ranking de distritos de Lima Metropolitana por tasa de resolución de reportes viales
-        </caption>
-        <thead>
-          <tr className="border-b border-slate-300 text-left dark:border-slate-600">
-            <th scope="col" className="w-10 px-2 py-2 font-medium text-slate-500">
-              #
-            </th>
-            <th scope="col" className="w-20 px-2 py-2 text-left font-medium text-slate-700 dark:text-slate-200">
-              Comparar
-            </th>
-            <Encabezado columna="distrito" orden={orden} onOrdenar={onOrdenar}>
-              Distrito
-            </Encabezado>
-            <Encabezado columna="tasa" orden={orden} onOrdenar={onOrdenar}>
-              Tasa de resolución
-            </Encabezado>
-            <Encabezado columna="reportes" orden={orden} onOrdenar={onOrdenar}>
-              Reportes
-            </Encabezado>
-            <Encabezado columna="tiempo" orden={orden} onOrdenar={onOrdenar}>
-              Tiempo promedio
-            </Encabezado>
-            <Encabezado columna="satisfaccion" orden={orden} onOrdenar={onOrdenar}>
-              Satisfacción
-            </Encabezado>
-          </tr>
-        </thead>
-        <tbody>
-          {ordenadas.map((fila, indice) => (
-            <tr
-              key={fila.distritoId}
-              className="border-b border-slate-200 last:border-0 dark:border-slate-700"
-            >
-              <td className="px-2 py-2 text-slate-500 tabular-nums">{indice + 1}</td>
-              <td className="px-2 py-2">
-                {/* No se deshabilita al llegar al maximo: al intentar marcar un quinto
-                    distrito se explica por que no se agrega (US-19). */}
-                <input
-                  type="checkbox"
-                  checked={fila.distritoId != null && comparados.includes(fila.distritoId)}
-                  onChange={() => {
-                    if (fila.distritoId != null) onAlternarComparacion(fila.distritoId);
-                  }}
-                  aria-label={`Comparar ${fila.distritoNombre ?? ''}`}
-                  className="size-4"
-                />
-              </td>
-              <th scope="row" className="px-2 py-2 text-left font-medium text-slate-900 dark:text-slate-100">
-                {fila.distritoNombre}
+    <div className="flex flex-col gap-1.5">
+      {/* QA-1 M-12: en el movil la tabla (46rem) no cabe y obligaba a
+          desplazarse en horizontal sin ninguna pista: tasa, tiempo y
+          satisfaccion quedaban fuera de la vista. */}
+      <p id="ranking-desplazable" className="text-xs text-slate-500 md:hidden dark:text-slate-400">
+        Desliza la tabla hacia los lados para ver todas las columnas.{' '}
+        <span aria-hidden="true">→</span>
+      </p>
+      {/* Region con foco: con el teclado tambien se puede desplazar. */}
+      <div
+        role="region"
+        aria-label="Ranking de distritos"
+        aria-describedby="ranking-desplazable"
+        tabIndex={0}
+        className="overflow-x-auto rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/50"
+      >
+        <table className="w-full min-w-[46rem] border-collapse text-sm">
+          <caption className="sr-only">
+            Ranking de distritos de Lima Metropolitana por tasa de resolución de reportes viales
+          </caption>
+          <thead>
+            <tr className="border-b border-slate-300 text-left dark:border-slate-600">
+              <th scope="col" className="w-10 px-2 py-2 font-medium text-slate-500">
+                #
               </th>
-              <td className="px-2 py-2">
-                <BarraTasa tasa={fila.tasaResolucion} />
-              </td>
-              <td className="px-2 py-2 tabular-nums text-slate-700 dark:text-slate-300">
-                {fila.totalResueltos ?? 0} / {fila.totalReportes ?? 0}
-              </td>
-              <td className="px-2 py-2 tabular-nums text-slate-700 dark:text-slate-300">
-                {formatearTiempo(fila.tiempoPromedioHoras)}
-              </td>
-              <td className="px-2 py-2 tabular-nums text-slate-700 dark:text-slate-300">
-                {formatearSatisfaccion(fila.satisfaccionPromedio)}
-                {(fila.totalCalificaciones ?? 0) > 0 && (
-                  <span className="ml-1 text-xs text-slate-500">
-                    ({fila.totalCalificaciones})
-                  </span>
-                )}
-              </td>
+              <th scope="col" className="w-20 px-2 py-2 text-left font-medium text-slate-700 dark:text-slate-200">
+                Comparar
+              </th>
+              <Encabezado columna="distrito" orden={orden} onOrdenar={onOrdenar}>
+                Distrito
+              </Encabezado>
+              <Encabezado columna="tasa" orden={orden} onOrdenar={onOrdenar}>
+                Tasa de resolución
+              </Encabezado>
+              <Encabezado columna="reportes" orden={orden} onOrdenar={onOrdenar}>
+                Reportes
+              </Encabezado>
+              <Encabezado columna="tiempo" orden={orden} onOrdenar={onOrdenar}>
+                Tiempo promedio
+              </Encabezado>
+              <Encabezado columna="satisfaccion" orden={orden} onOrdenar={onOrdenar}>
+                Satisfacción
+              </Encabezado>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {ordenadas.map((fila, indice) => (
+              <tr
+                key={fila.distritoId}
+                className="border-b border-slate-200 last:border-0 dark:border-slate-700"
+              >
+                <td className="px-2 py-2 text-slate-500 tabular-nums">{indice + 1}</td>
+                <td className="px-2 py-2">
+                  {/* No se deshabilita al llegar al maximo: al intentar marcar un quinto
+                      distrito se explica por que no se agrega (US-19). */}
+                  <input
+                    type="checkbox"
+                    checked={fila.distritoId != null && comparados.includes(fila.distritoId)}
+                    onChange={() => {
+                      if (fila.distritoId != null) onAlternarComparacion(fila.distritoId);
+                    }}
+                    aria-label={`Comparar ${fila.distritoNombre ?? ''}`}
+                    className="size-4"
+                  />
+                </td>
+                <th scope="row" className="px-2 py-2 text-left font-medium text-slate-900 dark:text-slate-100">
+                  {fila.distritoNombre}
+                </th>
+                <td className="px-2 py-2">
+                  <BarraTasa tasa={fila.tasaResolucion} />
+                </td>
+                <td className="px-2 py-2 tabular-nums text-slate-700 dark:text-slate-300">
+                  {fila.totalResueltos ?? 0} / {fila.totalReportes ?? 0}
+                </td>
+                <td className="px-2 py-2 tabular-nums text-slate-700 dark:text-slate-300">
+                  {formatearTiempo(fila.tiempoPromedioHoras)}
+                </td>
+                <td className="px-2 py-2 tabular-nums text-slate-700 dark:text-slate-300">
+                  {formatearSatisfaccion(fila.satisfaccionPromedio)}
+                  {(fila.totalCalificaciones ?? 0) > 0 && (
+                    <span className="ml-1 text-xs text-slate-500">
+                      ({fila.totalCalificaciones})
+                    </span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

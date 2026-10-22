@@ -185,3 +185,26 @@ describe('IndiceDesempeno: comparar distritos (US-19)', () => {
     expect(replace).toHaveBeenCalledWith('/desempeno?comparar=21,4&categoria=3', { scroll: false });
   });
 });
+
+describe('IndiceDesempeno: ranking en el móvil (QA-1 M-12)', () => {
+  it('la tabla va en una región con foco que avisa que se desplaza en horizontal', async () => {
+    render(<IndiceDesempeno />);
+
+    const region = await screen.findByRole('region', { name: 'Ranking de distritos' });
+    expect(region).toHaveAttribute('tabindex', '0');
+    expect(region).toHaveAccessibleDescription(/Desliza la tabla hacia los lados/);
+    expect(within(region).getByRole('table')).toBeInTheDocument();
+  });
+
+  it('un tiempo promedio de menos de una hora dice «< 1 h», no «0 h»', async () => {
+    vi.mocked(rankingDistrital).mockResolvedValue([
+      fila(33, 'San Miguel', { totalReportes: 2, totalResueltos: 1, tasaResolucion: 50, tiempoPromedioHoras: 0.01 }),
+    ]);
+    render(<IndiceDesempeno />);
+
+    const region = await screen.findByRole('region', { name: 'Ranking de distritos' });
+    const sanMiguel = await within(region).findByRole('row', { name: /San Miguel/ });
+    expect(sanMiguel).toHaveTextContent('< 1 h');
+    expect(sanMiguel).not.toHaveTextContent(/\b0 h/);
+  });
+});
