@@ -1,6 +1,6 @@
 # Propuesta: despliegue del MVP (Railway + Vercel + R2 + correo HTTP)
 
-- **Estado:** abierta <!-- abierta | aceptada | rechazada -->
+- **Estado:** aceptada (2026-10-21) <!-- abierta | aceptada | rechazada -->
 - **Fecha:** 2026-10-21
 - **Origen:** subagente arquitecto, encargo ARQ-1, sobre `develop` = `main` = v0.6.0 (14ef98d)
 - **Decide:** el usuario. Si se acepta, la sesión de raíz actualiza ARCHITECTURE.md o el plan.
@@ -232,3 +232,7 @@ Aceptar la arquitectura como está descrita, con tres ajustes al encargo que sal
 - DEP-04 necesita el correo del primer ADMIN.
 - La salida a usuarios reales necesita la inscripción ante la ANPD y los `[COMPLETAR]` de los términos.
 - DEP-01, 02, 03, 05, 06, 07 y 11 no dependen de ninguna decisión: pueden empezar ya.
+
+## Decisión (2026-10-21)
+
+El usuario aceptó desplegar el MVP en **Railway** (backend en contenedor y PostgreSQL con PostGIS) y **Vercel** (PWA), con las fotos en **Cloudflare R2** y el correo por API HTTP con **Resend** (ver `2026-10-21-correo-saliente-http.md`). Como Resend exige un dominio verificado, el dominio propio (decisión 3 del índice) pasa a ser requisito del despliegue con correo. La versión que sale con el despliegue es **v0.7.0**. Los paquetes DEP-01..DEP-12 se ejecutan según esta propuesta.

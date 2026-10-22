@@ -45,11 +45,166 @@ Swagger UI: `http://localhost:8080/swagger-ui.html`.
 
 ## Perfiles
 
-- `local` (por defecto) — apunta al Postgres de `docker-compose.yml`.
+- `local` (por defecto) — apunta al Postgres de `docker-compose.yml` y firma
+  los JWT con el secreto de desarrollo si no exportas `JWT_SECRET` (SEC-03).
+  `mvn spring-boot:run` lo activa de forma explícita (`spring-boot.run.profiles`
+  en el `pom.xml`); si arrancas el jar o la clase principal desde el IDE sin
+  perfil, `local` llega solo por defecto y el secreto de desarrollo ya no vale:
+  activa `local` (`SPRING_PROFILES_ACTIVE=local`) o exporta `JWT_SECRET`.
 - `dev` — entorno compartido; toda la configuración por variables de entorno
   (`DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET`).
+- `test` — lo activan los IT (`src/test/resources/application-test.yml`).
+- `prod` — el despliegue; ver [Configuración de producción](#configuración-de-producción).
 
-Activar otro perfil: `SPRING_PROFILES_ACTIVE=dev mvn spring-boot:run`.
+Fuera de `local` y `test`, `JWT_SECRET` es obligatorio: sin él la aplicación
+no arranca (ver SEC-03).
+
+Activar otro perfil: `mvn spring-boot:run -Dspring-boot.run.profiles=dev` (con
+`mvn spring-boot:run`, la variable `SPRING_PROFILES_ACTIVE` ya no basta: el
+plugin pasa `--spring.profiles.active=local` como argumento, que tiene
+prioridad). Al correr el jar: `SPRING_PROFILES_ACTIVE=dev java -jar …`.
+
+## Configuración de producción
+
+El perfil `prod` (`application-prod.yml`) es el del despliegue del MVP
+(backend y PostGIS en Railway, PWA en Vercel). Su criterio: **ninguna
+variable que apunte a un recurso de producción tiene valor por defecto**. Un
+default arrancaría la aplicación contra algo que no es producción; es
+preferible que no arranque y que el log diga qué falta.
+
+### Variables de entorno
+
+| Variable | Obligatoria | Qué es |
+|---|---|---|
+| `JWT_SECRET` | sí | Base64 de al menos 32 bytes (`openssl rand -base64 48`). Sin ella, o con el secreto de desarrollo, no arranca (SEC-03). |
+| `DB_URL` | sí | `jdbc:postgresql://<host>:<puerto>/<base>` de un PostgreSQL 16 que tenga PostGIS 3.4 disponible (la V1 ejecuta `CREATE EXTENSION postgis`). |
+| `DB_USERNAME`, `DB_PASSWORD` | sí | Credenciales de esa base. |
+| `CORS_ALLOWED_ORIGINS` | sí | Origen exacto de la PWA (`https://<proyecto>.vercel.app`); varios, separados por coma. |
+| `FOTOS_DIR` | sí | Directorio de las fotos. La imagen ya trae `FOTOS_DIR=/data/fotos`. |
+| `PORT` | no (8080) | Lo inyecta la plataforma. |
+| `SPRINGDOC_HABILITADO` | no (`false`) | `true` publica `/v3/api-docs` y Swagger UI. |
+| `JWT_EXPIRATION_MINUTES`, `VAPID_*`, `PUSH_*`, `MAIL_*`, `NOTIF_FROM`, `LEGAL_VERSION_TERMINOS`, `ASYNC_*` | no | Las mismas de `application.yml`, con sus valores por defecto. |
+
+### Qué cambia respecto de `local`
+
+- **Errores.** `server.error.include-message` e `include-stacktrace` en
+  `never`. Solo afectan al `/error` de Spring Boot, que responde lo que no
+  pasa por `GlobalExceptionHandler` (un rechazo del firewall de Spring
+  Security, un fallo en un filtro). Los `ApiError` de `GlobalExceptionHandler`
+  conservan su `message`, que es el que muestra el frontend
+  (`frontend/src/lib/api/errors.ts`); `PerfilProdIT` lo comprueba con un 409
+  conocido.
+- **OpenAPI y Swagger UI** apagados salvo `SPRINGDOC_HABILITADO=true`: la
+  documentación del contrato se consulta en local.
+- **Flyway** con `baseline-on-migrate: false`. En una base con tablas pero sin
+  historial de Flyway, la aplicación falla en vez de tomarla como línea base
+  y saltarse la V1, lo que dejaría un esquema a medias.
+- **Detrás del proxy** de la plataforma: `server.port: ${PORT:8080}` y
+  `forward-headers-strategy: framework`, para que la aplicación vea el
+  esquema y el host originales (`https`). Hoy nada usa la IP del cliente; si
+  algún día se usa (límite de intentos, auditoría), conviene pasar a
+  `native` con la lista de proxies de confianza, porque `framework` acepta las
+  cabeceras `X-Forwarded-*` de quien las envíe.
+- **Apagado ordenado** (`server.shutdown: graceful`): en un redespliegue
+  terminan las peticiones en curso.
+- **Logs** en `INFO` y sin el SQL de Hibernate.
+
+### Healthcheck y tiempos de espera (todos los perfiles)
+
+- **Actuator** expone solo `GET /actuator/health`, pública y exacta en
+  `SecurityConfig`, y responde únicamente `{"status":"UP"}`: sin detalles ni
+  componentes que revelen la base o las versiones. Ningún otro endpoint de
+  Actuator se expone por web, ni siquiera a un ADMIN (`/actuator/env` o
+  `/actuator/heapdump` entregarían el secreto JWT y la contraseña de la base).
+  Lo prueba `ActuatorHealthIT`.
+- El health **no incluye el correo** (`management.health.mail.enabled:
+  false`): un SMTP caído afecta a cada envío, no a la API, y no debe marcarla
+  como caída ni hacer fallar un despliegue. La base de datos sí cuenta: sin
+  ella la API no sirve.
+- **SMTP con timeouts de 5 s** (conexión, lectura y escritura). JavaMail
+  espera indefinidamente por defecto, y la recuperación de contraseña y el
+  soporte envían correo dentro de la petición.
+
+### Imagen (`backend/Dockerfile`)
+
+```bash
+docker build -t viasegura-backend backend/
+docker run -p 8080:8080 -e JWT_SECRET=… -e DB_URL=… -e DB_USERNAME=… \
+  -e DB_PASSWORD=… -e CORS_ALLOWED_ORIGINS=… viasegura-backend
+```
+
+- **Dos etapas.** `maven:3.9-eclipse-temurin-21` compila: primero
+  `dependency:go-offline` solo con el `pom.xml`, en su propia capa (un cambio
+  en `src/` no vuelve a descargar las dependencias; un cambio en el `pom.xml`
+  sí), luego `package -DskipTests` y la extracción por capas de Spring Boot
+  (`java -Djarmode=tools -jar … extract --layers`). Los tests no corren en el
+  build porque necesitan la base de test y GreenMail; ya corrieron con
+  `mvn clean verify` antes de fusionar.
+- **Ejecución en `eclipse-temurin:21-jre-noble`, no Alpine.** La exportación
+  XLSX (US-28) usa `autoSizeColumn` de Apache POI, que mide el texto con
+  fuentes reales. Esta imagen ya trae fontconfig y DejaVu (`fc-list`), así
+  que no hace falta instalar nada.
+- **Capas de Spring Boot** copiadas de la que menos cambia a la que más
+  (dependencias, cargador, *snapshots*, aplicación): un cambio de código solo
+  reemplaza la última.
+- **Usuario sin privilegios** `viasegura` (uid 999), dueño de `/data/fotos`.
+- **Variables de la imagen:** `SPRING_PROFILES_ACTIVE=prod` (sin ella `local`
+  llegaría por defecto; ver SEC-03), `FOTOS_DIR=/data/fotos` y
+  `JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75 -Djava.awt.headless=true"`
+  (heap al 75 % de la memoria del contenedor; POI usa AWT sin pantalla). Si
+  la plataforma define su propio `JAVA_TOOL_OPTIONS` (el runbook fija el heap
+  con `-Xmx`), reemplaza este entero; por eso `-Djava.awt.headless=true` va
+  también en el `ENTRYPOINT`.
+- `.dockerignore` deja fuera `target/`, `uploads/`, los logs, los archivos del
+  IDE y `.env`, para que un archivo con secretos nunca llegue al contexto de
+  build.
+
+**Tamaño (2026-10-21): unos 391 MB** sin comprimir (la suma de las capas de
+`docker history`: Ubuntu 88 MB, paquetes de Temurin 49 MB, JRE 166 MB,
+dependencias 87 MB, código 0,4 MB) y **178 MB comprimida** (la columna
+*CONTENT SIZE* de `docker image ls`, lo que se descarga). El criterio de
+DEP-03 pide menos de 400 MB: se cumple, con poco margen. La columna *DISK
+USAGE* de Docker Desktop (568 MB) suma la imagen comprimida y la
+descomprimida, así que no es el tamaño de la imagen. Las dependencias que
+sumen DEP-08 y DEP-12 (cliente HTTP de correo, SDK de S3, saneado de
+imágenes) pueden pasar el límite; conviene volver a medir en esas tareas.
+
+**Verificación (2026-10-21)**, con la imagen contra un PostGIS 16-3.4 vacío y
+temporal:
+
+- Aplica V1–V17, siembra 43 distritos y 43 municipalidades, arranca en unos
+  8 s y `GET /actuator/health` responde `{"status":"UP"}`.
+- Sin `JWT_SECRET`, o con el secreto de desarrollo, no arranca, con el mensaje
+  de `JwtService` y antes de tocar la base. Sin `CORS_ALLOWED_ORIGINS` no
+  arranca (`Could not resolve placeholder`), aunque después de migrar. Sin
+  `DB_URL` tampoco, pero el mensaje es de Hikari y poco claro
+  (`URL must start with 'jdbc'`).
+- `/v3/api-docs` y `/swagger-ui.html` responden 404; `/actuator/env` y
+  `/actuator/heapdump`, 401. El preflight de CORS acepta el origen
+  configurado y rechaza otro (403).
+- Un ciudadano crea un reporte con foto (se escribe en `/data/fotos` con el
+  uid 999 y se sirve pública) y una funcionaria, creada con SQL, exporta el
+  XLSX: 200, `reportes-miraflores.xlsx`, con los anchos de columna calculados.
+- `docker stop` termina con "Graceful shutdown complete".
+
+### Railway
+
+La configuración del servicio (ruta raíz `backend/`, construcción con el
+`Dockerfile`, health check en `/actuator/health` y variables) se fija **en el
+panel de Railway**, no en un `railway.toml`: Railway deprecó la configuración
+como código. El paso a paso está en el runbook de despliegue
+(`docs/despliegue.md`). Dos puntos que dependen de este backend:
+
+- **Health check.** `GET /actuator/health` responde `UP` en cuanto Tomcat
+  arranca; los *seeders* de distritos y municipalidades terminan alrededor de
+  un segundo después (solo hacen algo en el primer despliegue).
+- **Volumen de fotos (temporal, hasta DEP-12).** Railway monta los
+  volúmenes como `root` y la imagen corre como `viasegura`: un volumen en
+  `/data/fotos` exige `RAILWAY_RUN_UID=0` para poder escribir (documentación
+  de Railway). Esa variable **hace correr el contenedor como root**, es
+  decir, anula el usuario sin privilegios de la imagen. Se acepta solo
+  mientras las fotos vayan a un volumen: con DEP-12 pasan a R2, el volumen
+  sobra y la variable se quita.
 
 ## Endpoints implementados (vertical slice inicial)
 
@@ -195,6 +350,56 @@ invertido no puede tener resultados y una página vacía escondería el error
 del cliente. Ambos bordes son inclusivos (`created_at >= fechaDesde` y
 `<= fechaHasta`), así que `fechaDesde == fechaHasta` es válido. Las fechas son
 instantes UTC: convertir el "día local" a instantes es tarea del cliente.
+
+## Errores del cliente que respondían 500 (DEP-11)
+
+Varias excepciones de Spring MVC caían en el manejador genérico de
+`GlobalExceptionHandler` y respondían **500**: "el servidor falló" cuando la
+petición era inválida, y en producción un 500 dispara alertas por un caso
+normal. Ahora responden con el mismo `ApiError` que el resto:
+
+| Excepción | Código | Ejemplo | Mensaje |
+|---|---|---|---|
+| `MaxUploadSizeExceededException` | **413** | Foto de más de 10 MB en `POST /api/reportes` o `PATCH /api/auth/me` | `La foto supera el tamaño máximo de 10 MB` (el límite sale de `spring.servlet.multipart.max-file-size`) |
+| `HttpRequestMethodNotSupportedException` | **405** | `GET /api/auth/login` | `El metodo GET no esta permitido en esta ruta`, con la cabecera `Allow` que exige el RFC 9110 |
+| `HttpMediaTypeNotSupportedException` | **415** | JSON a `POST /api/reportes` o a `PATCH /api/auth/me`, que son multipart | `Tipo de contenido no admitido en esta ruta: se espera multipart/form-data`, con `Accept` (y `Accept-Patch` en un PATCH) |
+| `MissingServletRequestParameterException` | **400** | `GET /api/distritos/por-coordenadas` sin `lon` | `Falta el parametro obligatorio 'lon'` |
+| `MissingServletRequestPartException` | **400** | Un formulario multipart sin una parte obligatoria (hoy ningún endpoint la tiene: las fotos son opcionales; el manejador es preventivo) | `Falta la parte obligatoria '<parte>' del formulario` |
+
+**Los 500 que quedan se registran.** El manejador genérico sigue
+respondiendo un 500 con un mensaje fijo, pero ahora registra la excepción en
+`ERROR` con el método, la ruta y la traza
+(`Error no controlado en POST /api/…`). En producción la respuesta no lleva
+detalles (`include-stacktrace: never`), así que sin ese registro un 500 no
+dejaba rastro. Nunca se registra el cuerpo ni la query de la petición, que
+pueden traer contraseñas o datos personales.
+
+**413 también para subidas grandes.** Los límites son 10 MB por archivo y
+12 MB por petición. Si la petición entera supera los 12 MB, Tomcat la
+rechaza por su `Content-Length` sin leer el cuerpo, y luego solo descarta
+hasta `server.tomcat.max-swallow-size` de lo que queda sin leer: con el valor
+por defecto (2 MB) cortaba la conexión y el cliente veía un error de red en
+lugar del 413. Para la PWA eso es peor que un error: un `NetworkError` manda
+el reporte a la cola offline (US-06), que lo reintentaría una y otra vez. Con
+`max-swallow-size: 32MB` (en `application.yml`, para todos los perfiles)
+Tomcat lee y descarta esos bytes sin guardarlos, y el cliente recibe el 413.
+Por encima de 32 MB vuelve a cortar la conexión: es el tope de lo que el
+servidor acepta leer para nada.
+
+**Validación en el cliente.** La PWA valida los 10 MB de la foto del reporte
+antes de subirla (`CampoFoto.tsx`), pero **no** la foto de perfil
+(`PATCH /api/auth/me`): ahí el 413 es lo único que la frena. Queda una tarea
+de seguimiento para el frontend: rechazar en el cliente las fotos de más de
+10 MB, también la de perfil, antes de enviarlas o encolarlas.
+
+Lo prueba `ErroresHttpIT`, con servidor real (`RANDOM_PORT`) para el 413
+porque el límite lo aplica Tomcat al leer el multipart y MockMvc no lo
+ejecuta: fotos de 11 MB y de 30 MB en `POST /api/reportes` y de 30 MB en
+`PATCH /api/auth/me` reciben el 413 (con el `max-swallow-size` por defecto,
+la de 30 MB fallaba con un corte de conexión). La parte obligatoria y el 500
+se prueban con un controlador que solo existe en ese IT; el 500 verifica,
+con un *appender* de Logback, que el evento se registra en `ERROR` con
+método y ruta y sin el cuerpo de la petición.
 
 ## Catálogos de referencia (descubribilidad)
 
@@ -455,6 +660,71 @@ públicos y del ciudadano (la búsqueda por filtros y por área, que son dos
 queries), el `POST` de crear/adherirse, y que la bandeja y el cambio de estado
 **sí** lo devuelven. Con el DTO anterior fallan exactamente los siete casos
 públicos y del ciudadano.
+
+### SEC-03 — El secreto JWT tenía un valor por defecto versionado
+
+**Detectado:** 2026-10-21, al preparar el despliegue del MVP (DEP-01).
+**Estado:** corregido y cubierto por tests. **Exige rotar el secreto** en
+todo entorno que haya usado el viejo.
+
+**El problema.** `application.yml` resolvía `security.jwt.secret` con
+`${JWT_SECRET:<valor>}`, es decir, con un secreto por defecto escrito en el
+repositorio (y repetido en `.env.example`). Un entorno que olvidara definir
+`JWT_SECRET` arrancaba sin ningún aviso, firmando con un secreto público.
+
+**Por qué importaba.** El JWT lleva el email como `subject`, y
+`JwtAuthenticationFilter` carga el usuario, con su rol real, a partir de ese
+email. Quien conoce el secreto firma un token con el email de cualquier
+cuenta y la suplanta sin saber su contraseña: un ADMIN, o un funcionario que
+gestiona los reportes de su distrito y con ellos las métricas de desempeño
+(ver SEC-01). Bastaba con leer el repositorio en GitHub.
+
+**La corrección.**
+
+- La configuración base ya no trae valor por defecto (`${JWT_SECRET:}`).
+- `JwtService` no deja arrancar la aplicación si el secreto falta, está
+  vacío, no es Base64 o tiene menos de 32 bytes (lo mínimo para HS256). El
+  mensaje dice cómo generar uno (`openssl rand -base64 48`) y nunca repite el
+  valor recibido.
+- El secreto de desarrollo sigue en el repositorio (`application-local.yml`
+  y `src/test/resources/application-test.yml`), pero `JwtService` solo lo
+  acepta si se cumplen **dos** condiciones: la bandera
+  `security.jwt.permitir-secreto-de-desarrollo=true` (la definen solo esos dos
+  archivos; `prod` la fija en `false`) y el perfil `local` o `test` activado
+  **de forma explícita**. La comparación es por bytes decodificados, así que
+  otra codificación de la misma clave también se rechaza.
+- Por qué no basta la bandera: `application.yml` declara
+  `spring.profiles.default: local`, y Spring Boot carga
+  `application-local.yml` también cuando `local` llega solo por defecto. Un
+  despliegue sin `SPRING_PROFILES_ACTIVE` (o con la variable vacía) tendría la
+  bandera en `true` y volvería a firmar con el secreto público. Por eso
+  `JwtService` mira `Environment#getActiveProfiles()`, que no incluye los
+  perfiles por defecto. `mvn spring-boot:run` sigue funcionando sin cambios:
+  el `pom.xml` fija `spring-boot.run.profiles=local`, que activa el perfil de
+  forma explícita. La imagen Docker fija `SPRING_PROFILES_ACTIVE=prod`.
+- `.env.example` deja `JWT_SECRET=` vacío, con la instrucción para
+  generarlo.
+
+**Rotación.** Todo entorno que haya corrido con el secreto viejo (un
+despliegue sin `JWT_SECRET`, o uno que copió el valor de `.env.example`) debe
+generar uno nuevo. Rotar invalida de una vez todos los tokens emitidos,
+también los forjados; a los usuarios solo se les pide volver a iniciar
+sesión. Borrar el valor del archivo no basta, porque sigue en el historial de
+git: por eso `JwtService` lo rechaza por su contenido.
+
+**Regresión:** `JwtServiceTest` cubre el secreto ausente, vacío o en blanco,
+el que no es Base64, los de 31 y 32 bytes, el publicado con y sin la bandera
+(y con otra codificación), que los mensajes no lo repiten y que un token de
+ADMIN forjado con el secreto viejo no verifica en un entorno con secreto
+propio; y, con un entorno simulado, que el secreto de desarrollo se acepta
+con `local` o `test` explícitos y se rechaza con `local` solo por defecto, en
+`prod` aunque se fuerce la bandera, y con `local` pero sin la bandera.
+`ArranqueSinPerfilExplicitoIT` arranca la aplicación real sin perfil
+explícito y con el secreto de desarrollo: comprueba que `local` llegó por
+defecto con la bandera en `true` y que, aun así, no arranca (con solo la
+bandera, la misma prueba llegaba hasta la conexión a la base). `PerfilProdIT`
+arranca el perfil `prod` con un secreto propio, comprueba que ahí la bandera
+queda en `false` y que un token forjado con el secreto publicado recibe 401.
 
 ## Frescura del índice de desempeño
 

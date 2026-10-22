@@ -68,8 +68,7 @@ public class SecurityConfig {
             "/api/desempeno/distritos",
             "/v3/api-docs/**",
             "/swagger-ui/**",
-            "/swagger-ui.html",
-            "/actuator/health"
+            "/swagger-ui.html"
     };
 
     /**
@@ -120,6 +119,12 @@ public class SecurityConfig {
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(RUTAS_PUBLICAS).permitAll()
+                        // Healthcheck del despliegue (DEP-02): ruta EXACTA y
+                        // solo GET. /actuator/health/{componente} y cualquier
+                        // otro /actuator/** siguen exigiendo token, y ademas
+                        // no estan expuestos (management.endpoints en
+                        // application.yml).
+                        .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
                         // Lectura publica de comentarios (US-27); publicar si requiere auth.
                         .requestMatchers(HttpMethod.GET, "/api/reportes/*/comentarios").permitAll()
                         // Busqueda publica de reportes (US-12/US-10): misma info sin PII

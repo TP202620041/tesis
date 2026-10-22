@@ -4,8 +4,19 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.unit.DataSize;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -22,8 +33,17 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
  * <p>Traduce excepciones de dominio, validacion y seguridad a respuestas
  * {@link ApiError} consistentes, evitando fugas de detalles internos.</p>
  */
+@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    /** Tope por archivo de {@code spring.servlet.multipart} (10 MB en application.yml). */
+    private final DataSize tamanoMaximoArchivo;
+
+    public GlobalExceptionHandler(
+            @Value("${spring.servlet.multipart.max-file-size:1MB}") DataSize tamanoMaximoArchivo) {
+        this.tamanoMaximoArchivo = tamanoMaximoArchivo;
+    }
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ApiError> handleNotFound(ResourceNotFoundException ex, HttpServletRequest req) {
@@ -124,8 +144,106 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.NOT_FOUND, "No se encontro el recurso solicitado", req, List.of());
     }
 
+    /**
+     * Archivo o peticion multipart por encima de {@code spring.servlet.multipart}
+     * (DEP-11): la foto del reporte (US-05) o la de perfil (US-30).
+     *
+     * <p>Antes caia en el {@code Exception.class} de abajo y respondia
+     * <b>500</b>, cuando el error es del cliente. 413 es el codigo de "cuerpo
+     * demasiado grande"; el mensaje da el limite configurado. Para que el
+     * cliente llegue a leer el 413 cuando la peticion entera supera
+     * {@code max-request-size} (Tomcat la rechaza sin leer el cuerpo), Tomcat
+     * descarta hasta {@code server.tomcat.max-swallow-size} sin cortar la
+     * conexion (ver README, DEP-11).</p>
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiError> handleMaxUploadSize(MaxUploadSizeExceededException ex, HttpServletRequest req) {
+        return build(HttpStatus.PAYLOAD_TOO_LARGE,
+                "La foto supera el tamaño máximo de %d MB".formatted(tamanoMaximoArchivo.toMegabytes()),
+                req, List.of());
+    }
+
+    /**
+     * Metodo HTTP que la ruta no admite ({@code GET /api/auth/login}) (DEP-11).
+     *
+     * <p>Antes respondia <b>500</b>. 405 con la cabecera {@code Allow}, que el
+     * RFC 9110 exige en esta respuesta, para que el cliente sepa que metodos
+     * si valen.</p>
+     */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ApiError> handleMethodNotSupported(
+            HttpRequestMethodNotSupportedException ex, HttpServletRequest req) {
+        ApiError body = ApiError.of(HttpStatus.METHOD_NOT_ALLOWED.value(),
+                HttpStatus.METHOD_NOT_ALLOWED.getReasonPhrase(),
+                "El metodo %s no esta permitido en esta ruta".formatted(ex.getMethod()),
+                req.getRequestURI(), List.of());
+        Set<HttpMethod> permitidos = ex.getSupportedHttpMethods();
+        ResponseEntity.BodyBuilder respuesta = ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED);
+        if (permitidos != null && !permitidos.isEmpty()) {
+            respuesta.allow(permitidos.toArray(HttpMethod[]::new));
+        }
+        return respuesta.body(body);
+    }
+
+    /**
+     * Falta un parametro obligatorio de query o de formulario
+     * ({@code GET /api/distritos/por-coordenadas} sin {@code lon}) (DEP-11).
+     *
+     * <p>Antes respondia <b>500</b>. Es un error de validacion de la entrada:
+     * 400, nombrando el parametro que falta.</p>
+     */
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ApiError> handleMissingParameter(
+            MissingServletRequestParameterException ex, HttpServletRequest req) {
+        return build(HttpStatus.BAD_REQUEST,
+                "Falta el parametro obligatorio '%s'".formatted(ex.getParameterName()), req, List.of());
+    }
+
+    /**
+     * Tipo de contenido que la ruta no admite: JSON a {@code POST /api/reportes}
+     * o a {@code PATCH /api/auth/me}, que son multipart (DEP-11).
+     *
+     * <p>Antes respondia <b>500</b>. 415 con las cabeceras que arma Spring
+     * ({@code Accept}, y {@code Accept-Patch} en un PATCH) y un mensaje que
+     * nombra los tipos admitidos; no repite el que llego.</p>
+     */
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ApiError> handleMediaTypeNotSupported(
+            HttpMediaTypeNotSupportedException ex, HttpServletRequest req) {
+        List<MediaType> admitidos = ex.getSupportedMediaTypes();
+        String esperado = admitidos.isEmpty() ? "" : ": se espera " + MediaType.toString(admitidos);
+        ApiError body = ApiError.of(HttpStatus.UNSUPPORTED_MEDIA_TYPE.value(),
+                HttpStatus.UNSUPPORTED_MEDIA_TYPE.getReasonPhrase(),
+                "Tipo de contenido no admitido en esta ruta" + esperado,
+                req.getRequestURI(), List.of());
+        return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE).headers(ex.getHeaders()).body(body);
+    }
+
+    /**
+     * Falta una parte obligatoria de un formulario multipart (DEP-11).
+     *
+     * <p>Hoy ningun endpoint declara una parte obligatoria (las fotos son
+     * {@code required = false}); el manejador evita que la primera que se
+     * agregue responda <b>500</b>. 400, nombrando la parte.</p>
+     */
+    @ExceptionHandler(MissingServletRequestPartException.class)
+    public ResponseEntity<ApiError> handleMissingPart(MissingServletRequestPartException ex, HttpServletRequest req) {
+        return build(HttpStatus.BAD_REQUEST,
+                "Falta la parte obligatoria '%s' del formulario".formatted(ex.getRequestPartName()), req, List.of());
+    }
+
+    /**
+     * Cualquier otra excepcion: 500 con un mensaje fijo.
+     *
+     * <p>Se registra en ERROR con el metodo, la ruta y la traza (DEP-11): en
+     * produccion la respuesta no lleva detalles ({@code include-stacktrace:
+     * never}), asi que sin este registro un 500 no dejaria rastro. Nunca el
+     * cuerpo ni la query de la peticion, que pueden traer contrasenas o datos
+     * personales.</p>
+     */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiError> handleUnexpected(Exception ex, HttpServletRequest req) {
+        log.error("Error no controlado en {} {}", req.getMethod(), req.getRequestURI(), ex);
         return build(HttpStatus.INTERNAL_SERVER_ERROR, "Error interno del servidor", req, List.of());
     }
 

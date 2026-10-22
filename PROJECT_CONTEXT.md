@@ -170,7 +170,7 @@ mvn verify -Dit.test=GestionMunicipalIT       # un IT
 mvn test -Dtest=ReincidenciaDetectorTest      # un unit test
 
 # Frontend (frontend/)
-cp .env.local.example .env.local
+cp .env.example .env.local
 npm install
 npm run dev            # :3000, sin Service Worker
 npm run build          # next build + serwist build
@@ -181,7 +181,8 @@ npm run api:sync       # requiere el backend corriendo
 
 **Variables de entorno** (solo nombres):
 - Backend, perfil `local`: `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `JWT_SECRET`, `JWT_EXPIRATION_MINUTES`, `MAIL_HOST`, `MAIL_PORT`, `MAIL_SMTP_AUTH`, `MAIL_SMTP_STARTTLS`, `NOTIF_FROM`, `FOTOS_DIR`, `CORS_ALLOWED_ORIGINS`.
-- Backend, perfil `dev`: `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET`. Se activa con `SPRING_PROFILES_ACTIVE=dev`.
+- Backend, perfil `dev`: `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET`. Se activa con `mvn spring-boot:run -Dspring-boot.run.profiles=dev` (desde DEP-01 el pom fija `local` para `spring-boot:run`, así que `SPRING_PROFILES_ACTIVE` ya no basta ahí); fuera de Maven, con `SPRING_PROFILES_ACTIVE=dev`.
+- Backend, perfil `prod`: lo fija la imagen (`backend/Dockerfile`); variables en `docs/despliegue.md` §5.2. El secreto de desarrollo solo se acepta con `local` o `test` activos explícitamente.
 - Tests backend: `TEST_DB_URL`, `TEST_DB_USER`, `TEST_DB_PASSWORD` (opcionales).
 - Docker compose: `POSTGRES_*`, `MAILHOG_SMTP_PORT`, `MAILHOG_UI_PORT`.
 - Frontend: `NEXT_PUBLIC_API_BASE_URL`.
