@@ -646,12 +646,15 @@ Componerla es del cliente, y se hace una sola vez en el gateway (FE-07): los
 usan tal cual, sin importar el cliente HTTP.
 
 - **Foto de reporte** (`/media/fotos/reportes/…`) es **pública**: sirve
-  directo en `<img src>`, siempre a través de `components/FotoDeReporte.tsx`
+  directo en `<img src>`, a través de `components/FotoDeReporte.tsx`
   (QA-1 M-3): si no carga (el archivo ya no está en el servidor, o es una
   URL antigua que pide sesión), en vez del icono de imagen rota aparece un
   recuadro neutro «Foto no disponible». El reemplazo conserva el texto
   alternativo como nombre (`role="img"`, «<alt> (foto no disponible)») y, si
-  la foto era decorativa, sigue siéndolo.
+  la foto era decorativa, sigue siéndolo. El popup del mapa hace lo mismo con
+  su propio `<img>` (`FotoDelPopup` en `map/MapaReportes.tsx`): `map/` es un
+  adaptador y no importa componentes compartidos. Los dos toman el texto y el
+  nombre del reemplazo de la misma regla pura, `lib/types/fotoDeReporte.ts`.
 - **Foto de perfil** (`/api/perfiles/fotos/…`) exige `Authorization`: un
   `<img src>` plano devuelve **401**; hay que traerla con `apiFetch` y
   convertirla a `blob:`. `fotoRequiereAuth()` distingue ambos casos. Lo

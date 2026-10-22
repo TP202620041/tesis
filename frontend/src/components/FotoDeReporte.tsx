@@ -1,9 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-
-/** Texto del reemplazo cuando la foto no se puede cargar. */
-export const FOTO_NO_DISPONIBLE = 'Foto no disponible';
+import { FOTO_NO_DISPONIBLE, nombreDelReemplazo } from '@/lib/types/fotoDeReporte';
 
 interface Props {
   /** URL absoluta (la compone `api.ts`). La foto de un reporte es publica: va directo en `<img src>`. */
@@ -29,17 +27,21 @@ interface Props {
  * foto era decorativa (`alt` vacio), el reemplazo tambien lo es.
  *
  * El error se recuerda por URL: si cambia `src` se vuelve a intentar.
+ *
+ * El popup del mapa hace lo mismo con su propio `<img>` (`map/` no importa
+ * componentes compartidos); los dos toman el texto y el nombre del reemplazo
+ * de `lib/types/fotoDeReporte.ts`.
  */
 export function FotoDeReporte({ src, alt, className = '', claseDelReemplazo = '' }: Props) {
   const [fallida, setFallida] = useState<string | null>(null);
 
   if (fallida === src) {
-    const decorativa = alt.trim() === '';
+    const nombre = nombreDelReemplazo(alt);
     return (
       <div
-        role={decorativa ? undefined : 'img'}
-        aria-label={decorativa ? undefined : `${alt} (${FOTO_NO_DISPONIBLE.toLowerCase()})`}
-        aria-hidden={decorativa || undefined}
+        role={nombre ? 'img' : undefined}
+        aria-label={nombre ?? undefined}
+        aria-hidden={nombre ? undefined : true}
         className={`flex items-center justify-center bg-slate-100 p-2 text-center text-xs text-slate-500 dark:bg-slate-700 dark:text-slate-300 ${className} ${claseDelReemplazo}`}
       >
         <span aria-hidden="true">{FOTO_NO_DISPONIBLE}</span>

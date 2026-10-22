@@ -2,7 +2,7 @@
 
 import 'leaflet/dist/leaflet.css';
 import { DivIcon, canvas, type LatLngBounds } from 'leaflet';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   CircleMarker,
   MapContainer,
@@ -13,11 +13,11 @@ import {
   useMap,
   useMapEvents,
 } from 'react-leaflet';
-import { FotoDeReporte } from '@/components/FotoDeReporte';
 import type { BoundingBox } from '@/features/reportes/model/bbox';
 import { estiloDeNivel, textoDeRango, type CeldaCalor } from '@/features/reportes/model/densidad';
 import { nombreDeMarcador } from '@/features/reportes/model/marcador';
 import { ESTADOS_EN_MAPA, estiloDeEstado } from '@/lib/types/estados';
+import { FOTO_NO_DISPONIBLE, nombreDelReemplazo } from '@/lib/types/fotoDeReporte';
 import { textoDeSeveridad, tituloVisible } from '@/lib/types/tituloYSeveridad';
 import type { ReporteResumen } from '@/features/reportes/model/tipos';
 
@@ -243,6 +243,55 @@ export default function MapaReportes({
   );
 }
 
+const ESTILO_FOTO_POPUP = {
+  width: '100%',
+  maxHeight: '8rem',
+  objectFit: 'cover',
+  borderRadius: '.25rem',
+  marginBottom: '.5rem',
+} as const;
+
+/**
+ * Foto del popup con reemplazo «Foto no disponible» si no carga (QA-1 M-3).
+ *
+ * Hace lo mismo que `components/FotoDeReporte.tsx` pero con su propio `<img>`:
+ * `map/` es un adaptador y no importa componentes compartidos (solo `model/`
+ * y `lib/`, ARCHITECTURE §5.3). El texto y el nombre accesible del reemplazo
+ * salen de la misma regla pura, `lib/types/fotoDeReporte.ts`. El error se
+ * recuerda por URL: si cambia `src` se vuelve a intentar.
+ */
+function FotoDelPopup({ src, alt }: { src: string; alt: string }) {
+  const [fallida, setFallida] = useState<string | null>(null);
+
+  if (fallida === src) {
+    const nombre = nombreDelReemplazo(alt);
+    return (
+      <div
+        role={nombre ? 'img' : undefined}
+        aria-label={nombre ?? undefined}
+        aria-hidden={nombre ? undefined : true}
+        style={{
+          ...ESTILO_FOTO_POPUP,
+          height: '4rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: '#f1f5f9',
+          color: '#64748b',
+          fontSize: '.75rem',
+        }}
+      >
+        <span aria-hidden="true">{FOTO_NO_DISPONIBLE}</span>
+      </div>
+    );
+  }
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={src} alt={alt} style={ESTILO_FOTO_POPUP} onError={() => setFallida(src)} />
+  );
+}
+
 /**
  * Resumen dentro del popup.
  *
@@ -266,14 +315,7 @@ function PopupReporte({ reporte, href }: { reporte: ReporteResumen; href: string
     <div style={{ minWidth: '13rem' }}>
       {/* La foto de un reporte es publica: sirve directo en <img src>, sin
           token. La de perfil no lo seria (ver auth/api: descargarFotoDePerfil). */}
-      {foto && (
-        <FotoDeReporte
-          src={foto}
-          alt={`Foto del daño reportado: ${tituloVisible(reporte.titulo)}`}
-          className="mb-2 max-h-32 w-full rounded object-cover"
-          claseDelReemplazo="h-16"
-        />
-      )}
+      {foto && <FotoDelPopup src={foto} alt={`Foto del daño reportado: ${tituloVisible(reporte.titulo)}`} />}
       <p style={{ margin: '0 0 .25rem', fontWeight: 600 }}>{tituloVisible(reporte.titulo)}</p>
       <p style={{ margin: '0 0 .25rem', fontSize: '.8rem' }}>
         {[reporte.categoriaNombre, textoDeSeveridad(reporte.severidad)].filter(Boolean).join(' · ')}
