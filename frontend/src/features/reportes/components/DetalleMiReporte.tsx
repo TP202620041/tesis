@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { LineaDeTiempo } from '@/components/LineaDeTiempo';
+import { FotoDeReporte } from '@/components/FotoDeReporte';
 import { UbicacionDelReporte } from '@/components/UbicacionDelReporte';
 import { estiloDeEstado } from '@/lib/types/estados';
 import { textoDeSeveridad, tituloVisible } from '@/lib/types/tituloYSeveridad';
@@ -109,11 +110,11 @@ export function DetalleMiReporte({
       )}
 
       {foto && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
+        <FotoDeReporte
           src={foto}
           alt="Foto del daño que reportaste"
           className="max-h-72 w-full rounded-md border border-slate-200 object-cover dark:border-slate-700"
+          claseDelReemplazo="h-40"
         />
       )}
 

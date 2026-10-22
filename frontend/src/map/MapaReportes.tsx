@@ -12,6 +12,7 @@ import {
   Tooltip,
   useMapEvents,
 } from 'react-leaflet';
+import { FotoDeReporte } from '@/components/FotoDeReporte';
 import type { BoundingBox } from '@/features/reportes/model/bbox';
 import { estiloDeNivel, textoDeRango, type CeldaCalor } from '@/features/reportes/model/densidad';
 import { ESTADOS_EN_MAPA, estiloDeEstado } from '@/lib/types/estados';
@@ -223,17 +224,11 @@ function PopupReporte({ reporte }: { reporte: ReporteResumen }) {
       {/* La foto de un reporte es publica: sirve directo en <img src>, sin
           token. La de perfil no lo seria (ver auth/api: descargarFotoDePerfil). */}
       {foto && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
+        <FotoDeReporte
           src={foto}
           alt={`Foto del daño reportado: ${tituloVisible(reporte.titulo)}`}
-          style={{
-            width: '100%',
-            maxHeight: '8rem',
-            objectFit: 'cover',
-            borderRadius: '.25rem',
-            marginBottom: '.5rem',
-          }}
+          className="mb-2 max-h-32 w-full rounded object-cover"
+          claseDelReemplazo="h-16"
         />
       )}
       <p style={{ margin: '0 0 .25rem', fontWeight: 600 }}>{tituloVisible(reporte.titulo)}</p>

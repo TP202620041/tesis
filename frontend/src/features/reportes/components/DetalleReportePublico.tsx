@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { FotoDeReporte } from '@/components/FotoDeReporte';
 import { UbicacionDelReporte } from '@/components/UbicacionDelReporte';
 import { estiloDeEstado } from '@/lib/types/estados';
 import { textoDeSeveridad, tituloVisible } from '@/lib/types/tituloYSeveridad';
@@ -84,13 +85,13 @@ export function DetalleReportePublico({
         <p className="text-slate-700 dark:text-slate-300">{reporte.descripcion}</p>
       )}
 
+      {/* La foto de un reporte es publica: sirve directo en <img src>. */}
       {foto && (
-        // La foto de un reporte es publica: sirve directo en <img src>.
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
+        <FotoDeReporte
           src={foto}
           alt={`Foto del daño reportado: ${tituloVisible(reporte.titulo)}`}
           className="max-h-80 w-full rounded-md border border-slate-200 object-cover dark:border-slate-700"
+          claseDelReemplazo="h-40"
         />
       )}
 

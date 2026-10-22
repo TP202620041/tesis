@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { FotoDeReporte } from '@/components/FotoDeReporte';
 import { etiquetaDeSeveridad, tituloVisible } from '@/lib/types/tituloYSeveridad';
 import type { ReporteCreado } from '../model/tipos';
 import { FormularioReporte } from './FormularioReporte';
@@ -143,11 +144,11 @@ function Confirmacion({ reporte, onOtro }: { reporte: ReporteCreado; onOtro: () 
 
       {/* La foto del reporte es publica: sirve directo en <img src>. */}
       {foto && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
+        <FotoDeReporte
           src={foto}
           alt="Foto del daño reportado"
           className="max-h-56 w-full rounded-md border border-slate-200 object-cover dark:border-slate-700"
+          claseDelReemplazo="h-32"
         />
       )}
 
