@@ -33,7 +33,7 @@ public class RestAuthenticationEntryPoint implements AuthenticationEntryPoint {
         ApiError body = ApiError.of(
                 HttpStatus.UNAUTHORIZED.value(),
                 HttpStatus.UNAUTHORIZED.getReasonPhrase(),
-                "Autenticacion requerida",
+                "Autenticación requerida",
                 request.getRequestURI(),
                 List.of());
         objectMapper.writeValue(response.getOutputStream(), body);

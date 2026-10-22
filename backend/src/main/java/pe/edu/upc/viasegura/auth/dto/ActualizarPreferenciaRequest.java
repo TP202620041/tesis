@@ -9,5 +9,6 @@ import pe.edu.upc.viasegura.auth.domain.PreferenciaNotificacion;
  * para un slice dedicado de Perfil ciudadano.
  */
 public record ActualizarPreferenciaRequest(
-        @NotNull PreferenciaNotificacion preferenciaNotificacion
+        @NotNull(message = "Elige cómo quieres recibir las notificaciones")
+        PreferenciaNotificacion preferenciaNotificacion
 ) {}

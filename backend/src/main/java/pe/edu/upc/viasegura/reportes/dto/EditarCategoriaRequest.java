@@ -10,6 +10,9 @@ import jakarta.validation.constraints.Size;
  * ausente o {@code null} deja la categoria sin descripcion.
  */
 public record EditarCategoriaRequest(
-        @NotBlank @Size(max = 100) String nombre,
-        @Size(max = 300) String descripcion
+        @NotBlank(message = "Ingresa el nombre de la categoría")
+        @Size(max = 100, message = "El nombre de la categoría puede tener como máximo {max} caracteres")
+        String nombre,
+        @Size(max = 300, message = "La descripción puede tener como máximo {max} caracteres")
+        String descripcion
 ) {}

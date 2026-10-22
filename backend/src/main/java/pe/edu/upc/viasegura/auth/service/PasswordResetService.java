@@ -52,7 +52,7 @@ public class PasswordResetService {
     static final int MAXIMO_TOKENS_POR_VENTANA = 3;
     static final Duration VENTANA_TOPE = Duration.ofHours(1);
 
-    static final String ASUNTO = "Ciudad Viva: recuperacion de contrasena";
+    static final String ASUNTO = "Ciudad Viva: recuperación de contraseña";
     static final String ETIQUETA = "recuperacion";
 
     private final UsuarioRepository usuarioRepository;
@@ -119,13 +119,13 @@ public class PasswordResetService {
     @Transactional
     public void restablecer(String tokenPlano, String nuevaPassword) {
         PasswordResetToken token = tokenRepository.findByToken(tokenPlano)
-                .orElseThrow(() -> new ResourceNotFoundException("Token de recuperacion invalido"));
+                .orElseThrow(() -> new ResourceNotFoundException("Token de recuperación inválido"));
 
         if (token.getUsedAt() != null) {
-            throw new BusinessException("El token de recuperacion ya fue utilizado");
+            throw new BusinessException("El token de recuperación ya fue utilizado");
         }
         if (token.getExpiresAt().isBefore(Instant.now())) {
-            throw new BusinessException("El token de recuperacion vencio");
+            throw new BusinessException("El token de recuperación venció");
         }
 
         Usuario usuario = token.getUsuario();
@@ -138,14 +138,14 @@ public class PasswordResetService {
 
     private static String texto(String nombre, String token) {
         return """
-                Hola %s,
+                Hola, %s:
 
-                Recibimos una solicitud para restablecer tu contrasena. Usa el \
-                siguiente token en la app (valido por %d minutos):
+                Recibimos una solicitud para restablecer tu contraseña de Ciudad Viva. \
+                Ingresa este token en la aplicación (es válido por %d minutos):
 
                 %s
 
-                Si no solicitaste esto, ignora este correo.
+                Si no lo solicitaste, ignora este correo: tu contraseña no cambia.
                 """.formatted(nombre, EXPIRACION_MINUTOS, token);
     }
 }

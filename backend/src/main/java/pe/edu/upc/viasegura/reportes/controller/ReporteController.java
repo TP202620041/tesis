@@ -205,12 +205,24 @@ public class ReporteController {
 
     /**
      * US-07: reportes que el ciudadano autenticado ha enviado (rol CREADOR),
-     * con su estado actual. No incluye reportes donde solo es adherido.
+     * con su estado actual. No incluye reportes donde solo es adherido: esos
+     * van en {@code /mis-adhesiones} (QA-1 M-6).
      */
     @GetMapping("/mis-reportes")
     @PreAuthorize("hasRole('CIUDADANO')")
     public ResponseEntity<List<ReporteResumenResponse>> misReportes(Principal principal) {
         return ResponseEntity.ok(reporteService.misReportes(principal.getName()));
+    }
+
+    /**
+     * QA-1 M-6: reportes de otros vecinos a los que el ciudadano se adhirio
+     * (US-09), para que pueda seguirlos. Mismo DTO publico que mis-reportes;
+     * la relacion ("lo apoyo, no lo cree") la da la ruta, no un campo.
+     */
+    @GetMapping("/mis-adhesiones")
+    @PreAuthorize("hasRole('CIUDADANO')")
+    public ResponseEntity<List<ReporteResumenResponse>> misAdhesiones(Principal principal) {
+        return ResponseEntity.ok(reporteService.misAdhesiones(principal.getName()));
     }
 
     /**

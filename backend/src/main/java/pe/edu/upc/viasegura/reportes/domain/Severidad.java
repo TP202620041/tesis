@@ -11,5 +11,18 @@ package pe.edu.upc.viasegura.reportes.domain;
 public enum Severidad {
     BAJA,
     MEDIA,
-    ALTA
+    ALTA;
+
+    /**
+     * Nombre para una persona («Media»), el mismo que muestra la PWA
+     * ({@code frontend/src/lib/types/tituloYSeveridad.ts}); lo usa la
+     * exportacion (QA-1 M-5).
+     */
+    public String etiqueta() {
+        return switch (this) {
+            case BAJA -> "Baja";
+            case MEDIA -> "Media";
+            case ALTA -> "Alta";
+        };
+    }
 }

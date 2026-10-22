@@ -1,6 +1,7 @@
 package pe.edu.upc.viasegura.common.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.ConstraintViolation;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
@@ -72,7 +73,7 @@ public class GlobalExceptionHandler {
         List<String> details = ex.getBindingResult().getFieldErrors().stream()
                 .map(this::formatFieldError)
                 .toList();
-        return build(HttpStatus.BAD_REQUEST, "Error de validacion", req, details);
+        return build(HttpStatus.BAD_REQUEST, "Error de validación", req, details);
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
@@ -82,7 +83,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ApiError> handleNotReadable(HttpMessageNotReadableException ex, HttpServletRequest req) {
-        return build(HttpStatus.BAD_REQUEST, "Cuerpo de la peticion invalido o mal formado", req, List.of());
+        return build(HttpStatus.BAD_REQUEST, "Cuerpo de la petición inválido o mal formado", req, List.of());
     }
 
     /**
@@ -98,7 +99,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiError> handleTypeMismatch(
             MethodArgumentTypeMismatchException ex, HttpServletRequest req) {
         return build(HttpStatus.BAD_REQUEST,
-                "Valor invalido para el parametro '%s'%s".formatted(ex.getName(), formatoEsperado(ex.getRequiredType())),
+                "Valor inválido para el parámetro '%s'%s".formatted(ex.getName(), formatoEsperado(ex.getRequiredType())),
                 req, List.of());
     }
 
@@ -113,14 +114,14 @@ public class GlobalExceptionHandler {
             return ": se espera una fecha ISO-8601 en UTC, p. ej. 2026-01-31T05:00:00Z";
         }
         if (Number.class.isAssignableFrom(tipo)) {
-            return ": se espera un numero";
+            return ": se espera un número";
         }
         return "";
     }
 
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<ApiError> handleBadCredentials(BadCredentialsException ex, HttpServletRequest req) {
-        return build(HttpStatus.UNAUTHORIZED, "Credenciales invalidas", req, List.of());
+        return build(HttpStatus.UNAUTHORIZED, "Credenciales inválidas", req, List.of());
     }
 
     @ExceptionHandler(AccessDeniedException.class)
@@ -153,7 +154,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<ApiError> handleNoResource(NoResourceFoundException ex, HttpServletRequest req) {
-        return build(HttpStatus.NOT_FOUND, "No se encontro el recurso solicitado", req, List.of());
+        return build(HttpStatus.NOT_FOUND, "No se encontró el recurso solicitado", req, List.of());
     }
 
     /**
@@ -187,7 +188,7 @@ public class GlobalExceptionHandler {
             HttpRequestMethodNotSupportedException ex, HttpServletRequest req) {
         ApiError body = ApiError.of(HttpStatus.METHOD_NOT_ALLOWED.value(),
                 HttpStatus.METHOD_NOT_ALLOWED.getReasonPhrase(),
-                "El metodo %s no esta permitido en esta ruta".formatted(ex.getMethod()),
+                "El método %s no está permitido en esta ruta".formatted(ex.getMethod()),
                 req.getRequestURI(), List.of());
         Set<HttpMethod> permitidos = ex.getSupportedHttpMethods();
         ResponseEntity.BodyBuilder respuesta = ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED);
@@ -208,7 +209,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiError> handleMissingParameter(
             MissingServletRequestParameterException ex, HttpServletRequest req) {
         return build(HttpStatus.BAD_REQUEST,
-                "Falta el parametro obligatorio '%s'".formatted(ex.getParameterName()), req, List.of());
+                "Falta el parámetro obligatorio '%s'".formatted(ex.getParameterName()), req, List.of());
     }
 
     /**
@@ -259,8 +260,30 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.INTERNAL_SERVER_ERROR, "Error interno del servidor", req, List.of());
     }
 
+    /**
+     * Detalle de un error de {@code @Valid} listo para mostrar (QA-1 M-2).
+     *
+     * <p>Las restricciones de los DTO llevan su propio mensaje, una oracion
+     * completa que nombra el dato en palabras («La contraseña debe tener
+     * entre 8 y 72 caracteres»): se devuelve tal cual, sin el nombre tecnico
+     * del campo. {@code MensajesDeValidacionTest} exige ese mensaje en cada
+     * restriccion de un DTO. Si aun asi llega uno con el mensaje por defecto
+     * de Bean Validation («el tamaño debe estar entre 8 y 72»), se antepone
+     * el campo para que el detalle no quede sin sujeto.</p>
+     */
     private String formatFieldError(FieldError fe) {
+        if (tieneMensajePropio(fe)) {
+            return fe.getDefaultMessage();
+        }
         return "%s: %s".formatted(fe.getField(), fe.getDefaultMessage());
+    }
+
+    private static boolean tieneMensajePropio(FieldError fe) {
+        if (!fe.contains(ConstraintViolation.class)) {
+            return false;
+        }
+        String plantilla = fe.unwrap(ConstraintViolation.class).getMessageTemplate();
+        return !plantilla.startsWith("{jakarta.validation.") && !plantilla.startsWith("{org.hibernate.validator.");
     }
 
     private ResponseEntity<ApiError> build(HttpStatus status, String message, HttpServletRequest req, List<String> details) {

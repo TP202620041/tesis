@@ -87,13 +87,13 @@ public class GestionReporteService {
         // desde V7) sin el escrutinio que exige un RECHAZADO.
         if (nuevo == EstadoReporte.CANCELADO) {
             throw new OperacionNoPermitidaException(
-                    "Solo el ciudadano que creo el reporte puede cancelarlo. "
-                            + "Para descartarlo, usa RECHAZADO indicando el motivo.");
+                    "Solo el ciudadano que creó el reporte puede cancelarlo. "
+                            + "Para descartarlo, cámbialo a Rechazado indicando el motivo.");
         }
 
         if (!anterior.gestionMunicipalPuedeTransicionarA(nuevo)) {
             throw new BusinessException(
-                    "Transicion de estado invalida: %s -> %s".formatted(anterior, nuevo));
+                    "Transición de estado inválida: de %s a %s".formatted(anterior.etiqueta(), nuevo.etiqueta()));
         }
         if (nuevo == EstadoReporte.RECHAZADO && !StringUtils.hasText(req.comentario())) {
             throw new IllegalArgumentException("El rechazo requiere un comentario que lo justifique");
@@ -148,7 +148,7 @@ public class GestionReporteService {
 
         if (!ESTADOS_ASIGNABLES.contains(reporte.getEstado())) {
             throw new BusinessException(
-                    "No se puede asignar responsable a un reporte en estado " + reporte.getEstado());
+                    "No se puede asignar un responsable a un reporte en estado " + reporte.getEstado().etiqueta());
         }
 
         Optional<AsignacionResponsable> vigente = asignacionRepository.findByReporteIdAndActivoTrue(reporteId);
@@ -179,9 +179,17 @@ public class GestionReporteService {
         return AsignacionResponsableResponse.from(nueva);
     }
 
-    /** US-15: responsable vigente del reporte (con control de jurisdiccion). */
+    /**
+     * US-15: responsable vigente del reporte (con control de jurisdiccion),
+     * o vacio si el reporte existe y aun no tiene uno.
+     *
+     * <p>QA-1 M-4: "sin responsable" es un estado normal del reporte, no un
+     * error, asi que no se lanza {@link ResourceNotFoundException}: el 404
+     * queda para el reporte que no existe y el 403 para el de otro distrito
+     * (las reglas de siempre). El controlador traduce el vacio a 204.</p>
+     */
     @Transactional(readOnly = true)
-    public AsignacionResponsableResponse responsableActivo(String emailFuncionario, Long reporteId) {
+    public Optional<AsignacionResponsableResponse> responsableActivo(String emailFuncionario, Long reporteId) {
         Usuario funcionario = usuarioConsultaService.usuarioPorEmail(emailFuncionario);
         Reporte reporte = reporteRepository.findById(reporteId)
                 .orElseThrow(() -> new ResourceNotFoundException("Reporte no encontrado: " + reporteId));
@@ -189,14 +197,13 @@ public class GestionReporteService {
         verificarJurisdiccion(funcionario, reporte);
 
         return asignacionRepository.findByReporteIdAndActivoTrue(reporteId)
-                .map(AsignacionResponsableResponse::from)
-                .orElseThrow(() -> new ResourceNotFoundException("El reporte no tiene responsable asignado"));
+                .map(AsignacionResponsableResponse::from);
     }
 
     private Distrito distritoDeGestion(String emailFuncionario) {
         Usuario funcionario = usuarioConsultaService.usuarioPorEmail(emailFuncionario);
         if (funcionario.getDistrito() == null) {
-            throw new AccessDeniedException("El funcionario no tiene un distrito de gestion asignado");
+            throw new AccessDeniedException("El funcionario no tiene un distrito de gestión asignado");
         }
         return funcionario.getDistrito();
     }

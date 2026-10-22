@@ -86,10 +86,10 @@ public class TicketSoporteService {
     @Transactional(readOnly = true)
     public Page<TicketAdminResponse> listarParaAdmin(EstadoTicket estado, int page, int size) {
         if (page < 0) {
-            throw new IllegalArgumentException("page debe ser mayor o igual a 0");
+            throw new IllegalArgumentException("El parámetro page debe ser mayor o igual a 0");
         }
         if (size < 1 || size > TAMANO_MAXIMO_PAGINA) {
-            throw new IllegalArgumentException("size debe estar entre 1 y " + TAMANO_MAXIMO_PAGINA);
+            throw new IllegalArgumentException("El parámetro size debe estar entre 1 y " + TAMANO_MAXIMO_PAGINA);
         }
         PageRequest pagina = PageRequest.of(page, size,
                 Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id")));

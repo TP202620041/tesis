@@ -93,12 +93,19 @@ public class GestionReporteController {
                 .body(gestionReporteService.asignarResponsable(principal.getName(), id, request));
     }
 
-    /** US-15: responsable interno vigente del reporte. */
+    /**
+     * US-15: responsable interno vigente del reporte: 200 con la asignacion,
+     * o <b>204 sin cuerpo</b> si el reporte aun no tiene responsable (QA-1
+     * M-4; antes 404, que la consola del navegador mostraba como error). 404
+     * solo si el reporte no existe y 403 si es de otro distrito.
+     */
     @GetMapping("/{id}/responsable")
     @PreAuthorize("hasRole('FUNCIONARIO_MUNICIPAL')")
     public ResponseEntity<AsignacionResponsableResponse> responsableActivo(
             @PathVariable("id") Long id,
             Principal principal) {
-        return ResponseEntity.ok(gestionReporteService.responsableActivo(principal.getName(), id));
+        return gestionReporteService.responsableActivo(principal.getName(), id)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.noContent().build());
     }
 }

@@ -9,6 +9,9 @@ import jakarta.validation.constraints.Size;
  * "en nombre" de otro distrito).
  */
 public record CrearCategoriaRequest(
-        @NotBlank @Size(max = 100) String nombre,
-        @Size(max = 300) String descripcion
+        @NotBlank(message = "Ingresa el nombre de la categoría")
+        @Size(max = 100, message = "El nombre de la categoría puede tener como máximo {max} caracteres")
+        String nombre,
+        @Size(max = 300, message = "La descripción puede tener como máximo {max} caracteres")
+        String descripcion
 ) {}

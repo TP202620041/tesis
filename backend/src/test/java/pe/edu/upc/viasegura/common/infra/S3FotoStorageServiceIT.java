@@ -295,6 +295,6 @@ class S3FotoStorageServiceIT extends AbstractPostgisIT {
                         .header("Authorization", "Bearer " + tokenCiudadano()))
                 .andExpect(status().isConflict());
         assertThatThrownBy(() -> fotoStorageService.almacenarFotoReporte(null))
-                .hasMessage("La foto esta vacia");
+                .hasMessage("La foto está vacía");
     }
 }

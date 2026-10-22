@@ -110,12 +110,12 @@ public class ImageIoSaneadorDeImagen implements SaneadorDeImagen {
      */
     static final long MAX_PIXELES_SIN_SUBMUESTREO = 16_000_000L;
 
-    static final String MENSAJE_VACIA = "La foto esta vacia";
-    static final String MENSAJE_FORMATO = "Formato de foto no permitido (use JPG, PNG o WEBP)";
+    static final String MENSAJE_VACIA = "La foto está vacía";
+    static final String MENSAJE_FORMATO = "Formato de foto no permitido (usa JPG, PNG o WEBP)";
     static final String MENSAJE_INVALIDA =
-            "Formato de foto no permitido: el archivo no es una imagen JPG, PNG o WEBP valida";
+            "Formato de foto no permitido: el archivo no es una imagen JPG, PNG o WEBP válida";
     static final String MENSAJE_OCUPADO =
-            "Hay muchas fotos procesandose en este momento. Intenta de nuevo en unos segundos.";
+            "Hay muchas fotos procesándose en este momento. Intenta de nuevo en unos segundos.";
 
     private static final Set<String> EXTENSIONES_PERMITIDAS = Set.of("jpg", "jpeg", "png", "webp");
     private static final Set<String> FORMATOS_PERMITIDOS = Set.of("jpeg", "png", "webp");
@@ -237,7 +237,7 @@ public class ImageIoSaneadorDeImagen implements SaneadorDeImagen {
         long pixeles = (long) ancho * alto;
         long maximo = seDecodificaEntera(formato, contenido) ? MAX_PIXELES_SIN_SUBMUESTREO : MAX_PIXELES;
         if (pixeles > maximo) {
-            throw new BusinessException("La foto supera el maximo de %d megapixeles".formatted(maximo / 1_000_000));
+            throw new BusinessException("La foto supera el máximo de %d megapíxeles".formatted(maximo / 1_000_000));
         }
     }
 

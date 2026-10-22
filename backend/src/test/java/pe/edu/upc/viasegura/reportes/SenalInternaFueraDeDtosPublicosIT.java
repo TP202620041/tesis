@@ -26,10 +26,12 @@ import pe.edu.upc.viasegura.common.geo.GeometryUtils;
 import pe.edu.upc.viasegura.common.security.JwtService;
 import pe.edu.upc.viasegura.distritos.domain.Distrito;
 import pe.edu.upc.viasegura.distritos.repository.DistritoRepository;
+import pe.edu.upc.viasegura.reportes.domain.AdhesionReporte;
 import pe.edu.upc.viasegura.reportes.domain.CategoriaDano;
 import pe.edu.upc.viasegura.reportes.domain.EstadoReporte;
 import pe.edu.upc.viasegura.reportes.domain.Reporte;
 import pe.edu.upc.viasegura.reportes.domain.Severidad;
+import pe.edu.upc.viasegura.reportes.repository.AdhesionReporteRepository;
 import pe.edu.upc.viasegura.reportes.repository.CategoriaDanoRepository;
 import pe.edu.upc.viasegura.reportes.repository.ReporteRepository;
 import pe.edu.upc.viasegura.support.AbstractPostgisIT;
@@ -64,6 +66,8 @@ class SenalInternaFueraDeDtosPublicosIT extends AbstractPostgisIT {
     CategoriaDanoRepository categoriaRepository;
     @Autowired
     ReporteRepository reporteRepository;
+    @Autowired
+    AdhesionReporteRepository adhesionRepository;
 
     private Distrito miraflores() {
         return distritoRepository.findByNombre("Miraflores").orElseThrow();
@@ -157,6 +161,19 @@ class SenalInternaFueraDeDtosPublicosIT extends AbstractPostgisIT {
         Reporte r = marcado(EstadoReporte.RESUELTO, creador, Instant.now());
 
         mockMvc.perform(get("/api/reportes/mis-reportes").header("Authorization", bearer(creador)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[*].id", hasItem(r.getId().intValue())))
+                .andExpect(jsonPath("$[*]." + FLAG).doesNotExist());
+    }
+
+    @Test
+    void misAdhesiones_noExponeElFlag_niAlAdherido() throws Exception {
+        // QA-1 M-6: mismo DTO publico que mis-reportes.
+        Usuario adherido = ciudadano();
+        Reporte r = marcado(EstadoReporte.EN_PROCESO, ciudadano(), null);
+        adhesionRepository.save(AdhesionReporte.builder().reporte(r).usuario(adherido).build());
+
+        mockMvc.perform(get("/api/reportes/mis-adhesiones").header("Authorization", bearer(adherido)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[*].id", hasItem(r.getId().intValue())))
                 .andExpect(jsonPath("$[*]." + FLAG).doesNotExist());

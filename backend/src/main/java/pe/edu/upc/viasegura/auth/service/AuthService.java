@@ -31,6 +31,9 @@ import pe.edu.upc.viasegura.distritos.service.DistritoService;
 @RequiredArgsConstructor
 public class AuthService {
 
+    /** Largo de las columnas {@code usuario.nombre} y {@code usuario.apellido}, como en {@code RegistroRequest}. */
+    static final int LARGO_MAXIMO_NOMBRE = 100;
+
     private final UsuarioRepository usuarioRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
@@ -49,7 +52,7 @@ public class AuthService {
     public AuthResponse registrar(RegistroRequest request) {
         consentimientoService.exigirVersionVigenteDeTerminos(request.versionTerminos());
         if (usuarioRepository.existsByEmail(request.email())) {
-            throw new BusinessException("El correo ya esta registrado");
+            throw new BusinessException("El correo ya está registrado");
         }
 
         Usuario usuario = Usuario.builder()
@@ -119,14 +122,16 @@ public class AuthService {
 
         if (nombre != null) {
             if (!StringUtils.hasText(nombre)) {
-                throw new IllegalArgumentException("El nombre no puede quedar vacio");
+                throw new IllegalArgumentException("El nombre no puede quedar vacío");
             }
+            exigirLargoMaximo(nombre, "El nombre");
             usuario.setNombre(nombre);
         }
         if (apellido != null) {
             if (!StringUtils.hasText(apellido)) {
-                throw new IllegalArgumentException("El apellido no puede quedar vacio");
+                throw new IllegalArgumentException("El apellido no puede quedar vacío");
             }
+            exigirLargoMaximo(apellido, "El apellido");
             usuario.setApellido(apellido);
         }
         if (distritoId != null) {
@@ -148,6 +153,18 @@ public class AuthService {
         }
 
         return respuesta(usuarioRepository.save(usuario));
+    }
+
+    /**
+     * Tope de la columna (QA-1 M-2). La edicion del perfil es multipart y no
+     * pasa por {@code @Valid}: sin esta regla, un nombre mas largo llegaba a
+     * la base y respondia 500. Se cuentan code points, como el {@code varchar}.
+     */
+    private static void exigirLargoMaximo(String valor, String campo) {
+        if (valor.codePointCount(0, valor.length()) > LARGO_MAXIMO_NOMBRE) {
+            throw new IllegalArgumentException(
+                    campo + " puede tener como máximo " + LARGO_MAXIMO_NOMBRE + " caracteres");
+        }
     }
 
     private AuthResponse construirRespuesta(Usuario usuario) {

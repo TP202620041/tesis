@@ -617,9 +617,9 @@ normal. Ahora responden con el mismo `ApiError` que el resto:
 | Excepción | Código | Ejemplo | Mensaje |
 |---|---|---|---|
 | `MaxUploadSizeExceededException` | **413** | Foto de más de 10 MB en `POST /api/reportes` o `PATCH /api/auth/me` | `La foto supera el tamaño máximo de 10 MB` (el límite sale de `spring.servlet.multipart.max-file-size`) |
-| `HttpRequestMethodNotSupportedException` | **405** | `GET /api/auth/login` | `El metodo GET no esta permitido en esta ruta`, con la cabecera `Allow` que exige el RFC 9110 |
+| `HttpRequestMethodNotSupportedException` | **405** | `GET /api/auth/login` | `El método GET no está permitido en esta ruta`, con la cabecera `Allow` que exige el RFC 9110 |
 | `HttpMediaTypeNotSupportedException` | **415** | JSON a `POST /api/reportes` o a `PATCH /api/auth/me`, que son multipart | `Tipo de contenido no admitido en esta ruta: se espera multipart/form-data`, con `Accept` (y `Accept-Patch` en un PATCH) |
-| `MissingServletRequestParameterException` | **400** | `GET /api/distritos/por-coordenadas` sin `lon` | `Falta el parametro obligatorio 'lon'` |
+| `MissingServletRequestParameterException` | **400** | `GET /api/distritos/por-coordenadas` sin `lon` | `Falta el parámetro obligatorio 'lon'` |
 | `MissingServletRequestPartException` | **400** | Un formulario multipart sin una parte obligatoria (hoy ningún endpoint la tiene: las fotos son opcionales; el manejador es preventivo) | `Falta la parte obligatoria '<parte>' del formulario` |
 
 **Los 500 que quedan se registran.** El manejador genérico sigue
@@ -656,6 +656,239 @@ la de 30 MB fallaba con un corte de conexión). La parte obligatoria y el 500
 se prueban con un controlador que solo existe en ese IT; el 500 verifica,
 con un *appender* de Logback, que el evento se registra en `ERROR` con
 método y ruta y sin el cuerpo de la petición.
+
+## Textos para el usuario (QA-1)
+
+El recorrido QA-1 (`docs/qa/2026-10-21-mvp-v0.6.0.md`, hallazgo M-1) encontró
+textos sin tildes ni eñes en todo lo que el backend le muestra a una persona.
+La PWA los muestra tal como llegan, así que se corrigen en el origen.
+
+### Categorías estándar con tildes (V18)
+
+V3 sembró «Vereda danada», «Semaforo averiado» y «Senalizacion faltante» (y
+dos descripciones con el mismo problema). V3 ya está aplicada en todas las
+bases y no se edita, así que la corrección es una migración nueva,
+`V18__categorias_estandar_con_tildes.sql` (propuesta aceptada el 22/10,
+opción A). Cada `UPDATE` filtra por `es_estandar` y por el texto viejo. Los
+reportes guardan `categoria_id`, así que ninguna referencia cambia.
+
+**Se detiene ante un choque.** `CategoriaDanoService` impide que un distrito
+cree una categoría con el nombre de una estándar sin distinguir mayúsculas,
+pero sí tildes: mientras la estándar se llamaba «Vereda danada», un distrito
+pudo crear «Vereda dañada». Después del `UPDATE` su selector mostraría dos
+opciones iguales. Por eso V18 empieza con un bloque `DO` que busca categorías
+de distrito con alguno de los nombres corregidos (comparando con `lower()`,
+como la consulta del servicio) y, si encuentra alguna, lanza `RAISE
+EXCEPTION` con su nombre, id y distrito. El arranque falla y Flyway no
+registra V18: se renombra esa categoría a mano y se vuelve a arrancar. En
+producción no puede pasar, porque arranca sin categorías de distrito; en las
+bases locales y en `viasegura_test` se comprobó antes de migrar.
+
+**Límite de la comprobación: `lower()` depende del `LC_CTYPE` de la base.**
+Con un `LC_CTYPE` UTF-8 (`en_US.utf8` en el contenedor `postgis/postgis`,
+comprobado en `viasegura_test`) `lower('SEMÁFORO')` es `semáforo` y la
+comprobación detecta también «SEMÁFORO AVERIADO». Con el locale `C`, `lower()`
+solo baja las letras ASCII: «SEMÁFORO AVERIADO» pasaría sin detectarse,
+aunque «Semáforo averiado» o «semáforo averiado» sí se detectan. Es el mismo
+criterio que ya aplica el servicio (la consulta derivada usa `upper()` en
+SQL), así que V18 no es más permisiva que la validación de cada día. No se
+documenta en el SQL de V18 porque cambiar un comentario cambia su checksum y
+la migración ya está aplicada.
+
+«Hueco en calzada» no se toca aquí: su desactivación (decisión de ML del
+21/10) va con la migración de NC-04. La categoría de distrito «Malecon
+erosionado» que cita QA-1 es un dato de una base local y se corrige desde la
+interfaz.
+
+`CategoriasEstandarConTildesIT` lee las seis estándar (en la base y en
+`GET /api/categorias`) y vuelve a ejecutar el script de V18 dentro de una
+transacción que siempre se revierte: sobre los textos de V3, los corrige, y
+con una categoría de distrito «vereda DAÑADA», se detiene con el mensaje.
+
+### Mensajes del API y correos
+
+- **Mensajes con tildes y bien escritos** en todo lo que llega al `message`
+  del `ApiError`: `GlobalExceptionHandler` («Credenciales inválidas», «Error
+  de validación», «El método GET no está permitido…»), los manejadores de
+  seguridad («Autenticación requerida», el 403 de términos pendientes), los
+  servicios («El correo ya está registrado», «Ya reportaste este daño», «La
+  categoría seleccionada no está activa»…) y el saneado de fotos. Los
+  mensajes que nombran un estado usan su **etiqueta** («Transición de estado
+  inválida: de Resuelto a Recibido», «No se puede asignar un responsable a
+  un reporte en estado Pendiente»). Los de `AccessDeniedException` también
+  se corrigieron, aunque el cliente siempre recibe el «Acceso denegado» fijo.
+- **La PWA no compara textos.** Antes de cambiar un mensaje se buscó en
+  `frontend/src` si algún código lo comparaba: solo
+  `features/auth/model/terminos.ts` reconoce el 409 de términos desactualizados
+  por su mensaje, con `/t[eé]rminos/i`, que acepta el texto nuevo («La
+  versión de los términos aceptada no es la vigente…»). El resto decide por
+  el `status` (y el 403 de términos por `codigo`).
+- **Línea de tiempo del ciudadano:** la asignación redactada dice «Se asignó
+  un responsable para la atención del reporte.»
+  (`SeguimientoReporteService.ASIGNACION_REDACTADA`).
+- **Etiquetas en vez de enums.** `EstadoReporte.etiqueta()` devuelve el nombre
+  que muestra la PWA («En proceso», `frontend/src/lib/types/estados.ts`). Es
+  una regla pura del dominio, así que la usan los correos, los mensajes de
+  error y la exportación sin depender de la presentación. El JSON del API
+  sigue enviando el valor del enum (`"estado": "EN_PROCESO"`): la PWA lo
+  traduce y los filtros lo necesitan.
+- **Correos con trato de tú**, como la PWA. Aviso de estado: asunto
+  «Ciudad Viva: tu reporte está en proceso» y cuerpo «Hola, Ana: tu reporte
+  en el distrito de Miraflores pasó de Recibido a En proceso. Comentario de
+  la municipalidad: …» (antes «paso de RECIBIDO a EN_PROCESO», de usted). El
+  push usa el mismo asunto como título y «Tu reporte #42 está en proceso.»
+  como cuerpo. Recuperación: «Ciudad Viva: recuperación de contraseña», con el
+  cuerpo corregido. El correo de soporte ya trataba de tú; su cuerpo es la
+  respuesta que escribe el ADMIN.
+- Los asuntos con tildes viajan bien: el adaptador SMTP usa la codificación
+  UTF-8 de `spring.mail` (RFC 2047 en el asunto) y Resend recibe JSON en
+  UTF-8. `NotificacionIT` y `PasswordResetIT` leen el asunto y el cuerpo
+  decodificados que llegan a GreenMail.
+
+### Errores de validación sin nombres técnicos (M-2)
+
+Un 400 de `@Valid` decía «Error de validacion / password: el tamaño debe
+estar entre 8 y 72»: el nombre del campo en inglés delante del mensaje por
+defecto de Bean Validation, que no tiene sujeto. Ahora cada restricción de
+cada DTO lleva su propio mensaje, una oración que nombra el dato en palabras
+(«La contraseña debe tener entre 8 y 72 caracteres», «Ingresa tu nombre»,
+«El correo no tiene un formato válido»), con `{min}` y `{max}` interpolados
+desde la anotación para que el número no se duplique. La forma del `ApiError`
+no cambia: `message` sigue siendo «Error de validación» y `details`, una
+lista de textos, ahora sin el prefijo `campo: `.
+
+- **Por qué mensajes en los DTO y no un mapa de etiquetas en
+  `GlobalExceptionHandler`.** Con un mapa, el texto seguiría siendo el de
+  Bean Validation («Contraseña: el tamaño debe estar entre 8 y 72») y el
+  mapa sería una segunda lista de campos que mantener. El mensaje junto a la
+  restricción se lee donde se declara la regla.
+- **Guarda de completitud.** `MensajesDeValidacionTest` (Surefire) recorre las
+  clases de todos los paquetes `dto` y falla si alguna restricción de
+  `jakarta.validation.constraints` o de `org.hibernate.validator.constraints`
+  conserva su mensaje por defecto (plantillas `{jakarta.validation.…}` y
+  `{org.hibernate.validator.…}`; y si no encuentra ninguna, para no pasar en
+  vacío). Si aun así llegara una,
+  `GlobalExceptionHandler` le antepone el campo, como antes.
+- **Las rutas multipart no pasan por `@Valid`.** La creación del reporte y la
+  edición del perfil validan en el servicio; ahí faltaban dos topes que
+  terminaban en **500** al chocar con la columna: la descripción del reporte
+  (más de 1000 caracteres) y el nombre o el apellido del perfil (más de 100).
+  Ahora son 400 con su mensaje (`Reporte.validarDescripcion`,
+  `AuthService.exigirLargoMaximo`), contando code points como el `varchar`.
+- Los mensajes de parámetros de query mal tipados siguen nombrando el
+  parámetro (`Valor inválido para el parámetro 'fechaDesde'…`): los arma un
+  cliente del API, no una persona en un formulario. El rango de fechas
+  invertido ahora dice «La fecha de inicio no puede ser posterior a la fecha
+  de fin».
+
+## Ajustes del API tras QA-1
+
+### Responsable sin asignar: 204 (M-4)
+
+`GET /api/reportes/{id}/responsable` respondía **404** cuando el reporte no
+tenía responsable, y cada detalle de la bandeja dejaba un error rojo en la
+consola del navegador. Un reporte sin responsable es un estado normal (todo
+reporte recién recibido lo está), no un recurso inexistente. Ahora:
+
+| Caso | Respuesta |
+|---|---|
+| Hay responsable vigente | **200** con `AsignacionResponsableResponse` |
+| El reporte existe y no tiene responsable | **204** sin cuerpo |
+| El reporte no existe | **404** |
+| El reporte es de otro distrito | **403** (regla de jurisdicción de siempre) |
+
+**Por qué 204 y no 200 con `null`.** 204 es el código de HTTP para «la
+operación salió bien y no hay representación que devolver», y el cliente de
+la PWA ya lo maneja (`apiFetch` devuelve `undefined` ante un 204, como en
+`restablecer-password`). Un 200 con el literal `null` obligaría a escribirlo a
+mano (Spring deja el cuerpo vacío cuando el método devuelve `null`) y en
+OpenAPI quedaría como el mismo esquema de la asignación, sin decir que puede
+faltar. El servicio devuelve `Optional` y el controlador lo traduce: el 404
+sigue saliendo solo de `ResourceNotFoundException` (reporte inexistente).
+Contrato para el frontend en
+`project-context/handoffs/2026-10-22-responsable-sin-asignar-204.md`.
+
+### Exportación CSV/XLSX completa y en hora de Lima (M-5)
+
+QA-1 abrió el archivo exportado por `func.miraflores` y le faltaba lo que un
+funcionario necesita para despachar o rendir cuentas. Las columnas son ahora:
+
+| Columna | Valor |
+|---|---|
+| ID | id del reporte (numérico en el XLSX) |
+| Título | el que escribió el ciudadano (NC-02) |
+| Categoría | nombre de la categoría |
+| Estado | etiqueta («En proceso», «Cancelado»), no el enum |
+| Severidad | «Baja», «Media» o «Alta» |
+| Adhesiones | vecinos que lo reportaron, creador incluido (numérico en el XLSX) |
+| Ubicación (lat, lon) | con punto decimal siempre (`Locale.ROOT`), sea cual sea el locale del servidor |
+| Fecha de reporte (hora de Lima) | `yyyy-MM-dd HH:mm` en `America/Lima` |
+| Fecha de resolución (hora de Lima) | ídem, vacía si no está resuelto |
+| Responsable asignado | el vigente, o vacío |
+
+- **Hora de Lima, dicha en el encabezado.** Antes las fechas salían en UTC sin
+  aviso: el #186, creado a las 20:28 del 21/10 en Lima, figuraba a la 01:28
+  del 22. Un funcionario lee horas locales; el encabezado deja claro cuáles.
+- **Los cancelados siguen saliendo** (la bandeja también los muestra), pero
+  ahora se distinguen por su estado.
+- **CSV con BOM UTF-8** (`EF BB BF`) y `Content-Type: text/csv;charset=UTF-8`.
+  Excel en Windows abre un CSV sin BOM con la página de códigos del sistema y
+  mostraba «SemaforizaciÃ³n». Los lectores que siguen el estándar ignoran el
+  BOM.
+- **Encabezados entre comillas.** Se escribían sin comillas, así que
+  «Ubicación (lat, lon)» partía el encabezado en dos columnas y quedaba una
+  columna más que en los datos. Ahora todo valor va entre comillas (RFC 4180).
+- **Números como números en el XLSX.** El puerto `ExportadorReportes` recibe
+  las celdas como `String`, `TextoLibre` o `Number`; Apache POI escribe los
+  `Number` como celdas numéricas, para que el ID y las adhesiones se ordenen
+  y sumen como números y no como texto («10» antes que «2»).
+- **Sin inyección de fórmulas en el CSV** (SEC-04): el título, la categoría y
+  el responsable, que escribe una persona, llevan un apóstrofo delante si
+  empiezan por `=`, `+`, `-`, `@`, tabulador o retorno de carro. Ver
+  [SEC-04](#sec-04--el-csv-exportado-podía-ejecutar-fórmulas-en-excel).
+
+`ExportarReportesIT` lee el CSV con un analizador RFC 4180 (un título con
+comillas y coma), comprueba el BOM, las diez columnas en cada fila, una fila
+completa con fechas fijadas por SQL (20:28 en Lima) y, en el XLSX, el tipo
+numérico de las celdas.
+
+### Reportes que el ciudadano apoya: `GET /api/reportes/mis-adhesiones` (M-6)
+
+Al adherirse (US-09), la PWA ofrece «Ver mis reportes», pero
+`/mis-reportes` solo devuelve lo que el ciudadano **creó** (decisión de US-07)
+y el reporte apoyado no aparecía en ningún lado. Se agregó un endpoint:
+
+| Método | Ruta | Rol | Respuesta |
+|---|---|---|---|
+| GET | `/api/reportes/mis-adhesiones` | CIUDADANO | `ReporteResumenResponse[]`: reportes de otros vecinos a los que se adhirió, del apoyo más reciente al más antiguo, en cualquier estado |
+
+**Por qué un endpoint aparte y no un campo `relacion: CREADOR | ADHERIDO`
+en `mis-reportes`.** Se evaluaron las dos opciones y se eligió la más simple
+y compatible:
+
+- **La regla de los DTO.** «Lo apoyo, no lo creé» depende de quien consulta.
+  Ponerlo en `ReporteResumenResponse` lo dejaría en un DTO que comparten el
+  mapa público y el anónimo; la alternativa sería un DTO nuevo solo para
+  `mis-reportes`. Con un endpoint propio la relación la da la ruta y el DTO
+  sigue siendo el público, sin campos nuevos (y sin señales internas:
+  `SenalInternaFueraDeDtosPublicosIT` cubre también esta ruta).
+- **Compatibilidad.** `mis-reportes` no cambia. La PWA arma el detalle
+  `/mis-reportes/{id}` buscando el reporte en esa lista y ofrece editar o
+  retirar según el estado; mezclar ahí reportes ajenos mostraría acciones que
+  el backend rechaza con 403 (solo el creador edita o retira). El endpoint
+  nuevo es aditivo: la PWA lo usa cuando quiera.
+
+Incluye todos los estados, también **CANCELADO**: cancelar retira el reporte
+para todos sus afectados (US-08), y el vecino que lo apoyaba tiene que poder
+enterarse. El detalle público de un cancelado da 404, pero el adherido sí
+puede leer su línea de tiempo (`/historial`, US-22). La consulta
+(`AdhesionReporteRepository.reportesAdheridosPor`) excluye los reportes del
+propio usuario, que también tiene fila en `adhesion_reporte` como creador.
+
+**Fuera de alcance:** los avisos de cambio de estado (US-16, US-21) siguen
+yendo solo al creador (`ReporteEstadoCambiadoEvent.creadorId`); avisar
+también a los adheridos es una decisión aparte. Contrato para el frontend en
+`project-context/handoffs/2026-10-22-mis-adhesiones.md`.
 
 ## Catálogos de referencia (descubribilidad)
 
@@ -898,7 +1131,7 @@ municipio** (o evitar que se fije en algo).
 
 | DTO | Lleva el flag | Endpoints |
 |---|---|---|
-| `ReporteResumenResponse` | **no** | `GET /api/reportes`, `GET /api/reportes/{id}`, `GET /mis-reportes`, `GET /mis-reportes/pendientes-calificacion`, `PATCH /api/reportes/{id}`, `DELETE /api/reportes/{id}` |
+| `ReporteResumenResponse` | **no** | `GET /api/reportes`, `GET /api/reportes/{id}`, `GET /mis-reportes`, `GET /mis-reportes/pendientes-calificacion`, `GET /mis-adhesiones` (QA-1 M-6), `PATCH /api/reportes/{id}`, `DELETE /api/reportes/{id}` |
 | `ReporteGestionResponse` | sí | `GET /api/reportes/bandeja`, `PATCH /api/reportes/{id}/estado` (rol `FUNCIONARIO_MUNICIPAL`, acotados a su distrito) |
 
 `ReporteResponse` (crear o adherirse) nunca lo llevó. Se prefirió un DTO
@@ -915,7 +1148,8 @@ el `doesNotExist` no pase sobre una lista vacía. Cubre los siete endpoints
 públicos y del ciudadano (la búsqueda por filtros y por área, que son dos
 queries), el `POST` de crear/adherirse, y que la bandeja y el cambio de estado
 **sí** lo devuelven. Con el DTO anterior fallan exactamente los siete casos
-públicos y del ciudadano.
+públicos y del ciudadano. Desde QA-1 M-6 cubre además `GET /mis-adhesiones`,
+que devuelve el mismo DTO.
 
 ### SEC-03 — El secreto JWT tenía un valor por defecto versionado
 
@@ -981,6 +1215,50 @@ defecto con la bandera en `true` y que, aun así, no arranca (con solo la
 bandera, la misma prueba llegaba hasta la conexión a la base). `PerfilProdIT`
 arranca el perfil `prod` con un secreto propio, comprueba que ahí la bandera
 queda en `false` y que un token forjado con el secreto publicado recibe 401.
+
+### SEC-04 — El CSV exportado podía ejecutar fórmulas en Excel
+
+**Detectado:** 2026-10-22, en la revisión de la tarea QA-1 (PR #100), antes
+de llegar a `develop`.
+**Estado:** corregido y cubierto por tests.
+
+**El problema (CWE-1236, *CSV injection*).** La exportación municipal (US-28)
+escribe en el CSV el título del reporte, que escribe cualquier ciudadano, el
+nombre de la categoría (las de distrito las nombra el funcionario) y el
+responsable (texto libre del funcionario). Excel evalúa como fórmula una
+celda de CSV que empieza por `=`, `+`, `-`, `@`, tabulador o retorno de carro,
+aunque vaya entre comillas. Con QA-1 M-5 el CSV lleva BOM UTF-8 precisamente
+para que el funcionario lo abra con doble clic en Excel.
+
+**Por qué importaba.** Un ciudadano podía crear un reporte titulado
+`=HYPERLINK("http://…";"Ver")` (o con funciones de llamada a otros
+programas en versiones de Excel que las permiten) y la fórmula se ejecutaba en
+el equipo del funcionario que exportaba la bandeja de su distrito: un enlace a
+un sitio malicioso con apariencia de dato municipal, o la filtración del
+contenido de otras celdas.
+
+**La corrección.**
+
+- El servicio marca como `reportes/port/TextoLibre` cada celda que escribió
+  una persona (título, categoría y responsable). Lo que arma el sistema
+  (estado, severidad, fechas y ubicación) va como `String` y los números como
+  `Number`.
+- `CsvReportesExportador` antepone un apóstrofo (`'`) a las celdas
+  `TextoLibre` que empiezan por uno de esos caracteres, la neutralización que
+  recomienda OWASP, y después escapa las comillas (RFC 4180). La ubicación de
+  Lima empieza por `-` pero la arma el sistema, así que no se toca.
+- `ExcelReportesExportador` no necesita el apóstrofo: `setCellValue(String)`
+  crea una celda de **texto**, que Excel nunca evalúa, y el texto va tal cual.
+- Se marca por celda y no se neutraliza en el servicio porque la regla es del
+  formato: un apóstrofo en el XLSX se vería como un carácter más del título.
+
+**Regresión:** `ExportadoresSinInyeccionDeFormulasTest` (Surefire) recorre los
+seis caracteres, el escape de comillas después del apóstrofo, que no se toca
+el texto normal, la ubicación ni los números, y que en el XLSX una celda
+`=1+1` es de tipo texto. `ExportarReportesIT` lo comprueba de punta a punta:
+un título `=HYPERLINK(…)` y otro `-2+3 …` y un responsable `@cuadrilla` salen
+con apóstrofo en el CSV, la ubicación sin él, y en el XLSX el título `=1+1 …`
+es una celda de texto sin apóstrofo.
 
 ## Frescura del índice de desempeño
 
@@ -1405,8 +1683,8 @@ tiene el permiso `NOTIFICACIONES_PUSH` y su preferencia incluye PUSH. El
 payload es JSON:
 
 ```json
-{"titulo": "Ciudad Viva: su reporte esta en proceso",
- "cuerpo": "Su reporte #42 esta en proceso.",
+{"titulo": "Ciudad Viva: tu reporte está en proceso",
+ "cuerpo": "Tu reporte #42 está en proceso.",
  "url": "/mis-reportes/42", "reporteId": 42, "estado": "EN_PROCESO"}
 ```
 

@@ -133,7 +133,7 @@ public class CategoriaDanoService {
         Distrito distrito = usuarioConsultaService.usuarioPorEmail(emailFuncionario).getDistrito();
         if (distrito == null) {
             throw new OperacionNoPermitidaException(
-                    "El funcionario no tiene un distrito de gestion asignado");
+                    "El funcionario no tiene un distrito de gestión asignado");
         }
         return distrito;
     }
@@ -144,14 +144,14 @@ public class CategoriaDanoService {
      */
     private CategoriaDano categoriaGestionable(Long categoriaId, Distrito distrito) {
         CategoriaDano categoria = categoriaRepository.findById(categoriaId)
-                .orElseThrow(() -> new ResourceNotFoundException("Categoria no encontrada: " + categoriaId));
+                .orElseThrow(() -> new ResourceNotFoundException("Categoría no encontrada: " + categoriaId));
         if (categoria.isEsEstandar()) {
             throw new OperacionNoPermitidaException(
-                    "Las categorias estandar no se pueden editar ni desactivar");
+                    "Las categorías estándar no se pueden editar ni desactivar");
         }
         if (categoria.getDistrito() == null || !categoria.getDistrito().getId().equals(distrito.getId())) {
             throw new OperacionNoPermitidaException(
-                    "Solo puede gestionar las categorias personalizadas de " + distrito.getNombre());
+                    "Solo puedes gestionar las categorías personalizadas de " + distrito.getNombre());
         }
         return categoria;
     }
@@ -168,10 +168,10 @@ public class CategoriaDanoService {
                 : categoriaRepository.existsByNombreIgnoreCaseAndDistritoIdAndIdNot(
                         nombre, distrito.getId(), excluirId);
         if (duplicadaEnDistrito) {
-            throw new BusinessException("Ya existe una categoria con ese nombre en " + distrito.getNombre());
+            throw new BusinessException("Ya existe una categoría con ese nombre en " + distrito.getNombre());
         }
         if (categoriaRepository.existsByNombreIgnoreCaseAndEsEstandarTrue(nombre)) {
-            throw new BusinessException("Ya existe una categoria estandar con ese nombre");
+            throw new BusinessException("Ya existe una categoría estándar con ese nombre");
         }
     }
 }

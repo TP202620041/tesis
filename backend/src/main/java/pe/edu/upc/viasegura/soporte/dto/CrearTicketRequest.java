@@ -9,6 +9,10 @@ import jakarta.validation.constraints.Size;
  * permitir que el cliente lo falsifique.
  */
 public record CrearTicketRequest(
-        @NotBlank @Size(max = 200) String asunto,
-        @NotBlank @Size(max = 2000) String mensaje
+        @NotBlank(message = "Escribe el asunto")
+        @Size(max = 200, message = "El asunto puede tener como máximo {max} caracteres")
+        String asunto,
+        @NotBlank(message = "Escribe tu mensaje")
+        @Size(max = 2000, message = "El mensaje puede tener como máximo {max} caracteres")
+        String mensaje
 ) {}

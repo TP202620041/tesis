@@ -81,4 +81,22 @@ public enum EstadoReporte {
     public boolean esTerminal() {
         return this == RESUELTO || this == RECHAZADO || this == CANCELADO;
     }
+
+    /**
+     * Nombre del estado para una persona («En proceso»), el mismo que muestra
+     * la PWA ({@code frontend/src/lib/types/estados.ts}). Lo usan los textos
+     * que el backend compone para el usuario (correos, avisos, mensajes de
+     * error, exportacion); el JSON del API sigue enviando el valor del enum
+     * (QA-1 M-1).
+     */
+    public String etiqueta() {
+        return switch (this) {
+            case PENDIENTE -> "Pendiente";
+            case RECIBIDO -> "Recibido";
+            case EN_PROCESO -> "En proceso";
+            case RESUELTO -> "Resuelto";
+            case RECHAZADO -> "Rechazado";
+            case CANCELADO -> "Cancelado";
+        };
+    }
 }

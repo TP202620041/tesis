@@ -103,7 +103,10 @@ class PasswordResetIT extends AbstractPostgisMailIT {
         InternetAddress remitente = (InternetAddress) recibidos[0].getFrom()[0];
         assertThat(remitente.getPersonal()).isEqualTo("Ciudad Viva");
         assertThat(remitente.getAddress()).isEqualTo("no-reply@viasegura.pe");
-        assertThat(recibidos[0].getSubject()).isEqualTo("Ciudad Viva: recuperacion de contrasena");
+        assertThat(recibidos[0].getSubject()).isEqualTo("Ciudad Viva: recuperación de contraseña");
+        // QA-1 M-1: con tildes y trato de tú (el cuerpo decodificado, no el MIME crudo).
+        assertThat((String) recibidos[0].getContent())
+                .contains("restablecer tu contraseña", "Ingresa este token en la aplicación");
 
         // El token persistido es el mismo que se envio por correo.
         var tokens = tokenRepository.findAll();

@@ -35,7 +35,7 @@ public class RestAccessDeniedHandler implements AccessDeniedHandler {
                 request.getAttribute(TerminosAceptadosAuthorizationManager.ATRIBUTO_TERMINOS_PENDIENTES));
         ApiError body = terminosPendientes
                 ? ApiError.conCodigo(HttpStatus.FORBIDDEN.value(), HttpStatus.FORBIDDEN.getReasonPhrase(),
-                        "Debes aceptar los terminos y la politica de privacidad vigentes para continuar",
+                        "Debes aceptar los términos y la política de privacidad vigentes para continuar",
                         request.getRequestURI(), CODIGO_TERMINOS_PENDIENTES)
                 : ApiError.of(HttpStatus.FORBIDDEN.value(), HttpStatus.FORBIDDEN.getReasonPhrase(),
                         "Acceso denegado", request.getRequestURI(), List.of());

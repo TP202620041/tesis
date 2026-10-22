@@ -162,7 +162,12 @@ class NotificacionIT extends AbstractPostgisMailIT {
         MimeMessage[] recibidos = greenMail.getReceivedMessages();
         assertThat(recibidos).hasSize(1);
         assertThat(recibidos[0].getAllRecipients()[0].toString()).isEqualTo(ciudadano.getEmail());
-        assertThat(recibidos[0].getSubject()).startsWith("Ciudad Viva: ");
+        assertThat(recibidos[0].getSubject()).isEqualTo("Ciudad Viva: tu reporte está en proceso");
+        // QA-1 M-1: etiquetas legibles, con tildes y trato de tú (cuerpo decodificado).
+        assertThat((String) recibidos[0].getContent())
+                .startsWith("Hola, " + ciudadano.getNombre() + ": tu reporte")
+                .contains("pasó de Recibido a En proceso.")
+                .doesNotContain("RECIBIDO", "EN_PROCESO");
     }
 
     @Test
@@ -295,7 +300,7 @@ class NotificacionIT extends AbstractPostgisMailIT {
         assertThat(json.get("estado").asText()).isEqualTo("EN_PROCESO");
         assertThat(json.get("titulo").asText()).isNotBlank();
         // Cuerpo legible para el ciudadano; el valor tecnico va solo en "estado".
-        assertThat(json.get("cuerpo").asText()).contains("esta en proceso").doesNotContain("EN_PROCESO");
+        assertThat(json.get("cuerpo").asText()).contains("Tu reporte #" + reporte.getId() + " está en proceso.").doesNotContain("EN_PROCESO");
         // Solo esas cinco claves: ninguna senal interna ni datos de otros usuarios.
         assertThat(json.fieldNames()).toIterable()
                 .containsExactlyInAnyOrder("titulo", "cuerpo", "url", "reporteId", "estado");
@@ -382,9 +387,9 @@ class NotificacionIT extends AbstractPostgisMailIT {
         // El mensaje se compuso desde el evento (distrito, transicion, comentario).
         assertThat(n.getMensaje())
                 .contains("Miraflores")
-                .contains("RECIBIDO")
-                .contains("EN_PROCESO")
-                .contains("Cuadrilla asignada");
+                .contains("pasó de Recibido a En proceso.")
+                .contains("Comentario de la municipalidad: Cuadrilla asignada")
+                .doesNotContain("RECIBIDO", "EN_PROCESO");
     }
 
     @Test

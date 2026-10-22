@@ -171,7 +171,7 @@ class ErroresHttpIT extends AbstractPostgisIT {
                 .andExpect(header().string(HttpHeaders.ALLOW, "POST"))
                 .andExpect(jsonPath("$.status").value(405))
                 .andExpect(jsonPath("$.error").value("Method Not Allowed"))
-                .andExpect(jsonPath("$.message").value("El metodo GET no esta permitido en esta ruta"))
+                .andExpect(jsonPath("$.message").value("El método GET no está permitido en esta ruta"))
                 .andExpect(jsonPath("$.path").value("/api/auth/login"))
                 .andExpect(jsonPath("$.details").isEmpty());
     }
@@ -188,7 +188,7 @@ class ErroresHttpIT extends AbstractPostgisIT {
                 .andExpect(header().string(HttpHeaders.ALLOW, containsString("PATCH")))
                 .andExpect(header().string(HttpHeaders.ALLOW, containsString("DELETE")))
                 .andExpect(jsonPath("$.status").value(405))
-                .andExpect(jsonPath("$.message").value("El metodo PUT no esta permitido en esta ruta"));
+                .andExpect(jsonPath("$.message").value("El método PUT no está permitido en esta ruta"));
     }
 
     @Test
@@ -225,7 +225,7 @@ class ErroresHttpIT extends AbstractPostgisIT {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
                 .andExpect(jsonPath("$.error").value("Bad Request"))
-                .andExpect(jsonPath("$.message").value("Falta el parametro obligatorio 'lon'"))
+                .andExpect(jsonPath("$.message").value("Falta el parámetro obligatorio 'lon'"))
                 .andExpect(jsonPath("$.path").value("/api/distritos/por-coordenadas"))
                 .andExpect(jsonPath("$.details").isEmpty());
     }
@@ -240,7 +240,7 @@ class ErroresHttpIT extends AbstractPostgisIT {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDeCiudadano()))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.message").value("Falta el parametro obligatorio 'categoriaId'"));
+                .andExpect(jsonPath("$.message").value("Falta el parámetro obligatorio 'categoriaId'"));
     }
 
     @Test

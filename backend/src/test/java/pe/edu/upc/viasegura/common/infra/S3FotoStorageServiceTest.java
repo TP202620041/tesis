@@ -54,7 +54,7 @@ class S3FotoStorageServiceTest {
     /** Saneado de mentira: cualquier foto sale como {@link #SANEADA}. */
     private final SaneadorDeImagen saneador = foto -> {
         if (foto == null || foto.vacio()) {
-            throw new BusinessException("La foto esta vacia");
+            throw new BusinessException("La foto está vacía");
         }
         return new ArchivoSubido(SANEADA, "image/jpeg", "x.jpg");
     };

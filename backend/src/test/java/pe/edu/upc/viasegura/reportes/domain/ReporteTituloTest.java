@@ -29,7 +29,7 @@ class ReporteTituloTest {
         for (String invalido : new String[] {null, "", "    ", "Bach", "x".repeat(121)}) {
             assertThatThrownBy(() -> Reporte.normalizarTitulo(invalido))
                     .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("titulo");
+                    .hasMessage("El título debe tener entre 5 y 120 caracteres");
         }
     }
 }
