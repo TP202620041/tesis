@@ -795,6 +795,46 @@ sigue saliendo solo de `ResourceNotFoundException` (reporte inexistente).
 Contrato para el frontend en
 `project-context/handoffs/2026-10-22-responsable-sin-asignar-204.md`.
 
+### Exportación CSV/XLSX completa y en hora de Lima (M-5)
+
+QA-1 abrió el archivo exportado por `func.miraflores` y le faltaba lo que un
+funcionario necesita para despachar o rendir cuentas. Las columnas son ahora:
+
+| Columna | Valor |
+|---|---|
+| ID | id del reporte (numérico en el XLSX) |
+| Título | el que escribió el ciudadano (NC-02) |
+| Categoría | nombre de la categoría |
+| Estado | etiqueta («En proceso», «Cancelado»), no el enum |
+| Severidad | «Baja», «Media» o «Alta» |
+| Adhesiones | vecinos que lo reportaron, creador incluido (numérico en el XLSX) |
+| Ubicación (lat, lon) | con punto decimal siempre (`Locale.ROOT`), sea cual sea el locale del servidor |
+| Fecha de reporte (hora de Lima) | `yyyy-MM-dd HH:mm` en `America/Lima` |
+| Fecha de resolución (hora de Lima) | ídem, vacía si no está resuelto |
+| Responsable asignado | el vigente, o vacío |
+
+- **Hora de Lima, dicha en el encabezado.** Antes las fechas salían en UTC sin
+  aviso: el #186, creado a las 20:28 del 21/10 en Lima, figuraba a la 01:28
+  del 22. Un funcionario lee horas locales; el encabezado deja claro cuáles.
+- **Los cancelados siguen saliendo** (la bandeja también los muestra), pero
+  ahora se distinguen por su estado.
+- **CSV con BOM UTF-8** (`EF BB BF`) y `Content-Type: text/csv;charset=UTF-8`.
+  Excel en Windows abre un CSV sin BOM con la página de códigos del sistema y
+  mostraba «SemaforizaciÃ³n». Los lectores que siguen el estándar ignoran el
+  BOM.
+- **Encabezados entre comillas.** Se escribían sin comillas, así que
+  «Ubicación (lat, lon)» partía el encabezado en dos columnas y quedaba una
+  columna más que en los datos. Ahora todo valor va entre comillas (RFC 4180).
+- **Números como números en el XLSX.** El puerto `ExportadorReportes` recibe
+  las celdas como `String` o `Number`; Apache POI escribe los `Number` como
+  celdas numéricas, para que el ID y las adhesiones se ordenen y sumen como
+  números y no como texto («10» antes que «2»).
+
+`ExportarReportesIT` lee el CSV con un analizador RFC 4180 (un título con
+comillas y coma), comprueba el BOM, las diez columnas en cada fila, una fila
+completa con fechas fijadas por SQL (20:28 en Lima) y, en el XLSX, el tipo
+numérico de las celdas.
+
 ## Catálogos de referencia (descubribilidad)
 
 Dos endpoints **públicos** de solo lectura que existen para que un cliente

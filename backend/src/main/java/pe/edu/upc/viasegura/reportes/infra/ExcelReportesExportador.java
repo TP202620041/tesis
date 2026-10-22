@@ -4,6 +4,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
+import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -30,7 +31,7 @@ public class ExcelReportesExportador implements ExportadorReportes {
     }
 
     @Override
-    public byte[] escribir(List<String> columnas, List<List<String>> filas) {
+    public byte[] escribir(List<String> columnas, List<List<Object>> filas) {
         try (XSSFWorkbook workbook = new XSSFWorkbook()) {
             XSSFSheet hoja = workbook.createSheet("Reportes");
             Row encabezado = hoja.createRow(0);
@@ -38,10 +39,17 @@ public class ExcelReportesExportador implements ExportadorReportes {
                 encabezado.createCell(i).setCellValue(columnas.get(i));
             }
             int filaIdx = 1;
-            for (List<String> valores : filas) {
+            for (List<Object> valores : filas) {
                 Row filaExcel = hoja.createRow(filaIdx++);
                 for (int i = 0; i < valores.size(); i++) {
-                    filaExcel.createCell(i).setCellValue(valores.get(i));
+                    Cell celda = filaExcel.createCell(i);
+                    // QA-1 M-5: los numeros como celdas numericas (ordenar y
+                    // sumar el ID o las adhesiones); el resto, como texto.
+                    if (valores.get(i) instanceof Number numero) {
+                        celda.setCellValue(numero.doubleValue());
+                    } else {
+                        celda.setCellValue(String.valueOf(valores.get(i)));
+                    }
                 }
             }
             for (int i = 0; i < columnas.size(); i++) {

@@ -2,15 +2,25 @@ package pe.edu.upc.viasegura.reportes;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.UUID;
+import org.apache.poi.ss.usermodel.CellType;
+import org.apache.poi.xssf.usermodel.XSSFRow;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import pe.edu.upc.viasegura.auth.domain.Rol;
@@ -28,7 +38,7 @@ import pe.edu.upc.viasegura.reportes.repository.CategoriaDanoRepository;
 import pe.edu.upc.viasegura.reportes.repository.ReporteRepository;
 import pe.edu.upc.viasegura.support.AbstractPostgisIT;
 
-/** Exportacion de reportes del distrito a CSV/XLSX (US-28). */
+/** Exportacion de reportes del distrito a CSV/XLSX (US-28; columnas, hora de Lima y BOM de QA-1 M-5). */
 class ExportarReportesIT extends AbstractPostgisIT {
 
     @Autowired
@@ -45,6 +55,17 @@ class ExportarReportesIT extends AbstractPostgisIT {
     CategoriaDanoRepository categoriaRepository;
     @Autowired
     ReporteRepository reporteRepository;
+    @Autowired
+    JdbcTemplate jdbcTemplate;
+
+    /** Encabezados en el orden del archivo (QA-1 M-5). */
+    private static final List<String> COLUMNAS = List.of(
+            "ID", "Título", "Categoría", "Estado", "Severidad", "Adhesiones", "Ubicación (lat, lon)",
+            "Fecha de reporte (hora de Lima)", "Fecha de resolución (hora de Lima)", "Responsable asignado");
+
+    /** 2026-10-21 20:28 en Lima (UTC-5): el caso del informe QA-1, que salía como 01:28 del 22. */
+    private static final Instant CREADO = Instant.parse("2026-10-22T01:28:00Z");
+    private static final Instant RESUELTO = Instant.parse("2026-10-22T03:05:00Z");
 
     private Distrito distrito(String nombre) {
         return distritoRepository.findByNombre(nombre)
@@ -83,6 +104,65 @@ class ExportarReportesIT extends AbstractPostgisIT {
         return jwtService.generarToken(u.getEmail(), u.getRol().name());
     }
 
+    /** Reporte con todos los datos que exporta la fila, y la fecha de creación fijada. */
+    private Reporte reporteCompleto(Distrito distrito, CategoriaDano categoria, String titulo, EstadoReporte estado,
+                                    Severidad severidad, int adhesiones, Instant resuelto) {
+        Reporte r = reporteRepository.save(Reporte.builder()
+                .titulo(titulo).severidad(severidad)
+                .ubicacion(GeometryUtils.point(-77.0297, -12.1215))
+                .categoria(categoria).creador(ciudadano()).distrito(distrito)
+                .estado(estado).totalAdhesiones(adhesiones).resolvedAt(resuelto).build());
+        // El auditing pisa created_at en cada save: se fija por SQL.
+        jdbcTemplate.update("UPDATE reporte SET created_at = ? WHERE id = ?", Timestamp.from(CREADO), r.getId());
+        return r;
+    }
+
+    private byte[] exportar(Usuario func, String formato, String estado) throws Exception {
+        var peticion = get("/api/reportes/exportar").param("formato", formato)
+                .header("Authorization", "Bearer " + token(func));
+        if (estado != null) {
+            peticion = peticion.param("estado", estado);
+        }
+        return mockMvc.perform(peticion)
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsByteArray();
+    }
+
+    /** CSV sin el BOM, en filas: comillas dobles con escape RFC 4180 (los valores pueden tener comas). */
+    private static List<List<String>> leerCsv(byte[] cuerpo) {
+        String texto = new String(cuerpo, 3, cuerpo.length - 3, StandardCharsets.UTF_8);
+        List<List<String>> filas = new ArrayList<>();
+        List<String> fila = new ArrayList<>();
+        StringBuilder valor = new StringBuilder();
+        boolean entreComillas = false;
+        for (int i = 0; i < texto.length(); i++) {
+            char c = texto.charAt(i);
+            if (entreComillas) {
+                if (c == '"' && i + 1 < texto.length() && texto.charAt(i + 1) == '"') {
+                    valor.append('"');
+                    i++;
+                } else if (c == '"') {
+                    entreComillas = false;
+                } else {
+                    valor.append(c);
+                }
+            } else if (c == '"') {
+                entreComillas = true;
+            } else if (c == ',') {
+                fila.add(valor.toString());
+                valor.setLength(0);
+            } else if (c == '\n') {
+                fila.add(valor.toString());
+                valor.setLength(0);
+                filas.add(fila);
+                fila = new ArrayList<>();
+            } else if (c != '\r') {
+                valor.append(c);
+            }
+        }
+        return filas;
+    }
+
     @Test
     void funcionarioExportaCsv_200_conEncabezadosYFilas() throws Exception {
         Distrito miraflores = distrito("Miraflores");
@@ -96,11 +176,56 @@ class ExportarReportesIT extends AbstractPostgisIT {
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsByteArray();
 
-        String csv = new String(cuerpo, java.nio.charset.StandardCharsets.UTF_8);
-        assertThat(csv).contains("Categoria", "Ubicacion", "Fecha de reporte",
-                "Fecha de resolucion", "Responsable asignado");
-        // Encabezado + 2 filas de datos.
-        assertThat(csv.strip().split("\n")).hasSize(3);
+        // QA-1 M-5: BOM UTF-8 para que Excel en Windows lea las tildes.
+        assertThat(Arrays.copyOf(cuerpo, 3)).containsExactly(0xEF, 0xBB, 0xBF);
+        List<List<String>> filas = leerCsv(cuerpo);
+        // Encabezado + 2 filas de datos, todas con el mismo número de columnas
+        // (antes «Ubicacion (lat, lon)» iba sin comillas y partía el encabezado).
+        assertThat(filas).hasSize(3);
+        assertThat(filas.get(0)).containsExactlyElementsOf(COLUMNAS);
+        assertThat(filas).allSatisfy(fila -> assertThat(fila).hasSize(COLUMNAS.size()));
+    }
+
+    @Test
+    void csv_filaConIdTituloEstadoSeveridadAdhesionesYFechasEnHoraDeLima() throws Exception {
+        Distrito miraflores = distrito("Miraflores");
+        Usuario func = funcionario(miraflores);
+        CategoriaDano categoria = categoria();
+        Reporte r = reporteCompleto(miraflores, categoria, "Semáforo \"peatonal\", esquina",
+                EstadoReporte.RESUELTO, Severidad.ALTA, 3, RESUELTO);
+
+        mockMvc.perform(get("/api/reportes/exportar").param("formato", "CSV")
+                        .header("Authorization", "Bearer " + token(func)))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", "text/csv;charset=UTF-8"));
+        List<List<String>> filas = leerCsv(exportar(func, "CSV", null));
+
+        assertThat(filas).hasSize(2);
+        assertThat(filas.get(1)).containsExactly(
+                r.getId().toString(),
+                "Semáforo \"peatonal\", esquina",
+                categoria.getNombre(),
+                "Resuelto",
+                "Alta",
+                "3",
+                "-12.121500, -77.029700",
+                "2026-10-21 20:28",
+                "2026-10-21 22:05",
+                "");
+    }
+
+    @Test
+    void csv_losCanceladosSeDistinguenPorSuEstado() throws Exception {
+        // QA-1 M-5: antes salían sin forma de distinguirlos del resto.
+        Distrito miraflores = distrito("Miraflores");
+        Usuario func = funcionario(miraflores);
+        reporte(miraflores, EstadoReporte.CANCELADO);
+        reporte(miraflores, EstadoReporte.EN_PROCESO);
+
+        List<List<String>> filas = leerCsv(exportar(func, "CSV", null));
+
+        assertThat(filas.subList(1, filas.size())).extracting(fila -> fila.get(3))
+                .containsExactlyInAnyOrder("Cancelado", "En proceso");
     }
 
     @Test
@@ -117,9 +242,33 @@ class ExportarReportesIT extends AbstractPostgisIT {
 
         try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(cuerpo))) {
             XSSFSheet hoja = workbook.getSheetAt(0);
-            assertThat(hoja.getRow(0).getCell(0).getStringCellValue()).isEqualTo("Categoria");
+            for (int i = 0; i < COLUMNAS.size(); i++) {
+                assertThat(hoja.getRow(0).getCell(i).getStringCellValue()).isEqualTo(COLUMNAS.get(i));
+            }
             // Fila 1 (indice 1) es el unico reporte creado.
             assertThat(hoja.getLastRowNum()).isEqualTo(1);
+        }
+    }
+
+    @Test
+    void xlsx_idYAdhesionesNumericos_estadoConEtiqueta_yFechasEnHoraDeLima() throws Exception {
+        Distrito miraflores = distrito("Miraflores");
+        Usuario func = funcionario(miraflores);
+        Reporte r = reporteCompleto(miraflores, categoria(), "Vereda hundida frente al parque",
+                EstadoReporte.RESUELTO, Severidad.BAJA, 12, RESUELTO);
+
+        try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(exportar(func, "XLSX", null)))) {
+            XSSFRow fila = workbook.getSheetAt(0).getRow(1);
+            // Numéricos, para ordenar y sumar en la hoja de cálculo.
+            assertThat(fila.getCell(0).getCellType()).isEqualTo(CellType.NUMERIC);
+            assertThat(fila.getCell(0).getNumericCellValue()).isEqualTo(r.getId().doubleValue());
+            assertThat(fila.getCell(5).getCellType()).isEqualTo(CellType.NUMERIC);
+            assertThat(fila.getCell(5).getNumericCellValue()).isEqualTo(12.0);
+            assertThat(fila.getCell(1).getStringCellValue()).isEqualTo("Vereda hundida frente al parque");
+            assertThat(fila.getCell(3).getStringCellValue()).isEqualTo("Resuelto");
+            assertThat(fila.getCell(4).getStringCellValue()).isEqualTo("Baja");
+            assertThat(fila.getCell(7).getStringCellValue()).isEqualTo("2026-10-21 20:28");
+            assertThat(fila.getCell(8).getStringCellValue()).isEqualTo("2026-10-21 22:05");
         }
     }
 
@@ -137,9 +286,10 @@ class ExportarReportesIT extends AbstractPostgisIT {
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsByteArray();
 
-        String csv = new String(cuerpo, java.nio.charset.StandardCharsets.UTF_8);
         // Encabezado + 1 sola fila (el PENDIENTE quedo fuera).
-        assertThat(csv.strip().split("\n")).hasSize(2);
+        List<List<String>> filas = leerCsv(cuerpo);
+        assertThat(filas).hasSize(2);
+        assertThat(filas.get(1).get(3)).isEqualTo("Resuelto");
     }
 
     @Test
