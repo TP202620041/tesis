@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { esSeveridad, SEVERIDADES } from './domain';
 import {
   etiquetaDeSeveridad,
+  nivelDeSeveridad,
   OPCIONES_DE_SEVERIDAD,
   SIN_TITULO,
   textoDeSeveridad,
@@ -26,6 +27,14 @@ describe('severidad (NC-02)', () => {
     expect(etiquetaDeSeveridad('CRITICA')).toBeNull();
     expect(textoDeSeveridad('ALTA')).toBe('Severidad alta');
     expect(textoDeSeveridad(undefined)).toBeNull();
+  });
+
+  it('DIS-1: nivel de 1 a 3 para el indicador; sin dato, ninguno', () => {
+    expect(nivelDeSeveridad('BAJA')).toBe(1);
+    expect(nivelDeSeveridad('MEDIA')).toBe(2);
+    expect(nivelDeSeveridad('ALTA')).toBe(3);
+    expect(nivelDeSeveridad(null)).toBeNull();
+    expect(nivelDeSeveridad('CRITICA')).toBeNull();
   });
 });
 
