@@ -40,6 +40,7 @@ Reúne **todo** lo que hoy espera una decisión del usuario, venga de esta ronda
 | 11 | D-10: jurisdicción del funcionario | Media | NC-05, NC-06; el script DEP-05 | `municipalidad_id` con NC-06 (o confirmar `distrito_id`) | §11 |
 | 12 | Fórmulas de los KPIs por periodo | Media | NC-06 | Que el usuario las pegue del OB2 | §12 |
 | 13 | Columnas de GESTION_MUNICIPAL y REQUISITO_RECEPCION | Media | NC-05, NC-06 | Que el usuario las pegue del OB2 §5 | §13 |
+| 19 | Migración que corrige las tildes de las categorías estándar | Baja | QA-1 M-1 (parte de datos); puede ir con la de NC-04 que desactiva «Hueco en calzada» | Sí, una migración nueva sin editar V3 (opción A) | `2026-10-22-tildes-categorias-estandar.md` |
 | 14 | Clases del modelo, pesos, umbral, «Hueco en calzada» | Media | NC-03 (NC-04 avanza con adaptador falso) | `bache` + `grieta`, RF-DETR N (Apache-2.0), 0,50, desactivar «Hueco en calzada» | §14 |
 | 15 | Gherkin original de US-19 | Baja | Nada (rigen los criterios provisionales) | Pegarlo si aparece | §15 |
 | 16 | Dependencias de §4.3 | Baja | Cierre de BE-08 | Actualizar §4.3 (opción C) | §16 |
