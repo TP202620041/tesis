@@ -1,32 +1,378 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/*
+ * Sistema de diseño «Cívica» (DIS-1; propuesta en docs/diseno/, §4 y §5-A).
+ *
+ * Dos capas:
+ *   1. Variables `--cv-*`: los valores de cada tema. Solo aquí hay colores.
+ *   2. `@theme inline`: las expone a Tailwind con nombres semánticos
+ *      (`bg-superficie`, `text-texto-2`, `border-linea-campo`…). `inline` hace
+ *      que la utilidad lea la variable en tiempo de ejecución, así que cambiar
+ *      de tema es cambiar `data-theme` en `<html>`: ninguna clase `dark:`.
+ *
+ * Temas: claro (por defecto), oscuro y alto contraste (US-23). Los aplica
+ * `public/tema.js` antes de pintar, según la preferencia guardada en el
+ * dispositivo (`features/auth/model/apariencia.ts`). Cada par texto/fondo está
+ * medido en `scripts/contraste-civica.json` (y `src/app/contraste.test.ts`
+ * comprueba que esos valores son los de este archivo y cumplen AA).
+ *
+ * Tinta y blanco, sin celeste (su carga partidaria en Lima, propuesta §2.3).
+ * El único amarillo de la interfaz es el del foco. El color de marca nunca
+ * se usa en un marcador ni en un chip de estado.
+ */
+
+@custom-variant dark (&:where([data-theme=oscuro], [data-theme=oscuro] *));
+
+:root,
+[data-theme='claro'] {
+  color-scheme: light;
+
+  /* Superficies y líneas */
+  --cv-fondo: #f5f6f8;
+  --cv-superficie: #ffffff;
+  --cv-superficie-2: #edf0f3;
+  --cv-linea: #d6dbe1;
+  /* Borde de un control (campo, casilla): 3:1 sobre la superficie (WCAG 1.4.11). */
+  --cv-linea-campo: #7b8594;
+
+  /* Texto */
+  --cv-texto: #141b24;
+  --cv-texto-2: #4d5866;
+
+  /* Acción y marca: la tinta */
+  --cv-primario: #1f3350;
+  --cv-primario-hover: #16263d;
+  --cv-sobre-primario: #ffffff;
+  --cv-enlace: #1d4f91;
+  --cv-enlace-hover: #142f57;
+
+  /* Foco: amarillo con contorno oscuro (se ve sobre cualquier fondo) */
+  --cv-foco: #ffd43b;
+  --cv-foco-contorno: #141b24;
+
+  /* Mensajes */
+  --cv-error: #b42318;
+  --cv-error-fondo: #fde3e1;
+  --cv-error-texto: #9b1c14;
+  --cv-error-borde: #f0b4ae;
+  --cv-exito-fondo: #d9f5e3;
+  --cv-exito-texto: #0b5a33;
+  --cv-exito-borde: #9fd9b6;
+  --cv-aviso-fondo: #fdefc3;
+  --cv-aviso-texto: #6e4100;
+  --cv-aviso-borde: #e8c766;
+  --cv-info-fondo: #dde8fc;
+  --cv-info-texto: #1a3f8f;
+  --cv-info-borde: #a9c2f2;
+
+  /* Estados del reporte (propuesta §4): marcador, y fondo y texto del chip.
+     El marcador no cambia entre temas; el chip sí. */
+  --cv-pendiente: #c8231b;
+  --cv-pendiente-fondo: #fde3e1;
+  --cv-pendiente-texto: #9b1c14;
+  --cv-recibido: #2e6be6;
+  --cv-recibido-fondo: #dde8fc;
+  --cv-recibido-texto: #1a3f8f;
+  --cv-en-proceso: #f0a800;
+  --cv-en-proceso-fondo: #fdefc3;
+  --cv-en-proceso-texto: #6e4100;
+  --cv-resuelto: #126b3f;
+  --cv-resuelto-fondo: #d9f5e3;
+  --cv-resuelto-texto: #0b5a33;
+  --cv-rechazado: #4b5563;
+  --cv-rechazado-fondo: #e7eaee;
+  --cv-rechazado-texto: #3a4452;
+  --cv-cancelado: #7d8794;
+  --cv-cancelado-fondo: #ffffff;
+  --cv-cancelado-texto: #4a5463;
+  --cv-chip-borde: transparent;
+
+  /* Severidad: barras en tinta, sin rojo (no compite con el estado). */
+  --cv-severidad: #1f3350;
+  --cv-severidad-pista: #d6dbe1;
+
+  /* Índice de desempeño: una sola barra en tinta (README, «null no es cero»). */
+  --cv-barra: #1f3350;
+  --cv-pista: #dde2e8;
+
+  /* Velo de los diálogos */
+  --cv-velo: rgb(20 27 36 / 0.6);
+  --cv-sombra: rgb(20 27 36 / 0.12);
+}
+
+[data-theme='oscuro'] {
+  color-scheme: dark;
+
+  --cv-fondo: #0f141a;
+  --cv-superficie: #171e26;
+  --cv-superficie-2: #1f2832;
+  --cv-linea: #2f3b48;
+  --cv-linea-campo: #6b7787;
+
+  --cv-texto: #e9edf2;
+  --cv-texto-2: #a5b0bd;
+
+  --cv-primario: #c9d8f0;
+  --cv-primario-hover: #afc4e6;
+  --cv-sobre-primario: #0f141a;
+  --cv-enlace: #9dbdf0;
+  --cv-enlace-hover: #c9d8f0;
+
+  --cv-foco: #ffd43b;
+  --cv-foco-contorno: #0f141a;
+
+  --cv-error: #ffb4ab;
+  --cv-error-fondo: #4a1712;
+  --cv-error-texto: #ffb4ab;
+  --cv-error-borde: #7a2a22;
+  --cv-exito-fondo: #0f3a26;
+  --cv-exito-texto: #8ee0af;
+  --cv-exito-borde: #1f6142;
+  --cv-aviso-fondo: #4a3300;
+  --cv-aviso-texto: #ffd27a;
+  --cv-aviso-borde: #7a5600;
+  --cv-info-fondo: #172a52;
+  --cv-info-texto: #b4ccff;
+  --cv-info-borde: #2c4a85;
+
+  --cv-pendiente-fondo: #4a1712;
+  --cv-pendiente-texto: #ffb4ab;
+  --cv-recibido-fondo: #172a52;
+  --cv-recibido-texto: #b4ccff;
+  --cv-en-proceso-fondo: #4a3300;
+  --cv-en-proceso-texto: #ffd27a;
+  --cv-resuelto-fondo: #0f3a26;
+  --cv-resuelto-texto: #8ee0af;
+  --cv-rechazado-fondo: #2c333d;
+  --cv-rechazado-texto: #cbd2db;
+  --cv-cancelado-fondo: #171e26;
+  --cv-cancelado-texto: #a5b0bd;
+
+  --cv-severidad: #c9d8f0;
+  --cv-severidad-pista: #2f3b48;
+
+  --cv-barra: #9dbdf0;
+  --cv-pista: #2a3542;
+
+  --cv-velo: rgb(0 0 0 / 0.7);
+  --cv-sombra: rgb(0 0 0 / 0.4);
+}
+
+/*
+ * Alto contraste (US-23): negro sobre blanco, bordes de 2 px y chips de estado
+ * con contorno negro (el estado lo cargan el icono y el nombre, no el color).
+ */
+[data-theme='alto-contraste'] {
+  color-scheme: light;
+
+  --cv-fondo: #ffffff;
+  --cv-superficie: #ffffff;
+  --cv-superficie-2: #f2f2f2;
+  --cv-linea: #000000;
+  --cv-linea-campo: #000000;
+
+  --cv-texto: #000000;
+  --cv-texto-2: #262626;
+
+  --cv-primario: #000000;
+  --cv-primario-hover: #262626;
+  --cv-sobre-primario: #ffffff;
+  --cv-enlace: #00308f;
+  --cv-enlace-hover: #001f5c;
+
+  --cv-foco: #ffd43b;
+  --cv-foco-contorno: #000000;
+
+  --cv-error: #9b1c14;
+  --cv-error-fondo: #ffffff;
+  --cv-error-texto: #9b1c14;
+  --cv-error-borde: #000000;
+  --cv-exito-fondo: #ffffff;
+  --cv-exito-texto: #0b5a33;
+  --cv-exito-borde: #000000;
+  --cv-aviso-fondo: #ffffff;
+  --cv-aviso-texto: #6e4100;
+  --cv-aviso-borde: #000000;
+  --cv-info-fondo: #ffffff;
+  --cv-info-texto: #1a3f8f;
+  --cv-info-borde: #000000;
+
+  --cv-pendiente-fondo: #ffffff;
+  --cv-pendiente-texto: #000000;
+  --cv-recibido-fondo: #ffffff;
+  --cv-recibido-texto: #000000;
+  --cv-en-proceso-fondo: #ffffff;
+  --cv-en-proceso-texto: #000000;
+  --cv-resuelto-fondo: #ffffff;
+  --cv-resuelto-texto: #000000;
+  --cv-rechazado-fondo: #ffffff;
+  --cv-rechazado-texto: #000000;
+  --cv-cancelado-fondo: #ffffff;
+  --cv-cancelado-texto: #000000;
+  --cv-chip-borde: #000000;
+
+  --cv-severidad: #000000;
+  --cv-severidad-pista: #bfbfbf;
+
+  --cv-barra: #000000;
+  --cv-pista: #ffffff;
+
+  --cv-velo: rgb(0 0 0 / 0.75);
+  --cv-sombra: transparent;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-fondo: var(--cv-fondo);
+  --color-superficie: var(--cv-superficie);
+  --color-superficie-2: var(--cv-superficie-2);
+  --color-linea: var(--cv-linea);
+  --color-linea-campo: var(--cv-linea-campo);
+  --color-texto: var(--cv-texto);
+  --color-texto-2: var(--cv-texto-2);
+  --color-primario: var(--cv-primario);
+  --color-primario-hover: var(--cv-primario-hover);
+  --color-sobre-primario: var(--cv-sobre-primario);
+  --color-enlace: var(--cv-enlace);
+  --color-enlace-hover: var(--cv-enlace-hover);
+  --color-foco: var(--cv-foco);
+
+  --color-error: var(--cv-error);
+  --color-error-fondo: var(--cv-error-fondo);
+  --color-error-texto: var(--cv-error-texto);
+  --color-error-borde: var(--cv-error-borde);
+  --color-exito-fondo: var(--cv-exito-fondo);
+  --color-exito-texto: var(--cv-exito-texto);
+  --color-exito-borde: var(--cv-exito-borde);
+  --color-aviso-fondo: var(--cv-aviso-fondo);
+  --color-aviso-texto: var(--cv-aviso-texto);
+  --color-aviso-borde: var(--cv-aviso-borde);
+  --color-info-fondo: var(--cv-info-fondo);
+  --color-info-texto: var(--cv-info-texto);
+  --color-info-borde: var(--cv-info-borde);
+
+  --color-pendiente: var(--cv-pendiente);
+  --color-pendiente-fondo: var(--cv-pendiente-fondo);
+  --color-pendiente-texto: var(--cv-pendiente-texto);
+  --color-recibido: var(--cv-recibido);
+  --color-recibido-fondo: var(--cv-recibido-fondo);
+  --color-recibido-texto: var(--cv-recibido-texto);
+  --color-en-proceso: var(--cv-en-proceso);
+  --color-en-proceso-fondo: var(--cv-en-proceso-fondo);
+  --color-en-proceso-texto: var(--cv-en-proceso-texto);
+  --color-resuelto: var(--cv-resuelto);
+  --color-resuelto-fondo: var(--cv-resuelto-fondo);
+  --color-resuelto-texto: var(--cv-resuelto-texto);
+  --color-rechazado: var(--cv-rechazado);
+  --color-rechazado-fondo: var(--cv-rechazado-fondo);
+  --color-rechazado-texto: var(--cv-rechazado-texto);
+  --color-cancelado: var(--cv-cancelado);
+  --color-cancelado-fondo: var(--cv-cancelado-fondo);
+  --color-cancelado-texto: var(--cv-cancelado-texto);
+  --color-chip-borde: var(--cv-chip-borde);
+
+  --color-severidad: var(--cv-severidad);
+  --color-severidad-pista: var(--cv-severidad-pista);
+  --color-barra: var(--cv-barra);
+  --color-pista: var(--cv-pista);
+  --color-velo: var(--cv-velo);
+
+  /* Public Sans, autoalojada por `next/font` (ver `layout.tsx`). */
+  --font-sans: var(--font-public-sans), ui-sans-serif, system-ui, sans-serif;
+
+  /* Radios: 8 en controles, 12 en tarjetas, 16 en hojas y menús. */
+  --radius-control: 0.5rem;
+  --radius-tarjeta: 0.75rem;
+  --radius-hoja: 1rem;
+
+  /* Sombras sobrias: separan, no decoran. */
+  --shadow-tarjeta: 0 1px 2px var(--cv-sombra);
+  --shadow-elevada: 0 4px 16px var(--cv-sombra), 0 1px 3px var(--cv-sombra);
+
+  /* Espaciado: la escala de Tailwind ya es de 4 px (4/8/12/16/20/24/32/48).
+     `objetivo` es el mínimo táctil de 44 px (WCAG 2.5.5): `min-h-objetivo`. */
+  --spacing-objetivo: 2.75rem;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  body {
+    background-color: var(--cv-fondo);
+    color: var(--cv-texto);
+  }
+
+  /* Cifras alineadas en tablas y métricas. */
+  table {
+    font-variant-numeric: tabular-nums;
   }
 }
 
 /*
- * Sin `font-family` aqui a proposito: el body hereda la de `html`, que el
- * preflight de Tailwind toma de `--font-sans` (la Geist que carga `next/font`
- * en `layout.tsx`). El `Arial` del scaffold, al no estar en una capa, ganaba
- * a todo y la app se veia en Arial (DEP-06). Tipografia provisional hasta la
- * identidad visual definitiva.
+ * Foco visible en TODO lo enfocable: amarillo de 3 px con un anillo oscuro
+ * de 2 px por fuera, que lo separa de cualquier fondo (también del blanco,
+ * donde el amarillo solo no llega a 3:1). Va FUERA de las capas de Tailwind a
+ * propósito: así gana a un `outline-none` o a una sombra de utilidad que
+ * alguien deje en un control, y nunca queda un control sin foco visible.
  */
-body {
-  background: var(--background);
-  color: var(--foreground);
+:focus-visible {
+  outline: 3px solid var(--cv-foco);
+  outline-offset: 0;
+  box-shadow: 0 0 0 5px var(--cv-foco-contorno);
+}
+
+/* Alto contraste: los bordes de 1 px pasan a 2 px. */
+[data-theme='alto-contraste'] .border {
+  border-width: 2px;
+}
+[data-theme='alto-contraste'] .border-t {
+  border-top-width: 2px;
+}
+[data-theme='alto-contraste'] .border-b {
+  border-bottom-width: 2px;
+}
+[data-theme='alto-contraste'] .border-l {
+  border-left-width: 2px;
+}
+[data-theme='alto-contraste'] .border-r {
+  border-right-width: 2px;
+}
+
+/*
+ * Mapa (Leaflet). Las teselas de OpenStreetMap se desaturan con un filtro CSS
+ * para que los únicos colores con significado sean los de los marcadores y el
+ * calor; en oscuro se invierten. Sin orígenes nuevos en la CSP. Los selectores
+ * llevan `html` delante porque `leaflet.css` llega después (con el mapa) y, a
+ * igual especificidad, ganaría.
+ */
+html .leaflet-container {
+  background: var(--cv-superficie-2);
+  font-family: inherit;
+}
+html .leaflet-tile-pane {
+  filter: grayscale(0.85) contrast(0.95) brightness(1.03);
+}
+html[data-theme='oscuro'] .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) grayscale(0.8) brightness(0.9) contrast(0.9);
+}
+html[data-theme='alto-contraste'] .leaflet-tile-pane {
+  filter: grayscale(1) contrast(1.15);
+}
+html .leaflet-bar a,
+html .leaflet-bar a:hover {
+  background-color: var(--cv-superficie);
+  color: var(--cv-texto);
+  border-color: var(--cv-linea);
+}
+html .leaflet-control-attribution {
+  background: color-mix(in srgb, var(--cv-superficie) 85%, transparent);
+  color: var(--cv-texto-2);
+}
+html .leaflet-control-attribution a {
+  color: var(--cv-enlace);
+}
+html .leaflet-popup-content-wrapper,
+html .leaflet-popup-tip {
+  background: var(--cv-superficie);
+  color: var(--cv-texto);
+}
+html .leaflet-container a.leaflet-popup-close-button {
+  color: var(--cv-texto-2);
 }
