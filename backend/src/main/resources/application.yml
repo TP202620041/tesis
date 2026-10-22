@@ -1,6 +1,8 @@
 # Configuracion comun a todos los perfiles.
-# Perfil activo por defecto: local (ver application-local.yml).
-# Sobrescribe con: SPRING_PROFILES_ACTIVE=dev
+# Perfil por defecto: local (ver application-local.yml). `mvn spring-boot:run`
+# lo activa de forma explicita (pom.xml); otro perfil con
+# -Dspring-boot.run.profiles=dev o, al correr el jar, SPRING_PROFILES_ACTIVE.
+# La imagen Docker fija SPRING_PROFILES_ACTIVE=prod.
 spring:
   application:
     name: viasegura
@@ -34,6 +36,12 @@ spring:
           auth: ${MAIL_SMTP_AUTH:false}
           starttls:
             enable: ${MAIL_SMTP_STARTTLS:false}
+          # Timeouts en ms (DEP-02). JavaMail espera indefinidamente por
+          # defecto: un SMTP colgado retendria el hilo (y, en la recuperacion
+          # de contrasena o el soporte, la peticion) para siempre.
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
 
 # Almacenamiento de fotos (US-05 reportes, US-30 perfil). Filesystem local en
 # desarrollo. Las fotos se separan en dos subdirectorios de `fotos-dir` segun
@@ -92,9 +100,17 @@ app:
 # Parametros de seguridad / JWT (leidos por JwtService)
 security:
   jwt:
-    # Secreto Base64 (>= 256 bits). En prod se inyecta por variable de entorno.
-    secret: ${JWT_SECRET:Y2hhbmdlLW1lLXRoaXMtaXMtYS1kZXYtb25seS1zZWNyZXQtMDEyMzQ1Njc4OQ==}
+    # Secreto Base64 de al menos 32 bytes (`openssl rand -base64 48`). SIN
+    # valor por defecto a proposito (DEP-01, SEC-03 en el README): con el
+    # secreto cualquiera firma un token de ADMIN, y un default versionado
+    # dejaba firmando con un secreto publico a todo entorno que olvidara
+    # JWT_SECRET. Si falta, JwtService no deja arrancar la aplicacion.
+    secret: ${JWT_SECRET:}
     expiration-minutes: ${JWT_EXPIRATION_MINUTES:120}
+    # El secreto de desarrollo publicado (application-local.yml) solo se
+    # acepta con esta bandera en true Y el perfil local o test activado de
+    # forma explicita: `local` por defecto no basta (ver JwtService).
+    permitir-secreto-de-desarrollo: false
 
 springdoc:
   swagger-ui:
@@ -104,3 +120,32 @@ server:
   port: 8080
   error:
     include-message: always
+  tomcat:
+    # DEP-11: cuerpo que Tomcat lee y descarta (sin guardarlo) despues de
+    # rechazar una peticion. Con el default (2 MB), una subida de mas de
+    # 12 MB (max-request-size) recibia un corte de conexion en vez del 413,
+    # y la PWA lo tomaria como error de red y la reintentaria desde la cola
+    # offline. Con 32 MB el cliente lee el 413 hasta ese tamano.
+    max-swallow-size: 32MB
+
+# Actuator (DEP-02): solo /actuator/health, publico (GET exacto en
+# SecurityConfig) para el healthcheck del despliegue. Sin detalles ni
+# componentes: no revela que motor de BD ni que versiones corren. Ningun
+# otro endpoint se expone por web, ni siquiera a un ADMIN.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+      # Sin la pagina /actuator con enlaces: no hay nada mas que descubrir.
+      discovery:
+        enabled: false
+  endpoint:
+    health:
+      show-details: never
+      show-components: never
+  health:
+    # Un SMTP caido no debe marcar la app como caida (ni hacer fallar un
+    # despliegue): afecta a cada envio de correo, no a la API entera.
+    mail:
+      enabled: false

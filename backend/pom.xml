@@ -22,6 +22,10 @@
         <jjwt.version>0.12.6</jjwt.version>
         <poi.version>5.3.0</poi.version>
         <archunit.version>1.3.0</archunit.version>
+        <!-- `mvn spring-boot:run` activa el perfil local de forma EXPLICITA
+             (DEP-01, SEC-03): solo asi JwtService acepta el secreto de
+             desarrollo. Otro perfil: -Dspring-boot.run.profiles=dev. -->
+        <spring-boot.run.profiles>local</spring-boot.run.profiles>
     </properties>
 
     <dependencies>
@@ -64,6 +68,15 @@
             <artifactId>jjwt-jackson</artifactId>
             <version>${jjwt.version}</version>
             <scope>runtime</scope>
+        </dependency>
+
+        <!-- Actuator (DEP-02): solo /actuator/health, para el healthcheck del
+             despliegue (se configura en el panel de Railway). Sin detalles
+             y sin ningun otro endpoint expuesto; ver "Configuracion de
+             produccion" en el README. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
 
         <!-- Validacion (Jakarta Bean Validation) -->
