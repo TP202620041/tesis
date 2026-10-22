@@ -129,8 +129,8 @@ railway connect postgis               # abre psql por túnel SSH (requiere psql 
    | `JWT_SECRET` | §4 |
    | `JWT_EXPIRATION_MINUTES` | `120` |
    | `CORS_ALLOWED_ORIGINS` | `$PWA` (se completa en §6; mientras tanto, `http://localhost:3000`) |
-   | `NOTIF_FROM` | `Ciudad Viva <remitente verificado en §3>` |
-   | `CORREO_TIPO` | `resend` (decisión del 21/10) |
+   | `NOTIF_FROM` | `Ciudad Viva <remitente verificado en §3>` (**obligatoria** en `prod` con cualquier tipo de correo) |
+   | `CORREO_TIPO` | `resend` (decisión del 21/10). **Obligatoria** en `prod`: sin ella, o con un valor distinto de `smtp` o `resend`, la app no arranca. |
    | `CORREO_API_KEY` | §3 |
    | `FOTOS_ALMACEN` | `s3` |
    | `FOTOS_S3_ENDPOINT` | endpoint de §2 |

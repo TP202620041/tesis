@@ -76,7 +76,7 @@ De otro módulo solo se usa su **API pública**: `service`, `domain`, `event`, `
 
 | Módulo | Responsabilidad | Entidades (OB2 §5) | Usa a | Estado |
 |---|---|---|---|---|
-| `common` | Seguridad JWT, errores, configuración web, utilitarios geo y almacenamiento de fotos (`port/FotoStorageService`, `infra/LocalFotoStorageService`, D-11). | — | — | existe |
+| `common` | Seguridad JWT, errores, configuración web, utilitarios geo, almacenamiento de fotos (`port/FotoStorageService` con `infra/LocalFotoStorageService` y `infra/S3FotoStorageService`, más `port/SaneadorDeImagen`; D-11, DEP-12) y correo saliente (`port/CorreoSaliente` con `infra/SmtpCorreoAdapter` y `infra/ResendCorreoAdapter`; DEP-08: lo usan `auth`, `soporte` y `notificaciones`). | — | — | existe |
 | `distritos` | 43 distritos y sus polígonos; resolución por coordenadas. | (geometría de MUNICIPALIDAD) | common | existe |
 | `municipalidades` | Canal oficial, periodos de gestión y requisitos de recepción. Cada municipalidad referencia a su distrito (D-09). | MUNICIPALIDAD, GESTION_MUNICIPAL, PERIODO_GESTION, REQUISITO_RECEPCION | distritos | **nuevo** |
 | `auth` | Cuentas, credenciales, perfil y consentimiento. | USUARIO, CONSENTIMIENTO | distritos, municipalidades | existe + CONSENTIMIENTO |
@@ -94,7 +94,7 @@ Grafo, sin ciclos: `common ← distritos ← municipalidades ← auth ← report
 2. **Creación.** `reportes.service` crea el reporte solo con la categoría que **confirmó** el ciudadano. `CrearReporteRequest` no tiene campos de sugerencia, y si el cliente los envía se ignoran (D-08).
 3. **Sugerencia oficial (D-08).** `reportes.listener.SugerenciaCategoriaListener` escucha `ReporteCreadoEvent` (solo reportes nuevos, no adhesiones) con `AFTER_COMMIT` + `@Async` + `REQUIRES_NEW`. Lee la foto guardada por `common.port.FotoStorageService` (D-11), llama a `clasificacion.service.ClasificacionService` y escribe `categoria_sugerida_id` y `confianza_sugerencia`, **solo si siguen nulos** (idempotente). Si la inferencia falla, los campos quedan nulos y el reporte sigue su curso: la IA nunca bloquea un reporte. Como es asíncrono, los hasta 3 s de inferencia no se suman al tiempo de respuesta de la creación.
 4. `reportes.service.ConfirmacionReporteService` evalúa la regla “reporte confirmado” (campos completos, municipalidad asignada y requisitos de `municipalidades`) y publica `event/ReporteConfirmadoEvent`.
-5. `notificaciones.listener.ReporteConfirmadoListener` crea ENVIO_CORREO (como máximo uno por reporte) y envía por `port/CorreoSaliente`, que implementa `infra/SmtpCorreoAdapter`. Los reintentos se registran en `intentos`.
+5. `notificaciones.listener.ReporteConfirmadoListener` crea ENVIO_CORREO (como máximo uno por reporte) y envía por `common/port/CorreoSaliente` (desde DEP-08 vive en `common`, porque también lo usan `auth` y `soporte`; adaptadores `common/infra/SmtpCorreoAdapter` y `common/infra/ResendCorreoAdapter`, elegidos con `CORREO_TIPO`). Los reintentos se registran en `intentos`.
 6. `desempeno.listener` refresca los KPIs. Un reporte cuenta en el periodo de su `fecha_creacion`.
 
 ### 4.4 Cómo se verifica
