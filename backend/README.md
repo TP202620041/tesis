@@ -80,7 +80,7 @@ preferible que no arranque y que el log diga qué falta.
 | `DB_URL` | sí | `jdbc:postgresql://<host>:<puerto>/<base>` de un PostgreSQL 16 que tenga PostGIS 3.4 disponible (la V1 ejecuta `CREATE EXTENSION postgis`). |
 | `DB_USERNAME`, `DB_PASSWORD` | sí | Credenciales de esa base. |
 | `CORS_ALLOWED_ORIGINS` | sí | Origen exacto de la PWA (`https://<proyecto>.vercel.app`); varios, separados por coma. |
-| `FOTOS_ALMACEN` | sí | `s3` (fotos en Cloudflare R2) o `local` (disco del contenedor). Sin ella no arranca: con el `local` de desarrollo por defecto, cada despliegue borraría las fotos sin avisar (ver [Fotos](#fotos-dos-visibilidades-dos-buckets-y-sin-exif-dep-12)). |
+| `FOTOS_ALMACEN` | sí | `s3` (fotos en Cloudflare R2) o `local` (disco del contenedor). Sin ella no arranca: con el `local` de desarrollo por defecto, cada despliegue borraría las fotos sin avisar (ver [Fotos](#fotos-dos-visibilidades-dos-buckets-y-sin-exif-dep-12)). Con otro valor tampoco: `common/config/ValidacionAlmacenDeFotos` lo rechaza antes de crear ningún bean, con un mensaje que nombra la variable y los valores admitidos (sin ella, el error era un genérico «No qualifying bean of type FotoStorageService»). |
 | `FOTOS_S3_ENDPOINT` | con `s3` | `https://<ACCOUNT_ID>.r2.cloudflarestorage.com`. |
 | `FOTOS_S3_REGION` | no (`auto`) | R2 la ignora, pero el SDK exige una. |
 | `FOTOS_S3_BUCKET_REPORTES`, `FOTOS_S3_BUCKET_PERFILES` | con `s3` | Dos buckets privados y **distintos** (no arranca si coinciden). |
@@ -1197,6 +1197,8 @@ encabezados):
 | `LocalFotoStorageServiceTest` | unitaria | Lo de antes, más que se guarda el JPEG saneado y `cargarFotoReporte` y `eliminarFotoPerfil` no salen del directorio. |
 | `FotoReporteIT`, `FotoPerfilIT` | IT (`local`) | Misma URL y visibilidad; la foto descargada ya no trae EXIF y se ve derecha; `Cache-Control`, 304 y 206; nombres raros → 404; foto inválida → 409; al reemplazar la foto de perfil, la anterior se borra. |
 | `ArranqueAlmacenDeFotosIT` | IT | Con el perfil `prod` y sin `FOTOS_ALMACEN`, la aplicación no arranca. |
+| `ValidacionAlmacenDeFotosTest` | unitaria, sin base | `local` y `s3` (sin distinguir mayúsculas) pasan; otro valor (`r2`, vacío, `s3 ` con espacio) no arranca con un mensaje que nombra `FOTOS_ALMACEN` y los valores admitidos, también con la aplicación real y antes de tocar la base. |
+| `FotoDePerfilReemplazadaListenerTest` | unitaria | El listener solo encola el borrado de la foto reemplazada; ni la cola llena ni un almacenamiento caído lanzan. |
 | `S3FotoStorageServiceIT` | IT, **solo si existe `FOTOS_S3_TEST_ENDPOINT`** | La aplicación entera con `app.storage.tipo=s3` contra un servicio S3 real: cada foto solo en su bucket, servida por la misma URL e idéntica a la del bucket, sin EXIF; la de perfil solo para su dueño; la reemplazada se borra del bucket; inexistente → 404. Sin la variable se omite y la suite local no cambia. |
 
 El emulador es **Adobe S3Mock** (Apache-2.0), no MinIO: el repositorio de
