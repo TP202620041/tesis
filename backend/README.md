@@ -259,7 +259,10 @@ Decisiones:
   nadie puede responder un ticket. Un `ApplicationRunner` corre cuando
   Tomcat ya escucha, así que `/actuator/health` puede responder un instante
   antes de que el proceso termine: el despliegue aparece caído y el motivo
-  está en el log (`Application run failed`).
+  está en el log (`Application run failed`). Medido con el jar contra la
+  base de test y `ADMIN_INICIAL_PASSWORD=corta` (2026-10-21): Tomcat abrió el
+  puerto, 0,8 s después el seeder lanzó su error y el proceso terminó con
+  código 1, sin crear la cuenta ni escribir la contraseña en el log.
 - **La contraseña viaja por una variable**, la única vía que no la deja
   escrita en el repositorio ni en el historial de la terminal. Por eso se
   borra después del primer arranque. No es una migración Flyway: el hash
