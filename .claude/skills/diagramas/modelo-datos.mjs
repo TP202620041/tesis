@@ -5,7 +5,9 @@
  * Reconstruye el esquema aplicando EN ORDEN de versión todas las migraciones
  * backend/src/main/resources/db/migration/V*.sql: CREATE TABLE, ALTER TABLE
  * (ADD/DROP/ALTER/RENAME COLUMN, ADD/DROP CONSTRAINT), REFERENCES, CREATE/DROP
- * INDEX, DROP TABLE y CREATE/DROP [MATERIALIZED] VIEW. Dibuja un erDiagram con
+ * INDEX, DROP TABLE y CREATE/DROP [MATERIALIZED] VIEW. Los bloques DO sin DDL
+ * (comprobaciones antes de corregir datos) no cambian el esquema y se saltan;
+ * uno con DDL o EXECUTE sale en los hallazgos. Dibuja un erDiagram con
  * las columnas clave (PK, FK, UNIQUE, columnas con CHECK … IN y geográficas) y,
  * aparte, las vistas materializadas con sus tablas de origen.
  *
@@ -18,6 +20,9 @@ import path from 'node:path';
 import { RAIZ, archivos, leer, ordenar, idMermaid, etiqueta, esPrincipal } from './comun.mjs';
 
 const IGNORADAS = /^(CREATE EXTENSION|INSERT|UPDATE|DELETE|COMMENT ON|GRANT|REVOKE|REFRESH|SELECT|SET|CREATE SEQUENCE|ALTER SEQUENCE|ANALYZE|VACUUM)\b/i;
+// Dentro de un bloque DO: lo que podría cambiar el esquema.
+const DDL_EN_BLOQUE = /\b(CREATE|ALTER|DROP|EXECUTE)\b/i;
+const sinLiterales = (s) => s.replace(/'(?:[^']|'')*'/g, "''");
 
 export function generar(raiz = RAIZ) {
   const dir = path.join(raiz, 'backend/src/main/resources/db/migration');
@@ -84,6 +89,13 @@ export function generar(raiz = RAIZ) {
       } else if ((m = s.match(/^DROP (MATERIALIZED )?VIEW (?:IF EXISTS )?([\w.]+)/i))) {
         const previa = vistas.get(nombreSimple(m[2]));
         if (previa) previa.eliminada = true; // si se recrea, conserva la historia de migraciones
+      } else if (/^DO\b/i.test(s)) {
+        // Bloque anónimo PL/pgSQL. Sin DDL (p. ej. la comprobación de V18
+        // antes de corregir datos) no cambia el esquema; con DDL o SQL
+        // dinámico (EXECUTE) no se sabe qué cambia, así que sale en los hallazgos.
+        if (DDL_EN_BLOQUE.test(sinLiterales(s))) {
+          hallazgos.push(`${v}: bloque DO con DDL o EXECUTE, no interpretado: \`${s.slice(0, 80)}${s.length > 80 ? '…' : ''}\`.`);
+        }
       } else if (!IGNORADAS.test(s)) {
         hallazgos.push(`${v}: sentencia no interpretada: \`${s.slice(0, 80)}${s.length > 80 ? '…' : ''}\`.`);
       }

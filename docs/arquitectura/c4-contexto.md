@@ -1,6 +1,6 @@
 # C4 · Nivel 1: contexto
 
-> Diagrama **escrito a mano** a partir de `CLAUDE.md`, `ARCHITECTURE.md` y el código (`application.yml`, `next.config.ts`, `docker-compose.yml`). `/diagramas` no lo regenera: revísalo cuando cambie un actor o un sistema externo.
+> Diagrama **escrito a mano** a partir de `CLAUDE.md`, `ARCHITECTURE.md` y el código (`application.yml`, `application-prod.yml`, `next.config.ts`, `docker-compose.yml`). `/diagramas` no lo regenera: revísalo cuando cambie un actor o un sistema externo. Los sistemas externos son los de producción; en desarrollo las fotos van al disco y el correo a Mailhog por SMTP ([c4-contenedores.md](c4-contenedores.md)).
 
 ```mermaid
 flowchart TB
@@ -10,17 +10,19 @@ flowchart TB
 
   viasegura["Ciudad Viva<br/>Crowdsourcing geoespacial de daños viales en Lima Metropolitana: asigna cada reporte a su distrito y publica un índice de desempeño"]
 
-  smtp["Servidor SMTP<br/>Correos de notificación, recuperación de contraseña y soporte"]
+  r2["Cloudflare R2<br/>Almacenamiento de objetos: fotos de reportes y de perfil, y respaldos de la base (buckets privados)"]
+  resend["Resend<br/>API de correo: notificaciones, recuperación de contraseña y respuestas de soporte"]
   push["Servicio Web Push del navegador<br/>FCM, Mozilla, WNS o Apple"]
   osm["Teselas de OpenStreetMap<br/>Mapa base"]
 
   ciudadano -->|"Reporta, consulta y califica (HTTPS)"| viasegura
   funcionario -->|"Gestiona reportes y ve su dashboard (HTTPS)"| viasegura
   admin -->|"Responde tickets (HTTPS)"| viasegura
-  viasegura -->|"Envía correos (SMTP)"| smtp
+  viasegura -->|"Guarda y lee fotos y respaldos (API S3 sobre HTTPS)"| r2
+  viasegura -->|"Envía correos (HTTPS, API de Resend)"| resend
   viasegura -->|"Envía avisos push (HTTPS + VAPID)"| push
   viasegura -->|"Pide teselas (HTTPS)"| osm
-  smtp -->|"Correo"| ciudadano
+  resend -->|"Correo"| ciudadano
   push -->|"Aviso en el dispositivo"| ciudadano
 
   classDef persona fill:#08427b,stroke:#052e56,color:#ffffff
@@ -28,7 +30,7 @@ flowchart TB
   classDef externo fill:#8a8a8a,stroke:#6b6b6b,color:#ffffff
   class ciudadano,funcionario,admin persona
   class viasegura sistema
-  class smtp,push,osm externo
+  class r2,resend,push,osm externo
 ```
 
-**Cómo leerlo.** Los tres actores usan Ciudad Viva desde el navegador; el sistema depende de tres servicios externos: un servidor SMTP para los correos, el servicio push de cada navegador para los avisos y OpenStreetMap para el mapa base. El mapa de reportes y el índice de desempeño también son públicos: cualquiera los consulta sin cuenta.
+**Cómo leerlo.** Los tres actores usan Ciudad Viva desde el navegador; el sistema depende de cuatro servicios externos: Cloudflare R2 para guardar las fotos y los respaldos de la base, Resend para enviar los correos, el servicio push de cada navegador para los avisos y OpenStreetMap para el mapa base. Nadie más que Ciudad Viva habla con R2: los buckets son privados y las fotos se sirven desde el propio sistema, con las mismas URL. El mapa de reportes y el índice de desempeño también son públicos: cualquiera los consulta sin cuenta.

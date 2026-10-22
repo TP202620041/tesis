@@ -1,6 +1,6 @@
 # C4 · Despliegue del MVP
 
-> Diagrama **escrito a mano** a partir de la propuesta `project-context/decisions/propuestas/2026-10-21-despliegue-mvp.md` (estado: abierta) y del runbook `docs/despliegue.md`. `/diagramas` no lo regenera: revísalo cuando cambie un proveedor, un servicio de Railway o la forma de servir las fotos. Las líneas y cajas punteadas son lo que todavía no existe.
+> Diagrama **escrito a mano** a partir de las propuestas aceptadas el 21/10 (`project-context/decisions/propuestas/2026-10-21-despliegue-mvp.md`, `2026-10-21-fotos-r2.md` y `2026-10-21-correo-saliente-http.md`), del runbook `docs/despliegue.md` y del código (`application-prod.yml`, `backend/Dockerfile`). `/diagramas` no lo regenera: revísalo cuando cambie un proveedor, un servicio de Railway o la forma de servir las fotos. Las líneas y cajas punteadas son lo que todavía no existe.
 
 ```mermaid
 flowchart TB
@@ -14,18 +14,18 @@ flowchart TB
   end
 
   subgraph railway["Railway · proyecto Ciudad Viva · entorno production"]
-    api["backend<br/>contenedor Spring Boot 3.4 · Java 21 (Dockerfile)<br/>perfil prod · /actuator/health · dominio *.up.railway.app"]
+    api["backend<br/>contenedor Spring Boot 3.4 · Java 21 (backend/Dockerfile)<br/>perfil prod · FOTOS_ALMACEN=s3 · CORREO_TIPO=resend<br/>health check /actuator/health · dominio *.up.railway.app"]
     db[("postgis<br/>postgis/postgis:16-3.4 + volumen<br/>solo red privada (*.railway.internal)")]
     respaldo["respaldo-bd<br/>cron diario (plantilla Postgres S3 Backups): pg_dump"]
     inferencia["inferencia (planificado, NC-03)<br/>FastAPI + ONNX en CPU"]
   end
 
   subgraph cloudflare["Cloudflare R2"]
-    fotos[("Buckets privados de fotos<br/>reportes y perfiles")]
-    copias[("Bucket privado de respaldos<br/>con regla de expiración")]
+    fotos[("Buckets privados de fotos<br/>ciudadviva-fotos-reportes y ciudadviva-fotos-perfiles")]
+    copias[("Bucket privado de respaldos<br/>ciudadviva-respaldos, expira a los 30 días")]
   end
 
-  correo["API de correo HTTP<br/>Brevo o Resend (por decidir)"]
+  correo["Resend<br/>API HTTP de correo (POST /emails)<br/>remitente de un dominio verificado"]
   push["Servicios Web Push<br/>FCM, Mozilla, WNS, Apple"]
   osm["Teselas de OpenStreetMap"]
   github["GitHub<br/>main, develop y CI (Actions)"]
@@ -36,8 +36,8 @@ flowchart TB
   dispositivo -->|"JSON/HTTPS + Bearer JWT · CORS<br/>fotos: /media/fotos/reportes/… y /api/perfiles/fotos/…"| api
   dispositivo -->|"Teselas (HTTPS, en la CSP)"| osm
   api -->|"JDBC por la red privada"| db
-  api -->|"API S3 por HTTPS (AWS SDK v2)<br/>guarda y lee; nunca expone el bucket"| fotos
-  api -->|"HTTPS + clave de API"| correo
+  api -->|"API S3 por HTTPS (AWS SDK v2)<br/>guarda, lee y borra; nunca expone el bucket"| fotos
+  api -->|"HTTPS + clave de API (después del commit)"| correo
   api -->|"HTTPS + VAPID"| push
   push -->|"Entrega el aviso al Service Worker"| dispositivo
   api -.->|"POST /v1/detecciones (red privada)"| inferencia
@@ -56,4 +56,4 @@ flowchart TB
   class inferencia planificado
 ```
 
-**Cómo leerlo.** La PWA corre en el **dispositivo** de cada persona (navegador o app instalada, con su Service Worker). Vercel solo le entrega los archivos estáticos de la app; las llamadas al API, las teselas de OpenStreetMap y los avisos push van directo entre el dispositivo y cada servicio. El dispositivo habla con el API en Railway con el JWT. El API es el único que toca la base PostGIS, que no tiene puerto público y se alcanza por la red privada de Railway, y el único que tiene credenciales de R2: los buckets son privados y el API sirve las fotos con las mismas URLs de hoy, públicas las de reporte y solo para su dueño las de perfil, así que ni el contrato ni la CSP cambian. El correo sale por la API HTTP de un proveedor (Railway Hobby bloquea el SMTP saliente). Los avisos push van del API al servicio push de cada navegador, que los entrega al Service Worker del dispositivo. Un servicio cron de Railway hace cada noche un `pg_dump` por la red privada y lo guarda en un bucket de respaldos separado. Vercel y Railway despliegan solos al fusionar en `main` (las versiones etiquetadas); la CI de GitHub corre las pruebas en cada PR. El servicio de inferencia está planificado (NC-03) y viviría en la misma red privada.
+**Cómo leerlo.** La PWA corre en el **dispositivo** de cada persona (navegador o app instalada, con su Service Worker). Vercel solo le entrega los archivos estáticos de la app; las llamadas al API, las teselas de OpenStreetMap y los avisos push van directo entre el dispositivo y cada servicio. El dispositivo habla con el API en Railway con el JWT. El API es el único que toca la base PostGIS, que no tiene puerto público y se alcanza por la red privada de Railway, y el único que tiene credenciales de R2 (`FOTOS_S3_*`): los buckets son privados y el API sirve las fotos con las mismas URLs de desarrollo, públicas las de reporte y solo para su dueño las de perfil, así que ni el contrato ni la CSP cambian. El correo sale por la API HTTP de Resend (`CORREO_API_KEY`), porque Railway Hobby bloquea el SMTP saliente; se envía después del commit, en el executor asíncrono del API. En el perfil `prod`, `FOTOS_ALMACEN` y `CORREO_TIPO` son obligatorias: sin ellas el API no arranca, para que un despliegue nunca guarde fotos en el disco efímero del contenedor ni intente un SMTP bloqueado. Railway solo consulta `/actuator/health` al desplegar, para cambiar de versión sin corte (responde `{"status":"UP"}` sin detalles), y su configuración vive en el panel, sin `railway.toml` (runbook §0). Los avisos push van del API al servicio push de cada navegador, que los entrega al Service Worker del dispositivo. Un servicio cron de Railway hace cada noche un `pg_dump` por la red privada y lo guarda en un bucket de respaldos separado. Vercel y Railway despliegan solos al fusionar en `main` (las versiones etiquetadas); la CI de GitHub corre las pruebas en cada PR. El servicio de inferencia está planificado (NC-03) y viviría en la misma red privada.
