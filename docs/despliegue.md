@@ -55,7 +55,9 @@ En los comandos, `$API` es la URL pública del API (`https://<algo>.up.railway.a
 
 ## 3. Correo
 
-Con **Brevo** (recomendado en la propuesta):
+**Decisión del usuario (21/10): Resend.** Resend exige un **dominio propio verificado**: sin él solo envía a la cuenta del dueño. Mientras no haya dominio, el despliegue puede salir con el correo limitado a las direcciones del equipo. Las instrucciones de Brevo quedan como alternativa.
+
+Con **Brevo** (alternativa):
 
 1. Senders, Domains & Dedicated IPs › Senders: agregar el remitente y verificarlo con el código que llega por correo. Con dominio propio: Domains › autenticar el dominio con los registros SPF, DKIM y DMARC que indica Brevo.
 2. **Seguridad › IPs autorizadas: desactivar el bloqueo de IP desconocidas.** Railway Hobby no tiene IP de salida fija; con el bloqueo activo, los envíos se cortan sin aviso.
@@ -128,7 +130,7 @@ railway connect postgis               # abre psql por túnel SSH (requiere psql 
    | `JWT_EXPIRATION_MINUTES` | `120` |
    | `CORS_ALLOWED_ORIGINS` | `$PWA` (se completa en §6; mientras tanto, `http://localhost:3000`) |
    | `NOTIF_FROM` | `Ciudad Viva <remitente verificado en §3>` |
-   | `CORREO_TIPO` | `brevo` (o `resend`) |
+   | `CORREO_TIPO` | `resend` (decisión del 21/10) |
    | `CORREO_API_KEY` | §3 |
    | `FOTOS_ALMACEN` | `s3` |
    | `FOTOS_S3_ENDPOINT` | endpoint de §2 |
@@ -139,6 +141,12 @@ railway connect postgis               # abre psql por túnel SSH (requiere psql 
    | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | §4 |
    | `VAPID_SUBJECT` | `mailto:<correo de contacto real del proyecto>` |
    | `JAVA_TOOL_OPTIONS` | `-Xms256m -Xmx512m -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError` |
+   | `SPRINGDOC_HABILITADO` | sin definir (Swagger apagado); `true` solo para una demo y después se quita |
+
+   **Mientras DEP-12 (fotos en R2) no esté en `main`**, las fotos van a disco. En ese caso:
+   - no se definen las variables `FOTOS_ALMACEN` ni `FOTOS_S3_*`;
+   - se monta un *volume* en `/data` y se define `FOTOS_DIR=/data/fotos`;
+   - se agrega `RAILWAY_RUN_UID=0`, porque el volumen se monta como root y la imagen corre sin privilegios (uid 10001). Esto hace correr el contenedor **como root**. Es temporal: se quita junto con el volumen cuando DEP-12 llega a producción (`backend/README.md`, «Configuración de producción»).
 
    `PORT` lo inyecta Railway. El heap de 512 MB está medido para el saneado de fotos de DEP-12 (decodificación submuestreada y como máximo 2 saneados simultáneos); si los logs muestran `OutOfMemoryError`, subir a `-Xmx768m` y avisar para revisar el límite de saneados. Los nombres definitivos de `CORREO_*` y `FOTOS_S3_*` los fijan DEP-08 y DEP-12: si cambian, se actualiza esta tabla.
 
