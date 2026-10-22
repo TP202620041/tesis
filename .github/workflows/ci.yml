@@ -45,18 +45,25 @@ jobs:
       # misma rama (base = la rama del push). En un PR usa la API.
       - uses: actions/checkout@v7
         if: github.event_name == 'push'
+      # Acción de un tercero: fijada a un SHA (Dependabot la actualiza).
       - id: filtro
         if: github.event_name != 'workflow_dispatch'
-        uses: dorny/paths-filter@v4
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         with:
           base: ${{ github.ref_name }}
+          # El workflow, sus scripts y los contadores de /verificar que usa
+          # cuentan para las dos carpetas.
           filters: |
             backend:
               - 'backend/**'
               - '.github/workflows/ci.yml'
+              - '.github/scripts/**'
+              - '.claude/skills/verificar/**'
             frontend:
               - 'frontend/**'
               - '.github/workflows/ci.yml'
+              - '.github/scripts/**'
+              - '.claude/skills/verificar/**'
 
   backend:
     name: backend
@@ -75,8 +82,11 @@ jobs:
           POSTGRES_PASSWORD: viasegura
         ports:
           - 5432:5432
+        # Por TCP (-h localhost): durante la inicialización la imagen levanta
+        # un servidor temporal solo en el socket local, que pg_isready sin -h
+        # daría por listo antes del reinicio.
         options: >-
-          --health-cmd "pg_isready -U viasegura -d viasegura_test"
+          --health-cmd "pg_isready -h localhost -U viasegura -d viasegura_test"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
@@ -84,8 +94,15 @@ jobs:
       TEST_DB_URL: jdbc:postgresql://localhost:5432/viasegura_test
       TEST_DB_USER: viasegura
       TEST_DB_PASSWORD: viasegura
+      # Mínimos de tests ejecutados (sin contar los omitidos) que exige
+      # .github/scripts/verificar-backend.mjs. Se suben al cerrar cada versión
+      # con las cifras del CHANGELOG (v0.6.0: 309 y 62). Bajarlos solo en el
+      # PR que quita tests, explicando por qué.
+      MIN_IT_FAILSAFE: 309
+      MIN_SUREFIRE: 62
     defaults:
       run:
+        shell: bash
         working-directory: backend
     steps:
       - uses: actions/checkout@v7
@@ -101,71 +118,13 @@ jobs:
         run: mvn -v
       - name: mvn clean verify
         run: mvn -B -ntp clean verify
-      # Un BUILD SUCCESS no prueba que los tests se ejecutaron (un filtro mal
-      # escrito pasa sin correr nada): se exige completed > 0 y se publican
-      # las cifras del CHANGELOG. Corre también si Maven falló.
-      - name: Conteo de tests, cobertura y ArchUnit
+      # Un BUILD SUCCESS no prueba que los tests se ejecutaron. La guarda
+      # exige el informe de cada clase *IT y *Test no abstracta, ejecutados
+      # (completed - skipped) >= mínimo y 0 errors/failures en Failsafe y
+      # Surefire; publica las cifras del CHANGELOG. Corre aunque Maven falle.
+      - name: Guarda de completitud, cobertura y ArchUnit
         if: ${{ !cancelled() }}
-        run: |
-          total=$(node ../.claude/skills/verificar/contar-archunit.mjs 2>/dev/null | awk '/TOTAL/ {print $1}') || total=
-          export ARCHUNIT_CONGELADAS="${total:-n/d}"
-          python3 - <<'PY'
-          import csv, glob, os, sys
-          import xml.etree.ElementTree as ET
-
-          errores, filas = [], []
-
-          ruta = 'target/failsafe-reports/failsafe-summary.xml'
-          if os.path.exists(ruta):
-              raiz = ET.parse(ruta).getroot()
-              fs = {k: int(raiz.findtext(k) or 0) for k in ('completed', 'errors', 'failures', 'skipped')}
-              filas.append(('Tests de integración (Failsafe `completed`)',
-                            f"**{fs['completed']}** (errors {fs['errors']}, failures {fs['failures']}, skipped {fs['skipped']})"))
-              if fs['completed'] == 0:
-                  errores.append('Failsafe completed = 0: no se ejecutó ningún IT.')
-              if fs['errors'] or fs['failures']:
-                  errores.append(f"Failsafe: {fs['errors']} errors y {fs['failures']} failures.")
-          else:
-              errores.append(f'No existe {ruta}: Failsafe no corrió.')
-
-          st = dict(tests=0, errors=0, failures=0, skipped=0)
-          informes = glob.glob('target/surefire-reports/TEST-*.xml')
-          for informe in informes:
-              suite = ET.parse(informe).getroot()
-              for k in st:
-                  st[k] += int(suite.get(k, 0))
-          filas.append(('Tests unitarios (Surefire)',
-                        f"**{st['tests']}** en {len(informes)} clases (errors {st['errors']}, failures {st['failures']})"))
-          if st['tests'] == 0:
-              errores.append('Surefire no ejecutó ningún test.')
-
-          ruta = 'target/site/jacoco/jacoco.csv'
-          if os.path.exists(ruta):
-              s = dict(LINE_MISSED=0, LINE_COVERED=0, BRANCH_MISSED=0, BRANCH_COVERED=0)
-              with open(ruta, newline='') as f:
-                  for fila in csv.DictReader(f):
-                      for k in s:
-                          s[k] += int(fila[k])
-              def pct(cub, falt):
-                  total = cub + falt
-                  return f'{100 * cub / total:.1f} % ({cub}/{total})' if total else 'n/d'
-              filas.append(('Cobertura de líneas (JaCoCo)', pct(s['LINE_COVERED'], s['LINE_MISSED'])))
-              filas.append(('Cobertura de ramas (JaCoCo)', pct(s['BRANCH_COVERED'], s['BRANCH_MISSED'])))
-          else:
-              filas.append(('Cobertura (JaCoCo)', 'sin informe'))
-
-          filas.append(('Violaciones congeladas de ArchUnit', os.environ.get('ARCHUNIT_CONGELADAS', 'n/d')))
-
-          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as out:
-              out.write('### Backend\n\n| Métrica | Valor |\n|---|---|\n')
-              out.writelines(f'| {m} | {v} |\n' for m, v in filas)
-              out.writelines(f'\n> **Error:** {e}\n' for e in errores)
-          for m, v in filas:
-              print(f'{m}: {v}')
-          for e in errores:
-              print(f'::error::{e}')
-          sys.exit(1 if errores else 0)
-          PY
+        run: node ../.github/scripts/verificar-backend.mjs
       - name: Subir informe JaCoCo
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
@@ -195,6 +154,7 @@ jobs:
       NEXT_TELEMETRY_DISABLED: '1'
     defaults:
       run:
+        shell: bash
         working-directory: frontend
     steps:
       - uses: actions/checkout@v7
@@ -228,13 +188,16 @@ jobs:
       - id: tests
         name: Tests (con la guarda de completitud)
         if: ${{ !cancelled() && steps.instalar.outcome == 'success' }}
-        run: npm test 2>&1 | tee "$RUNNER_TEMP/vitest.log"
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee "$RUNNER_TEMP/vitest.log"
       # Las reglas de capas ya corren en Lint; aquí solo se cuentan.
       - id: capas
         name: Avisos de capas (informativo)
         if: ${{ !cancelled() && steps.instalar.outcome == 'success' }}
         continue-on-error: true
         run: |
+          set -o pipefail
           npx eslint -f json -o "$RUNNER_TEMP/eslint-capas.json" . || true
           node ../.claude/skills/verificar/contar-capas.mjs "$RUNNER_TEMP/eslint-capas.json" | tee "$RUNNER_TEMP/capas.txt"
       - id: build
@@ -252,6 +215,7 @@ jobs:
           R_TESTS: ${{ steps.tests.outcome }}
           R_BUILD: ${{ steps.build.outcome }}
         run: |
+          set -o pipefail
           tests=$(sed -n 's/^Verificacion: \([0-9]*\) tests en \([0-9]*\) archivos.*/\1 tests en \2 archivos/p' "$RUNNER_TEMP/vitest.log" 2>/dev/null | tail -1) || tests=
           capas=$(awk '/TOTAL avisos de capas/ {print $1}' "$RUNNER_TEMP/capas.txt" 2>/dev/null) || capas=
           {
