@@ -217,7 +217,8 @@ rol, así que no hay uno que proteger.
 
 `auth/infra/AdministradorInicialSeeder` (un `ApplicationRunner` que corre
 después de los seeders de distritos y municipalidades) crea la cuenta en el
-primer arranque de un entorno:
+primer arranque de un entorno, y **solo si la base no tiene ningún ADMIN**.
+Los ADMIN siguientes se gestionan aparte (decisión del usuario, 22/10).
 
 1. En Railway › `backend` › Variables:
    - `ADMIN_INICIAL_EMAIL`: el correo de la persona, **sin cuenta** en la
@@ -230,8 +231,9 @@ primer arranque de un entorno:
 2. Railway redespliega. En el log: `Administrador inicial creado: <correo>`.
    Es lo único que se registra: la contraseña nunca llega al log.
 3. **Borrar las tres variables** y dejar que Railway redespliegue. Si
-   quedan, cada arranque registra que la cuenta ya es ADMIN y un aviso de
-   que `ADMIN_INICIAL_PASSWORD` sigue definida, pero nunca la vuelve a usar.
+   quedan, cada arranque registra que ya existe un ADMIN y que las variables
+   se ignoran, más un aviso de que `ADMIN_INICIAL_PASSWORD` sigue definida;
+   nunca la vuelve a usar.
 4. La persona inicia sesión en la PWA con esa contraseña y acepta los
    términos (la pantalla aparece sola: el seeder no registra consentimiento,
    D-12). Cuando el correo saliente funcione (DEP-08), conviene que la
@@ -240,20 +242,30 @@ primer arranque de un entorno:
 | Situación al arrancar | Qué hace |
 |---|---|
 | `ADMIN_INICIAL_EMAIL` ausente o en blanco | Nada (log `INFO`). Es el caso de todo arranque normal. |
-| No hay cuenta con ese correo | La crea: `ADMIN`, activa, sin distrito, con la contraseña hasheada por el `PasswordEncoder` de la aplicación. |
-| La cuenta ya es `ADMIN` | Nada. **Nunca** cambia su contraseña ni su nombre. |
-| La cuenta existe con otro rol | **No arranca** («…nunca se promueve…»). |
-| Falta la contraseña, tiene menos de 12 caracteres o más de 72 bytes, o el correo no tiene forma `usuario@dominio` | **No arranca**, sin crear nada y sin repetir el valor en el mensaje. |
+| Ya hay algún `ADMIN` (sea o no la cuenta de la variable) | Nada (log `INFO`, sin repetir el correo ni la contraseña). No valida las variables, no crea un segundo ADMIN aunque el correo sea nuevo y **nunca** cambia la contraseña ni el nombre de un ADMIN. |
+| Sin ADMIN y sin cuenta con ese correo | La crea: `ADMIN`, activa, sin distrito, con la contraseña hasheada por el `PasswordEncoder` de la aplicación. |
+| Sin ADMIN y el correo ya tiene cuenta (con otro rol, por fuerza) | **No arranca** («…nunca se promueve…»). |
+| Sin ADMIN, y falta la contraseña, tiene menos de 12 caracteres o más de 72 bytes, o el correo no tiene forma `usuario@dominio` | **No arranca**, sin crear nada y sin repetir el valor en el mensaje. |
 
 Decisiones:
 
-- **Crea, nunca promueve.** El registro no verifica la propiedad del
-  correo: cualquiera puede registrarse con un correo ajeno. Si el seeder
-  promoviera una cuenta existente, quien se registrara primero con ese
-  correo quedaría como ADMIN. Promover una cuenta ya registrada fue la
-  primera idea (propuesta de despliegue) y dependía del orden de los pasos:
-  registrar la cuenta *antes* de definir la variable. Creándola, el orden
-  deja de importar y el caso peligroso se convierte en un arranque fallido.
+- **Crea, nunca promueve** (decisión del usuario, 22/10). El registro no
+  verifica la propiedad del correo: cualquiera puede registrarse con un
+  correo ajeno. Si el seeder promoviera una cuenta existente, quien se
+  registrara primero con ese correo quedaría como ADMIN. Promover una cuenta
+  ya registrada fue la primera versión de la propuesta de despliegue y
+  dependía del orden de los pasos: registrar la cuenta *antes* de definir la
+  variable. Creándola, el orden deja de importar y el caso peligroso se
+  convierte en un arranque fallido.
+- **Solo en una base sin ADMIN** (ajuste del usuario, 22/10). El seeder es
+  para arrancar un entorno, no una vía para crear administradores: con un
+  ADMIN ya presente queda inerte. Así unas variables olvidadas en Railway no
+  crean un segundo ADMIN si alguien cambia el correo, y tampoco pueden
+  tumbar la API: si después alguien se registrara con el correo que quedó
+  en la variable, la regla «otro rol → no arranca» haría fallar cada
+  redespliegue. Por eso esa regla solo se aplica mientras no hay ningún
+  ADMIN, que es cuando protege algo. Cualquier ADMIN cuenta, también uno
+  inactivo (hoy no hay forma de desactivar cuentas).
 - **Falla el arranque en vez de avisar.** Una configuración inválida se
   descubre al desplegar, con el mensaje en el log, y no días después, cuando
   nadie puede responder un ticket. Un `ApplicationRunner` corre cuando
@@ -278,9 +290,14 @@ Decisiones:
 
 Lo prueba `AdministradorInicialSeederIT`: instancia el seeder con los
 valores de cada caso y llama a `run` (la excepción es la que recibiría
-`SpringApplication`), sin levantar un contexto por caso. Cubre los cinco
-casos de la tabla, que la contraseña de un ADMIN cambiada después no se
-pisa, y el primer inicio de sesión: entra como ADMIN, recibe 403
+`SpringApplication`), sin levantar un contexto por caso. La base de test es
+compartida y otros IT dejan cuentas ADMIN, así que cada test corre en una
+transacción que se revierte: dentro de ella, los casos «sin ADMIN» pasan los
+ADMIN existentes a CIUDADANO, y al terminar todo vuelve a como estaba. Cubre
+los cinco casos de la tabla (con un ADMIN presente: correo nuevo, contraseña
+corta, correo mal formado y correo de un ciudadano, sin crear, fallar ni
+promover nada), que la contraseña de un ADMIN cambiada después no se pisa, y
+el primer inicio de sesión: entra como ADMIN, recibe 403
 `TERMINOS_PENDIENTES` hasta aceptar los términos y luego usa una ruta de
 ADMIN.
 

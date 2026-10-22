@@ -21,19 +21,25 @@ import pe.edu.upc.viasegura.auth.repository.UsuarioRepository;
  * podria responder tickets ni administrar categorias. Este seeder lee
  * {@code app.admin-inicial.*} ({@code ADMIN_INICIAL_EMAIL},
  * {@code ADMIN_INICIAL_PASSWORD} y {@code ADMIN_INICIAL_NOMBRE}) en cada
- * arranque:</p>
+ * arranque, y solo actua en una base <b>sin ningun ADMIN</b> (decision del
+ * usuario, 22/10):</p>
  * <ul>
  *   <li><b>Sin correo</b> (ausente o en blanco): no hace nada.</li>
- *   <li><b>No existe ninguna cuenta con ese correo:</b> la crea como ADMIN
+ *   <li><b>Ya hay algun ADMIN:</b> no hace nada, sea cual sea el correo de la
+ *       variable, y no valida nada. Asi nunca cambia la contrasena de un ADMIN
+ *       (la cuenta ya es de la persona, que puede haberla cambiado), y unas
+ *       variables olvidadas no sirven para crear mas ADMIN ni para tumbar el
+ *       arranque si alguien se registra despues con ese correo. Los ADMIN
+ *       siguientes se gestionan aparte.</li>
+ *   <li><b>No hay ADMIN ni cuenta con ese correo:</b> la crea como ADMIN
  *       activo, con la contrasena hasheada por el {@link PasswordEncoder} de
  *       la aplicacion. Exige una contrasena de {@value #LONGITUD_MINIMA_PASSWORD}
- *       caracteres o mas; si no, la aplicacion no arranca.</li>
- *   <li><b>Ya es ADMIN:</b> no hace nada y <b>nunca</b> cambia su contrasena,
- *       aunque la variable traiga otra: desde el primer arranque la cuenta es
- *       de la persona, que puede haberla cambiado.</li>
- *   <li><b>Existe con otro rol:</b> la aplicacion no arranca. No la promueve:
- *       el registro no verifica la propiedad del correo, asi que cualquiera
- *       pudo registrarse antes con ese correo y quedaria como ADMIN.</li>
+ *       caracteres o mas y {@value #BYTES_MAXIMOS_PASSWORD} bytes como maximo;
+ *       si no, la aplicacion no arranca.</li>
+ *   <li><b>No hay ADMIN y el correo ya tiene cuenta</b> (con otro rol, por
+ *       fuerza): la aplicacion no arranca. No la promueve: el registro no
+ *       verifica la propiedad del correo, asi que cualquiera pudo registrarse
+ *       antes con ese correo y quedaria como ADMIN.</li>
  * </ul>
  *
  * <p>No registra el consentimiento: el ADMIN acepta los terminos vigentes en
@@ -91,16 +97,28 @@ public class AdministradorInicialSeeder implements ApplicationRunner {
             log.info("Administrador inicial omitido: ADMIN_INICIAL_EMAIL no esta definida.");
             return;
         }
+        if (usuarioRepository.existsByRol(Rol.ADMIN)) {
+            // Sin repetir el correo: no se valido y podria ser la contrasena pegada en otra variable.
+            log.info("Administrador inicial omitido: ya existe un ADMIN, asi que ADMIN_INICIAL_* se ignoran"
+                    + " (no se crea ni se modifica ninguna cuenta).");
+            if (!password.isEmpty()) {
+                log.warn("ADMIN_INICIAL_PASSWORD sigue definida y no se usa: borrela del entorno.");
+            }
+            return;
+        }
         if (email.length() > LONGITUD_MAXIMA_EMAIL || !FORMA_DE_CORREO.matcher(email).matches()) {
-            // Sin repetir el valor: podria ser la contrasena pegada en la variable equivocada.
+            // Sin repetir el valor, por la misma razon.
             throw new IllegalStateException("ADMIN_INICIAL_EMAIL no es un correo valido (forma usuario@dominio, "
                     + LONGITUD_MAXIMA_EMAIL + " caracteres como maximo).");
         }
 
         Optional<Usuario> existente = usuarioRepository.findByEmail(email);
         if (existente.isPresent()) {
-            omitirSiYaEsAdmin(existente.get());
-            return;
+            // Sin ADMIN en la base, una cuenta con ese correo tiene otro rol.
+            throw new IllegalStateException("ADMIN_INICIAL_EMAIL corresponde a una cuenta existente con rol "
+                    + existente.get().getRol() + ". El administrador inicial solo se crea, nunca se promueve: el"
+                    + " registro no verifica la propiedad del correo y cualquiera pudo registrarse antes con el."
+                    + " Use un correo sin cuenta.");
         }
 
         validarPassword();
@@ -115,19 +133,6 @@ public class AdministradorInicialSeeder implements ApplicationRunner {
                 .build());
         log.info("Administrador inicial creado: {}. Borre ADMIN_INICIAL_PASSWORD del entorno;"
                 + " la cuenta acepta los terminos en su primer inicio de sesion.", email);
-    }
-
-    private void omitirSiYaEsAdmin(Usuario usuario) {
-        if (usuario.getRol() != Rol.ADMIN) {
-            throw new IllegalStateException("ADMIN_INICIAL_EMAIL corresponde a una cuenta existente con rol "
-                    + usuario.getRol() + ". El administrador inicial solo se crea, nunca se promueve: el registro"
-                    + " no verifica la propiedad del correo y cualquiera pudo registrarse antes con el. Use un"
-                    + " correo sin cuenta, o quite ADMIN_INICIAL_EMAIL si el ADMIN ya existe.");
-        }
-        log.info("Administrador inicial omitido: {} ya es ADMIN (su contrasena no se modifica).", email);
-        if (!password.isEmpty()) {
-            log.warn("ADMIN_INICIAL_PASSWORD sigue definida y ya no se usa: borrela del entorno.");
-        }
     }
 
     private void validarPassword() {

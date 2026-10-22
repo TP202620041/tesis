@@ -85,12 +85,12 @@ app:
   legal:
     version-terminos: ${LEGAL_VERSION_TERMINOS:2026-10-v1}
   # Primer ADMIN de un entorno (DEP-04, AdministradorInicialSeeder). Sin
-  # valores por defecto: sin ADMIN_INICIAL_EMAIL no hace nada. Si no existe
-  # una cuenta con ese correo, la crea como ADMIN con ADMIN_INICIAL_PASSWORD
-  # (12 caracteres o mas) y ADMIN_INICIAL_NOMBRE (nombre completo, opcional);
-  # si ya es ADMIN no la toca; si existe con otro rol, la app no arranca.
-  # Las variables se borran despues del primer arranque (README, "Operacion
-  # en produccion").
+  # valores por defecto: sin ADMIN_INICIAL_EMAIL no hace nada, y con algun
+  # ADMIN en la base tampoco. En una base sin ADMIN crea la cuenta con
+  # ADMIN_INICIAL_PASSWORD (12 caracteres o mas) y ADMIN_INICIAL_NOMBRE
+  # (nombre completo, opcional); si el correo ya tiene cuenta, la app no
+  # arranca (nunca la promueve). Las variables se borran despues del primer
+  # arranque (README, "Operacion en produccion").
   admin-inicial:
     email: ${ADMIN_INICIAL_EMAIL:}
     password: ${ADMIN_INICIAL_PASSWORD:}

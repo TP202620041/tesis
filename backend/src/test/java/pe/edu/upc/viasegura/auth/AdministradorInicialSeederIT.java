@@ -10,9 +10,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.UUID;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -25,6 +25,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.annotation.Transactional;
 import pe.edu.upc.viasegura.auth.domain.FinalidadConsentimiento;
 import pe.edu.upc.viasegura.auth.domain.Rol;
 import pe.edu.upc.viasegura.auth.domain.Usuario;
@@ -36,8 +37,9 @@ import pe.edu.upc.viasegura.municipalidades.infra.MunicipalidadSeeder;
 import pe.edu.upc.viasegura.support.AbstractPostgisIT;
 
 /**
- * DEP-04: el primer ADMIN se crea desde variables; nunca se promueve una cuenta
- * existente ni se pisa la contrasena de un ADMIN.
+ * DEP-04: el primer ADMIN se crea desde variables, solo en una base sin ningun
+ * ADMIN; nunca se promueve una cuenta existente ni se pisa la contrasena de un
+ * ADMIN.
  *
  * <p>Cada caso instancia el seeder con sus propios valores y llama a
  * {@code run} directamente: un fallo de arranque es la excepcion que
@@ -45,9 +47,14 @@ import pe.edu.upc.viasegura.support.AbstractPostgisIT;
  * levantar un contexto por caso. El bean del contexto corre con
  * {@code app.admin-inicial.*} vacio (application-test.yml) y no hace nada.</p>
  *
- * <p>Las cuentas usan un dominio propio y se borran despues de cada test, para
- * no acumular ADMIN en la base compartida.</p>
+ * <p>La base de test es compartida y otros IT dejan cuentas ADMIN. Para el
+ * caso "base sin ADMIN" cada test corre en una transaccion que se revierte al
+ * final ({@link Transactional}): dentro de ella {@link #sinNingunAdmin()} los
+ * pasa a CIUDADANO, y al terminar todo vuelve a como estaba, incluidas las
+ * cuentas que crea el test. El inicio de sesion por MockMvc corre en el mismo
+ * hilo, asi que participa de la misma transaccion.</p>
  */
+@Transactional
 class AdministradorInicialSeederIT extends AbstractPostgisIT {
 
     private static final String DOMINIO = "@admin-inicial.test";
@@ -67,14 +74,6 @@ class AdministradorInicialSeederIT extends AbstractPostgisIT {
     @Autowired
     JdbcTemplate jdbcTemplate;
 
-    @AfterEach
-    void borrarCuentasDelTest() {
-        String patron = "%" + DOMINIO;
-        jdbcTemplate.update("DELETE FROM consentimiento WHERE usuario_id IN"
-                + " (SELECT id FROM usuario WHERE email LIKE ?)", patron);
-        jdbcTemplate.update("DELETE FROM usuario WHERE email LIKE ?", patron);
-    }
-
     private AdministradorInicialSeeder seeder(String email, String password, String nombre) {
         return new AdministradorInicialSeeder(usuarioRepository, passwordEncoder, email, password, nombre);
     }
@@ -83,24 +82,45 @@ class AdministradorInicialSeederIT extends AbstractPostgisIT {
         return "admin-" + UUID.randomUUID() + DOMINIO;
     }
 
+    /** Deja la base sin ADMIN dentro de la transaccion del test (se revierte al final). */
+    private void sinNingunAdmin() {
+        jdbcTemplate.update("UPDATE usuario SET rol = 'CIUDADANO' WHERE rol = 'ADMIN'");
+        assertThat(usuarioRepository.existsByRol(Rol.ADMIN)).isFalse();
+    }
+
+    /** Una cuenta con ese rol, como si se hubiera registrado (o asignado) antes. */
+    private Usuario cuenta(String email, Rol rol) {
+        return usuarioRepository.save(Usuario.builder()
+                .email(email)
+                .passwordHash(passwordEncoder.encode("la-de-quien-se-registro"))
+                .nombre("Quien")
+                .apellido("Se Registro")
+                .rol(rol)
+                .activo(true)
+                .build());
+    }
+
     // ------------------------------------------------------------ sin correo
 
     @ParameterizedTest
     @NullAndEmptySource
     @ValueSource(strings = "   ")
     void sinCorreo_noHaceNadaNiValidaLaContrasena(String email) {
+        sinNingunAdmin();
         long antes = usuarioRepository.count();
 
         // Una contrasena que no cumpliria el minimo: sin correo ni se mira.
         seeder(email, "corta", "Ana Admin").run(SIN_ARGUMENTOS);
 
         assertThat(usuarioRepository.count()).isEqualTo(antes);
+        assertThat(usuarioRepository.existsByRol(Rol.ADMIN)).isFalse();
     }
 
-    // ------------------------------------------------------------ crea
+    // ------------------------------------------------------------ base sin ADMIN: crea
 
     @Test
-    void cuentaInexistente_laCreaComoAdminActivo_yEnSuPrimerLoginDebeAceptarLosTerminos() throws Exception {
+    void sinAdmin_correoSinCuenta_laCreaComoAdminActivo_yEnSuPrimerLoginDebeAceptarLosTerminos() throws Exception {
+        sinNingunAdmin();
         String email = correo();
 
         // Espacios alrededor, como los deja un copiar y pegar en el panel de variables.
@@ -141,7 +161,8 @@ class AdministradorInicialSeederIT extends AbstractPostgisIT {
     }
 
     @Test
-    void sinNombre_usaAdministradorConApellidoVacio() {
+    void sinAdmin_sinNombre_usaAdministradorConApellidoVacio() {
+        sinNingunAdmin();
         String email = correo();
 
         seeder(email, PASSWORD, "  ").run(SIN_ARGUMENTOS);
@@ -151,10 +172,44 @@ class AdministradorInicialSeederIT extends AbstractPostgisIT {
         assertThat(admin.getApellido()).isEmpty();
     }
 
-    // ------------------------------------------------------------ ya es ADMIN
+    // ------------------------------------------------------------ ya hay un ADMIN: no hace nada
+
+    @ParameterizedTest
+    @CsvSource({
+            // correo nuevo y contrasena valida: aun asi no crea un segundo ADMIN
+            "nuevo@admin-inicial.test, Inicial-Segura-2026",
+            // nada se valida: ni una contrasena corta...
+            "nuevo@admin-inicial.test, corta",
+            // ...ni un correo mal formado
+            "no-es-un-correo, Inicial-Segura-2026"})
+    void yaHayUnAdmin_correoNuevo_noCreaNiValidaNada(String email, String password) {
+        cuenta(correo(), Rol.ADMIN);
+        long antes = usuarioRepository.count();
+
+        seeder(email, password, "Otro Admin").run(SIN_ARGUMENTOS);
+
+        assertThat(usuarioRepository.count()).isEqualTo(antes);
+        assertThat(usuarioRepository.findByEmail(email.strip())).isEmpty();
+    }
+
+    @Test
+    void yaHayUnAdmin_correoDeUnaCuentaConOtroRol_niFallaNiLaPromueve() {
+        // Las variables quedaron definidas y despues alguien se registro con ese
+        // correo: el siguiente arranque no debe caerse ni darle el rol.
+        cuenta(correo(), Rol.ADMIN);
+        String email = correo();
+        String hashOriginal = cuenta(email, Rol.CIUDADANO).getPasswordHash();
+
+        seeder(email, PASSWORD, null).run(SIN_ARGUMENTOS);
+
+        Usuario despues = usuarioRepository.findByEmail(email).orElseThrow();
+        assertThat(despues.getRol()).isEqualTo(Rol.CIUDADANO);
+        assertThat(despues.getPasswordHash()).isEqualTo(hashOriginal);
+    }
 
     @Test
     void yaEsAdmin_noHaceNadaYNuncaPisaLaContrasena() {
+        sinNingunAdmin();
         String email = correo();
         seeder(email, PASSWORD, "Ana Admin").run(SIN_ARGUMENTOS);
         // La persona cambia su contrasena despues del primer arranque.
@@ -175,22 +230,15 @@ class AdministradorInicialSeederIT extends AbstractPostgisIT {
         assertThat(despues.getNombre()).isEqualTo("Ana");
     }
 
-    // ------------------------------------------------------------ otro rol
+    // ------------------------------------------------------------ base sin ADMIN: falla el arranque
 
     @ParameterizedTest
     @EnumSource(value = Rol.class, names = {"CIUDADANO", "FUNCIONARIO_MUNICIPAL"})
-    void cuentaConOtroRol_fallaElArranqueSinPromoverla(Rol rol) {
+    void sinAdmin_correoDeUnaCuentaConOtroRol_fallaElArranqueSinPromoverla(Rol rol) {
+        sinNingunAdmin();
         String email = correo();
         // Alguien se registro antes con ese correo.
-        String hashOriginal = usuarioRepository.save(Usuario.builder()
-                        .email(email)
-                        .passwordHash(passwordEncoder.encode("la-de-quien-se-registro"))
-                        .nombre("Quien")
-                        .apellido("Se Registro")
-                        .rol(rol)
-                        .activo(true)
-                        .build())
-                .getPasswordHash();
+        String hashOriginal = cuenta(email, rol).getPasswordHash();
 
         assertThatThrownBy(() -> seeder(email, PASSWORD, null).run(SIN_ARGUMENTOS))
                 .isInstanceOf(IllegalStateException.class)
@@ -201,14 +249,14 @@ class AdministradorInicialSeederIT extends AbstractPostgisIT {
         Usuario despues = usuarioRepository.findByEmail(email).orElseThrow();
         assertThat(despues.getRol()).isEqualTo(rol);
         assertThat(despues.getPasswordHash()).isEqualTo(hashOriginal);
+        assertThat(usuarioRepository.existsByRol(Rol.ADMIN)).isFalse();
     }
-
-    // ------------------------------------------------------------ contrasena invalida
 
     @ParameterizedTest
     @NullAndEmptySource
     @ValueSource(strings = {"            ", "once-carac!"})
-    void contrasenaAusenteOCorta_fallaElArranqueSinCrearLaCuenta(String password) {
+    void sinAdmin_contrasenaAusenteOCorta_fallaElArranqueSinCrearLaCuenta(String password) {
+        sinNingunAdmin();
         String email = correo();
 
         assertThatThrownBy(() -> seeder(email, password, null).run(SIN_ARGUMENTOS))
@@ -221,7 +269,8 @@ class AdministradorInicialSeederIT extends AbstractPostgisIT {
     }
 
     @Test
-    void contrasenaDeMasDe72Bytes_fallaElArranqueSinCrearLaCuenta() {
+    void sinAdmin_contrasenaDeMasDe72Bytes_fallaElArranqueSinCrearLaCuenta() {
+        sinNingunAdmin();
         String email = correo();
         // 40 caracteres, pero 80 bytes en UTF-8: BCrypt ignoraria el resto.
         String larga = "ñ".repeat(40);
@@ -234,11 +283,10 @@ class AdministradorInicialSeederIT extends AbstractPostgisIT {
         assertThat(usuarioRepository.findByEmail(email)).isEmpty();
     }
 
-    // ------------------------------------------------------------ correo invalido
-
     @ParameterizedTest
     @ValueSource(strings = {"sin-arroba.admin-inicial.test", "dos@@admin-inicial.test", "con espacio" + DOMINIO})
-    void correoMalFormado_fallaElArranqueSinRepetirElValor(String email) {
+    void sinAdmin_correoMalFormado_fallaElArranqueSinRepetirElValor(String email) {
+        sinNingunAdmin();
         long antes = usuarioRepository.count();
 
         assertThatThrownBy(() -> seeder(email, PASSWORD, null).run(SIN_ARGUMENTOS))
