@@ -74,7 +74,8 @@ export function Calificar({ reporteId }: { reporteId: number }) {
               >
                 ★
               </span>
-              <span className="sr-only">{valor} estrellas</span>
+              {/* QA-1 M-1: «1 estrella», no «1 estrellas». */}
+              <span className="sr-only">{valor === 1 ? '1 estrella' : `${valor} estrellas`}</span>
             </label>
           ))}
         </div>

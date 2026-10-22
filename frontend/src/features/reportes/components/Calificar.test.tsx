@@ -27,6 +27,16 @@ describe('Calificar (US-26)', () => {
     expect(screen.getByText(/Puedes calificar la atención recibida/)).toBeInTheDocument();
   });
 
+  it('QA-1 M-1: cada opción nombra sus estrellas en singular o plural según corresponda', () => {
+    conCalificacion(null);
+    render(<Calificar reporteId={7} />);
+    expect(screen.getByRole('radio', { name: '1 estrella' })).toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: '1 estrellas' })).not.toBeInTheDocument();
+    for (const n of [2, 3, 4, 5]) {
+      expect(screen.getByRole('radio', { name: `${n} estrellas` })).toBeInTheDocument();
+    }
+  });
+
   it('QA-1 M-13: tras calificar ya no invita; muestra lo calificado', () => {
     conCalificacion({ estrellas: 4, comentario: 'Bien', createdAt: '2026-10-21T15:00:00Z' } as Calificacion);
     render(<Calificar reporteId={7} />);
