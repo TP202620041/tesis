@@ -25,8 +25,10 @@ spring:
     multipart:
       max-file-size: 10MB
       max-request-size: 12MB
-  # SMTP para notificaciones por email (US-16/US-21). Por defecto apunta a
-  # Mailhog (docker-compose, sin auth/TLS); en prod se inyecta por entorno.
+  # SMTP del adaptador `smtp` de correo (app.correo.tipo, DEP-08). Por
+  # defecto apunta a Mailhog (docker-compose, sin auth/TLS); los IT lo
+  # cambian a GreenMail. En produccion el correo sale por HTTP (`resend`) y
+  # este bloque no se usa.
   mail:
     host: ${MAIL_HOST:localhost}
     port: ${MAIL_PORT:1025}
@@ -37,8 +39,8 @@ spring:
           starttls:
             enable: ${MAIL_SMTP_STARTTLS:false}
           # Timeouts en ms (DEP-02). JavaMail espera indefinidamente por
-          # defecto: un SMTP colgado retendria el hilo (y, en la recuperacion
-          # de contrasena o el soporte, la peticion) para siempre.
+          # defecto: un SMTP colgado retendria para siempre uno de los pocos
+          # hilos del executor asincrono que envia los correos.
           connectiontimeout: 5000
           timeout: 5000
           writetimeout: 5000
@@ -55,7 +57,23 @@ app:
     fotos-url: /media/fotos
     # Endpoint autenticado de las fotos de perfil (dato personal).
     fotos-perfil-url: /api/perfiles/fotos
-  # Notificaciones al ciudadano (US-16/US-21).
+  # Correo saliente (DEP-08): puerto common/port/CorreoSaliente. Todos los
+  # correos (recuperacion de contrasena, respuesta de soporte, avisos de
+  # cambio de estado) salen por el adaptador elegido aqui:
+  #   smtp   -> SmtpCorreoAdapter, con spring.mail (Mailhog, GreenMail)
+  #   resend -> ResendCorreoAdapter, POST https://api.resend.com/emails
+  # En prod CORREO_TIPO es obligatoria (application-prod.yml).
+  correo:
+    tipo: ${CORREO_TIPO:smtp}
+    # Solo `resend`: clave de la API, SOLO por entorno y nunca en el repo.
+    # Con tipo=resend y sin clave, la aplicacion no arranca.
+    api-key: ${CORREO_API_KEY:}
+    resend:
+      # Timeouts cortos: el envio corre en el executor asincrono acotado.
+      timeout-conexion-segundos: 5
+      timeout-lectura-segundos: 5
+  # Notificaciones al ciudadano (US-16/US-21). El remitente es el de todos
+  # los correos (NOTIF_FROM); con Resend, de un dominio verificado.
   notificaciones:
     email-remitente: "${NOTIF_FROM:Ciudad Viva <no-reply@viasegura.pe>}"
     # Suscripciones Web Push (NC-07).

@@ -45,7 +45,12 @@ import pe.edu.upc.viasegura.support.AbstractPostgisIT;
  * conocido.</p>
  */
 @ActiveProfiles("prod")
-@TestPropertySource(properties = "CORS_ALLOWED_ORIGINS=https://pwa.ciudadviva.test")
+@TestPropertySource(properties = {
+        "CORS_ALLOWED_ORIGINS=https://pwa.ciudadviva.test",
+        // DEP-08: obligatorias en prod. `smtp` para que los correos sigan
+        // yendo a GreenMail y no a un proveedor real.
+        "CORREO_TIPO=smtp",
+        "NOTIF_FROM=Ciudad Viva <no-reply@ciudadviva.test>"})
 class PerfilProdIT extends AbstractPostgisIT {
 
     private static final String SECRETO_PROPIO = secretoAleatorio();
@@ -93,6 +98,10 @@ class PerfilProdIT extends AbstractPostgisIT {
         assertThat(environment.getProperty("springdoc.api-docs.enabled")).isEqualTo("false");
         assertThat(environment.getProperty("springdoc.swagger-ui.enabled")).isEqualTo("false");
         assertThat(environment.getProperty("app.cors.allowed-origins")).isEqualTo("https://pwa.ciudadviva.test");
+        // DEP-08: en prod el tipo de correo y el remitente salen del entorno, sin default.
+        assertThat(environment.getProperty("app.correo.tipo")).isEqualTo("smtp");
+        assertThat(environment.getProperty("app.notificaciones.email-remitente"))
+                .isEqualTo("Ciudad Viva <no-reply@ciudadviva.test>");
     }
 
     @Test
