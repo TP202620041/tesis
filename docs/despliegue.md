@@ -145,11 +145,17 @@ railway connect postgis               # abre psql por túnel SSH (requiere psql 
 
    **`FOTOS_ALMACEN` es obligatoria en el perfil `prod`** (DEP-12): sin ella la app no arranca, para que un despliegue nunca guarde fotos en un disco que se borra. Con R2, `s3` y las variables `FOTOS_S3_*` de la tabla. Opcional: `FOTOS_SANEADO_MAX_CONCURRENTES` (2 por defecto).
 
-   **Antes del primer despliegue con R2**, correr una vez `S3FotoStorageServiceIT` contra un **bucket R2 de prueba** (no los de producción). En la CI ese IT corre contra S3Mock, y esta es la única prueba contra R2 real de la codificación de envío (*chunked encoding*) y de los *checksums*:
+   **Antes del primer despliegue con R2**, correr una vez `S3FotoStorageServiceIT` contra **dos buckets R2 de prueba** (no los de producción). En la CI ese IT corre contra S3Mock, y esta es la única prueba contra R2 real de la codificación de envío (*chunked encoding*) y de los *checksums*. Requisitos:
+   - crear en R2 dos buckets de prueba (por ejemplo `ciudadviva-it-reportes` y `ciudadviva-it-perfiles`) y un token limitado a ellos (el token de R2 no puede crear buckets);
+   - tener levantado el PostGIS local con la base `viasegura_test` (los IT la usan), como en `backend/CLAUDE.md`.
 
    ```bash
    cd backend
-   FOTOS_S3_TEST_ENDPOINT=<endpoint R2> FOTOS_S3_TEST_ACCESS_KEY_ID=<clave de prueba> FOTOS_S3_TEST_SECRET_ACCESS_KEY=<secreto de prueba>      mvn verify -Dit.test=S3FotoStorageServiceIT   # ver backend/README.md, sección de fotos, para los nombres exactos
+   FOTOS_S3_TEST_ENDPOINT=<endpoint R2> \
+   FOTOS_S3_TEST_ACCESS_KEY_ID=<clave de prueba> FOTOS_S3_TEST_SECRET_ACCESS_KEY=<secreto de prueba> \
+   FOTOS_S3_TEST_BUCKET_REPORTES=ciudadviva-it-reportes FOTOS_S3_TEST_BUCKET_PERFILES=ciudadviva-it-perfiles \
+     mvn verify -Dit.test=S3FotoStorageServiceIT
+   # Debe terminar con 6 tests ejecutados en failsafe-summary.xml (backend/README.md, sección de fotos).
    ```
 
    **Si se despliega sin R2** (fotos en disco):
@@ -157,7 +163,7 @@ railway connect postgis               # abre psql por túnel SSH (requiere psql 
    - se monta un *volume* en `/data` y se define `FOTOS_DIR=/data/fotos`;
    - se agrega `RAILWAY_RUN_UID=0`, porque el volumen se monta como root y la imagen corre sin privilegios (uid 10001). Esto hace correr el contenedor **como root**. Es temporal: se quita junto con el volumen cuando DEP-12 llega a producción (`backend/README.md`, «Configuración de producción»).
 
-   `PORT` lo inyecta Railway. El heap de 512 MB está medido para el saneado de fotos de DEP-12 (decodificación submuestreada y como máximo 2 saneados simultáneos); si los logs muestran `OutOfMemoryError`, subir a `-Xmx768m` y avisar para revisar el límite de saneados. Los nombres definitivos de `CORREO_*` y `FOTOS_S3_*` los fijan DEP-08 y DEP-12: si cambian, se actualiza esta tabla.
+   `PORT` lo inyecta Railway. El heap de 512 MB está medido para el saneado de fotos de DEP-12 (decodificación submuestreada y como máximo 2 saneados simultáneos); si los logs muestran `OutOfMemoryError`, subir a `-Xmx768m` y avisar para revisar el límite de saneados. Los nombres de `FOTOS_S3_*` son los de DEP-12 (`backend/README.md`); los de `CORREO_*` los fija DEP-08: si cambian, se actualiza esta tabla.
 
 **Verificar** (logs del primer despliegue y luego `curl`):
 

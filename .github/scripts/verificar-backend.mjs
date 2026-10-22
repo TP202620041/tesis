@@ -8,7 +8,10 @@
  * Uso, después de `mvn clean verify` (desde cualquier carpeta):
  *   node .github/scripts/verificar-backend.mjs
  * Opcionales: MIN_IT_FAILSAFE y MIN_SUREFIRE (mínimos de tests ejecutados, sin
- * contar los omitidos) y GITHUB_STEP_SUMMARY (agrega la tabla en Markdown).
+ * contar los omitidos), CLASES_OBLIGATORIAS (nombres simples de clases de test,
+ * separados por comas, que no pueden quedar con todos sus tests omitidos: p. ej.
+ * un IT que se activa por una variable de entorno que la CI sí define) y
+ * GITHUB_STEP_SUMMARY (agrega la tabla en Markdown).
  *
  * Falla (sale con 1) si:
  *  - una clase de test no abstracta no tiene su TEST-<clase>.xml: Failsafe
@@ -17,7 +20,8 @@
  *    no confundir un ayudante como TestDatos con una clase de test);
  *  - Failsafe o Surefire tienen errors o failures;
  *  - los tests ejecutados (completed - skipped) son 0 o menos que el mínimo.
- * Una clase con todos sus tests omitidos solo genera un aviso.
+ * Una clase con todos sus tests omitidos solo genera un aviso, salvo que esté en
+ * CLASES_OBLIGATORIAS: entonces es un error.
  */
 import { appendFileSync, existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
@@ -28,6 +32,10 @@ const raiz = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.
 const backend = path.join(raiz, 'backend');
 const fuentes = path.join(backend, 'src', 'test', 'java');
 const enActions = process.env.GITHUB_ACTIONS === 'true';
+const obligatorias = new Set(
+  (process.env.CLASES_OBLIGATORIAS ?? '').split(',').map((c) => c.trim()).filter(Boolean),
+);
+const obligatoriasVistas = new Set();
 
 const errores = [];
 const avisos = [];
@@ -75,7 +83,13 @@ function revisarPlugin({ nombre, dirInformes, patron, totales, variableMinimo })
       continue;
     }
     const s = suite(informe);
-    if (s.tests - s.skipped <= 0) avisos.push(`${nombre}: ${fqcn} no ejecutó ningún test (todos omitidos o vacía).`);
+    const simple = fqcn.split('.').pop();
+    if (obligatorias.has(simple)) obligatoriasVistas.add(simple);
+    if (s.tests - s.skipped <= 0) {
+      const mensaje = `${nombre}: ${fqcn} no ejecutó ningún test (todos omitidos o vacía).`;
+      if (obligatorias.has(simple)) errores.push(`${mensaje} Está en CLASES_OBLIGATORIAS.`);
+      else avisos.push(mensaje);
+    }
   }
   if (faltantes.length) {
     errores.push(`${nombre}: ${faltantes.length} de ${esperadas.length} clases sin informe (no se ejecutaron): ${faltantes.join(', ')}`);
@@ -159,6 +173,11 @@ try {
   // Sin el script o sin almacén: se informa n/d.
 }
 filas.push(['Violaciones congeladas de ArchUnit', archunit]);
+
+// Una clase obligatoria que ni siquiera tiene informe (renombrada o borrada) también es un error.
+for (const c of obligatorias) {
+  if (!obligatoriasVistas.has(c)) errores.push(`CLASES_OBLIGATORIAS: no hay informe de ${c} en Failsafe ni en Surefire.`);
+}
 
 for (const [m, v] of filas) console.log(`${m}: ${v.replaceAll('**', '')}`);
 for (const a of avisos) console.log(enActions ? `::warning::${a}` : `AVISO: ${a}`);
