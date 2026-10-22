@@ -841,6 +841,23 @@ usan tal cual, sin importar el cliente HTTP.
   reciben del hook `useFotoDePerfil`, que libera la URL `blob:` al cambiar o
   desmontar.
 
+**Antes de subir (DEP-11).** Las dos fotos que sube el ciudadano, la del
+reporte (`CampoFoto`) y la de perfil (`CampoFotoDePerfil`), pasan al elegirlas
+por la misma regla pura, `lib/types/fotoParaSubir.ts` (en `lib/` porque la usan
+dos features): hasta 10 MB (los 10 × 1024 × 1024 bytes de
+`max-file-size`) y extensión `jpg`, `jpeg`, `png` o `webp`, lo primero que
+mira el backend, más el tipo MIME si el navegador lo declara. Antes solo la del
+reporte se validaba; la de perfil llegaba al backend y recibía 413, o, por
+encima de 32 MB, un corte de conexión que la pantalla mostraba como «Sin
+conexión con el servidor» (backend/README, DEP-11). Una foto rechazada no
+queda elegida, así que tampoco entra a la cola offline, y el motivo («La foto
+supera 10 MB.», «Formato no permitido. Usa JPG, PNG o WEBP.») se asocia al
+campo con `aria-invalid` y `aria-describedby`. Lo que solo se sabe leyendo los
+bytes (que sea de verdad una imagen, los megapíxeles) sigue siendo del
+backend: su 409 «Formato de foto no permitido…» y el 503 sin turno de
+saneado (DEP-12) llegan como `ApiError` y se muestran con el `message` del
+API, sin encolar el reporte.
+
 ### Descargas autenticadas (US-28)
 
 La exportación de la bandeja (`GET /api/reportes/exportar`) exige
