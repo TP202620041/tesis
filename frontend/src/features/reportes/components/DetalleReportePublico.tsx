@@ -18,39 +18,59 @@ import { Comentarios } from './Comentarios';
  * `volver` (QA-1 M-9) es el `?volver=` con que la lista o el popup del mapa
  * abrieron el detalle: «← Volver al mapa» regresa a esa misma vista
  * filtrada. Se valida (`rutaDeRegresoAlMapa`): solo puede llevar al mapa.
+ *
+ * `reporteId` es `null` si el id de la URL no es valido (QA-1 M-11): se dice
+ * «Reporte no disponible» sin llamar al API, que respondia 401 a
+ * `/api/reportes/NaN` y el cliente mandaba al login a quien solo abrio un
+ * enlace roto.
  */
 export function DetalleReportePublico({
   reporteId,
   puedeComentar,
   volver = null,
 }: {
-  reporteId: number;
+  reporteId: number | null;
   puedeComentar: boolean;
   volver?: string | null;
 }) {
-  const carga = useReportePublico(reporteId);
   const regreso = rutaDeRegresoAlMapa(volver);
+  if (reporteId === null) return <ReporteNoDisponible regreso={regreso} />;
+  return <DetalleCargado reporteId={reporteId} puedeComentar={puedeComentar} regreso={regreso} />;
+}
+
+function ReporteNoDisponible({ regreso }: { regreso: string }) {
+  return (
+    <main className="mx-auto flex w-full max-w-lg flex-col gap-4 px-4 py-10">
+      <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
+        Reporte no disponible
+      </h1>
+      <p className="text-slate-600 dark:text-slate-400">
+        Este reporte no existe o fue retirado por quien lo envió.
+      </p>
+      <Link href={regreso} className="self-start text-sky-700 hover:underline dark:text-sky-400">
+        Ver el mapa
+      </Link>
+    </main>
+  );
+}
+
+function DetalleCargado({
+  reporteId,
+  puedeComentar,
+  regreso,
+}: {
+  reporteId: number;
+  puedeComentar: boolean;
+  regreso: string;
+}) {
+  const carga = useReportePublico(reporteId);
 
   if (carga.estado === 'cargando') {
     return <p className="p-8 text-slate-600 dark:text-slate-400">Cargando…</p>;
   }
 
   const reporte = carga.datos;
-  if (!reporte) {
-    return (
-      <main className="mx-auto flex w-full max-w-lg flex-col gap-4 px-4 py-10">
-        <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
-          Reporte no disponible
-        </h1>
-        <p className="text-slate-600 dark:text-slate-400">
-          Este reporte no existe o fue retirado por quien lo envió.
-        </p>
-        <Link href={regreso} className="self-start text-sky-700 hover:underline dark:text-sky-400">
-          Ver el mapa
-        </Link>
-      </main>
-    );
-  }
+  if (!reporte) return <ReporteNoDisponible regreso={regreso} />;
 
   const estado = reporte.estado ?? '';
   const estilo = estiloDeEstado(estado);

@@ -907,6 +907,20 @@ Verificado end-to-end contra el backend real:
   tras completarlo, se envió con la MISMA `Idempotency-Key` (reporte #185) y
   salió de la cola.
 
+### 404 e ids inválidos (QA-1 M-11)
+
+- `app/not-found.tsx` es la 404 de toda la app, en castellano, con título
+  propio y enlaces a la portada y al mapa. La de Next estaba en inglés y sin
+  salida.
+- El id de las rutas de detalle (`/reportes/[id]`, `/mis-reportes/[id]`,
+  `/bandeja/[id]`) se valida en el cliente **antes** de llamar al API
+  (`lib/types/idDeRuta.ts`: solo enteros positivos). `/reportes/abc` pedía
+  `/api/reportes/NaN`, que no coincide con la ruta pública del backend: sin
+  sesión respondía 401 y el cliente mandaba al login a quien solo abrió un
+  enlace roto. Ahora dice «Reporte no disponible» sin preguntar nada. No se
+  usa `notFound()`: el detalle ya tiene su propio «no disponible», que es lo
+  mismo que se muestra para un id que no existe o un reporte retirado.
+
 ### `null` no es cero
 
 Las métricas de desempeño llegan en `null` cuando no hay datos: un distrito

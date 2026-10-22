@@ -10,8 +10,35 @@ import { useDetalleGestion } from '../hooks/useDetalleGestion';
 import { CambiarEstado } from './CambiarEstado';
 import { Responsable } from './Responsable';
 
-/** US-14/US-15/US-22: detalle de gestión de un reporte. */
-export function DetalleGestionReporte({ reporteId }: { reporteId: number }) {
+/**
+ * US-14/US-15/US-22: detalle de gestión de un reporte.
+ *
+ * `reporteId` es `null` si el id de la URL no es valido (QA-1 M-11): se dice
+ * «Reporte no disponible» sin pedir nada al API.
+ */
+export function DetalleGestionReporte({ reporteId }: { reporteId: number | null }) {
+  if (reporteId === null) return <ReporteNoDisponible />;
+  return <DetalleCargado reporteId={reporteId} />;
+}
+
+function ReporteNoDisponible() {
+  return (
+    <main className="mx-auto flex w-full max-w-lg flex-col gap-4 px-4 py-10">
+      <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
+        Reporte no disponible
+      </h1>
+      <p className="text-slate-600 dark:text-slate-400">
+        Este reporte no existe o no pertenece a tu distrito. Solo puedes gestionar los reportes
+        de tu propia municipalidad.
+      </p>
+      <Link href="/bandeja" className="self-start text-sky-700 hover:underline dark:text-sky-400">
+        Volver a la bandeja
+      </Link>
+    </main>
+  );
+}
+
+function DetalleCargado({ reporteId }: { reporteId: number }) {
   const carga = useDetalleGestion(reporteId);
 
   // Tras cambiar el estado se recarga mostrando "Cargando…", como antes de
@@ -22,22 +49,7 @@ export function DetalleGestionReporte({ reporteId }: { reporteId: number }) {
   }
 
   const reporte = carga.datos?.reporte ?? null;
-  if (!reporte) {
-    return (
-      <main className="mx-auto flex w-full max-w-lg flex-col gap-4 px-4 py-10">
-        <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
-          Reporte no disponible
-        </h1>
-        <p className="text-slate-600 dark:text-slate-400">
-          Este reporte no existe o no pertenece a tu distrito. Solo puedes gestionar los reportes
-          de tu propia municipalidad.
-        </p>
-        <Link href="/bandeja" className="self-start text-sky-700 hover:underline dark:text-sky-400">
-          Volver a la bandeja
-        </Link>
-      </main>
-    );
-  }
+  if (!reporte) return <ReporteNoDisponible />;
 
   const entradas = carga.datos?.entradas ?? [];
   const estilo = estiloDeEstado(reporte.estado ?? '');

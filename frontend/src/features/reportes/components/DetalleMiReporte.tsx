@@ -18,8 +18,38 @@ import { EditarReporte } from './EditarReporte';
  * retiro (US-08) y calificacion (US-26).
  *
  * `cierreDeSesion` lo pasa la pagina (es un componente de `auth`).
+ *
+ * `reporteId` es `null` si el id de la URL no es valido (QA-1 M-11): se dice
+ * «Reporte no disponible» sin pedir nada al API.
  */
 export function DetalleMiReporte({
+  reporteId,
+  cierreDeSesion,
+}: {
+  reporteId: number | null;
+  cierreDeSesion: ReactNode;
+}) {
+  if (reporteId === null) return <ReporteNoDisponible />;
+  return <DetalleCargado reporteId={reporteId} cierreDeSesion={cierreDeSesion} />;
+}
+
+function ReporteNoDisponible() {
+  return (
+    <main className="mx-auto flex w-full max-w-lg flex-col gap-4 px-4 py-10">
+      <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
+        Reporte no disponible
+      </h1>
+      <p className="text-slate-600 dark:text-slate-400">
+        Este reporte no existe o no lo enviaste tú. Aquí solo puedes ver los tuyos.
+      </p>
+      <Link href="/mis-reportes" className="self-start text-sky-700 hover:underline dark:text-sky-400">
+        Volver a mis reportes
+      </Link>
+    </main>
+  );
+}
+
+function DetalleCargado({
   reporteId,
   cierreDeSesion,
 }: {
@@ -36,21 +66,7 @@ export function DetalleMiReporte({
   }
 
   const reporte = carga.datos?.reporte ?? null;
-  if (!reporte) {
-    return (
-      <main className="mx-auto flex w-full max-w-lg flex-col gap-4 px-4 py-10">
-        <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
-          Reporte no disponible
-        </h1>
-        <p className="text-slate-600 dark:text-slate-400">
-          Este reporte no existe o no lo enviaste tú. Aquí solo puedes ver los tuyos.
-        </p>
-        <Link href="/mis-reportes" className="self-start text-sky-700 hover:underline dark:text-sky-400">
-          Volver a mis reportes
-        </Link>
-      </main>
-    );
-  }
+  if (!reporte) return <ReporteNoDisponible />;
 
   const entradas = carga.datos?.entradas ?? [];
   const estado = reporte.estado ?? '';
