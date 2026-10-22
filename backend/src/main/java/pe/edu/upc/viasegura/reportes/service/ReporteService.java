@@ -203,6 +203,26 @@ public class ReporteService {
     }
 
     /**
+     * QA-1 M-6: reportes que el ciudadano apoya sin haberlos creado (se
+     * adhirio a ellos, US-09), del apoyo mas reciente al mas antiguo, en
+     * cualquier estado.
+     *
+     * <p>Endpoint propio y no un campo {@code relacion} en mis-reportes: la
+     * relacion depende de quien consulta y {@code ReporteResumenResponse} lo
+     * comparten el mapa publico y las vistas del ciudadano (regla del
+     * proyecto). Ademas, mis-reportes es la lista sobre la que el creador
+     * edita y retira; mezclar ahi reportes ajenos invitaria a acciones que el
+     * backend rechaza con 403.</p>
+     */
+    @Transactional(readOnly = true)
+    public List<ReporteResumenResponse> misAdhesiones(String emailCiudadano) {
+        Usuario ciudadano = usuarioConsultaService.usuarioPorEmail(emailCiudadano);
+        return adhesionRepository.reportesAdheridosPor(ciudadano.getId()).stream()
+                .map(ReporteResumenResponse::from)
+                .toList();
+    }
+
+    /**
      * US-08: el creador edita categoria, titulo, descripcion y/o severidad
      * mientras el reporte sigue PENDIENTE (antes de que la municipalidad lo
      * reciba). Campos {@code null} en el request no se modifican.

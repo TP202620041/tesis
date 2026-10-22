@@ -835,6 +835,44 @@ comillas y coma), comprueba el BOM, las diez columnas en cada fila, una fila
 completa con fechas fijadas por SQL (20:28 en Lima) y, en el XLSX, el tipo
 numérico de las celdas.
 
+### Reportes que el ciudadano apoya: `GET /api/reportes/mis-adhesiones` (M-6)
+
+Al adherirse (US-09), la PWA ofrece «Ver mis reportes», pero
+`/mis-reportes` solo devuelve lo que el ciudadano **creó** (decisión de US-07)
+y el reporte apoyado no aparecía en ningún lado. Se agregó un endpoint:
+
+| Método | Ruta | Rol | Respuesta |
+|---|---|---|---|
+| GET | `/api/reportes/mis-adhesiones` | CIUDADANO | `ReporteResumenResponse[]`: reportes de otros vecinos a los que se adhirió, del apoyo más reciente al más antiguo, en cualquier estado |
+
+**Por qué un endpoint aparte y no un campo `relacion: CREADOR | ADHERIDO`
+en `mis-reportes`.** Se evaluaron las dos opciones y se eligió la más simple
+y compatible:
+
+- **La regla de los DTO.** «Lo apoyo, no lo creé» depende de quien consulta.
+  Ponerlo en `ReporteResumenResponse` lo dejaría en un DTO que comparten el
+  mapa público y el anónimo; la alternativa sería un DTO nuevo solo para
+  `mis-reportes`. Con un endpoint propio la relación la da la ruta y el DTO
+  sigue siendo el público, sin campos nuevos (y sin señales internas:
+  `SenalInternaFueraDeDtosPublicosIT` cubre también esta ruta).
+- **Compatibilidad.** `mis-reportes` no cambia. La PWA arma el detalle
+  `/mis-reportes/{id}` buscando el reporte en esa lista y ofrece editar o
+  retirar según el estado; mezclar ahí reportes ajenos mostraría acciones que
+  el backend rechaza con 403 (solo el creador edita o retira). El endpoint
+  nuevo es aditivo: la PWA lo usa cuando quiera.
+
+Incluye todos los estados, también **CANCELADO**: cancelar retira el reporte
+para todos sus afectados (US-08), y el vecino que lo apoyaba tiene que poder
+enterarse. El detalle público de un cancelado da 404, pero el adherido sí
+puede leer su línea de tiempo (`/historial`, US-22). La consulta
+(`AdhesionReporteRepository.reportesAdheridosPor`) excluye los reportes del
+propio usuario, que también tiene fila en `adhesion_reporte` como creador.
+
+**Fuera de alcance:** los avisos de cambio de estado (US-16, US-21) siguen
+yendo solo al creador (`ReporteEstadoCambiadoEvent.creadorId`); avisar
+también a los adheridos es una decisión aparte. Contrato para el frontend en
+`project-context/handoffs/2026-10-22-mis-adhesiones.md`.
+
 ## Catálogos de referencia (descubribilidad)
 
 Dos endpoints **públicos** de solo lectura que existen para que un cliente
@@ -1076,7 +1114,7 @@ municipio** (o evitar que se fije en algo).
 
 | DTO | Lleva el flag | Endpoints |
 |---|---|---|
-| `ReporteResumenResponse` | **no** | `GET /api/reportes`, `GET /api/reportes/{id}`, `GET /mis-reportes`, `GET /mis-reportes/pendientes-calificacion`, `PATCH /api/reportes/{id}`, `DELETE /api/reportes/{id}` |
+| `ReporteResumenResponse` | **no** | `GET /api/reportes`, `GET /api/reportes/{id}`, `GET /mis-reportes`, `GET /mis-reportes/pendientes-calificacion`, `GET /mis-adhesiones` (QA-1 M-6), `PATCH /api/reportes/{id}`, `DELETE /api/reportes/{id}` |
 | `ReporteGestionResponse` | sí | `GET /api/reportes/bandeja`, `PATCH /api/reportes/{id}/estado` (rol `FUNCIONARIO_MUNICIPAL`, acotados a su distrito) |
 
 `ReporteResponse` (crear o adherirse) nunca lo llevó. Se prefirió un DTO
@@ -1093,7 +1131,8 @@ el `doesNotExist` no pase sobre una lista vacía. Cubre los siete endpoints
 públicos y del ciudadano (la búsqueda por filtros y por área, que son dos
 queries), el `POST` de crear/adherirse, y que la bandeja y el cambio de estado
 **sí** lo devuelven. Con el DTO anterior fallan exactamente los siete casos
-públicos y del ciudadano.
+públicos y del ciudadano. Desde QA-1 M-6 cubre además `GET /mis-adhesiones`,
+que devuelve el mismo DTO.
 
 ### SEC-03 — El secreto JWT tenía un valor por defecto versionado
 
