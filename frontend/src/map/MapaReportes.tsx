@@ -168,6 +168,8 @@ interface Props {
   mostrarMarcadores?: boolean;
   /** Celdas de la capa de calor (US-11); vacia o ausente = capa apagada. */
   celdasCalor?: CeldaCalor[];
+  /** Enlace «Ver detalle» del popup (QA-1 M-9: lleva `?volver=` a la vista actual). */
+  hrefDelDetalle?: (reporteId: number) => string;
 }
 
 export default function MapaReportes({
@@ -177,6 +179,7 @@ export default function MapaReportes({
   alto = '100%',
   mostrarMarcadores = true,
   celdasCalor = [],
+  hrefDelDetalle = (reporteId) => `/reportes/${reporteId}`,
 }: Props) {
   // Un icono por color, no por marcador: con cientos de reportes, crear un
   // DivIcon por cada uno seria trabajo repetido para las pocas variantes
@@ -231,7 +234,7 @@ export default function MapaReportes({
             }
           >
             <Popup>
-              <PopupReporte reporte={reporte} />
+              <PopupReporte reporte={reporte} href={hrefDelDetalle(reporte.id ?? 0)} />
             </Popup>
           </Marker>
         );
@@ -247,7 +250,7 @@ export default function MapaReportes({
  * reporte: el endpoint de busqueda ya devuelve foto, titulo, categoria,
  * severidad (NC-02), fecha, estado y distrito.
  */
-function PopupReporte({ reporte }: { reporte: ReporteResumen }) {
+function PopupReporte({ reporte, href }: { reporte: ReporteResumen; href: string }) {
   const estilo = estiloDeEstado(reporte.estado ?? '');
   // Ya absoluta: la compone `reportes/api.ts` (`buscarReportes`).
   const foto = reporte.fotoUrl;
@@ -303,7 +306,7 @@ function PopupReporte({ reporte }: { reporte: ReporteResumen }) {
           comentarios de US-27) viven en su propia pagina, que ademas se
           puede enlazar y compartir. */}
       <a
-        href={`/reportes/${reporte.id}`}
+        href={href}
         style={{ display: 'inline-block', marginTop: '.5rem', fontWeight: 600 }}
       >
         Ver detalle

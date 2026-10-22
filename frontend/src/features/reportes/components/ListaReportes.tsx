@@ -15,6 +15,11 @@ interface Props {
   /** Hay una consulta en vuelo (los reportes mostrados son los anteriores). */
   cargando: boolean;
   tamanoPagina?: number;
+  /**
+   * Enlace al detalle de cada reporte. QA-1 M-9: `/mapa` lo arma con `?volver=`
+   * para que «← Volver al mapa» regrese a la misma vista filtrada.
+   */
+  hrefDelDetalle?: (reporteId: number) => string;
 }
 
 /**
@@ -31,6 +36,7 @@ export function ListaReportes({
   consultaHecha,
   cargando,
   tamanoPagina = TAMANO_PAGINA_LISTA,
+  hrefDelDetalle = hrefPorDefecto,
 }: Props) {
   const [paginaPedida, setPaginaPedida] = useState(0);
   const pagina = paginar(reportes, paginaPedida, tamanoPagina);
@@ -62,7 +68,7 @@ export function ListaReportes({
       <ul className="divide-y divide-slate-200 dark:divide-slate-700">
         {pagina.elementos.map((reporte) => (
           <li key={reporte.id}>
-            <FilaReporte reporte={reporte} />
+            <FilaReporte reporte={reporte} href={hrefDelDetalle(reporte.id ?? 0)} />
           </li>
         ))}
       </ul>
@@ -100,7 +106,11 @@ export function ListaReportes({
   );
 }
 
-function FilaReporte({ reporte }: { reporte: ReporteResumen }) {
+function hrefPorDefecto(reporteId: number): string {
+  return `/reportes/${reporteId}`;
+}
+
+function FilaReporte({ reporte, href }: { reporte: ReporteResumen; href: string }) {
   const estilo = estiloDeEstado(reporte.estado ?? '');
   const adhesiones = reporte.totalAdhesiones ?? 1;
   const fecha = reporte.createdAt
@@ -113,7 +123,7 @@ function FilaReporte({ reporte }: { reporte: ReporteResumen }) {
 
   return (
     <Link
-      href={`/reportes/${reporte.id}`}
+      href={href}
       className="flex flex-col gap-1 px-4 py-3 hover:bg-slate-50 focus-visible:bg-slate-50 dark:hover:bg-slate-800 dark:focus-visible:bg-slate-800"
     >
       <span className="flex flex-wrap items-center justify-between gap-2">

@@ -6,6 +6,7 @@ import { UbicacionDelReporte } from '@/components/UbicacionDelReporte';
 import { estiloDeEstado } from '@/lib/types/estados';
 import { textoDeSeveridad, tituloVisible } from '@/lib/types/tituloYSeveridad';
 import { useReportePublico } from '../hooks/useReportePublico';
+import { rutaDeRegresoAlMapa } from '../model/estadoDelMapa';
 import { Comentarios } from './Comentarios';
 
 /**
@@ -13,15 +14,22 @@ import { Comentarios } from './Comentarios';
  *
  * `puedeComentar` lo decide la pagina con la sesion (feature `auth`):
  * comentar exige sesion de ciudadano; el funcionario gestiona, no opina.
+ *
+ * `volver` (QA-1 M-9) es el `?volver=` con que la lista o el popup del mapa
+ * abrieron el detalle: «← Volver al mapa» regresa a esa misma vista
+ * filtrada. Se valida (`rutaDeRegresoAlMapa`): solo puede llevar al mapa.
  */
 export function DetalleReportePublico({
   reporteId,
   puedeComentar,
+  volver = null,
 }: {
   reporteId: number;
   puedeComentar: boolean;
+  volver?: string | null;
 }) {
   const carga = useReportePublico(reporteId);
+  const regreso = rutaDeRegresoAlMapa(volver);
 
   if (carga.estado === 'cargando') {
     return <p className="p-8 text-slate-600 dark:text-slate-400">Cargando…</p>;
@@ -37,7 +45,7 @@ export function DetalleReportePublico({
         <p className="text-slate-600 dark:text-slate-400">
           Este reporte no existe o fue retirado por quien lo envió.
         </p>
-        <Link href="/mapa" className="self-start text-sky-700 hover:underline dark:text-sky-400">
+        <Link href={regreso} className="self-start text-sky-700 hover:underline dark:text-sky-400">
           Ver el mapa
         </Link>
       </main>
@@ -51,7 +59,7 @@ export function DetalleReportePublico({
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 py-6">
-      <Link href="/mapa" className="text-sm text-sky-700 hover:underline dark:text-sky-400">
+      <Link href={regreso} className="text-sm text-sky-700 hover:underline dark:text-sky-400">
         ← Volver al mapa
       </Link>
 

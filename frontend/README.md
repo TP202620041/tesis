@@ -981,6 +981,29 @@ posterior a «hasta» no se consulta y el panel muestra el aviso.
 - **La lista se dibuja encima del mapa**, que sigue montado: conserva su
   encuadre (y su área sigue definiendo los resultados) al volver a la
   pestaña Mapa. Mientras la lista está visible, el mapa queda `inert`.
+- **Filtros y vista en la URL (QA-1 M-9).**
+  `/mapa?distrito=21&categoria=1&estado=RESUELTO&desde=…&hasta=…&vista=lista`
+  (`model/estadoDelMapa.ts`, `hooks/useEstadoDelMapaEnUrl.ts`). Antes eran
+  estado local: al volver del detalle (Atrás o «← Volver al mapa») la
+  pantalla reaparecía en «Todos» y en la vista Mapa, y no había forma de
+  compartir una vista filtrada. Decisiones:
+  - Se escribe con `window.history.replaceState`, que Next integra con su
+    router (`useSearchParams` se actualiza) **sin navegar**: cambiar un filtro
+    no pide nada al servidor ni vuelve a montar el mapa. `replace` y no
+    `push`, como en `/desempeno`.
+  - Una URL editada a mano no rompe: un id que no es entero positivo, un
+    estado que el mapa no muestra (incluido `CANCELADO`) o una fecha imposible
+    cuentan como «sin filtro», y un distrito o tipo que el catálogo no conoce
+    se descarta en cuanto el catálogo carga.
+  - Los filtros conservan su identidad mientras la URL no cambia (se
+    memorizan por el texto de la query): `useBusquedaMapa` depende de ella
+    para el debounce.
+  - La lista y el popup abren el detalle con `?volver=<vista del mapa>`, y
+    «← Volver al mapa» regresa ahí. El parámetro se valida con el mismo
+    filtro de redirección abierta del login (`destinoInterno`) y además debe
+    ser `/mapa`: no puede llevar a otra pantalla ni a otro sitio.
+  - No se guardan el centro ni el zoom: cambian con cada gesto y no son un
+    filtro; tampoco las capas (marcadores y calor), que son de quien mira.
 
 **Sincronización offline (US-06, implementada después):** sin conexión, el
 reporte queda en la cola de IndexedDB con su clave de idempotencia y se envía

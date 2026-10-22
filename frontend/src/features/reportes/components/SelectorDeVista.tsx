@@ -1,6 +1,9 @@
 'use client';
 
-export type VistaResultados = 'mapa' | 'lista';
+import type { VistaResultados } from '../model/estadoDelMapa';
+
+// El tipo vive en `model/` porque la vista tambien va en la URL (QA-1 M-9).
+export type { VistaResultados };
 
 const OPCIONES: { vista: VistaResultados; etiqueta: string }[] = [
   { vista: 'mapa', etiqueta: 'Mapa' },
