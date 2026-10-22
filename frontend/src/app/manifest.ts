@@ -7,7 +7,7 @@ import type { MetadataRoute } from 'next';
  * base del proyecto: el ciudadano reporta desde la calle, sin instalar una
  * app de tienda (US-01) y con soporte offline (US-06).
  *
- * Iconos (provisionales hasta la identidad visual definitiva, DEP-06): los
+ * Iconos de la identidad «Cívica» (DIS-1; estructura de DEP-06): los
  * `any` y los `maskable` van en entradas separadas. Un mismo PNG no sirve para
  * ambos: el `maskable` necesita fondo a sangre y el dibujo dentro de la zona
  * segura (Android lo recorta en circulo o gota), y usado como `any` se veria
@@ -25,8 +25,10 @@ export default function manifest(): MetadataRoute.Manifest {
     start_url: '/',
     scope: '/',
     display: 'standalone',
-    background_color: '#ffffff',
-    theme_color: '#0369a1',
+    // Tinta de la marca y el fondo claro de la app (DIS-1): la pantalla de
+    // arranque toma el fondo; la barra del sistema, la tinta.
+    background_color: '#F5F6F8',
+    theme_color: '#1F3350',
     lang: 'es-PE',
     dir: 'ltr',
     // Sin `orientation` a proposito: fijar `portrait` bloquea la rotacion de

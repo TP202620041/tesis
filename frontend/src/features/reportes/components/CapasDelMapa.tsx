@@ -46,9 +46,9 @@ export function CapasDelMapa({
   capaCalor,
 }: Props) {
   return (
-    <div className="border-t border-slate-200 pt-4 dark:border-slate-700">
+    <div className="border-t border-linea pt-4">
       <fieldset className="flex flex-col gap-2">
-        <legend className="mb-1 text-sm font-semibold text-slate-900 dark:text-slate-100">
+        <legend className="mb-1 text-sm font-semibold text-texto">
           Capas del mapa
         </legend>
         <Casilla
@@ -83,9 +83,9 @@ function Casilla({
         type="checkbox"
         checked={marcada}
         onChange={(e) => onCambiar(e.target.checked)}
-        className="size-4 accent-sky-600"
+        className="size-4 accent-primario"
       />
-      <label htmlFor={id} className="text-sm text-slate-700 dark:text-slate-200">
+      <label htmlFor={id} className="text-sm text-texto">
         {etiqueta}
       </label>
     </div>
@@ -112,21 +112,21 @@ function LeyendaCalor({ capa }: { capa: EstadoCapaCalor }) {
 
   return (
     <section aria-labelledby="leyenda-calor-titulo" className="mt-3 flex flex-col gap-1.5">
-      <h3 id="leyenda-calor-titulo" className="text-sm font-medium text-slate-700 dark:text-slate-200">
+      <h3 id="leyenda-calor-titulo" className="text-sm font-medium text-texto">
         Densidad de reportes
       </h3>
       {/* La region viva existe siempre (vacia si no hay nada que decir), para
           que el lector de pantalla anuncie el cambio cuando llegue. */}
-      <p aria-live="polite" className="text-sm text-slate-600 empty:hidden dark:text-slate-400">
+      <p aria-live="polite" className="text-sm text-texto-2 empty:hidden">
         {estado}
       </p>
       {hayTotal && (
-        <p className="text-sm text-slate-600 dark:text-slate-400">
+        <p className="text-sm text-texto-2">
           {capa.totalEnVista} {capa.totalEnVista === 1 ? 'reporte' : 'reportes'} en la vista
         </p>
       )}
       {capa.error && (
-        <p role="alert" className="text-sm text-red-700 dark:text-red-300">
+        <p role="alert" className="text-sm text-error">
           {capa.error}
         </p>
       )}
@@ -142,7 +142,7 @@ function LeyendaCalor({ capa }: { capa: EstadoCapaCalor }) {
                 <span aria-hidden="true" className="flex w-6 shrink-0 justify-center">
                   <span
                     className={`inline-block rounded-full ${
-                      nivel.nivel === 4 ? 'border border-slate-300 dark:border-slate-200' : ''
+                      nivel.nivel === 4 ? 'border border-linea-campo' : ''
                     }`}
                     style={{
                       width: nivel.radio * 2,
@@ -152,13 +152,13 @@ function LeyendaCalor({ capa }: { capa: EstadoCapaCalor }) {
                   />
                 </span>
                 <span>
-                  <span className="text-slate-900 dark:text-slate-100">{nivel.etiqueta}</span>
-                  <span className="text-slate-600 dark:text-slate-400">: {nivel.texto}</span>
+                  <span className="text-texto">{nivel.etiqueta}</span>
+                  <span className="text-texto-2">: {nivel.texto}</span>
                 </span>
               </li>
             ))}
           </ul>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
+          <p className="text-xs text-texto-2">
             Escala relativa a la zona con más reportes en la vista ({capa.maximo}), con un
             mínimo de {UMBRAL_MINIMO_ESCALA}: un reporte aislado no se muestra como densidad
             alta. Cada círculo agrupa los reportes de un área de unos{' '}

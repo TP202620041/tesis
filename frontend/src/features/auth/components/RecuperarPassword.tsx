@@ -5,9 +5,10 @@ import { useState } from 'react';
 import { AlertaError, Boton, Campo } from '@/components/ui/form';
 import { useRecuperarPassword } from '../hooks/useRecuperarPassword';
 import { PASSWORD_MAX, PASSWORD_MIN } from '../model/password';
+import { clasesDeBoton } from '@/components/ui/Boton';
 
-const ENLACE = 'font-medium text-sky-700 hover:underline dark:text-sky-400';
-const TEXTO = 'text-sm text-slate-600 dark:text-slate-400';
+const ENLACE = 'font-medium text-enlace hover:underline';
+const TEXTO = 'text-sm text-texto-2';
 
 /**
  * US-03: recuperar la contraseña en dos pasos (correo → token y contraseña
@@ -25,7 +26,7 @@ export function RecuperarPassword() {
         </p>
         <Link
           href="/login"
-          className="rounded-md bg-sky-600 px-4 py-2 text-center font-medium text-white hover:bg-sky-700"
+          className={clasesDeBoton('primario')}
         >
           Ir a iniciar sesión
         </Link>

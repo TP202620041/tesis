@@ -1,7 +1,6 @@
 'use client';
 
 import { use } from 'react';
-import { BotonCerrarSesion } from '@/features/auth/components/BotonCerrarSesion';
 import { GuardiaDeRol } from '@/features/auth/components/GuardiaDeRol';
 import { DetalleMiReporte } from '@/features/reportes/components/DetalleMiReporte';
 import { idDeRuta } from '@/lib/types/idDeRuta';
@@ -18,7 +17,7 @@ export default function MiReportePage({ params }: { params: Promise<{ id: string
   const { id } = use(params);
   return (
     <GuardiaDeRol rolesPermitidos={['CIUDADANO']}>
-      {() => <DetalleMiReporte reporteId={idDeRuta(id)} cierreDeSesion={<BotonCerrarSesion />} />}
+      {() => <DetalleMiReporte reporteId={idDeRuta(id)} />}
     </GuardiaDeRol>
   );
 }

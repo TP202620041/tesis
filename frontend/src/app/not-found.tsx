@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { clasesDeBoton } from '@/components/ui/Boton';
 
 export const metadata: Metadata = {
   title: 'Página no encontrada',
@@ -12,24 +13,23 @@ export const metadata: Metadata = {
  */
 export default function NoEncontrada() {
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-lg flex-col justify-center gap-4 px-4 py-10">
-      <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Error 404</p>
-      <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Página no encontrada</h1>
-      <p className="text-slate-600 dark:text-slate-400">
+    <main className="mx-auto flex w-full max-w-lg flex-1 flex-col justify-center gap-4 px-4 py-10">
+      <p className="text-sm font-medium text-texto-2">Error 404</p>
+      <h1 className="text-2xl font-bold text-texto">Página no encontrada</h1>
+      <p className="text-texto-2">
         La dirección que abriste no existe o cambió. Revisa que esté bien escrita o sigue desde la
         portada.
       </p>
       <nav aria-label="Salidas" className="flex flex-wrap gap-3">
         <Link
           href="/"
-          className="rounded-md bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700"
+          className={clasesDeBoton('primario')}
         >
           Ir a la portada
         </Link>
         <Link
           href="/mapa"
-          className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700
-                     dark:border-slate-600 dark:text-slate-200"
+          className={clasesDeBoton('secundario')}
         >
           Ver el mapa de reportes
         </Link>

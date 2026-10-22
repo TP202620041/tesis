@@ -1,6 +1,5 @@
 'use client';
 
-import { BotonCerrarSesion } from '@/features/auth/components/BotonCerrarSesion';
 import { GuardiaDeRol } from '@/features/auth/components/GuardiaDeRol';
 import { ROLES_AREA_MUNICIPAL } from '@/features/auth/model/rutas';
 import { BandejaMunicipal } from '@/features/gestion/components/BandejaMunicipal';
@@ -9,7 +8,7 @@ import { BandejaMunicipal } from '@/features/gestion/components/BandejaMunicipal
 export default function BandejaPage() {
   return (
     <GuardiaDeRol rolesPermitidos={ROLES_AREA_MUNICIPAL}>
-      {(usuario) => <BandejaMunicipal usuario={usuario} cierreDeSesion={<BotonCerrarSesion />} />}
+      {(usuario) => <BandejaMunicipal usuario={usuario} />}
     </GuardiaDeRol>
   );
 }

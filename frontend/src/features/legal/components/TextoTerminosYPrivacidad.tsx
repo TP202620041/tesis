@@ -18,17 +18,16 @@ import { VERSION_TERMINOS } from '@/features/auth/model/terminos';
  */
 export function TextoTerminosYPrivacidad({ conTitulo = true }: { conTitulo?: boolean }) {
   return (
-    <article className="flex flex-col gap-4 text-sm leading-relaxed text-slate-700 dark:text-slate-300">
+    <article className="flex flex-col gap-4 text-sm leading-relaxed text-texto">
       {conTitulo && (
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+        <h1 className="text-2xl font-bold text-texto">
           Términos de uso y política de privacidad de Ciudad Viva
         </h1>
       )}
 
       <p
         role="note"
-        className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-amber-900
-                   dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100"
+        className="rounded-control border border-aviso-borde bg-aviso-fondo px-3 py-2 text-aviso-texto"
       >
         <strong>Borrador pendiente de revisión</strong> (versión{' '}
         <code className="font-mono">{VERSION_TERMINOS}</code>, 19/10/2026). Este texto todavía no
@@ -55,7 +54,7 @@ export function TextoTerminosYPrivacidad({ conTitulo = true }: { conTitulo?: boo
         <div className="overflow-x-auto">
           <table className="w-full min-w-[32rem] border-collapse text-left">
             <thead>
-              <tr className="border-b border-slate-300 dark:border-slate-600">
+              <tr className="border-b border-linea-campo">
                 <th className="py-1.5 pr-3 font-semibold">Dato</th>
                 <th className="py-1.5 pr-3 font-semibold">Cuándo lo recogemos</th>
                 <th className="py-1.5 font-semibold">Para qué</th>
@@ -63,7 +62,7 @@ export function TextoTerminosYPrivacidad({ conTitulo = true }: { conTitulo?: boo
             </thead>
             <tbody>
               {DATOS_TRATADOS.map(([dato, cuando, paraQue]) => (
-                <tr key={dato} className="border-b border-slate-200 align-top dark:border-slate-700">
+                <tr key={dato} className="border-b border-linea align-top">
                   <td className="py-1.5 pr-3">{dato}</td>
                   <td className="py-1.5 pr-3">{cuando}</td>
                   <td className="py-1.5">{paraQue}</td>
@@ -245,7 +244,7 @@ export function TextoTerminosYPrivacidad({ conTitulo = true }: { conTitulo?: boo
         </p>
       </Seccion>
 
-      <p className="border-t border-slate-200 pt-3 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
+      <p className="border-t border-linea pt-3 text-xs text-texto-2">
         Versión: <code className="font-mono">{VERSION_TERMINOS}</code> (borrador).
       </p>
     </article>
@@ -295,7 +294,7 @@ const DATOS_TRATADOS: ReadonlyArray<readonly [string, string, string]> = [
 function Seccion({ titulo, children }: { titulo: string; children: ReactNode }) {
   return (
     <section className="flex flex-col gap-2">
-      <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">{titulo}</h2>
+      <h2 className="text-base font-semibold text-texto">{titulo}</h2>
       {children}
     </section>
   );
@@ -304,7 +303,7 @@ function Seccion({ titulo, children }: { titulo: string; children: ReactNode }) 
 /** Lo que el borrador deja por definir, visible como tal. */
 function Completar({ children }: { children: ReactNode }) {
   return (
-    <mark className="rounded bg-amber-100 px-1 text-amber-900 dark:bg-amber-900 dark:text-amber-100">
+    <mark className="border border-aviso-borde rounded bg-aviso-fondo px-1 text-aviso-texto">
       [COMPLETAR: {children}]
     </mark>
   );

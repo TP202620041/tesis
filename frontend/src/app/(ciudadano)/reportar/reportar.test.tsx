@@ -11,9 +11,6 @@ vi.mock('next/link', () => ({
   default: ({ href, children }: { href: string; children: ReactNode }) => <a href={href}>{children}</a>,
 }));
 vi.mock('@/features/auth/hooks/useSesion', () => ({ useSesion: vi.fn() }));
-vi.mock('@/features/auth/components/BotonCerrarSesion', () => ({
-  BotonCerrarSesion: () => <button type="button">Cerrar sesión</button>,
-}));
 vi.mock('@/features/reportes/components/NuevoReporte', () => ({
   NuevoReporte: ({ usuarioId }: { usuarioId: number }) => <p>Formulario del usuario {usuarioId}</p>,
 }));
@@ -43,14 +40,13 @@ describe('/reportar (QA-1 M-10)', () => {
     expect(screen.getByText('Formulario del usuario 7')).toBeInTheDocument();
   });
 
-  it('QA-1 E-3: tiene salida a «Mis reportes» y al mapa, no solo «Cerrar sesión»', () => {
+  it('DIS-1: no arma su propia barra; las salidas y «Cerrar sesión» son del marco común', () => {
+    // QA-1 E-3 (salida a «Mis reportes» y al mapa) lo cubre ahora la
+    // navegación del ciudadano: `features/auth/model/navegacion.test.ts`.
     comoRol('CIUDADANO');
     render(<ReportarPage />);
-    const nav = screen.getByRole('navigation', { name: 'Secciones' });
-    expect(nav).toContainElement(screen.getByRole('link', { name: 'Mis reportes' }));
-    expect(screen.getByRole('link', { name: 'Mis reportes' })).toHaveAttribute('href', '/mis-reportes');
-    expect(screen.getByRole('link', { name: 'Ver el mapa' })).toHaveAttribute('href', '/mapa');
-    expect(screen.getByRole('button', { name: 'Cerrar sesión' })).toBeInTheDocument();
+    expect(screen.queryByRole('navigation')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Cerrar sesión' })).toBeNull();
   });
 
   it.each(['FUNCIONARIO_MUNICIPAL', 'ADMIN'] as const)(

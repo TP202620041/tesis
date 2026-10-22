@@ -23,7 +23,7 @@ export function CambiarEstado({
 
   if (esTerminal(actual)) {
     return (
-      <p className="rounded-md border border-slate-200 p-3 text-sm text-slate-600 dark:border-slate-700 dark:text-slate-400">
+      <p className="rounded-control border border-linea p-3 text-sm text-texto-2">
         Este reporte está en <strong>{estiloDeEstado(actual).etiqueta}</strong>, un estado final:
         ya no admite más cambios.
       </p>
@@ -46,18 +46,18 @@ export function CambiarEstado({
 
   return (
     <form onSubmit={enviar} className="flex flex-col gap-3" noValidate>
-      <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Cambiar estado</h2>
+      <h2 className="text-sm font-semibold text-texto">Cambiar estado</h2>
       {error && <AlertaError mensaje={error.mensaje} detalles={error.detalles} />}
 
       <div className="flex flex-col gap-1.5">
-        <label htmlFor="destino" className="text-sm text-slate-700 dark:text-slate-200">
+        <label htmlFor="destino" className="text-sm text-texto">
           Nuevo estado
         </label>
         <select
           id="destino"
           value={destino}
           onChange={(e) => setDestino(e.target.value)}
-          className="rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+          className="min-h-objetivo bg-superficie text-texto rounded-control border border-linea-campo px-3 py-2 text-sm"
         >
           <option value="">Selecciona…</option>
           {opciones.map((estado) => (
@@ -69,9 +69,9 @@ export function CambiarEstado({
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <label htmlFor="comentario" className="text-sm text-slate-700 dark:text-slate-200">
+        <label htmlFor="comentario" className="text-sm text-texto">
           Comentario{' '}
-          <span className="font-normal text-slate-500">
+          <span className="font-normal text-texto-2">
             {comentarioRequerido ? '(obligatorio para rechazar)' : '(opcional)'}
           </span>
         </label>
@@ -88,7 +88,7 @@ export function CambiarEstado({
               ? 'Explica por qué se rechaza este reporte…'
               : 'Notas para el ciudadano…'
           }
-          className="rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+          className="bg-superficie text-texto rounded-control border border-linea-campo px-3 py-2 text-sm"
         />
       </div>
 

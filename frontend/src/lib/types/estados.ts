@@ -1,51 +1,100 @@
 import type { EstadoReporte } from '@/lib/types/domain';
 
 /**
- * Representacion visual de cada estado en el mapa (US-10, escenario 1:
- * "leyenda de colores por estado").
+ * Representacion visual de cada estado (US-10, escenario 1: "leyenda de
+ * colores por estado"), segun la capa semantica del sistema de diseno
+ * (DIS-1; docs/diseno/2026-10-21-propuesta.md, §4).
  *
- * Los colores no son decorativos: son el unico canal que distingue un
- * marcador de otro, asi que se eligieron con contraste suficiente entre si
- * y sobre el mapa base. La leyenda ademas nombra cada estado en texto, de
- * modo que la informacion no dependa solo del color (accesibilidad, US-23).
+ * Cada estado se distingue por TRES canales: color, icono y nombre. Asi la
+ * informacion nunca depende solo del color (WCAG 1.4.1, US-23): con
+ * deuteranopia el rojo, el naranja y el ambar de antes se confundian.
+ * Recibido pasa de naranja a azul; En proceso usa el ambar de las obras en la
+ * via, con glifo oscuro. El color de la marca (tinta) nunca es un estado.
  */
 export interface EstiloEstado {
   etiqueta: string;
-  /** Color del marcador. */
+  /** Color del marcador en el mapa (igual en los tres temas). */
   color: string;
+  /** Color del glifo o texto que va ENCIMA del marcador (4.5:1 o mas). */
+  glifo: string;
+  /**
+   * Nombre del estado en los tokens de `globals.css` (`--cv-<clave>`,
+   * `--cv-<clave>-fondo`, `--cv-<clave>-texto`): el chip toma de ahi su
+   * fondo y su texto, que si cambian con el tema.
+   */
+  clave: ClaveEstado;
+  /** Icono (Lucide) del estado; el componente lo traduce a su glifo. */
+  icono: IconoEstado;
   /** Descripcion de lo que significa, para la leyenda. */
   descripcion: string;
 }
 
+export type ClaveEstado =
+  | 'pendiente'
+  | 'recibido'
+  | 'en-proceso'
+  | 'resuelto'
+  | 'rechazado'
+  | 'cancelado';
+
+/**
+ * Icono de cada estado, por nombre y sin depender de React aqui (dominio
+ * puro): `components/ui/ChipEstado.tsx` lo traduce al icono de Lucide
+ * (reloj = `clock`, bandeja = `inbox`, llave = `wrench`, visto = `check`,
+ * equis = `x`, menos = `minus`).
+ */
+export type IconoEstado = 'reloj' | 'bandeja' | 'llave' | 'visto' | 'equis' | 'menos';
+
+const GLIFO_CLARO = '#ffffff';
+const GLIFO_OSCURO = '#1a1a1a';
+
 const ESTILOS: Record<EstadoReporte, EstiloEstado> = {
   PENDIENTE: {
     etiqueta: 'Pendiente',
-    color: '#dc2626',
+    color: '#c8231b',
+    glifo: GLIFO_CLARO,
+    clave: 'pendiente',
+    icono: 'reloj',
     descripcion: 'Reportado, la municipalidad aún no lo recibe',
   },
   RECIBIDO: {
     etiqueta: 'Recibido',
-    color: '#ea580c',
+    color: '#2e6be6',
+    glifo: GLIFO_CLARO,
+    clave: 'recibido',
+    icono: 'bandeja',
     descripcion: 'La municipalidad lo registró',
   },
   EN_PROCESO: {
     etiqueta: 'En proceso',
-    color: '#ca8a04',
+    color: '#f0a800',
+    glifo: GLIFO_OSCURO,
+    clave: 'en-proceso',
+    icono: 'llave',
     descripcion: 'Hay trabajo en curso',
   },
   RESUELTO: {
     etiqueta: 'Resuelto',
-    color: '#16a34a',
+    color: '#126b3f',
+    glifo: GLIFO_CLARO,
+    clave: 'resuelto',
+    icono: 'visto',
     descripcion: 'El daño fue reparado',
   },
   RECHAZADO: {
     etiqueta: 'Rechazado',
-    color: '#64748b',
+    color: '#4b5563',
+    glifo: GLIFO_CLARO,
+    clave: 'rechazado',
+    icono: 'equis',
     descripcion: 'La municipalidad desestimó el reporte',
   },
   CANCELADO: {
     etiqueta: 'Cancelado',
-    color: '#94a3b8',
+    color: '#7d8794',
+    glifo: GLIFO_CLARO,
+    clave: 'cancelado',
+    icono: 'menos',
     descripcion: 'El ciudadano retiró su reporte',
   },
 };
@@ -83,7 +132,10 @@ export const ESTADOS_EN_BANDEJA: readonly EstadoReporte[] = [
 
 const ESTILO_DESCONOCIDO: EstiloEstado = {
   etiqueta: 'Desconocido',
-  color: '#94a3b8',
+  color: '#7d8794',
+  glifo: GLIFO_CLARO,
+  clave: 'cancelado',
+  icono: 'menos',
   descripcion: 'Estado no reconocido',
 };
 

@@ -36,7 +36,7 @@ export function ResponderTicket({
       <div className="flex flex-col gap-1.5">
         <label
           htmlFor={`${idBase}-respuesta`}
-          className="text-sm font-medium text-slate-700 dark:text-slate-200"
+          className="text-sm font-medium text-texto"
         >
           Respuesta
         </label>
@@ -47,16 +47,15 @@ export function ResponderTicket({
           rows={3}
           required
           onChange={(e) => setRespuesta(e.target.value)}
-          className="rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 outline-none
-                     focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30
-                     dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+          className="rounded-control border border-linea-campo bg-superficie px-3 py-2 text-texto
+                     focus:border-primario"
         />
       </div>
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1.5">
           <label
             htmlFor={`${idBase}-estado`}
-            className="text-sm font-medium text-slate-700 dark:text-slate-200"
+            className="text-sm font-medium text-texto"
           >
             Estado
           </label>
@@ -66,8 +65,7 @@ export function ResponderTicket({
             onChange={(e) => {
               if (esEstadoTicket(e.target.value)) setEstado(e.target.value);
             }}
-            className="rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900
-                       dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+            className="min-h-objetivo rounded-control border border-linea-campo bg-superficie px-3 py-2 text-texto"
           >
             {ESTADOS_TICKET.map((e) => (
               <option key={e} value={e}>

@@ -14,7 +14,7 @@ export default function DesempenoPage() {
   return (
     // La comparacion (US-19) lee `?comparar=…&categoria=…` con
     // `useSearchParams`, que exige un limite de Suspense.
-    <Suspense fallback={<p className="p-8 text-slate-600 dark:text-slate-400">Cargando…</p>}>
+    <Suspense fallback={<p className="p-8 text-texto-2">Cargando…</p>}>
       <IndiceDesempeno />
     </Suspense>
   );

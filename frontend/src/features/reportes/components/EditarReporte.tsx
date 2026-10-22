@@ -8,6 +8,7 @@ import { etiquetaDeOpcion } from '../model/edicion';
 import { errorDelTitulo } from '../model/titulo';
 import type { ReporteResumen } from '../model/tipos';
 import { CampoSeveridad, CampoTitulo } from './CamposTituloYSeveridad';
+import { clasesDeBoton } from '@/components/ui/Boton';
 
 /**
  * US-08: el creador edita o retira su reporte mientras sigue PENDIENTE.
@@ -51,7 +52,7 @@ export function EditarReporte({
   return (
     <div className="flex flex-col gap-4">
       <form onSubmit={guardar} className="flex flex-col gap-3" noValidate>
-        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+        <h2 className="text-sm font-semibold text-texto">
           Editar mi reporte
         </h2>
         {error && <AlertaError mensaje={error.mensaje} detalles={error.detalles} />}
@@ -61,14 +62,14 @@ export function EditarReporte({
         <CampoSeveridad nombre="severidad-edit" valor={severidad} onCambiar={setSeveridad} />
 
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="cat-edit" className="text-sm text-slate-700 dark:text-slate-200">
+          <label htmlFor="cat-edit" className="text-sm text-texto">
             Tipo de daño
           </label>
           <select
             id="cat-edit"
             value={categoriaId ?? ''}
             onChange={(e) => setCategoriaId(e.target.value ? Number(e.target.value) : null)}
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+            className="min-h-objetivo bg-superficie text-texto rounded-control border border-linea-campo px-3 py-2 text-sm"
           >
             {opciones.map((o) => (
               <option key={o.id} value={o.id}>
@@ -79,7 +80,7 @@ export function EditarReporte({
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="desc-edit" className="text-sm text-slate-700 dark:text-slate-200">
+          <label htmlFor="desc-edit" className="text-sm text-texto">
             Descripción
           </label>
           <textarea
@@ -88,20 +89,20 @@ export function EditarReporte({
             maxLength={500}
             value={descripcion}
             onChange={(e) => setDescripcion(e.target.value)}
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+            className="bg-superficie text-texto rounded-control border border-linea-campo px-3 py-2 text-sm"
           />
         </div>
 
         <Boton cargando={enviando}>Guardar cambios</Boton>
       </form>
 
-      <div className="border-t border-slate-200 pt-3 dark:border-slate-700">
+      <div className="border-t border-linea pt-3">
         {confirmandoRetiro ? (
           <div className="flex flex-col gap-2">
             {/* La advertencia sobre los adheridos es importante: retirar
                 cancela el reporte para TODOS los vecinos que lo respaldaron,
                 no solo desvincula a quien lo creo (decision de US-08). */}
-            <p className="text-sm text-slate-700 dark:text-slate-300">
+            <p className="text-sm text-texto">
               ¿Seguro que quieres retirar este reporte?
               {(reporte.totalAdhesiones ?? 1) > 1 && (
                 <>
@@ -117,14 +118,14 @@ export function EditarReporte({
                 type="button"
                 onClick={() => void retirar()}
                 disabled={enviando}
-                className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60"
+                className={clasesDeBoton('peligro', 'compacto')}
               >
                 Sí, retirar
               </button>
               <button
                 type="button"
                 onClick={() => setConfirmandoRetiro(false)}
-                className="rounded-md border border-slate-300 px-3 py-1.5 text-sm dark:border-slate-600 dark:text-slate-200"
+                className={clasesDeBoton('secundario', 'compacto')}
               >
                 No
               </button>
@@ -134,7 +135,7 @@ export function EditarReporte({
           <button
             type="button"
             onClick={() => setConfirmandoRetiro(true)}
-            className="text-sm font-medium text-red-700 hover:underline dark:text-red-400"
+            className="text-sm font-medium text-error hover:underline"
           >
             Retirar este reporte
           </button>

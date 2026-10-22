@@ -68,7 +68,7 @@ export function FormularioRegistro({ textoLegal }: { textoLegal: ReactNode }) {
       {terminosDesactualizados && (
         <p
           role="status"
-          className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-100"
+          className="border border-aviso-borde rounded-control bg-aviso-fondo px-3 py-2 text-sm text-aviso-texto"
         >
           Los términos cambiaron y no se creó la cuenta. La aplicación se está actualizando;
           vuelve a intentarlo en unos minutos y lee el texto nuevo antes de aceptar.{' '}
@@ -121,7 +121,7 @@ export function FormularioRegistro({ textoLegal }: { textoLegal: ReactNode }) {
       />
 
       <div className="flex flex-col gap-1">
-        <label className="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-200">
+        <label className="flex items-start gap-2 text-sm text-texto">
           <input
             id="acepta-terminos"
             type="checkbox"
@@ -141,14 +141,14 @@ export function FormularioRegistro({ textoLegal }: { textoLegal: ReactNode }) {
               href={RUTA_PRIVACIDAD}
               titulo={TITULO_TERMINOS}
               contenido={textoLegal}
-              className="font-medium text-sky-700 hover:underline dark:text-sky-400"
+              className="font-medium text-enlace hover:underline"
             >
               términos de uso y la política de privacidad
             </EnlaceConDialogo>
           </span>
         </label>
         {faltaAceptar && !acepta && (
-          <p id="acepta-terminos-error" role="alert" className="text-sm text-red-600 dark:text-red-400">
+          <p id="acepta-terminos-error" role="alert" className="text-sm text-error">
             Para crear la cuenta debes aceptar los términos de uso y la política de privacidad.
           </p>
         )}

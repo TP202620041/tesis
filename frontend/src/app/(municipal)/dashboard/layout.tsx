@@ -7,7 +7,7 @@ import type { Metadata } from 'next';
  * solo se exporta desde un componente de servidor.
  */
 export const metadata: Metadata = {
-  title: 'Dashboard del distrito',
+  title: 'Panel del distrito',
 };
 
 export default function Layout({ children }: { children: ReactNode }) {

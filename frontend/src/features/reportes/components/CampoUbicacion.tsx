@@ -6,6 +6,7 @@ import { useDistritoDeUbicacion } from '../hooks/useDistritoDeUbicacion';
 import { useGeolocalizacion } from '../hooks/useGeolocalizacion';
 import type { Coordenadas } from '@/map/MapaSelectorUbicacion';
 import type { Distrito } from '@/lib/types/domain';
+import { clasesDeBoton } from '@/components/ui/Boton';
 
 /**
  * Leaflet toca el DOM al construirse, asi que el mapa no puede renderizarse
@@ -14,7 +15,7 @@ import type { Distrito } from '@/lib/types/domain';
 const MapaSelectorUbicacion = dynamic(() => import('@/map/MapaSelectorUbicacion'), {
   ssr: false,
   loading: () => (
-    <div className="h-80 w-full animate-pulse rounded-md bg-slate-200 dark:bg-slate-700" />
+    <div className="h-80 w-full animate-pulse rounded-control bg-superficie-2" />
   ),
 });
 
@@ -59,30 +60,28 @@ export function CampoUbicacion({ valor, onCambiar }: Props) {
 
   return (
     <div className="flex flex-col gap-3">
-      <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Ubicación</span>
+      <span className="text-sm font-medium text-texto">Ubicación</span>
 
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
           onClick={() => void usarGps()}
           disabled={geo.estado === 'localizando'}
-          className="rounded-md bg-sky-600 px-3 py-1.5 text-sm font-medium text-white
-                     transition hover:bg-sky-700 disabled:opacity-60"
+          className={clasesDeBoton('primario', 'compacto')}
         >
           {geo.estado === 'localizando' ? 'Buscando tu ubicación…' : 'Usar mi ubicación (GPS)'}
         </button>
         <button
           type="button"
           onClick={() => setMostrarMapa((v) => !v)}
-          className="rounded-md border border-slate-300 px-3 py-1.5 text-sm
-                     dark:border-slate-600 dark:text-slate-200"
+          className={clasesDeBoton('secundario', 'compacto')}
         >
           {mostrarMapa ? 'Ocultar mapa' : 'Marcar en el mapa'}
         </button>
       </div>
 
       {geo.estado === 'fallida' && (
-        <p role="status" className="text-sm text-amber-700 dark:text-amber-400">
+        <p role="status" className="text-sm text-aviso-texto">
           {geo.motivo}
         </p>
       )}
@@ -93,33 +92,33 @@ export function CampoUbicacion({ valor, onCambiar }: Props) {
             valor={valor?.coordenadas ?? null}
             onSeleccionar={(c) => void aplicar(c, true)}
           />
-          <p className="text-xs text-slate-500 dark:text-slate-400">
+          <p className="text-xs text-texto-2">
             Toca el mapa para marcar dónde está el daño.
           </p>
         </div>
       )}
 
       {valor && (
-        <div className="rounded-md border border-slate-200 bg-white p-3 text-sm dark:border-slate-700 dark:bg-slate-800">
-          <p className="text-slate-700 dark:text-slate-200">
+        <div className="rounded-control border border-linea bg-superficie p-3 text-sm">
+          <p className="text-texto">
             {valor.coordenadas.latitud.toFixed(5)}, {valor.coordenadas.longitud.toFixed(5)}
             {valor.manual ? ' · marcada en el mapa' : ' · obtenida por GPS'}
             {geo.estado === 'obtenida' && !valor.manual && ` · ±${geo.precisionMetros} m`}
           </p>
 
           {resolviendo ? (
-            <p className="mt-1 text-slate-500">Verificando distrito…</p>
+            <p className="mt-1 text-texto-2">Verificando distrito…</p>
           ) : valor.distrito ? (
             // Hace visible la restriccion clave del proyecto: la asignacion es
             // automatica y el ciudadano no elige municipalidad.
-            <p className="mt-1 text-slate-600 dark:text-slate-300">
+            <p className="mt-1 text-texto-2">
               Se enviará a la{' '}
-              <strong className="text-slate-900 dark:text-slate-100">
+              <strong className="text-texto">
                 Municipalidad de {valor.distrito.nombre}
               </strong>
             </p>
           ) : (
-            <p role="alert" className="mt-1 text-red-600 dark:text-red-400">
+            <p role="alert" className="mt-1 text-error">
               Esta ubicación está fuera de Lima Metropolitana. Elige un punto dentro de la
               cobertura.
             </p>

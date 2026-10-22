@@ -54,9 +54,19 @@ export interface EstiloNivelCalor {
   etiqueta: string;
   /**
    * Rampa secuencial de violetas, de claro a oscuro: la luminosidad sola ya
-   * ordena los niveles (se lee en escala de grises) y no se confunde con los
-   * colores de estado de los marcadores (rojo, naranja, amarillo, verde,
-   * gris), que comparten el mapa.
+   * ordena los niveles (se lee en escala de grises). Ningún estado ni la marca
+   * usan violeta (DIS-1, propuesta §4): los marcadores son rojo (Pendiente),
+   * azul (Recibido, `#2e6be6`), ámbar (En proceso), verde (Resuelto) y gris
+   * (Rechazado), y comparten el mapa con esta capa.
+   *
+   * El tono no basta para separar Recibido del violeta medio: su luminosidad
+   * es casi la misma (1.14:1). Los separan otros canales, no el color:
+   * - el marcador es un disco opaco de 20 px con anillo blanco y contorno
+   *   oscuro, en el `markerPane`, encima; la celda es un círculo translúcido
+   *   (relleno al 55 %), sin anillo, en un `<canvas>` debajo;
+   * - el tamaño de la celda crece con el nivel (`radio`, 6 a 12 px), el del
+   *   marcador no;
+   * - cada capa tiene su leyenda con texto, y la de calor se apaga aparte.
    */
   color: string;
   /** Radio del circulo en pixeles: el tamano repite el nivel, ademas del color. */
