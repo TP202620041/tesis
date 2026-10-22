@@ -212,11 +212,16 @@ curl -s -o /dev/null -w "%{http_code}\n" -X OPTIONS $API/api/reportes \
 
 ### 7.1 ADMIN (DEP-04)
 
-1. La persona que será ADMIN **se registra primero** en `$PWA` con su correo real (acepta los términos).
-2. Recién después: Railway › `backend` › Variables › `ADMIN_INICIAL_EMAIL` = ese correo. Railway redespliega.
-3. **Verificar:** en los logs, la línea del seeder que promueve la cuenta; al volver a iniciar sesión (el JWT lleva el rol), la cuenta ve el área de ADMIN. Si ya existe un ADMIN, el seeder no hace nada, así que la variable puede quedar.
+Diseño decidido por el usuario el 22/10: el seeder **crea** el ADMIN desde variables y **solo si la base no tiene ningún ADMIN**. Nunca promueve una cuenta existente. Detalle en `backend/README.md`, «Operación en producción».
 
-El orden importa: el registro no verifica la propiedad del correo, así que si la variable se definiera antes, cualquiera podría registrarse primero con ese correo y quedar como ADMIN.
+1. **Antes del primer despliegue** del backend, en Railway › `backend` › Variables:
+   - `ADMIN_INICIAL_EMAIL`: el correo real de la persona del equipo;
+   - `ADMIN_INICIAL_PASSWORD`: una contraseña de 12 a 72 caracteres, generada para la ocasión y marcada como secreta;
+   - `ADMIN_INICIAL_NOMBRE`: opcional.
+2. Desplegar. **Verificar:** en los logs aparece «Administrador inicial creado» y solo el correo, nunca la contraseña. Iniciar sesión en `$PWA` con esa cuenta: pide aceptar los términos (D-12) y después muestra el área de ADMIN.
+3. **Borrar `ADMIN_INICIAL_PASSWORD`** de Railway y cambiar la contraseña desde la PWA. Las otras dos variables pueden quedar: con un ADMIN ya creado el seeder no hace nada (avisa en el log si la contraseña sigue definida).
+
+Si el correo ya tiene una cuenta con otro rol, o la contraseña no cumple el largo, el arranque **falla** y no se crea ni se promueve nada. Así nadie puede adelantarse registrando ese correo.
 
 ### 7.2 Funcionarios (DEP-05)
 
@@ -231,7 +236,7 @@ El orden importa: el registro no verifica la propiedad del correo, así que si l
    ```
 
    El script falla sin cambiar nada si el correo o el distrito no existen, o si la cuenta es ADMIN. Los detalles (y el modo para devolver la cuenta a CIUDADANO) están en su cabecera.
-3. **Verificar:** la persona cierra sesión y vuelve a entrar (el rol va en el JWT) y ve la bandeja de su distrito.
+3. **Verificar:** la persona recarga la PWA y ve la bandeja de su distrito. El rol se lee de la base en cada petición, así que no hace falta volver a iniciar sesión, y una revocación corta el acceso de inmediato.
 
 Mientras D-10 siga abierta, la jurisdicción es `usuario.distrito_id`.
 
