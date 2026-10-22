@@ -120,6 +120,13 @@ server:
   port: 8080
   error:
     include-message: always
+  tomcat:
+    # DEP-11: cuerpo que Tomcat lee y descarta (sin guardarlo) despues de
+    # rechazar una peticion. Con el default (2 MB), una subida de mas de
+    # 12 MB (max-request-size) recibia un corte de conexion en vez del 413,
+    # y la PWA lo tomaria como error de red y la reintentaria desde la cola
+    # offline. Con 32 MB el cliente lee el 413 hasta ese tamano.
+    max-swallow-size: 32MB
 
 # Actuator (DEP-02): solo /actuator/health, publico (GET exacto en
 # SecurityConfig) para el healthcheck del despliegue. Sin detalles ni

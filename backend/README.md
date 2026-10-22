@@ -340,30 +340,55 @@ instantes UTC: convertir el "día local" a instantes es tarea del cliente.
 
 ## Errores del cliente que respondían 500 (DEP-11)
 
-Tres excepciones de Spring MVC caían en el manejador genérico de
+Varias excepciones de Spring MVC caían en el manejador genérico de
 `GlobalExceptionHandler` y respondían **500**: "el servidor falló" cuando la
 petición era inválida, y en producción un 500 dispara alertas por un caso
 normal. Ahora responden con el mismo `ApiError` que el resto:
 
 | Excepción | Código | Ejemplo | Mensaje |
 |---|---|---|---|
-| `MaxUploadSizeExceededException` | **413** | Foto de más de 10 MB en `POST /api/reportes` o `PATCH /api/auth/me` | `La foto supera 10 MB` (el límite sale de `spring.servlet.multipart.max-file-size`; es el mismo texto con que la PWA lo valida antes de subir) |
+| `MaxUploadSizeExceededException` | **413** | Foto de más de 10 MB en `POST /api/reportes` o `PATCH /api/auth/me` | `La foto supera el tamaño máximo de 10 MB` (el límite sale de `spring.servlet.multipart.max-file-size`) |
 | `HttpRequestMethodNotSupportedException` | **405** | `GET /api/auth/login` | `El metodo GET no esta permitido en esta ruta`, con la cabecera `Allow` que exige el RFC 9110 |
+| `HttpMediaTypeNotSupportedException` | **415** | JSON a `POST /api/reportes` o a `PATCH /api/auth/me`, que son multipart | `Tipo de contenido no admitido en esta ruta: se espera multipart/form-data`, con `Accept` (y `Accept-Patch` en un PATCH) |
 | `MissingServletRequestParameterException` | **400** | `GET /api/distritos/por-coordenadas` sin `lon` | `Falta el parametro obligatorio 'lon'` |
+| `MissingServletRequestPartException` | **400** | Un formulario multipart sin una parte obligatoria (hoy ningún endpoint la tiene: las fotos son opcionales; el manejador es preventivo) | `Falta la parte obligatoria '<parte>' del formulario` |
+
+**Los 500 que quedan se registran.** El manejador genérico sigue
+respondiendo un 500 con un mensaje fijo, pero ahora registra la excepción en
+`ERROR` con el método, la ruta y la traza
+(`Error no controlado en POST /api/…`). En producción la respuesta no lleva
+detalles (`include-stacktrace: never`), así que sin ese registro un 500 no
+dejaba rastro. Nunca se registra el cuerpo ni la query de la petición, que
+pueden traer contraseñas o datos personales.
+
+**413 también para subidas grandes.** Los límites son 10 MB por archivo y
+12 MB por petición. Si la petición entera supera los 12 MB, Tomcat la
+rechaza por su `Content-Length` sin leer el cuerpo, y luego solo descarta
+hasta `server.tomcat.max-swallow-size` de lo que queda sin leer: con el valor
+por defecto (2 MB) cortaba la conexión y el cliente veía un error de red en
+lugar del 413. Para la PWA eso es peor que un error: un `NetworkError` manda
+el reporte a la cola offline (US-06), que lo reintentaría una y otra vez. Con
+`max-swallow-size: 32MB` (en `application.yml`, para todos los perfiles)
+Tomcat lee y descarta esos bytes sin guardarlos, y el cliente recibe el 413.
+Por encima de 32 MB vuelve a cortar la conexión: es el tope de lo que el
+servidor acepta leer para nada.
+
+**Validación en el cliente.** La PWA valida los 10 MB de la foto del reporte
+antes de subirla (`CampoFoto.tsx`), pero **no** la foto de perfil
+(`PATCH /api/auth/me`): ahí el 413 es lo único que la frena. Queda una tarea
+de seguimiento para el frontend: rechazar en el cliente las fotos de más de
+10 MB, también la de perfil, antes de enviarlas o encolarlas.
 
 Lo prueba `ErroresHttpIT`, con servidor real (`RANDOM_PORT`) para el 413
 porque el límite lo aplica Tomcat al leer el multipart y MockMvc no lo
-ejecuta.
+ejecuta: fotos de 11 MB y de 30 MB en `POST /api/reportes` y de 30 MB en
+`PATCH /api/auth/me` reciben el 413 (con el `max-swallow-size` por defecto,
+la de 30 MB fallaba con un corte de conexión). La parte obligatoria y el 500
+se prueban con un controlador que solo existe en ese IT; el 500 verifica,
+con un *appender* de Logback, que el evento se registra en `ERROR` con
+método y ruta y sin el cuerpo de la petición.
 
-**Límite conocido del 413.** Los límites son 10 MB por archivo y 12 MB por
-petición. Una foto de entre 10 y 12 MB recibe el 413 (Tomcat la corta al
-pasar los 10 MB y descarta el resto). Pero si la petición entera supera los
-12 MB, Tomcat la rechaza por su `Content-Length` antes de leer el cuerpo y,
-como solo descarta hasta 2 MB sin leer (`server.tomcat.max-swallow-size`),
-cierra la conexión: el cliente ve un error de red en lugar del 413 (se
-verificó con 13 MB). Se dejó así a propósito: subir ese tope obliga al
-servidor a leer y descartar cuerpos arbitrariamente grandes, y la PWA nunca
-llega a ese caso porque valida los 10 MB antes de subir.
+## Catálogos de referencia (descubribilidad)
 
 Dos endpoints **públicos** de solo lectura que existen para que un cliente
 pueda *descubrir* los identificadores que el resto de la API exige. No los
