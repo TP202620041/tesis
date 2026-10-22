@@ -47,6 +47,10 @@ Swagger UI: `http://localhost:8080/swagger-ui.html`.
 
 - `local` (por defecto) — apunta al Postgres de `docker-compose.yml` y firma
   los JWT con el secreto de desarrollo si no exportas `JWT_SECRET` (SEC-03).
+  `mvn spring-boot:run` lo activa de forma explícita (`spring-boot.run.profiles`
+  en el `pom.xml`); si arrancas el jar o la clase principal desde el IDE sin
+  perfil, `local` llega solo por defecto y el secreto de desarrollo ya no vale:
+  activa `local` (`SPRING_PROFILES_ACTIVE=local`) o exporta `JWT_SECRET`.
 - `dev` — entorno compartido; toda la configuración por variables de entorno
   (`DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET`).
 - `test` — lo activan los IT (`src/test/resources/application-test.yml`).
@@ -54,6 +58,11 @@ Swagger UI: `http://localhost:8080/swagger-ui.html`.
 
 Fuera de `local` y `test`, `JWT_SECRET` es obligatorio: sin él la aplicación
 no arranca (ver SEC-03).
+
+Activar otro perfil: `mvn spring-boot:run -Dspring-boot.run.profiles=dev` (con
+`mvn spring-boot:run`, la variable `SPRING_PROFILES_ACTIVE` ya no basta: el
+plugin pasa `--spring.profiles.active=local` como argumento, que tiene
+prioridad). Al correr el jar: `SPRING_PROFILES_ACTIVE=dev java -jar …`.
 
 ## Configuración de producción
 
@@ -115,8 +124,6 @@ preferible que no arranque y que el log diga qué falta.
 - **SMTP con timeouts de 5 s** (conexión, lectura y escritura). JavaMail
   espera indefinidamente por defecto, y la recuperación de contraseña y el
   soporte envían correo dentro de la petición.
-
-Activar otro perfil: `SPRING_PROFILES_ACTIVE=dev mvn spring-boot:run`.
 
 ## Endpoints implementados (vertical slice inicial)
 
@@ -574,11 +581,21 @@ gestiona los reportes de su distrito y con ellos las métricas de desempeño
   mensaje dice cómo generar uno (`openssl rand -base64 48`) y nunca repite el
   valor recibido.
 - El secreto de desarrollo sigue en el repositorio (`application-local.yml`
-  y `src/test/resources/application-test.yml`), pero `JwtService` lo rechaza
-  salvo con `security.jwt.permitir-secreto-de-desarrollo=true`, que solo
-  marcan los perfiles `local` y `test`; `prod` la fija en `false`. La
-  comparación es por bytes decodificados, así que otra codificación de la
-  misma clave también se rechaza.
+  y `src/test/resources/application-test.yml`), pero `JwtService` solo lo
+  acepta si se cumplen **dos** condiciones: la bandera
+  `security.jwt.permitir-secreto-de-desarrollo=true` (la definen solo esos dos
+  archivos; `prod` la fija en `false`) y el perfil `local` o `test` activado
+  **de forma explícita**. La comparación es por bytes decodificados, así que
+  otra codificación de la misma clave también se rechaza.
+- Por qué no basta la bandera: `application.yml` declara
+  `spring.profiles.default: local`, y Spring Boot carga
+  `application-local.yml` también cuando `local` llega solo por defecto. Un
+  despliegue sin `SPRING_PROFILES_ACTIVE` (o con la variable vacía) tendría la
+  bandera en `true` y volvería a firmar con el secreto público. Por eso
+  `JwtService` mira `Environment#getActiveProfiles()`, que no incluye los
+  perfiles por defecto. `mvn spring-boot:run` sigue funcionando sin cambios:
+  el `pom.xml` fija `spring-boot.run.profiles=local`, que activa el perfil de
+  forma explícita. La imagen Docker fija `SPRING_PROFILES_ACTIVE=prod`.
 - `.env.example` deja `JWT_SECRET=` vacío, con la instrucción para
   generarlo.
 
@@ -593,9 +610,15 @@ git: por eso `JwtService` lo rechaza por su contenido.
 el que no es Base64, los de 31 y 32 bytes, el publicado con y sin la bandera
 (y con otra codificación), que los mensajes no lo repiten y que un token de
 ADMIN forjado con el secreto viejo no verifica en un entorno con secreto
-propio. `PerfilProdIT` arranca el perfil `prod` con un secreto propio,
-comprueba que ahí la bandera queda en `false` y que un token forjado con el
-secreto publicado recibe 401.
+propio; y, con un entorno simulado, que el secreto de desarrollo se acepta
+con `local` o `test` explícitos y se rechaza con `local` solo por defecto, en
+`prod` aunque se fuerce la bandera, y con `local` pero sin la bandera.
+`ArranqueSinPerfilExplicitoIT` arranca la aplicación real sin perfil
+explícito y con el secreto de desarrollo: comprueba que `local` llegó por
+defecto con la bandera en `true` y que, aun así, no arranca (con solo la
+bandera, la misma prueba llegaba hasta la conexión a la base). `PerfilProdIT`
+arranca el perfil `prod` con un secreto propio, comprueba que ahí la bandera
+queda en `false` y que un token forjado con el secreto publicado recibe 401.
 
 ## Frescura del índice de desempeño
 

@@ -1,6 +1,8 @@
 # Configuracion comun a todos los perfiles.
-# Perfil activo por defecto: local (ver application-local.yml).
-# Sobrescribe con: SPRING_PROFILES_ACTIVE=dev
+# Perfil por defecto: local (ver application-local.yml). `mvn spring-boot:run`
+# lo activa de forma explicita (pom.xml); otro perfil con
+# -Dspring-boot.run.profiles=dev o, al correr el jar, SPRING_PROFILES_ACTIVE.
+# La imagen Docker fija SPRING_PROFILES_ACTIVE=prod.
 spring:
   application:
     name: viasegura
@@ -105,8 +107,9 @@ security:
     # JWT_SECRET. Si falta, JwtService no deja arrancar la aplicacion.
     secret: ${JWT_SECRET:}
     expiration-minutes: ${JWT_EXPIRATION_MINUTES:120}
-    # Solo los perfiles local y test aceptan el secreto de desarrollo
-    # publicado en el repositorio (application-local.yml).
+    # El secreto de desarrollo publicado (application-local.yml) solo se
+    # acepta con esta bandera en true Y el perfil local o test activado de
+    # forma explicita: `local` por defecto no basta (ver JwtService).
     permitir-secreto-de-desarrollo: false
 
 springdoc:

@@ -7,8 +7,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.io.Decoders;
+import io.jsonwebtoken.security.Keys;
 import java.security.SecureRandom;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Base64;
+import java.util.Date;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,7 +27,6 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
-import pe.edu.upc.viasegura.common.security.JwtService;
 import pe.edu.upc.viasegura.support.AbstractPostgisIT;
 
 /**
@@ -120,8 +126,13 @@ class PerfilProdIT extends AbstractPostgisIT {
         // cualquier email; en prod ese token no verifica.
         String email = "prod-" + UUID.randomUUID() + "@lima.pe";
         registrar(email).andExpect(status().isCreated());
-        String forjado = new JwtService(SECRETO_DE_DESARROLLO_PUBLICADO, 120, true)
-                .generarToken(email, "ADMIN");
+        String forjado = Jwts.builder()
+                .subject(email)
+                .claims(Map.of("rol", "ADMIN"))
+                .issuedAt(new Date())
+                .expiration(Date.from(Instant.now().plus(1, ChronoUnit.HOURS)))
+                .signWith(Keys.hmacShaKeyFor(Decoders.BASE64.decode(SECRETO_DE_DESARROLLO_PUBLICADO)))
+                .compact();
 
         mockMvc.perform(get("/api/auth/me").header("Authorization", "Bearer " + forjado))
                 .andExpect(status().isUnauthorized());

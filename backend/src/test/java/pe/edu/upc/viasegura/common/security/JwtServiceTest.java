@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.mock.env.MockEnvironment;
 
 /**
  * Falla temprana con el secreto JWT (DEP-01, SEC-03).
@@ -100,6 +101,64 @@ class JwtServiceTest {
 
         assertThat(servicio.extraerEmail(token)).isEqualTo("dev@lima.pe");
         assertThat(servicio.extraerRol(token)).isEqualTo("ADMIN");
+    }
+
+    /** Constructor de Spring: la bandera mas los perfiles del entorno. */
+    private static JwtService conEntorno(String secreto, boolean bandera, MockEnvironment entorno) {
+        return new JwtService(secreto, MINUTOS, bandera, entorno);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"local", "test"})
+    void secretoDeDesarrollo_conBanderaYPerfilDeDesarrolloExplicito_arranca(String perfil) {
+        MockEnvironment entorno = new MockEnvironment();
+        entorno.setActiveProfiles(perfil);
+
+        JwtService servicio = conEntorno(JwtService.SECRETO_DE_DESARROLLO, true, entorno);
+
+        assertThat(servicio.extraerRol(servicio.generarToken("dev@lima.pe", "CIUDADANO"))).isEqualTo("CIUDADANO");
+    }
+
+    @Test
+    void secretoDeDesarrollo_conLocalSoloPorDefecto_noArranca() {
+        // Un despliegue sin SPRING_PROFILES_ACTIVE: `local` llega por
+        // spring.profiles.default y con application-local.yml la bandera
+        // queda en true. No basta (ver ArranqueSinPerfilExplicitoIT).
+        MockEnvironment entorno = new MockEnvironment();
+        entorno.setDefaultProfiles("local");
+
+        assertThatThrownBy(() -> conEntorno(JwtService.SECRETO_DE_DESARROLLO, true, entorno))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("de forma explicita");
+    }
+
+    @Test
+    void secretoDeDesarrollo_enProdConLaBanderaForzada_noArranca() {
+        // Alguien fija SECURITY_JWT_PERMITIRSECRETODEDESARROLLO=true en prod.
+        MockEnvironment entorno = new MockEnvironment();
+        entorno.setActiveProfiles("prod");
+
+        assertThatThrownBy(() -> conEntorno(JwtService.SECRETO_DE_DESARROLLO, true, entorno))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("secreto JWT es el de desarrollo");
+    }
+
+    @Test
+    void secretoDeDesarrollo_conPerfilLocalExplicitoPeroSinBandera_noArranca() {
+        MockEnvironment entorno = new MockEnvironment();
+        entorno.setActiveProfiles("local");
+
+        assertThatThrownBy(() -> conEntorno(JwtService.SECRETO_DE_DESARROLLO, false, entorno))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("secreto JWT es el de desarrollo");
+    }
+
+    @Test
+    void secretoPropio_sinPerfilExplicito_arranca() {
+        // La exigencia de perfil explicito es solo para el secreto de desarrollo.
+        JwtService servicio = conEntorno(secretoAleatorio(48), false, new MockEnvironment());
+
+        assertThat(servicio.extraerEmail(servicio.generarToken("a@lima.pe", "ADMIN"))).isEqualTo("a@lima.pe");
     }
 
     @Test
