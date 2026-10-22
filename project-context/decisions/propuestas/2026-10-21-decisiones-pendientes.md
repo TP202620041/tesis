@@ -21,6 +21,7 @@ Reúne **todo** lo que hoy espera una decisión del usuario, venga de esta ronda
 | 8 | Fotos | R2 privado, mismas URLs, sin EXIF; diseño de la propuesta | `2026-10-21-fotos-r2.md`, «Decisión» |
 | 10 | CI obligatoria | Check `ci` exigido en `develop` y `main` desde el 21/10 | `WORKFLOW.md` §5, `docs/ci.md` |
 | 14 | Modelo de detección | Clases `bache` y `grieta`, RF-DETR Apache-2.0, umbral 0,50, desactivar «Hueco en calzada» | `2026-10-21-ml-clases-modelo.md`, «Decisión» |
+| 5 (parte) | Cómo se crea el primer ADMIN (22/10) | **Crear desde variables** (`ADMIN_INICIAL_*`) y **solo si no hay ningún ADMIN**; nunca promover; falla el arranque si el correo ya existe con otro rol | `2026-10-21-despliegue-mvp.md` (DEP-04, ajuste del 22/10) y `backend/README.md` |
 | 17 | Dirección visual | **A · Cívica** (tinta azul marino y blanco, Public Sans, foco amarillo; deja el celeste) | Canvas «Rediseño Ciudad Viva» y la propuesta de diseño |
 
 ## Resumen
@@ -72,7 +73,7 @@ Reúne **todo** lo que hoy espera una decisión del usuario, venga de esta ronda
 
 ## 5. Primer ADMIN y funcionarios
 
-- **Qué:** el correo de la cuenta que será ADMIN (DEP-04: se registra normalmente y una variable la promueve) y la lista de funcionarios con su distrito para la demostración (DEP-05).
+- **Qué:** el correo de la cuenta que será ADMIN (DEP-04: desde el 22/10 el seeder la **crea** desde variables si no hay ningún ADMIN; ya no promueve) y la lista de funcionarios con su distrito para la demostración (DEP-05).
 - **Recomendación:** el ADMIN es una cuenta del equipo. Un funcionario solo se crea con el acuerdo de la persona y, si representa a una municipalidad real, con la autorización de esa municipalidad. Para la demo, cuentas del equipo marcadas como de prueba.
 
 ## 6. Datos de demostración en producción
