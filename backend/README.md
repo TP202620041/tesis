@@ -125,6 +125,71 @@ preferible que no arranque y que el log diga qué falta.
   espera indefinidamente por defecto, y la recuperación de contraseña y el
   soporte envían correo dentro de la petición.
 
+### Imagen (`backend/Dockerfile`)
+
+```bash
+docker build -t viasegura-backend backend/
+docker run -p 8080:8080 -e JWT_SECRET=… -e DB_URL=… -e DB_USERNAME=… \
+  -e DB_PASSWORD=… -e CORS_ALLOWED_ORIGINS=… viasegura-backend
+```
+
+- **Dos etapas.** `maven:3.9-eclipse-temurin-21` compila: primero
+  `dependency:go-offline` solo con el `pom.xml`, en su propia capa (un cambio
+  en `src/` no vuelve a descargar las dependencias; un cambio en el `pom.xml`
+  sí), luego `package -DskipTests` y la extracción por capas de Spring Boot
+  (`java -Djarmode=tools -jar … extract --layers`). Los tests no corren en el
+  build porque necesitan la base de test y GreenMail; ya corrieron con
+  `mvn clean verify` antes de fusionar.
+- **Ejecución en `eclipse-temurin:21-jre-noble`, no Alpine.** La exportación
+  XLSX (US-28) usa `autoSizeColumn` de Apache POI, que mide el texto con
+  fuentes reales. Esta imagen ya trae fontconfig y DejaVu (`fc-list`), así
+  que no hace falta instalar nada.
+- **Capas de Spring Boot** copiadas de la que menos cambia a la que más
+  (dependencias, cargador, *snapshots*, aplicación): un cambio de código solo
+  reemplaza la última.
+- **Usuario sin privilegios** `viasegura` (uid 999), dueño de `/data/fotos`.
+- **Variables de la imagen:** `SPRING_PROFILES_ACTIVE=prod` (sin ella `local`
+  llegaría por defecto; ver SEC-03), `FOTOS_DIR=/data/fotos` y
+  `JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75 -Djava.awt.headless=true"`
+  (heap al 75 % de la memoria del contenedor; POI usa AWT sin pantalla).
+- `.dockerignore` deja fuera `target/`, `uploads/`, los logs, los archivos del
+  IDE y `.env`, para que un archivo con secretos nunca llegue al contexto de
+  build.
+
+**Verificación (2026-10-21)**, con la imagen contra un PostGIS 16-3.4 vacío y
+temporal:
+
+- Aplica V1–V17, siembra 43 distritos y 43 municipalidades, arranca en unos
+  8 s y `GET /actuator/health` responde `{"status":"UP"}`.
+- Sin `JWT_SECRET`, o con el secreto de desarrollo, no arranca, con el mensaje
+  de `JwtService` y antes de tocar la base. Sin `CORS_ALLOWED_ORIGINS` no
+  arranca (`Could not resolve placeholder`), aunque después de migrar. Sin
+  `DB_URL` tampoco, pero el mensaje es de Hikari y poco claro
+  (`URL must start with 'jdbc'`).
+- `/v3/api-docs` y `/swagger-ui.html` responden 404; `/actuator/env` y
+  `/actuator/heapdump`, 401. El preflight de CORS acepta el origen
+  configurado y rechaza otro (403).
+- Un ciudadano crea un reporte con foto (se escribe en `/data/fotos` con el
+  uid 999 y se sirve pública) y una funcionaria, creada con SQL, exporta el
+  XLSX: 200, `reportes-miraflores.xlsx`, con los anchos de columna calculados.
+- `docker stop` termina con "Graceful shutdown complete".
+
+### Railway
+
+La configuración del servicio (ruta raíz `backend/`, construcción con el
+`Dockerfile`, health check en `/actuator/health` y variables) se fija **en el
+panel de Railway**, no en un `railway.toml`: Railway deprecó la configuración
+como código. El paso a paso está en el runbook de despliegue
+(`docs/despliegue.md`). Dos puntos que dependen de este backend:
+
+- **Health check.** `GET /actuator/health` responde `UP` en cuanto Tomcat
+  arranca; los *seeders* de distritos y municipalidades terminan alrededor de
+  un segundo después (solo hacen algo en el primer despliegue).
+- **Volumen de fotos.** Railway monta los volúmenes como `root` y la imagen
+  corre como `viasegura`: un volumen en `/data/fotos` exige
+  `RAILWAY_RUN_UID=0` para poder escribir (documentación de Railway). Las
+  fotos pasan a R2 en otra tarea; mientras tanto, esa es la condición.
+
 ## Endpoints implementados (vertical slice inicial)
 
 | Método | Ruta                | Auth | Historia | Descripción |

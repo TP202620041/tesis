@@ -1,0 +1,25 @@
+# Contexto de build de la imagen (DEP-03): el Dockerfile solo copia pom.xml
+# y src/. Lo demas se excluye para que el contexto sea chico y para que un
+# .env con secretos nunca llegue al build.
+target/
+uploads/
+*.log
+.env
+.env.*
+!.env.example
+
+# IDE y sistema
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+bin/
+.DS_Store
+Thumbs.db
+
+# Herramientas y archivos que no entran en la imagen
+.claude/
+scripts/
+docker-compose.yml
