@@ -6,6 +6,7 @@ import static org.hamcrest.Matchers.is;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -314,6 +315,33 @@ class GestionMunicipalIT extends AbstractPostgisMailIT {
         assertThat(traza.get(0).getEstadoNuevo()).isNull();
         assertThat(traza.get(0).getComentario()).contains("Cuadrilla Bacheo 3");
         assertThat(traza.get(0).getAutor().getId()).isEqualTo(func.getId());
+    }
+
+    @Test
+    void responsable_sinAsignar_204SinCuerpo() throws Exception {
+        // QA-1 M-4: un reporte sin responsable es un estado normal, no un 404
+        // (que la consola del navegador mostraba como error en cada detalle).
+        Usuario func = funcionario(distrito("Miraflores"));
+        Reporte reporte = reporte(distrito("Miraflores"), EstadoReporte.RECIBIDO, ciudadano());
+
+        mockMvc.perform(get("/api/reportes/{id}/responsable", reporte.getId())
+                        .header("Authorization", "Bearer " + token(func)))
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""));
+    }
+
+    @Test
+    void responsable_reporteInexistente_404_yDeOtroDistrito_403() throws Exception {
+        // El 404 queda solo para el reporte que no existe; otro distrito sigue en 403.
+        Usuario funcMiraflores = funcionario(distrito("Miraflores"));
+        Reporte reporteSurco = reporte(distrito("Santiago de Surco"), EstadoReporte.RECIBIDO, ciudadano());
+        String auth = "Bearer " + token(funcMiraflores);
+
+        mockMvc.perform(get("/api/reportes/{id}/responsable", Long.MAX_VALUE).header("Authorization", auth))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message", is("Reporte no encontrado: " + Long.MAX_VALUE)));
+        mockMvc.perform(get("/api/reportes/{id}/responsable", reporteSurco.getId()).header("Authorization", auth))
+                .andExpect(status().isForbidden());
     }
 
     @Test

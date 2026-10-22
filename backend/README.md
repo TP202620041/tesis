@@ -768,6 +768,33 @@ lista de textos, ahora sin el prefijo `campo: `.
   invertido ahora dice «La fecha de inicio no puede ser posterior a la fecha
   de fin».
 
+## Ajustes del API tras QA-1
+
+### Responsable sin asignar: 204 (M-4)
+
+`GET /api/reportes/{id}/responsable` respondía **404** cuando el reporte no
+tenía responsable, y cada detalle de la bandeja dejaba un error rojo en la
+consola del navegador. Un reporte sin responsable es un estado normal (todo
+reporte recién recibido lo está), no un recurso inexistente. Ahora:
+
+| Caso | Respuesta |
+|---|---|
+| Hay responsable vigente | **200** con `AsignacionResponsableResponse` |
+| El reporte existe y no tiene responsable | **204** sin cuerpo |
+| El reporte no existe | **404** |
+| El reporte es de otro distrito | **403** (regla de jurisdicción de siempre) |
+
+**Por qué 204 y no 200 con `null`.** 204 es el código de HTTP para «la
+operación salió bien y no hay representación que devolver», y el cliente de
+la PWA ya lo maneja (`apiFetch` devuelve `undefined` ante un 204, como en
+`restablecer-password`). Un 200 con el literal `null` obligaría a escribirlo a
+mano (Spring deja el cuerpo vacío cuando el método devuelve `null`) y en
+OpenAPI quedaría como el mismo esquema de la asignación, sin decir que puede
+faltar. El servicio devuelve `Optional` y el controlador lo traduce: el 404
+sigue saliendo solo de `ResourceNotFoundException` (reporte inexistente).
+Contrato para el frontend en
+`project-context/handoffs/2026-10-22-responsable-sin-asignar-204.md`.
+
 ## Catálogos de referencia (descubribilidad)
 
 Dos endpoints **públicos** de solo lectura que existen para que un cliente

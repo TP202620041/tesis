@@ -179,9 +179,17 @@ public class GestionReporteService {
         return AsignacionResponsableResponse.from(nueva);
     }
 
-    /** US-15: responsable vigente del reporte (con control de jurisdiccion). */
+    /**
+     * US-15: responsable vigente del reporte (con control de jurisdiccion),
+     * o vacio si el reporte existe y aun no tiene uno.
+     *
+     * <p>QA-1 M-4: "sin responsable" es un estado normal del reporte, no un
+     * error, asi que no se lanza {@link ResourceNotFoundException}: el 404
+     * queda para el reporte que no existe y el 403 para el de otro distrito
+     * (las reglas de siempre). El controlador traduce el vacio a 204.</p>
+     */
     @Transactional(readOnly = true)
-    public AsignacionResponsableResponse responsableActivo(String emailFuncionario, Long reporteId) {
+    public Optional<AsignacionResponsableResponse> responsableActivo(String emailFuncionario, Long reporteId) {
         Usuario funcionario = usuarioConsultaService.usuarioPorEmail(emailFuncionario);
         Reporte reporte = reporteRepository.findById(reporteId)
                 .orElseThrow(() -> new ResourceNotFoundException("Reporte no encontrado: " + reporteId));
@@ -189,8 +197,7 @@ public class GestionReporteService {
         verificarJurisdiccion(funcionario, reporte);
 
         return asignacionRepository.findByReporteIdAndActivoTrue(reporteId)
-                .map(AsignacionResponsableResponse::from)
-                .orElseThrow(() -> new ResourceNotFoundException("El reporte no tiene responsable asignado"));
+                .map(AsignacionResponsableResponse::from);
     }
 
     private Distrito distritoDeGestion(String emailFuncionario) {
