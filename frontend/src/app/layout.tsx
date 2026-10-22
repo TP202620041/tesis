@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { ProveedorPwa } from '@/pwa/ProveedorPwa';
 import { SincronizadorDeReportes } from './SincronizadorDeReportes';
+import { PLANTILLA_TITULO } from './titulo';
 import './globals.css';
 
 const geistSans = Geist({
@@ -17,7 +18,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: {
     default: 'Ciudad Viva — Reporte ciudadano de daños viales',
-    template: '%s · Ciudad Viva',
+    template: PLANTILLA_TITULO,
   },
   description:
     'Plataforma de crowdsourcing geoespacial para el reporte ciudadano y la gestión ' +

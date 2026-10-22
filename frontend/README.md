@@ -132,9 +132,14 @@ Next al navegar: antes diez pantallas compartían el título de la portada. La
 mayoría de las páginas son de cliente y `metadata` solo se exporta desde un
 componente de servidor, así que el título va en un `layout.tsx` mínimo junto a
 la página (devuelve `children`); las de servidor (login, registro,
-privacidad) lo exportan en la propia `page.tsx`. `app/titulos.test.ts`
-recorre `src/app` y falla si una ruta queda con el título por defecto o si
-dos comparten título.
+privacidad) lo exportan en la propia `page.tsx`. Ojo con los anidados: en
+Next, un layout que fija `title` como texto deja a sus hijos **sin**
+plantilla, así que `/bandeja` y `/mis-reportes`, que tienen un `[id]` con
+título propio, lo declaran como `{ default, template: PLANTILLA_TITULO }`
+(`app/titulo.ts`); si no, `/bandeja/[id]` salía «Gestión del reporte» sin
+«· Ciudad Viva». `app/titulos.test.ts` recorre `src/app` y falla si una ruta
+queda con el título por defecto, si dos comparten título o si un layout
+padre con título no repite la plantilla.
 
 ## Decisiones técnicas
 

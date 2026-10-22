@@ -28,7 +28,23 @@ function tituloDe(archivo: string): string | null {
   if (!existsSync(archivo)) return null;
   const texto = readFileSync(archivo, 'utf8');
   if (!/export const metadata/.test(texto)) return null;
-  return /title:\s*'([^']+)'/.exec(texto)?.[1] ?? null;
+  // `title: 'X'` o `title: { default: 'X', template: … }`.
+  return /title:\s*(?:\{\s*default:\s*)?'([^']+)'/.exec(texto)?.[1] ?? null;
+}
+
+/** `true` si el archivo vuelve a declarar la plantilla del titulo. */
+function declaraPlantilla(archivo: string): boolean {
+  return /template:\s*PLANTILLA_TITULO/.test(readFileSync(archivo, 'utf8'));
+}
+
+/** Layouts con titulo entre la pagina y el raiz (sin contarlo), del mas cercano al mas lejano. */
+function layoutsConTitulo(pagina: string): string[] {
+  const layouts: string[] = [];
+  for (let dir = dirname(pagina); dir !== APP && dir.startsWith(APP); dir = dirname(dir)) {
+    const layout = join(dir, 'layout.tsx');
+    if (tituloDe(layout)) layouts.push(layout);
+  }
+  return layouts;
 }
 
 /** Titulo efectivo de una pagina: el suyo o el del layout mas cercano (sin el raiz). */
@@ -73,6 +89,18 @@ describe('títulos de página (QA-1 M-8)', () => {
   it('no hay dos rutas con el mismo título', () => {
     const titulos = rutas.map((r) => r.titulo);
     expect(new Set(titulos).size).toBe(titulos.length);
+  });
+
+  it('una ruta anidada conserva «· Ciudad Viva»: el layout padre con título repite la plantilla', () => {
+    // En Next, un layout que fija `title` como texto deja a sus hijos sin
+    // plantilla: `/bandeja/[id]` salía «Gestión del reporte» a secas.
+    const sinPlantilla = paginas(APP).flatMap((p) =>
+      layoutsConTitulo(p)
+        .slice(1)
+        .filter((padre) => !declaraPlantilla(padre))
+        .map((padre) => `${url(p)} ← ${relative(APP, padre)}`),
+    );
+    expect(sinPlantilla).toEqual([]);
   });
 
   it('la 404 también tiene el suyo', () => {
