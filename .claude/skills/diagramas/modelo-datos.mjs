@@ -20,8 +20,10 @@ import path from 'node:path';
 import { RAIZ, archivos, leer, ordenar, idMermaid, etiqueta, esPrincipal } from './comun.mjs';
 
 const IGNORADAS = /^(CREATE EXTENSION|INSERT|UPDATE|DELETE|COMMENT ON|GRANT|REVOKE|REFRESH|SELECT|SET|CREATE SEQUENCE|ALTER SEQUENCE|ANALYZE|VACUUM)\b/i;
-// Dentro de un bloque DO: lo que podría cambiar el esquema.
-const DDL_EN_BLOQUE = /\b(CREATE|ALTER|DROP|EXECUTE)\b/i;
+// Dentro de un bloque DO: lo que podría cambiar el esquema, también por
+// procedimiento o por función de PostGIS. PERFORM a secas no, porque las
+// comprobaciones lo usan sin tocar el esquema.
+const DDL_EN_BLOQUE = /\b(CREATE|ALTER|DROP|EXECUTE|CALL|AddGeometryColumn|DropGeometryColumn)\b/i;
 const sinLiterales = (s) => s.replace(/'(?:[^']|'')*'/g, "''");
 
 export function generar(raiz = RAIZ) {
