@@ -662,6 +662,16 @@ Leaflet manipula el DOM al construirse. El marcador es un `DivIcon` de
 HTML/CSS en vez de la imagen por defecto: evita el problema conocido de
 iconos rotos con bundlers y no obliga a abrir orígenes extra en la CSP.
 
+**Marcadores accesibles (QA-1 M-7).** Leaflet hace de cada marcador un
+`div role="button" tabindex="0"` (Enter abre su popup), pero sin nombre: un
+lector de pantalla anunciaba «botón» decenas de veces. Cada marcador lleva
+ahora como `title` (su nombre accesible, y la sugerencia al pasar el ratón)
+el título, el estado en palabras y el tipo de daño (`nombreDeMarcador`). Leaflet
+lee el `title` solo al crear el marcador, así que el nombre forma parte de la
+`key`. El área táctil mide 28 px (el mínimo es 24, WCAG 2.2 2.5.8) con el
+punto visible de 20 px centrado. La vista Lista sigue siendo la alternativa
+completa al mapa.
+
 Los tiles de OpenStreetMap **sí** están listados en `img-src` de la CSP
 (hosts concretos, no `*`); sin eso el mapa se ve en blanco.
 

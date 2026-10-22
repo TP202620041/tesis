@@ -15,6 +15,7 @@ import {
 import { FotoDeReporte } from '@/components/FotoDeReporte';
 import type { BoundingBox } from '@/features/reportes/model/bbox';
 import { estiloDeNivel, textoDeRango, type CeldaCalor } from '@/features/reportes/model/densidad';
+import { nombreDeMarcador } from '@/features/reportes/model/marcador';
 import { ESTADOS_EN_MAPA, estiloDeEstado } from '@/lib/types/estados';
 import { textoDeSeveridad, tituloVisible } from '@/lib/types/tituloYSeveridad';
 import type { ReporteResumen } from '@/features/reportes/model/tipos';
@@ -37,15 +38,26 @@ import type { ReporteResumen } from '@/features/reportes/model/tipos';
 const CENTRO_LIMA: [number, number] = [-12.06, -77.04];
 const ZOOM_INICIAL = 13;
 
+/**
+ * Lado del area tactil del marcador, en px. QA-1 M-7: el marcador medía 18 px,
+ * por debajo del minimo de 24 px para un objetivo tactil (WCAG 2.2, 2.5.8);
+ * con 28 px queda holgado. El punto visible sigue chico (20 px) y centrado:
+ * el borde transparente agranda donde se puede tocar sin tapar mas mapa.
+ */
+const LADO_MARCADOR = 28;
+
 function iconoDeEstado(color: string): DivIcon {
   return new DivIcon({
     className: '',
     html: `<span style="
-      display:block; width:1.1rem; height:1.1rem; border-radius:9999px;
-      background:${color}; border:2.5px solid #fff;
-      box-shadow:0 1px 4px rgba(0,0,0,.5);"></span>`,
-    iconSize: [18, 18],
-    iconAnchor: [9, 9],
+      display:flex; align-items:center; justify-content:center; width:100%; height:100%;">
+      <span style="
+        display:block; width:1.25rem; height:1.25rem; border-radius:9999px;
+        background:${color}; border:2.5px solid #fff;
+        box-shadow:0 1px 4px rgba(0,0,0,.5);"></span>
+    </span>`,
+    iconSize: [LADO_MARCADOR, LADO_MARCADOR],
+    iconAnchor: [LADO_MARCADOR / 2, LADO_MARCADOR / 2],
   });
 }
 
@@ -181,9 +193,16 @@ export default function MapaReportes({
 
       {mostrarMarcadores && reportes.map((reporte) => {
         const estilo = estiloDeEstado(reporte.estado ?? '');
+        const nombre = nombreDeMarcador(reporte);
         return (
           <Marker
-            key={reporte.id}
+            // QA-1 M-7: Leaflet hace del marcador un `div role="button"`
+            // (para abrir el popup con el teclado) cuyo unico nombre posible
+            // es su `title`. Leaflet solo lo lee al crear el marcador, asi
+            // que el nombre va en la `key`: si cambian el estado o el titulo
+            // del reporte, el marcador se vuelve a crear con el nombre nuevo.
+            key={`${reporte.id}:${nombre}`}
+            title={nombre}
             position={[reporte.latitud ?? 0, reporte.longitud ?? 0]}
             icon={iconos.get(estilo.color) ?? iconoDesconocido}
             eventHandlers={
