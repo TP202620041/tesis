@@ -281,6 +281,86 @@ pisa, y el primer inicio de sesión: entra como ADMIN, recibe 403
 `TERMINOS_PENDIENTES` hasta aceptar los términos y luego usa una ruta de
 ADMIN.
 
+### Alta y baja de funcionarios (DEP-05)
+
+1. La persona se registra en la PWA como cualquier ciudadano: así su
+   contraseña queda con el hash de la aplicación y su aceptación de los
+   términos, registrada (D-12).
+2. Un operador con acceso a la base corre `backend/scripts/asignar-funcionario.sql`
+   con variables de `psql`, desde la raíz del repositorio:
+
+   ```bash
+   # Asignar (la URL de conexión pública está en Railway › postgis › Connect)
+   psql "<URL de la base>" -v email=persona@ejemplo.com -v distrito='San Isidro' \
+     -f backend/scripts/asignar-funcionario.sql
+   # Devolver a CIUDADANO
+   psql "<URL de la base>" -v email=persona@ejemplo.com -v accion=revocar \
+     -f backend/scripts/asignar-funcionario.sql
+   # Desde una sesión abierta con `railway connect postgis`
+   #   \set email 'persona@ejemplo.com'
+   #   \set distrito 'Miraflores'
+   #   \i backend/scripts/asignar-funcionario.sql
+   # En local (Docker), por la entrada estándar
+   docker exec -i viasegura-db psql -U viasegura -d viasegura \
+     -v email=persona@ejemplo.com -v distrito=Miraflores < backend/scripts/asignar-funcionario.sql
+   ```
+
+   Si todo va bien, muestra la fila resultante (correo, rol, distrito).
+3. La persona recarga la PWA: no hace falta que vuelva a iniciar sesión
+   (ver abajo).
+
+| Caso | `asignar` (por defecto) | `accion=revocar` |
+|---|---|---|
+| Cuenta `CIUDADANO` | Pasa a `FUNCIONARIO_MUNICIPAL` con ese distrito. Si tenía distrito de residencia, avisa que se reemplaza (es el mismo campo). | Nada (aviso). |
+| `FUNCIONARIO_MUNICIPAL` del mismo distrito | Nada (aviso): se puede repetir. | Vuelve a `CIUDADANO`, sin distrito. |
+| `FUNCIONARIO_MUNICIPAL` de otro distrito | **Falla**: primero se revoca. | Vuelve a `CIUDADANO`, sin distrito. |
+| `ADMIN` | **Falla.** | **Falla.** |
+| Correo inexistente | **Falla** (sugiere los que solo difieren en mayúsculas). | **Falla.** |
+| Distrito que no coincide con exactamente uno | **Falla** (sugiere los parecidos). | No se usa. |
+| Falta `email` o `distrito`, o `accion` desconocida | **Falla.** | **Falla.** |
+
+**Cuándo rige el cambio.** El JWT lleva el rol (claim `rol`), pero nada lo
+lee para autorizar: `JwtAuthenticationFilter` solo toma del token el correo
+(el *subject*) y `UsuarioDetailsService` carga el rol de la base en cada
+petición. La PWA, a su vez, obtiene el rol de `GET /api/auth/me`
+(`useSesion`), no del token. Por eso el cambio rige desde la siguiente
+petición, sin cerrar sesión, y revocar corta el acceso de funcionario de
+inmediato aunque el token siga vigente.
+
+Decisiones:
+
+- **Un script y no un endpoint.** No existe ningún endpoint que cambie un
+  rol, así que no hay uno que proteger ni que un ADMIN comprometido pueda
+  usar; asignar funcionarios exige acceso a la base. El registro previo da
+  el hash y el consentimiento sin que el operador vea la contraseña.
+- **Solo de `CIUDADANO` a funcionario.** Cambiar de distrito a un
+  funcionario mueve su bandeja: se pide revocar y volver a asignar, para
+  que no ocurra por un error de tipeo. Un ADMIN nunca se toca.
+- **Atómico.** Todas las comprobaciones y el `UPDATE` van en un solo bloque
+  `DO`: si algo falla, no cambia nada. El script activa `ON_ERROR_STOP`, así
+  que `psql` termina con código 3. Las variables de `psql` se borran al
+  leerlas, para que en una sesión abierta no queden para la persona
+  siguiente.
+- **Nombre del distrito sin mayúsculas ni tildes** (`rimac` encuentra
+  «Rímac»). El archivo es ASCII (las vocales con tilde van como escapes
+  Unicode), así que no depende de la codificación del cliente. En Windows
+  conviene escribir el nombre sin tildes ni eñes: desde Git Bash, `-v
+  distrito=Breña` llega mal codificado a `psql` y el script falla sin
+  cambiar nada; `Brena` funciona.
+- **Jurisdicción en `usuario.distrito_id`**, como hoy. Si D-10 la pasa a
+  `municipalidad_id`, el script cambia con esa tarea.
+
+**Verificación (2026-10-21)** contra `viasegura_test`, con cuentas propias
+que se borraron al final, con el `psql` 18 de Windows (`-f`) y con el del
+contenedor (entrada estándar): asignación con aviso de la residencia
+reemplazada; repetición sin cambios (mismo `updated_at`); `rimac`, `Brena` y
+`jesus maria` encuentran su distrito, y `Breña` desde un cliente UTF-8;
+revocación y su repetición; `\set` + `\i` deja las variables sin definir; y
+código 3, sin cambios en la base, para el correo inexistente (y con otras
+mayúsculas), la cuenta ADMIN (al asignar y al revocar), el funcionario de
+otro distrito, el distrito inexistente (`Miraflore`), la falta de `email` o
+`distrito` y una `accion` desconocida.
+
 ## Endpoints implementados (vertical slice inicial)
 
 | Método | Ruta                | Auth | Historia | Descripción |
