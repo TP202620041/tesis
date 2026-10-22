@@ -84,6 +84,28 @@ export function leerAvisoPush(datos: unknown): AvisoPush {
   };
 }
 
+/** Icono de la notificacion: el de la app (provisional, DEP-06). */
+export const ICONO_AVISO = '/icons/icon-192.png';
+
+/**
+ * Insignia de la barra de estado de Android. El sistema solo usa su canal
+ * alfa, asi que es la silueta del pin en blanco sobre transparente: el icono
+ * a color se veria como un cuadrado lleno. Sin insignia, Android muestra la
+ * del navegador.
+ */
+export const INSIGNIA_AVISO = '/icons/badge-96.png';
+
+/** Opciones de `showNotification` para un aviso ya leido con {@link leerAvisoPush}. */
+export function opcionesDeNotificacion(aviso: AvisoPush): NotificationOptions {
+  return {
+    body: aviso.cuerpo,
+    tag: aviso.tag,
+    icon: ICONO_AVISO,
+    badge: INSIGNIA_AVISO,
+    data: { url: aviso.url },
+  };
+}
+
 /** Que hacer al hacer clic en la notificacion. */
 export type AccionDeClic =
   | { tipo: 'enfocar'; indice: number }

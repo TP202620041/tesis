@@ -170,7 +170,7 @@ mvn verify -Dit.test=GestionMunicipalIT       # un IT
 mvn test -Dtest=ReincidenciaDetectorTest      # un unit test
 
 # Frontend (frontend/)
-cp .env.local.example .env.local
+cp .env.example .env.local
 npm install
 npm run dev            # :3000, sin Service Worker
 npm run build          # next build + serwist build
