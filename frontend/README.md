@@ -224,6 +224,16 @@ conserva su **rampa violeta** (ningún estado ni la marca usan violeta) y
 `null` sigue siendo «Sin datos»; en la tabla del índice, además, la pista de un
 «Sin datos» es punteada y la de un «0 %» llena.
 
+**Recibido (azul) frente al calor (violeta).** Con Recibido en azul, el tono
+ya no basta para separarlo del violeta medio de la capa de calor: su
+luminosidad es casi igual (1.14:1 entre `#2e6be6` y `#8b5cf6`), así que ese par
+**no** va en `contraste-civica.json` como si el contraste los distinguiera. Los
+separan la forma y la capa: el marcador es un disco opaco de 20 px con anillo
+blanco y contorno oscuro, en el `markerPane` (encima); la celda de calor es un
+círculo translúcido, sin anillo, que crece con el nivel (6 a 12 px de radio),
+en un `<canvas>` debajo. Cada capa tiene su leyenda con texto y la de calor se
+enciende aparte. Lo dice también el comentario de `model/densidad.ts`.
+
 **Mapa.** Las teselas de OpenStreetMap se desaturan con un filtro CSS sobre
 `.leaflet-tile-pane` (en oscuro se invierten; en alto contraste, escala de
 grises), para que los únicos colores con significado sean los de los
