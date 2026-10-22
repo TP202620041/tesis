@@ -43,18 +43,40 @@ spring:
           timeout: 5000
           writetimeout: 5000
 
-# Almacenamiento de fotos (US-05 reportes, US-30 perfil). Filesystem local en
-# desarrollo. Las fotos se separan en dos subdirectorios de `fotos-dir` segun
-# su visibilidad (ver FotoStorageService):
-#   <fotos-dir>/reportes -> servido como estatico PUBLICO en `fotos-url`
-#   <fotos-dir>/perfiles -> servido SOLO al dueno por `fotos-perfil-url`
+# Almacenamiento de fotos (US-05 reportes, US-30 perfil). Las fotos se separan
+# segun su visibilidad (ver FotoStorageService), y las URL son las mismas con
+# cualquier adaptador:
+#   reportes -> PUBLICAS en `fotos-url`/reportes/<uuid>.jpg (WebMvcConfig)
+#   perfiles -> SOLO al dueno en `fotos-perfil-url`/<uuid>.jpg (PerfilFotoController)
 app:
   storage:
+    # Adaptador (DEP-12): `local` (filesystem, desarrollo y tests) o `s3`
+    # (Cloudflare R2 en produccion; un emulador S3 en la CI).
+    tipo: ${FOTOS_ALMACEN:local}
+    # Solo `local`: <fotos-dir>/reportes y <fotos-dir>/perfiles.
     fotos-dir: ${FOTOS_DIR:./uploads/fotos}
     # Prefijo publico de las fotos de reporte (evidencia visible en el mapa).
     fotos-url: /media/fotos
     # Endpoint autenticado de las fotos de perfil (dato personal).
     fotos-perfil-url: /api/perfiles/fotos
+    # Solo `s3`: dos buckets PRIVADOS, uno por visibilidad. Con tipo=s3 son
+    # todas obligatorias (S3FotoStorageService no arranca sin ellas). El
+    # token, solo por entorno y nunca en el repo.
+    s3:
+      endpoint: ${FOTOS_S3_ENDPOINT:}
+      # R2 ignora la region, pero el SDK exige una.
+      region: ${FOTOS_S3_REGION:auto}
+      bucket-reportes: ${FOTOS_S3_BUCKET_REPORTES:}
+      bucket-perfiles: ${FOTOS_S3_BUCKET_PERFILES:}
+      access-key-id: ${FOTOS_S3_ACCESS_KEY_ID:}
+      secret-access-key: ${FOTOS_S3_SECRET_ACCESS_KEY:}
+    # Saneado de cada foto antes de guardarla (DEP-12, ImageIoSaneadorDeImagen):
+    # sin EXIF, orientada, <= 2048 px y JPEG 0,85. Cada saneado en curso ocupa
+    # unos 25-35 MB de heap; con -Xmx512m, 2 a la vez. Una subida espera turno
+    # hasta `espera-maxima` y, si no lo obtiene, recibe 503.
+    saneado:
+      max-concurrentes: ${FOTOS_SANEADO_MAX_CONCURRENTES:2}
+      espera-maxima: 10s
   # Notificaciones al ciudadano (US-16/US-21).
   notificaciones:
     email-remitente: "${NOTIF_FROM:Ciudad Viva <no-reply@viasegura.pe>}"

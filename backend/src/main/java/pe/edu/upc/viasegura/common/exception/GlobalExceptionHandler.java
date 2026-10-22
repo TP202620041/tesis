@@ -55,6 +55,18 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.CONFLICT, ex.getMessage(), req, List.of());
     }
 
+    /**
+     * El servidor no puede atender ahora, pero si en unos segundos o
+     * minutos: sin turno para sanear la foto o el almacenamiento de fotos no
+     * respondio (DEP-12). 503 conservando el mensaje, que la PWA muestra; no
+     * es un error de red, asi que no entra a la cola offline.
+     */
+    @ExceptionHandler(ServicioNoDisponibleException.class)
+    public ResponseEntity<ApiError> handleServicioNoDisponible(
+            ServicioNoDisponibleException ex, HttpServletRequest req) {
+        return build(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage(), req, List.of());
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiError> handleValidation(MethodArgumentNotValidException ex, HttpServletRequest req) {
         List<String> details = ex.getBindingResult().getFieldErrors().stream()

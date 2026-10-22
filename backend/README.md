@@ -80,7 +80,13 @@ preferible que no arranque y que el log diga qué falta.
 | `DB_URL` | sí | `jdbc:postgresql://<host>:<puerto>/<base>` de un PostgreSQL 16 que tenga PostGIS 3.4 disponible (la V1 ejecuta `CREATE EXTENSION postgis`). |
 | `DB_USERNAME`, `DB_PASSWORD` | sí | Credenciales de esa base. |
 | `CORS_ALLOWED_ORIGINS` | sí | Origen exacto de la PWA (`https://<proyecto>.vercel.app`); varios, separados por coma. |
-| `FOTOS_DIR` | sí | Directorio de las fotos. La imagen ya trae `FOTOS_DIR=/data/fotos`. |
+| `FOTOS_ALMACEN` | sí | `s3` (fotos en Cloudflare R2) o `local` (disco del contenedor). Sin ella no arranca: con el `local` de desarrollo por defecto, cada despliegue borraría las fotos sin avisar (ver [Fotos](#fotos-dos-visibilidades-dos-buckets-y-sin-exif-dep-12)). Con otro valor tampoco: `common/config/ValidacionAlmacenDeFotos` lo rechaza antes de crear ningún bean, con un mensaje que nombra la variable y los valores admitidos (sin ella, el error era un genérico «No qualifying bean of type FotoStorageService»). |
+| `FOTOS_S3_ENDPOINT` | con `s3` | `https://<ACCOUNT_ID>.r2.cloudflarestorage.com`. |
+| `FOTOS_S3_REGION` | no (`auto`) | R2 la ignora, pero el SDK exige una. |
+| `FOTOS_S3_BUCKET_REPORTES`, `FOTOS_S3_BUCKET_PERFILES` | con `s3` | Dos buckets privados y **distintos** (no arranca si coinciden). |
+| `FOTOS_S3_ACCESS_KEY_ID`, `FOTOS_S3_SECRET_ACCESS_KEY` | con `s3` | Token de R2 con *Object Read & Write* limitado a esos dos buckets. |
+| `FOTOS_DIR` | con `local` | Directorio de las fotos. La imagen ya trae `FOTOS_DIR=/data/fotos`. |
+| `FOTOS_SANEADO_MAX_CONCURRENTES` | no (2) | Saneados de fotos simultáneos; con `-Xmx512m`, 2. |
 | `PORT` | no (8080) | Lo inyecta la plataforma. |
 | `SPRINGDOC_HABILITADO` | no (`false`) | `true` publica `/v3/api-docs` y Swagger UI. |
 | `ADMIN_INICIAL_EMAIL`, `ADMIN_INICIAL_PASSWORD`, `ADMIN_INICIAL_NOMBRE` | solo en el primer arranque | Crean el primer ADMIN en una base sin ninguno. Después se borra `ADMIN_INICIAL_PASSWORD`; las otras dos pueden quedar (ver «Operación en producción»). |
@@ -131,7 +137,10 @@ preferible que no arranque y que el log diga qué falta.
 ```bash
 docker build -t viasegura-backend backend/
 docker run -p 8080:8080 -e JWT_SECRET=… -e DB_URL=… -e DB_USERNAME=… \
-  -e DB_PASSWORD=… -e CORS_ALLOWED_ORIGINS=… viasegura-backend
+  -e DB_PASSWORD=… -e CORS_ALLOWED_ORIGINS=… \
+  -e FOTOS_ALMACEN=s3 -e FOTOS_S3_ENDPOINT=… -e FOTOS_S3_BUCKET_REPORTES=… \
+  -e FOTOS_S3_BUCKET_PERFILES=… -e FOTOS_S3_ACCESS_KEY_ID=… \
+  -e FOTOS_S3_SECRET_ACCESS_KEY=… viasegura-backend
 ```
 
 - **Dos etapas.** `maven:3.9-eclipse-temurin-21` compila: primero
@@ -160,15 +169,21 @@ docker run -p 8080:8080 -e JWT_SECRET=… -e DB_URL=… -e DB_USERNAME=… \
   IDE y `.env`, para que un archivo con secretos nunca llegue al contexto de
   build.
 
-**Tamaño (2026-10-21): unos 391 MB** sin comprimir (la suma de las capas de
-`docker history`: Ubuntu 88 MB, paquetes de Temurin 49 MB, JRE 166 MB,
-dependencias 87 MB, código 0,4 MB) y **178 MB comprimida** (la columna
-*CONTENT SIZE* de `docker image ls`, lo que se descarga). El criterio de
-DEP-03 pide menos de 400 MB: se cumple, con poco margen. La columna *DISK
-USAGE* de Docker Desktop (568 MB) suma la imagen comprimida y la
-descomprimida, así que no es el tamaño de la imagen. Las dependencias que
-sumen DEP-08 y DEP-12 (cliente HTTP de correo, SDK de S3, saneado de
-imágenes) pueden pasar el límite; conviene volver a medir en esas tareas.
+**Tamaño (2026-10-22, con DEP-12): 399,7 MB** sin comprimir (381,2 MiB; la
+suma de las capas de `docker history`: Ubuntu 87,6 MB, paquetes de Temurin
+49,4 MB, JRE 166 MB, dependencias 96,3 MB, código 0,4 MB) y **186 MB
+comprimida** (la columna *CONTENT SIZE* de `docker image ls`, lo que se
+descarga). El criterio de DEP-03 pide menos de 400 MB: se cumple, **sin
+margen**. Antes de DEP-12 eran 391 MB; el SDK de S3 y los lectores de
+TwelveMonkeys suman unos 9 MB, aun usando solo el módulo `s3` del SDK con el
+cliente HTTP de `URLConnection` (sin Apache HttpClient, Netty, CRT ni firma
+de *event streams*) y quitando `tomcat-embed-websocket`, que la API no usa.
+Con esas exclusiones la primera medición (400,07 MB) bajó a 399,7 MB. La
+próxima dependencia (p. ej. DEP-08) pasará el límite: si importa, la salida
+de fondo es un JRE propio con `jlink` (unos 80 MB menos) o medir el criterio
+sobre la imagen comprimida. La columna *DISK USAGE* de Docker Desktop
+(586 MB) suma la imagen comprimida y la descomprimida, así que no es el
+tamaño de la imagen.
 
 **Verificación (2026-10-21)**, con la imagen contra un PostGIS 16-3.4 vacío y
 temporal:
@@ -199,13 +214,14 @@ como código. El paso a paso está en el runbook de despliegue
 - **Health check.** `GET /actuator/health` responde `UP` en cuanto Tomcat
   arranca; los *seeders* de distritos y municipalidades terminan alrededor de
   un segundo después (solo hacen algo en el primer despliegue).
-- **Volumen de fotos (temporal, hasta DEP-12).** Railway monta los
-  volúmenes como `root` y la imagen corre como `viasegura`: un volumen en
-  `/data/fotos` exige `RAILWAY_RUN_UID=0` para poder escribir (documentación
-  de Railway). Esa variable **hace correr el contenedor como root**, es
-  decir, anula el usuario sin privilegios de la imagen. Se acepta solo
-  mientras las fotos vayan a un volumen: con DEP-12 pasan a R2, el volumen
-  sobra y la variable se quita.
+- **Fotos en R2, sin volumen (DEP-12).** Con `FOTOS_ALMACEN=s3` las fotos
+  van a Cloudflare R2 y el contenedor no escribe en disco: no hace falta un
+  volumen ni, por lo tanto, `RAILWAY_RUN_UID=0`, y la imagen corre con su
+  usuario sin privilegios. Esa variable solo vuelve a hacer falta con
+  `FOTOS_ALMACEN=local` y un volumen en `/data/fotos`: Railway monta los
+  volúmenes como `root`, la imagen corre como `viasegura`, y
+  `RAILWAY_RUN_UID=0` **hace correr el contenedor como root**. Es la salida
+  de emergencia si R2 no estuviera disponible, no la configuración normal.
 
 ## Operación en producción
 
@@ -465,8 +481,8 @@ src/main/java/pe/edu/upc/viasegura/
 │   ├── security/      # SecurityConfig, JwtService, JwtAuthenticationFilter
 │   ├── exception/     # GlobalExceptionHandler, ApiError, excepciones de dominio
 │   ├── domain/        # BaseAuditableEntity (createdAt/updatedAt)
-│   ├── port/          # FotoStorageService (fotos de reporte y de perfil, D-11)
-│   └── infra/         # LocalFotoStorageService (filesystem)
+│   ├── port/          # FotoStorageService (fotos de reporte y de perfil, D-11), SaneadorDeImagen (DEP-12)
+│   └── infra/         # LocalFotoStorageService (disco), S3FotoStorageService (R2), ImageIoSaneadorDeImagen
 ├── auth/              # US-01..US-04  (Usuario, login/registro, roles)
 ├── distritos/         # Distrito (límites GEOGRAPHY, base de asignación)
 ├── municipalidades/   # Municipalidad (1:1 con distrito, D-09) y PeriodoGestion (NC-01)
@@ -983,46 +999,266 @@ parte frágil no es el mecanismo sino **la enumeración de los eventos**. Aquí
 se enumeraron los que cambian el *numerador* y se pasó por alto el
 *denominador*.
 
-## Fotos: dos visibilidades, dos mecanismos
+## Fotos: dos visibilidades, dos buckets y sin EXIF (DEP-12)
 
-Las fotos se guardan en el filesystem local (`app.storage.fotos-dir`) pero
-**no todas tienen la misma visibilidad**, y esa diferencia es de seguridad,
-no de orden:
+Las fotos **no todas tienen la misma visibilidad**, y esa diferencia es de
+seguridad, no de orden:
 
 | | Foto de reporte (US-05) | Foto de perfil (US-30) |
 |---|---|---|
 | Qué es | Evidencia de un daño vial | Dato personal del ciudadano |
-| Directorio | `<fotos-dir>/reportes` | `<fotos-dir>/perfiles` |
-| URL | `/media/fotos/reportes/{uuid}` | `/api/perfiles/fotos/{uuid}` |
+| Dónde (`local`) | `<fotos-dir>/reportes` | `<fotos-dir>/perfiles` |
+| Dónde (`s3`) | bucket `FOTOS_S3_BUCKET_REPORTES` (privado) | bucket `FOTOS_S3_BUCKET_PERFILES` (privado) |
+| URL | `/media/fotos/reportes/{uuid}.jpg` | `/api/perfiles/fotos/{uuid}.jpg` |
 | Acceso | **Público**, sin token | **Solo el dueño** |
-| Mecanismo | `addResourceHandlers` (`WebMvcConfig`) | `PerfilFotoController` |
+| Mecanismo | resource handler con `ResourceResolver` propio (`WebMvcConfig`) | `PerfilFotoController` |
 
 **Por qué las de reporte son públicas:** el mapa y la búsqueda (US-10/US-12)
 ya son públicos y devuelven `fotoUrl`; si la foto exigiera token, el mapa
 mostraría imágenes rotas a cualquier visitante.
 
-**Por qué mecanismos distintos.** Una foto de reporte es un archivo estático
-sin regla de autorización: `addResourceHandlers` resuelve content-type,
-`ETag`, `Last-Modified`, peticiones de rango y protección contra path
-traversal sin código propio. Una foto de perfil exige comprobar que quien la
-pide **es su dueño** — autorización *por instancia*, no por patrón de ruta.
-`SecurityConfig` protege rutas por rol y no puede expresarlo, así que hace
-falta un controlador que lea al usuario autenticado y lo compare con el dueño
-real del archivo.
+**Por qué mecanismos distintos.** Una foto de reporte no tiene regla de
+autorización: el resource handler de Spring resuelve content-type,
+`Last-Modified` y los GET condicionales, las peticiones de rango y el
+rechazo de rutas con `..` sin código propio. Una foto de perfil exige
+comprobar que quien la pide **es su dueño** — autorización *por instancia*,
+no por patrón de ruta. `SecurityConfig` protege rutas por rol y no puede
+expresarlo, así que hace falta un controlador que lea al usuario autenticado
+y lo compare con el dueño real del archivo.
 
 **Defensa contra path traversal en el endpoint dedicado.** Al no heredar la
 protección del resource handler, hay que replicarla. El nombre que llega en
-la URL **nunca se usa para tocar el disco**: solo se *compara* contra el
-nombre registrado en `usuario.foto_url`, y la lectura se hace con el valor
-registrado. Una entrada como `../../../etc/passwd` jamás coincide con un UUID
-almacenado, así que se rechaza antes de llegar al filesystem — más robusto que
-sanear la cadena, porque no hay que anticipar todas las formas de escaparse.
-`LocalFotoStorageService#cargarFotoPerfil` añade una verificación de
-contención de ruta como segunda barrera.
+la URL **nunca se usa para tocar el almacenamiento**: solo se *compara*
+contra el nombre registrado en `usuario.foto_url`, y la lectura se hace con
+el valor registrado. Una entrada como `../../../etc/passwd` jamás coincide
+con un UUID almacenado, así que se rechaza antes de llegar al disco o al
+bucket — más robusto que sanear la cadena, porque no hay que anticipar todas
+las formas de escaparse. Los adaptadores añaden una segunda barrera: el local
+verifica que la ruta quede dentro del directorio y el S3 solo acepta nombres
+`<uuid>.<ext>` (`FotoStorageService.NOMBRE_DE_ARCHIVO`).
 
 **404 en vez de 403** cuando el archivo pedido no es del solicitante: es una
 desviación deliberada del criterio general del proyecto, porque un 403
 confirmaría que ese archivo existe y se trata de fotos de personas.
+
+### Dos adaptadores, las mismas URL
+
+`common/port/FotoStorageService` tiene dos implementaciones, elegidas por
+`app.storage.tipo` (`FOTOS_ALMACEN`) con `@ConditionalOnProperty`
+(propuesta aceptada `project-context/decisions/propuestas/2026-10-21-fotos-r2.md`):
+
+| `app.storage.tipo` | Adaptador | Dónde se usa |
+|---|---|---|
+| `local` (por defecto; fijo en el perfil `test`) | `common/infra/LocalFotoStorageService` | Desarrollo y tests: sin credenciales ni red. |
+| `s3` | `common/infra/S3FotoStorageService` | Producción contra **Cloudflare R2**; CI y pruebas manuales contra un emulador S3. |
+
+- **Por qué R2 y un bucket privado.** En un contenedor de Railway el disco no
+  persiste entre despliegues: sin almacenamiento externo, cada versión
+  borraba las fotos. R2 no cobra egreso, su capa gratuita cubre de sobra la
+  tesis (10 GB, 1 M de escrituras y 10 M de lecturas al mes) y habla la API
+  de S3.
+- **Se llama `S3…` y no `R2…`** porque el mismo adaptador habla con R2 en
+  producción y con el emulador en las pruebas: tecnología más puerto
+  (ARCHITECTURE.md §4.5).
+- **Mismas URL que con el disco.** El adaptador S3 devuelve las mismas
+  cadenas que el local, y el backend lee del bucket para servirlas. El
+  navegador nunca habla con R2: **sin cambio de contrato ni de CSP**, y
+  `reporte.foto_url` y `usuario.foto_url` siguen guardando la URL relativa.
+  Para eso el puerto suma `cargarFotoReporte`, y `WebMvcConfig` registra el
+  mismo *resource handler* de antes con un `ResourceResolver` propio que la
+  llama (antes apuntaba al directorio local). Es **un solo camino** para los
+  dos adaptadores: el IT de siempre (`FotoReporteIT`) prueba el que corre en
+  producción. Un nombre que no sea `<uuid>.<ext>` responde 404 sin llamar al
+  almacenamiento.
+- **Dos buckets y no uno con prefijos.** Hoy los dos son igual de privados,
+  pero un error de configuración que hiciera público uno no expondría las
+  caras de los ciudadanos, y la migración futura a una CDN (abajo) consiste
+  en publicar solo el de reportes. Cuesta lo mismo: R2 cobra por GB y por
+  operación, no por bucket. El arranque falla si los dos nombres coinciden.
+- **Configuración del cliente** (AWS SDK for Java v2, según el ejemplo
+  oficial de Cloudflare): `endpointOverride` y región `auto`;
+  `chunkedEncodingEnabled(false)`, sin lo cual `PutObject` falla en R2 con
+  403 `SignatureDoesNotMatch`; checksums solo cuando la operación los exige
+  (`WHEN_REQUIRED`), porque desde la 2.30 el SDK calcula CRC32 en cada
+  subida y R2 tuvo un incidente con eso; timeouts de 5 s por intento y 10 s
+  por llamada. Del SDK entra solo el módulo `s3` con el cliente HTTP de
+  `java.net.URLConnection` (sin Apache HttpClient ni Netty, que el SDK trae
+  por defecto): una llamada síncrona por petición no necesita más, y la
+  imagen tiene un límite de 400 MB.
+- **Lectura en memoria.** Después del saneado una foto pesa unos cientos de
+  KB, así que el adaptador S3 la lee entera (`GetObject`) y la entrega como
+  recurso en memoria con su nombre y su fecha: `contentLength()`, el
+  `Last-Modified` y los rangos funcionan sin una segunda llamada.
+- **Caché.** Las públicas salen con `Cache-Control: max-age=2592000, public,
+  immutable` (30 días; el nombre es un UUID, así que el contenido de una URL
+  nunca cambia y el navegador no revalida al recargar) y `Last-Modified`
+  (un GET condicional responde 304). Las de perfil, `private`. Cada vista
+  que no resuelve la caché del navegador o del Service Worker es una lectura
+  de R2 (operación clase B).
+- **Errores del bucket.** Un objeto que no existe es `null` → 404. Si R2 no
+  responde, 503 con mensaje (`ServicioNoDisponibleException`): la PWA lo
+  muestra y no lo toma como error de red, así que el reporte no queda en la
+  cola offline.
+- **La foto de perfil reemplazada se borra** (`eliminarFotoPerfil`): ya no
+  tiene finalidad y es un dato personal (Ley N.° 29733). `AuthService`
+  publica `auth/event/FotoDePerfilReemplazadaEvent` y
+  `auth/listener/FotoDePerfilReemplazadaListener` lo atiende **después del
+  commit** (si el cambio de perfil hiciera rollback, el ciudadano
+  conservaría la anterior) y solo encola
+  `PerfilFotoService#eliminarFotoReemplazada`, que es `@Async` en el executor
+  acotado de `AsyncConfig`: el borrado en R2 es una llamada HTTP y, como las
+  notificaciones (D-13), no corre en el hilo de la petición ni con la
+  conexión a la base tomada. Nunca lanza: con la cola llena o R2 caído se
+  registra y la foto queda huérfana; el perfil no se ve afectado.
+
+### Saneado: sin EXIF, orientada y a 2048 px
+
+Las fotos de los teléfonos traen **EXIF**: la ubicación GPS del teléfono, el
+modelo del equipo y la fecha. La foto de un reporte es pública, así que
+publicarlo expondría dónde vive o por dónde anda quien reporta. Toda foto
+pasa por `common/port/SaneadorDeImagen` (implementado por
+`common/infra/ImageIoSaneadorDeImagen`) al principio de los `almacenar…` de
+**los dos** adaptadores, venga del caso de uso que venga:
+
+1. Valida la extensión (jpg, jpeg, png, webp) y luego **el contenido**: el
+   lector se elige por los bytes, no por el nombre, y solo se aceptan JPEG,
+   PNG y WEBP. Antes solo se miraba la extensión.
+2. Lee las dimensiones **sin decodificar** y rechaza más de 40 MP (una
+   "bomba de descompresión": pocos bytes que se expanden a gigas).
+3. Decodifica **ya submuestreada** (`ImageReadParam#setSourceSubsampling`,
+   paso `n = ⌈lado mayor / 2048⌉`): el lector descarta filas y columnas al
+   leer, así que la imagen en memoria nunca pasa de 2048 px por lado (~12 MB)
+   aunque la foto tenga 40 MP (~120 MB decodificada entera). El paso es
+   entero, así que una foto de 4100 px queda en 1367 px y no en 2048.
+4. Aplica la **orientación EXIF** a los píxeles (si no, al quitar el EXIF la
+   foto se vería girada). Solo en JPEG, que es lo que producen las cámaras
+   (Safari convierte HEIC a JPEG al subir).
+5. La escribe como **JPEG de calidad 0,85 sin metadatos**. Una PNG con
+   transparencia queda con fondo blanco.
+
+| Opción | Por qué sí o no |
+|---|---|
+| **Recodificar** (elegida) | Elimina *todo* metadato (EXIF, GPS, XMP, IPTC, notas del fabricante) sin conocer cada formato; valida que el archivo sea una imagen; baja de 3–5 MB a unos cientos de KB (menos almacenamiento, egreso y heap); entrada uniforme para el modelo de NC-03. Cuesta algo de calidad, imperceptible a 0,85 para la evidencia de un bache. |
+| Quitar metadatos formato por formato | Sin pérdida, pero exige código por formato y es fácil olvidar una variante (XMP dentro de APP1, GPS en XMP); no valida el contenido ni reduce el peso. |
+
+- **Lectores de TwelveMonkeys** (BSD-3) para JPEG (CMYK y archivos con
+  errores tolerables) y WEBP, que el JDK no lee; su lector de metadatos lee
+  la orientación. El registro de ImageIO es global, así que el adaptador
+  llama a `ImageIO.scanForPlugins()` al arrancar y registra en el log qué
+  lector atiende cada formato.
+- **Siempre `.jpg`.** Las URL nuevas terminan en `.jpg`; para la PWA siguen
+  siendo una cadena opaca.
+- **Errores.** Un archivo que no se puede decodificar da el mismo error que
+  una extensión no permitida (`BusinessException`, **409**, mensaje que
+  empieza con «Formato de foto no permitido»), así que la PWA no cambia; más
+  de 40 MP, 409 «La foto supera el máximo de 40 megapíxeles». Un decodificador
+  que falla con un archivo corrupto (desde `IIOException` hasta
+  `IndexOutOfBounds`) también es 409: el error es del cliente, no un 500.
+- **Determinista.** Los mismos bytes dan los mismos bytes (mismo lector, mismo
+  paso, giros exactos con vecino más cercano, mismo codificador y calidad).
+  D-08 depende de eso: con NC-04 la vista previa pasará por el mismo
+  saneador, y la sugerencia oficial leerá la foto guardada, ya saneada.
+
+**Memoria acotada.** El API corre con `-Xmx512m` (runbook). Cada saneado en
+curso ocupa el archivo subido (hasta 10 MB), la imagen decodificada
+(≤ 12 MB), la orientada si hay que girarla (≤ 12 MB) y el JPEG de salida
+(~0,5 MB). Un **semáforo** limita los saneados simultáneos
+(`app.storage.saneado.max-concurrentes`, 2 por defecto): una subida espera
+turno hasta 10 s y, si no lo obtiene, responde **503** «Hay muchas fotos
+procesándose en este momento» (no un error de red: la PWA muestra el mensaje
+y el reporte no entra a la cola offline).
+
+**Tope de 16 MP para lo que no se decodifica submuestreado.** El tope de
+40 MP supone que el lector descarta filas al leer. Hay archivos cuyo
+decodificador retiene la imagen entera, o todos sus coeficientes, antes de
+reducirla; para esos el tope baja a **16 MP**, también sin decodificar
+(`ImageIoSaneadorDeImagen#seDecodificaEntera`, que solo lee los
+encabezados):
+
+- **JPEG no secuencial** (el primer marcador SOF no es `SOF0` ni `SOF1`):
+  progresivo (`SOF2`), sin pérdida, jerárquico o aritmético. Con un
+  progresivo, la librería nativa del JDK guarda los coeficientes DCT de toda
+  la imagen **fuera del heap** (3 a 6 bytes por píxel: ~240 MB con 40 MP,
+  ~96 MB con 16 MP): no provoca un `OutOfMemoryError` de Java, pero suma
+  memoria al contenedor. El lector sin pérdida de TwelveMonkeys no
+  submuestrea. Las cámaras de los teléfonos producen JPEG secuencial
+  (*baseline*); los progresivos vienen de la web o de algunas aplicaciones.
+- **WEBP sin pérdida** (`VP8L`), **animado** (`ANMF`) o **con un canal alfa
+  comprimido sin pérdida** (`ALPH` con compresión 1, aunque la imagen sea
+  `VP8` con pérdida): el decodificador arma un raster entero de 4 bytes por
+  píxel (64 MB con 16 MP). Un teléfono no produce estos archivos.
+
+### Pruebas de las fotos
+
+| Prueba | Tipo | Qué afirma |
+|---|---|---|
+| `ImageIoSaneadorDeImagenTest` | unitaria | Un JPEG con GPS y fabricante en el EXIF sale sin APP1; las 8 orientaciones EXIF dejan los píxeles donde se verían; una foto de 4200 px sale de 1400 px (submuestreo al decodificar, no reescalado); PNG transparente → fondo blanco; mismos bytes → mismos bytes; no imagen, GIF disfrazado o PNG roto → 409; más de 40 MP se rechaza **sin decodificar**, y más de 16 MP si el archivo se decodifica entero (JPEG progresivo, WEBP sin pérdida o con alfa sin pérdida, con encabezados armados en el test), mientras un JPEG secuencial o un WEBP con alfa sin comprimir de 20 MP no se rechaza por tamaño; con los turnos ocupados, la tercera espera y a los 10 s es 503, y si un turno se libera a tiempo, pasa. |
+| `S3FotoStorageServiceTest` | unitaria, `S3Client` simulado | Cada foto a su bucket con `image/jpeg`; la misma URL que el local; nombres que no son `<uuid>.<ext>` no llegan al bucket; inexistente → `null`; bucket caído → 503; no arranca sin endpoint, token o bucket, ni con un solo bucket para las dos visibilidades. |
+| `LocalFotoStorageServiceTest` | unitaria | Lo de antes, más que se guarda el JPEG saneado y `cargarFotoReporte` y `eliminarFotoPerfil` no salen del directorio. |
+| `FotoReporteIT`, `FotoPerfilIT` | IT (`local`) | Misma URL y visibilidad; la foto descargada ya no trae EXIF y se ve derecha; `Cache-Control`, 304 y 206; nombres raros → 404; foto inválida → 409; al reemplazar la foto de perfil, la anterior se borra. |
+| `ArranqueAlmacenDeFotosIT` | IT | Con el perfil `prod` y sin `FOTOS_ALMACEN`, la aplicación no arranca. |
+| `ValidacionAlmacenDeFotosTest` | unitaria, sin base | `local` y `s3` (sin distinguir mayúsculas) pasan; otro valor (`r2`, vacío, `s3 ` con espacio) no arranca con un mensaje que nombra `FOTOS_ALMACEN` y los valores admitidos, también con la aplicación real y antes de tocar la base. |
+| `FotoDePerfilReemplazadaListenerTest` | unitaria | El listener solo encola el borrado de la foto reemplazada; ni la cola llena ni un almacenamiento caído lanzan. |
+| `S3FotoStorageServiceIT` | IT, **solo si existe `FOTOS_S3_TEST_ENDPOINT`** | La aplicación entera con `app.storage.tipo=s3` contra un servicio S3 real: cada foto solo en su bucket, servida por la misma URL e idéntica a la del bucket, sin EXIF; la de perfil solo para su dueño; la reemplazada se borra del bucket; inexistente → 404. Sin la variable se omite y la suite local no cambia. |
+
+El emulador es **Adobe S3Mock** (Apache-2.0), no MinIO: el repositorio de
+MinIO quedó archivado y su imagen ya no se distribuye, y LocalStack exige un
+token. Para correr el IT:
+
+```bash
+docker run -d --rm -p 9090:9090 --name s3mock adobe/s3mock:5.2.3
+FOTOS_S3_TEST_ENDPOINT=http://localhost:9090 mvn verify -Dit.test=S3FotoStorageServiceIT
+docker stop s3mock
+```
+
+Los buckets se crean si no existen. **Antes del primer despliegue** conviene
+correrlo una vez contra un bucket R2 de prueba (`FOTOS_S3_TEST_ENDPOINT`,
+`FOTOS_S3_TEST_ACCESS_KEY_ID`, `FOTOS_S3_TEST_SECRET_ACCESS_KEY`,
+`FOTOS_S3_TEST_BUCKET_REPORTES`, `FOTOS_S3_TEST_BUCKET_PERFILES`, con los
+buckets ya creados): es lo único que confirma contra R2 la configuración del
+cliente (*chunked encoding* y *checksums*), que el emulador no verifica.
+
+### Prueba de memoria (DEP-12)
+
+**2026-10-22.** La imagen de `backend/Dockerfile` con el
+`JAVA_TOOL_OPTIONS` del runbook (`-Xms256m -Xmx512m -XX:+UseSerialGC
+-XX:+ExitOnOutOfMemoryError`, más `-Xlog:gc` para medir), `FOTOS_ALMACEN=s3`
+contra S3Mock y un PostGIS vacío y temporal, en una red de Docker propia.
+Fotos generadas tipo cámara de 24, 32 y 40 MP, de 8,2 a 8,4 MB, dos con
+orientación EXIF 6 y 8; cada subida de un ciudadano distinto y en un punto
+distinto (para que sean reportes nuevos y no adhesiones):
+
+| Subidas simultáneas | Respuestas | Tiempo | Pico de heap usado (antes de GC) | Heap comprometido |
+|---|---|---|---|---|
+| **8** (criterio de DEP-12) | **8 × 201** | 0,8–1,3 s | **230 MB** de 512 | 247 MB |
+| 16 | 13 × 201, 2 × 401, 1 × 500, todas a los ~30 s | ~30 s | 301 MB | 412 MB |
+
+Ningún `OutOfMemoryError` ni reinicio. Las fotos guardadas pesan 465–621 KB,
+sin EXIF. **El límite con 16 no es la memoria sino el pool de conexiones**
+(Hikari, 10): cada creación retiene su conexión mientras sanea y sube la
+foto, y al confirmar, `IndiceDesempenoRefreshListener` (`AFTER_COMMIT`)
+pide una **segunda** conexión para el `REFRESH MATERIALIZED VIEW` en
+`REQUIRES_NEW`, todavía con la primera tomada. Con 10 creaciones en ese
+punto el pool se bloquea hasta el timeout de 30 s («Connection is not
+available»): los refrescos fallan (se registran y el reporte ya está
+creado), y lo que no consigue conexión en ese lapso falla también (el
+filtro JWT no puede cargar al usuario → 401; una transacción que no puede
+empezar → 500). Las mismas 16 creaciones **sin foto** terminan en 201 en
+menos de 0,5 s: el saneado y la subida dentro de la transacción (deuda
+aceptada, ver «Deuda técnica conocida») alargan las transacciones lo
+suficiente para que el refresco existente agote el pool. Se resuelve
+sacando la subida de la transacción (NC-04) y el refresco del hilo de la
+petición (como las notificaciones, D-13); mientras tanto, un pool más
+grande en producción amplía el margen.
+
+### Migración futura a una CDN
+
+Cuando el egreso de Railway pese (las fotos pasan por el API): conectar un
+dominio propio **solo al bucket de reportes** con la caché de Cloudflare,
+responder 301 desde `/media/fotos/reportes/<archivo>` (las URL guardadas
+siguen sirviendo) y sumar el origen a la CSP de la PWA. El bucket de perfiles
+sigue privado y servido por el API. Las URL prefirmadas de R2 no sirven para
+esto: solo funcionan con el dominio de la API S3.
 
 ## Suscripciones push (NC-07)
 
@@ -1466,11 +1702,20 @@ verificado en una base de test vacía.
     compatible con Docker 29 (o se fije `<testcontainers.version>` a una que lo
     soporte). La migración es local a `AbstractPostgisIT` — el resto de los
     tests no cambia.
-- **Almacenamiento de fotos en filesystem local** (`LocalFotoStorageService`):
-  adecuado para desarrollo/academia; para producción migrar a S3-compatible
-  implementando `FotoStorageService` (la lógica de negocio no cambia). Si la
-  transacción de BD falla tras escribir el archivo, queda una foto huérfana en
-  disco (aceptable en MVP).
+- **La foto se sube dentro de la transacción** de la creación del reporte y
+  de la edición del perfil (DEP-12). Con el disco local era instantáneo; con
+  R2 son ~100–500 ms de red con una conexión del pool retenida, y antes, si
+  no hay turno de saneado, hasta 10 s de espera también con la conexión
+  tomada (el pool de Hikari tiene 10). Se acepta para el MVP, acotado por los
+  timeouts del cliente (10 s) y del semáforo (10 s). Sacar la subida de la
+  transacción cambia la estructura del caso de uso (idempotencia,
+  deduplicación) y se hace con NC-04, que vuelve a tocar la creación (§4.5,
+  D-13). Medido: con 16 creaciones con foto simultáneas, sumado al refresco
+  del índice en `AFTER_COMMIT` (que pide una segunda conexión), el pool se
+  agota durante 30 s (ver [Prueba de memoria](#prueba-de-memoria-dep-12)).
+- **Fotos huérfanas.** Si la transacción falla después de subir la foto, el
+  archivo u objeto queda en el disco o el bucket (aceptable en el MVP).
+  Mejora posible: borrarlo en `afterCompletion` con estado `ROLLED_BACK`.
 - **Dataset de distritos simplificado** (5,130 vértices, IGN/INEI): margen de
   error medido ≈ metros (≤ ~20 m en bordes terrestres; 0.044 % de mala
   asignación sobre 20k puntos). Suficiente para el MVP. El dataset detallado

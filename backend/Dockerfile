@@ -26,7 +26,9 @@ RUN mvn -B -ntp package -DskipTests \
 # imagen de Temurin ya trae fontconfig y DejaVu.
 FROM eclipse-temurin:21-jre-noble
 
-# Usuario sin privilegios; /data/fotos es suyo (FOTOS_DIR).
+# Usuario sin privilegios; /data/fotos es suyo (FOTOS_DIR). Solo se usa con
+# FOTOS_ALMACEN=local: en produccion las fotos van a R2 (FOTOS_ALMACEN=s3,
+# DEP-12) y el contenedor no escribe en disco.
 RUN groupadd --system viasegura \
     && useradd --system --gid viasegura --home-dir /app --shell /usr/sbin/nologin viasegura \
     && mkdir -p /data/fotos \
