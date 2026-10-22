@@ -3,7 +3,7 @@
 - **Estado:** abierta <!-- abierta | aceptada | rechazada -->
 - **Fecha:** 2026-10-22
 - **Origen:** agente de backend, tarea DEP-12 (fotos en R2, PR #96), en la prueba de memoria. La registra la sesión coordinadora.
-- **Decide:** el usuario. Queda fuera del alcance autorizado para la noche del 22/10 (DEP-12, DEP-08 y QA-1) y cambia el alcance de D-13. Si se acepta, la sesión de raíz agrega la tarea al plan.
+- **Decide:** el usuario. Queda fuera del alcance autorizado para la noche del 22/10 (DEP-12, DEP-08 y QA-1) y cambia el alcance de D-13. Si se acepta, la sesión de raíz actualiza ARCHITECTURE.md §4.5 y la fila D-13 (hoy: `REQUIRES_NEW`, y `@Async` solo para HTTP o SMTP) y agrega la tarea al plan.
 
 ## Contexto
 - **La prueba.** Se hizo con la imagen real de producción (`-Xmx512m`), R2 simulado con S3Mock y un PostGIS temporal:
@@ -22,12 +22,12 @@ Con picos de creación de reportes con foto, el refresco síncrono del índice d
 ## Opciones
 | Opción | Qué implica | Costo | Riesgo |
 |---|---|---|---|
-| **A. Refresco asíncrono y coalescido** | El listener marca «índice sucio» y una tarea `@Async` en el executor acotado (`AsyncConfig`) hace un solo `REFRESH` aunque lleguen varios eventos seguidos (por ejemplo, como mucho uno cada pocos segundos). La conexión de la petición se devuelve antes. | Bajo-medio: listener, una bandera atómica, un IT de «muchos eventos, un refresco» y ajustar los IT que leen el índice (ya lo refrescan en su `@BeforeEach`) | El índice público tarda unos segundos en reflejar un cambio, algo aceptable para una métrica agregada. Hay que conservar la regla «todo evento que mueve el índice lo refresca». |
+| **A. Refresco asíncrono y coalescido** | El listener marca «índice sucio» y encola una tarea `@Async` en el executor acotado (`AsyncConfig`). La tarea repite `while (sucio.getAndSet(false)) refrescar()`. Así varios eventos seguidos producen pocos `REFRESH`, y **siempre hay un refresco final**: una ventana mínima entre refrescos solo lo **retrasa**, nunca lo descarta. Si el executor rechaza la tarea (`AbortPolicy`, cola llena), la bandera queda puesta y el siguiente evento la recoge. La conexión de la petición se devuelve antes. | Medio: listener, bandera atómica, un IT de «muchos eventos, al menos un refresco final». Los IT que verifican el refresco por evento sin refrescar a mano (`DesempenoIT` en las líneas ~175, ~223 y ~253; la última crea y cancela con milisegundos de diferencia) necesitan que el perfil `test` desactive la ventana o esperar con sondeo acotado. | El índice público tarda unos segundos en reflejar un cambio, algo aceptable para una métrica agregada. Se conserva la regla «todo evento que mueve el índice lo refresca» (backend/CLAUDE.md) gracias al refresco final garantizado. |
 | **B. Subir el pool en producción** (`spring.datasource.hikari.maximum-pool-size`, por ejemplo 20) | Solo configuración | Mínimo | Esconde la causa. El plan Hobby de Railway y el PostgreSQL limitan las conexiones, y con más tráfico vuelve. |
 | **C. Sacar la subida y el saneado de la transacción de creación** | La foto se sube antes de abrir la transacción, o se guarda después con su compensación. Ya está previsto para NC-04. | Medio | Aparecen huérfanos en el bucket si la transacción falla. No resuelve el refresco duplicado. |
 
 ## Recomendación
-**A**, y **B** como medida inmediata y temporal en el primer despliegue (`maximum-pool-size` de 15 a 20 en `application-prod.yml`), hasta que entre A. **C** se evalúa con NC-04. Un piloto de tesis rara vez tendrá 16 creaciones con foto en el mismo segundo, así que no bloquea el MVP, pero un 500 en el reporte es justo lo que no debe pasar en la demo.
+**A**, y **B** como medida inmediata y temporal en el primer despliegue: añadir `spring.datasource.hikari.maximum-pool-size` a `application-prod.yml` (hoy no está y rige el valor por defecto, 10) con un valor entre 15 y 20, dentro del límite de conexiones del PostgreSQL de Railway, hasta que entre A. **C** se evalúa con NC-04. Un piloto de tesis rara vez tendrá 16 creaciones con foto en el mismo segundo, así que no bloquea el MVP, pero un 500 en el reporte es justo lo que no debe pasar en la demo.
 
 ## Qué queda bloqueado mientras no se decida
 - Nada de v0.7.0 está bloqueado: DEP-12 cumple su criterio (8 subidas simultáneas, todas 201).
