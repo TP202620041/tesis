@@ -89,6 +89,7 @@ preferible que no arranque y que el log diga qué falta.
 | `FOTOS_SANEADO_MAX_CONCURRENTES` | no (2) | Saneados de fotos simultáneos; con `-Xmx512m`, 2. |
 | `PORT` | no (8080) | Lo inyecta la plataforma. |
 | `SPRINGDOC_HABILITADO` | no (`false`) | `true` publica `/v3/api-docs` y Swagger UI. |
+| `ADMIN_INICIAL_EMAIL`, `ADMIN_INICIAL_PASSWORD`, `ADMIN_INICIAL_NOMBRE` | solo en el primer arranque | Crean el primer ADMIN en una base sin ninguno. Después se borra `ADMIN_INICIAL_PASSWORD`; las otras dos pueden quedar (ver «Operación en producción»). |
 | `JWT_EXPIRATION_MINUTES`, `VAPID_*`, `PUSH_*`, `MAIL_*`, `NOTIF_FROM`, `LEGAL_VERSION_TERMINOS`, `ASYNC_*` | no | Las mismas de `application.yml`, con sus valores por defecto. |
 
 ### Qué cambia respecto de `local`
@@ -221,6 +222,228 @@ como código. El paso a paso está en el runbook de despliegue
   volúmenes como `root`, la imagen corre como `viasegura`, y
   `RAILWAY_RUN_UID=0` **hace correr el contenedor como root**. Es la salida
   de emergencia si R2 no estuviera disponible, no la configuración normal.
+
+## Operación en producción
+
+El registro público crea siempre cuentas `CIUDADANO`. Las otras dos se dan
+desde fuera del API, a propósito: no existe ningún endpoint que cambie un
+rol, así que no hay uno que proteger.
+
+### Primer ADMIN (DEP-04)
+
+`auth/infra/AdministradorInicialSeeder` (un `ApplicationRunner` que corre
+después de los seeders de distritos y municipalidades) crea la cuenta en el
+primer arranque de un entorno, y **solo si la base no tiene ningún ADMIN**.
+Los ADMIN siguientes se gestionan aparte (decisión del usuario, 22/10).
+
+1. En Railway › `backend` › Variables:
+   - `ADMIN_INICIAL_EMAIL`: el correo de la persona, **sin cuenta** en la
+     plataforma. Debe cumplir las mismas reglas que el registro.
+   - `ADMIN_INICIAL_PASSWORD`, marcada como secreta: 12 caracteres o más y
+     72 bytes como máximo (el límite de BCrypt; menos caracteres si lleva
+     tildes o eñes). Mejor generada por un gestor de contraseñas.
+   - `ADMIN_INICIAL_NOMBRE` (opcional): nombre completo. La primera palabra
+     va a `nombre` y el resto a `apellido`; sin ella, «Administrador».
+2. Railway redespliega. En el log: `Administrador inicial creado: <correo>`.
+   Es lo único que se registra: la contraseña nunca llega al log.
+3. **Borrar `ADMIN_INICIAL_PASSWORD`** (obligatorio) y dejar que Railway
+   redespliegue. `ADMIN_INICIAL_EMAIL` y `ADMIN_INICIAL_NOMBRE` pueden quedar
+   o borrarse: con un ADMIN ya creado, el seeder no hace nada. Si la
+   contraseña quedara, cada arranque avisaría en el log que sigue definida,
+   pero nunca la vuelve a usar.
+4. La persona inicia sesión en la PWA con esa contraseña y acepta los
+   términos (la pantalla aparece sola: el seeder no registra consentimiento,
+   D-12). No hay una pantalla para cambiar la contraseña: cuando el correo
+   saliente funcione (DEP-08), la cambia con «¿Olvidaste tu contraseña?»,
+   para que solo ella la conozca.
+
+| Situación al arrancar | Qué hace |
+|---|---|
+| `ADMIN_INICIAL_EMAIL` ausente o en blanco | Nada (log `INFO`). Es el caso de todo arranque normal. |
+| Ya hay algún `ADMIN` (sea o no la cuenta de la variable) | Nada (log `INFO`, sin repetir el correo ni la contraseña). No valida las variables, no crea un segundo ADMIN aunque el correo sea nuevo y **nunca** cambia la contraseña ni el nombre de un ADMIN. |
+| Sin ADMIN y sin cuenta con ese correo | La crea: `ADMIN`, activa, sin distrito, con la contraseña hasheada por el `PasswordEncoder` de la aplicación. |
+| Sin ADMIN y el correo ya tiene cuenta (con otro rol, por fuerza) | **No arranca** («…nunca se promueve…»). |
+| Sin ADMIN, y falta la contraseña, tiene menos de 12 caracteres o más de 72 bytes, o el correo no cumple las reglas del registro (`@Email`, 150 caracteres como máximo) | **No arranca**, sin crear nada y sin repetir el valor en el mensaje. |
+
+Decisiones:
+
+- **Crea, nunca promueve** (decisión del usuario, 22/10). El registro no
+  verifica la propiedad del correo: cualquiera puede registrarse con un
+  correo ajeno. Si el seeder promoviera una cuenta existente, quien se
+  registrara primero con ese correo quedaría como ADMIN. Promover una cuenta
+  ya registrada fue la primera versión de la propuesta de despliegue y
+  dependía del orden de los pasos: registrar la cuenta *antes* de definir la
+  variable. Creándola, el orden deja de importar y el caso peligroso se
+  convierte en un arranque fallido.
+- **Solo en una base sin ADMIN** (ajuste del usuario, 22/10). El seeder es
+  para arrancar un entorno, no una vía para crear administradores: con un
+  ADMIN ya presente queda inerte. Así unas variables olvidadas en Railway no
+  crean un segundo ADMIN si alguien cambia el correo, y tampoco pueden
+  tumbar la API: si después alguien se registrara con el correo que quedó
+  en la variable, la regla «otro rol → no arranca» haría fallar cada
+  redespliegue. Por eso esa regla solo se aplica mientras no hay ningún
+  ADMIN, que es cuando protege algo. Cualquier ADMIN cuenta, también uno
+  inactivo (hoy no hay forma de desactivar cuentas).
+- **Falla el arranque en vez de avisar.** Una configuración inválida se
+  descubre al desplegar, con el mensaje en el log, y no días después, cuando
+  nadie puede responder un ticket. Un `ApplicationRunner` corre cuando
+  Tomcat ya escucha, así que `/actuator/health` puede responder un instante
+  antes de que el proceso termine: el despliegue aparece caído y el motivo
+  está en el log (`Application run failed`).
+- **La contraseña viaja por una variable**, la única vía que no la deja
+  escrita en el repositorio ni en el historial de la terminal. Por eso se
+  borra después del primer arranque. No es una migración Flyway: el hash
+  quedaría versionado y sería el mismo en todos los entornos.
+- **El correo, con las reglas del registro** (`@Email` y 150 caracteres): un
+  correo que el registro rechazaría (`ana@muni..pe`) tampoco sirve para el
+  ADMIN. Las restricciones se repiten en un `record` privado del seeder y se
+  validan con el `Validator` de Bean Validation, porque un adaptador de
+  `infra` no puede depender de `RegistroRequest` (`dto`, regla `capas`).
+- **Sin `@ConditionalOnProperty`.** Una variable definida pero vacía cuenta
+  como presente para esa anotación; el seeder siempre existe y decide con el
+  valor. Los tests fijan las tres propiedades en vacío
+  (`application-test.yml`), así que una variable en el entorno de quien los
+  corre no crea cuentas en la base de test.
+- Capas: el seeder está en `auth/infra` y solo usa el repositorio y el
+  dominio de su módulo, el `PasswordEncoder` y el `Validator`; no pasa por
+  `AuthService` (la capa de aplicación solo la usa la presentación, §4).
+
+**Verificación con el jar (2026-10-22)**, contra una base temporal vacía
+(Flyway V1–V17 y los seeders desde cero), borrada al final:
+
+1. Sin ADMIN y `ADMIN_INICIAL_PASSWORD=corta`: Tomcat abrió el puerto, 0,8 s
+   después (tras sembrar los distritos) el seeder lanzó su error y el
+   proceso terminó con código 1, sin crear la cuenta.
+2. Sin ADMIN y una contraseña válida: `Administrador inicial creado:
+   <correo>`; la cuenta quedó `ADMIN`, activa y con hash BCrypt (`$2a$`).
+3. Con ese ADMIN, otro correo y `ADMIN_INICIAL_PASSWORD=corta`: arrancó
+   normal, con el `INFO` de que las variables se ignoran y el aviso de
+   borrar la contraseña; ninguna cuenta nueva.
+
+En ninguno de los tres logs aparece la contraseña. (Medido antes de alinear
+la validación del correo con la del registro; esa regla la cubren los tests.)
+
+Tests. `AdministradorInicialSeederTest` (unitario, con el repositorio
+simulado) prueba que los correos que el registro rechazaría hacen fallar el
+arranque antes de buscar la cuenta. `AdministradorInicialSeederIT`, contra
+la base, instancia el seeder con los valores de cada caso y llama a `run`
+(la excepción es la que recibiría `SpringApplication`), sin levantar un
+contexto por caso. La base de test es
+compartida y otros IT dejan cuentas ADMIN, así que cada test corre en una
+transacción que se revierte: dentro de ella, los casos «sin ADMIN» pasan los
+ADMIN existentes a CIUDADANO, y al terminar todo vuelve a como estaba. Cubre
+los cinco casos de la tabla (con un ADMIN presente: correo nuevo, contraseña
+corta, correo mal formado y correo de un ciudadano, sin crear, fallar ni
+promover nada), que la contraseña de un ADMIN cambiada después no se pisa, y
+el primer inicio de sesión: entra como ADMIN, recibe 403
+`TERMINOS_PENDIENTES` hasta aceptar los términos y luego usa una ruta de
+ADMIN.
+
+### Alta y baja de funcionarios (DEP-05)
+
+1. La persona se registra en la PWA como cualquier ciudadano: así su
+   contraseña queda con el hash de la aplicación y su aceptación de los
+   términos, registrada (D-12).
+2. **Antes de asignar, la persona confirma que el registro le funcionó a
+   ella** (entra con su contraseña). El registro no verifica la propiedad
+   del correo: si al registrarse vio «El correo ya está registrado», alguien
+   pudo registrarse antes con su correo, y asignar le daría el rol a esa
+   cuenta. En ese caso no se asigna hasta que recupere la cuenta con
+   «¿Olvidaste tu contraseña?» (cuando funcione DEP-08) o se revise con ella.
+   El script muestra la fecha de registro de la cuenta (`created_at`, hora
+   de Lima) para compararla con lo que la persona recuerda.
+3. Un operador con acceso a la base corre `backend/scripts/asignar-funcionario.sql`
+   con variables de `psql`, desde la raíz del repositorio:
+
+   ```bash
+   # Asignar (la URL de conexión pública está en Railway › postgis › Connect)
+   psql "<URL de la base>" -v email=persona@ejemplo.com -v distrito='San Isidro' \
+     -f backend/scripts/asignar-funcionario.sql
+   # Devolver a CIUDADANO
+   psql "<URL de la base>" -v email=persona@ejemplo.com -v accion=revocar \
+     -f backend/scripts/asignar-funcionario.sql
+   # Desde una sesión abierta con `railway connect postgis`
+   #   \set email 'persona@ejemplo.com'
+   #   \set distrito 'Miraflores'
+   #   \i backend/scripts/asignar-funcionario.sql
+   # En local (Docker), por la entrada estándar
+   docker exec -i viasegura-db psql -U viasegura -d viasegura \
+     -v email=persona@ejemplo.com -v distrito=Miraflores < backend/scripts/asignar-funcionario.sql
+   ```
+
+   Si todo va bien, muestra la fila resultante (correo, rol, distrito, fecha
+   de registro).
+4. La persona recarga la PWA: no hace falta que vuelva a iniciar sesión
+   (ver abajo).
+
+| Caso | `asignar` (por defecto) | `accion=revocar` |
+|---|---|---|
+| Cuenta `CIUDADANO` | Pasa a `FUNCIONARIO_MUNICIPAL` con ese distrito. Si tenía distrito de residencia, avisa que se reemplaza (es el mismo campo). | Nada (aviso). |
+| `FUNCIONARIO_MUNICIPAL` del mismo distrito | Nada (aviso): se puede repetir. | Vuelve a `CIUDADANO`, sin distrito. |
+| `FUNCIONARIO_MUNICIPAL` de otro distrito | **Falla**: primero se revoca. | Vuelve a `CIUDADANO`, sin distrito. |
+| `ADMIN` | **Falla.** | **Falla.** |
+| Correo inexistente | **Falla** (sugiere los que solo difieren en mayúsculas). | **Falla.** |
+| Distrito que no coincide con exactamente uno | **Falla** (sugiere los parecidos). | No se usa. |
+| Falta `email` o `distrito`, o `accion` desconocida | **Falla.** | **Falla.** |
+
+**Cuándo rige el cambio.** El JWT lleva el rol (claim `rol`), pero nada lo
+lee para autorizar: `JwtAuthenticationFilter` solo toma del token el correo
+(el *subject*) y `UsuarioDetailsService` carga el rol de la base en cada
+petición. La PWA, a su vez, obtiene el rol de `GET /api/auth/me`
+(`useSesion`), no del token. Por eso el cambio rige desde la siguiente
+petición, sin cerrar sesión, y revocar corta el acceso de funcionario de
+inmediato aunque el token siga vigente.
+
+Decisiones:
+
+- **Un script y no un endpoint.** No existe ningún endpoint que cambie un
+  rol, así que no hay uno que proteger ni que un ADMIN comprometido pueda
+  usar; asignar funcionarios exige acceso a la base. El registro previo da
+  el hash y el consentimiento sin que el operador vea la contraseña.
+- **Solo de `CIUDADANO` a funcionario.** Cambiar de distrito a un
+  funcionario mueve su bandeja: se pide revocar y volver a asignar, para
+  que no ocurra por un error de tipeo. Un ADMIN nunca se toca.
+- **Atómico y sin restos en la sesión.** Todas las comprobaciones y el
+  `UPDATE` van en un bloque `DO` dentro de `BEGIN … COMMIT`, y los datos
+  pasan de `psql` a la base con `SET LOCAL`, que desaparece al terminar la
+  transacción. Si el `DO` falla, el script hace `ROLLBACK` antes de cortarse
+  (con `ON_ERROR_STOP` encendido desde el principio, una sesión abierta
+  quedaría con la transacción abortada). Con `-f` o por la entrada estándar,
+  `psql` termina con código 3; con `\i` en una sesión abierta, la sesión
+  sigue sin transacción ni valores del script. Las variables de `psql` se
+  borran al leerlas, así que tampoco quedan para la persona siguiente;
+  solo si el script se corta antes de leerlas (por ejemplo, falta `email`)
+  quedan las que se habían definido.
+- **Nombre del distrito sin mayúsculas ni tildes** (`rimac` encuentra
+  «Rímac»). El archivo es ASCII (las vocales con tilde van como escapes
+  Unicode), así que no depende de la codificación del cliente. En Windows
+  conviene escribir el nombre sin tildes ni eñes: desde Git Bash, `-v
+  distrito=Breña` llega mal codificado a `psql` y el script falla sin
+  cambiar nada; `Brena` funciona.
+- **Jurisdicción en `usuario.distrito_id`**, como hoy. Si D-10 la pasa a
+  `municipalidad_id`, el script cambia con esa tarea.
+
+**Verificación (2026-10-21)** contra `viasegura_test`, con cuentas propias
+que se borraron al final. Es una desviación del criterio de DEP-05, que
+pedía probarlo en la base local con los usuarios de `seed-datos-prueba.sql`:
+esa base estaba en uso por el coordinador. Con el `psql` 18 de Windows
+(`-f`) y con el del contenedor (entrada estándar): asignación con aviso de la residencia
+reemplazada; repetición sin cambios (mismo `updated_at`); `rimac`, `Brena` y
+`jesus maria` encuentran su distrito, y `Breña` desde un cliente UTF-8;
+revocación y su repetición; `\set` + `\i` deja las variables sin definir; y
+código 3, sin cambios en la base, para el correo inexistente (y con otras
+mayúsculas), la cuenta ADMIN (al asignar y al revocar), el funcionario de
+otro distrito, el distrito inexistente (`Miraflore`), la falta de `email` o
+`distrito` y una `accion` desconocida.
+
+**Verificación de la transacción (2026-10-22)**, en una base temporal con
+un esquema mínimo (`usuario` y `distrito`), borrada al final, porque
+`viasegura_test` estaba ocupada por otra suite de IT: los mismos casos de
+éxito y de fallo (código 3, `ROLLBACK` antes del error final y la base sin
+cambios), el aviso con la fecha de registro, el archivo con CRLF y, en una
+misma sesión, un `\i` que falla (la cuenta ADMIN) seguido de otro que
+funciona: tras el fallo no queda transacción abierta, ni el `SET LOCAL`, ni
+las variables, y la persona siguiente se asigna sin arrastrar nada.
 
 ## Endpoints implementados (vertical slice inicial)
 
