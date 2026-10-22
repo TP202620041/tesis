@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 import { useEffect } from 'react';
+import { X } from 'lucide-react';
+import { BotonIcono } from '@/components/ui/Icono';
 import { useCierreDelAvisoDeIncompletos } from '../hooks/useCierreDelAvisoDeIncompletos';
 
 /** Rutas donde no tiene sentido pedir que inicie sesion: ya esta en eso. */
@@ -77,14 +79,7 @@ export function AvisoReportesIncompletos({
         </Link>
         .
       </p>
-      <button
-        type="button"
-        onClick={cerrar}
-        aria-label="Cerrar aviso"
-        className="-m-1 inline-flex min-h-6 min-w-6 items-center justify-center rounded p-1 leading-none text-amber-900 hover:bg-amber-100 dark:text-amber-100 dark:hover:bg-amber-900"
-      >
-        <span aria-hidden="true">×</span>
-      </button>
+      <BotonIcono icono={X} etiqueta="Cerrar aviso" onClick={cerrar} className="-my-2.5 -mr-3" />
     </div>
   );
 }
