@@ -23,11 +23,16 @@ Consume el API REST de Spring Boot del directorio hermano `../backend`.
 POSTGRES_PORT=5433 docker compose up -d
 POSTGRES_PORT=5433 mvn spring-boot:run     # queda en :8080
 
-# 2. Frontend
-cp .env.local.example .env.local
+# 2. Frontend (Node 24, ver .nvmrc)
+cp .env.example .env.local
 npm install
 npm run dev                                 # queda en :3000
 ```
+
+`.env.example` es la única plantilla de variables y la única que se versiona
+(`.gitignore` ignora `.env*` salvo ella). Reemplaza a `.env.local.example`,
+que estaba documentada pero nunca entró al repositorio porque ese mismo patrón
+la ignoraba: en un clon limpio el `cp` de arriba fallaba.
 
 > El backend permite el origen `http://localhost:3000` vía CORS
 > (`app.cors.allowed-origins`). Si cambias el puerto del frontend, ajusta esa
@@ -42,6 +47,31 @@ npm run dev                                 # queda en :3000
 | `npm run typecheck` | `tsc --noEmit`. |
 | `npm test` | Suite de Vitest. |
 | `npm run api:sync` | Descarga el OpenAPI del backend y regenera los tipos. |
+| `node scripts/generar-iconos.mjs` | Regenera los PNG y el ICO de la PWA desde los SVG de `public/icons/`. |
+
+## Despliegue en Vercel
+
+- **Proyecto**: *Root Directory* `frontend/`, *framework* Next.js, rama de
+  producción `main`. El *Build Command* se deja en el predeterminado: Vercel
+  ejecuta el script `build` del `package.json` (`next build` + `serwist
+  build`). Sobrescribirlo con `next build` a secas dejaría la PWA sin Service
+  Worker.
+- **Node**: `engines.node` fija `24.x`, y Vercel lo respeta por encima del
+  valor del panel (despliega el último 24.x). `.nvmrc` es para nvm o fnm en
+  local.
+- **Variable**: `NEXT_PUBLIC_API_BASE_URL` (Production y Preview), con el
+  origen HTTPS del API, sin barra final. Se **hornea en el build**: va al
+  bundle del cliente y a la CSP (`connect-src` e `img-src`) que arma
+  `next.config.ts`. Cambiar la URL del API exige volver a construir (un
+  *Redeploy*); editarla en el panel no cambia un despliegue ya hecho. Ver
+  `.env.example`.
+- **CORS**: el backend debe aceptar el dominio de Vercel
+  (`app.cors.allowed-origins`). Las *Preview* tienen una URL por despliegue,
+  así que contra el API de producción solo funcionan si se agrega su origen.
+- **Service Worker**: `public/sw.js` no está en git; lo genera el build. Tras
+  desplegar, `/sw.js` debe responder 200 con JavaScript y `/manifest.webmanifest`
+  y cada `/icons/*.png` también 200; en Chrome, *DevTools → Application →
+  Manifest* no debe mostrar errores.
 
 ## Testing
 
@@ -144,6 +174,34 @@ usuario (`/api/auth/me`, `mis-reportes`, `mi-distrito`) y el siguiente usuario
 del dispositivo podría recibirlas offline. Al cerrar sesión (US-04) además se
 borra esa caché, por si la llenó una versión anterior del SW
 (`src/pwa/cachesDeSesion.ts`).
+
+### Iconos y tipografía (provisionales, DEP-06)
+
+Son **provisionales** hasta la identidad visual definitiva: un pin de mapa
+sobre una calle, en el color de tema `#0369a1`. Lo que sí es definitivo es la
+estructura, para que el cambio sea reemplazar dos SVG y correr
+`node scripts/generar-iconos.mjs`:
+
+- **`any` y `maskable` por separado** (`src/app/manifest.ts`). Un mismo PNG no
+  sirve para ambos: el `maskable` necesita fondo a sangre y el dibujo dentro de
+  la zona segura (círculo de radio 40 %), porque Android lo recorta en círculo
+  o gota; usado como `any`, en cambio, se vería con un margen excesivo. Las
+  fuentes son `public/icons/icono.svg` y `public/icons/icono-maskable.svg`.
+- **`apple-icon.png` opaco y a sangre** (convención de archivo de Next en
+  `src/app/`, que emite el `<link rel="apple-touch-icon">`): iOS rellena de
+  negro la transparencia y redondea las esquinas por su cuenta.
+- **`favicon.ico` con PNG de 16, 32 y 48 px** dentro del ICO.
+- Los PNG se versionan en vez de generarse en cada build: el script usa
+  `sharp`, que Next instala como dependencia opcional, y un build de Vercel no
+  debería depender de ella. No se agregó ninguna dependencia.
+
+**Tipografía**: se usa la Geist que `layout.tsx` carga con `next/font`, vía
+`--font-sans` del `@theme` de Tailwind, que el preflight aplica a `html`. El
+`body` del scaffold fijaba `font-family: Arial` fuera de toda capa (`@layer`) de
+Tailwind, así que ganaba siempre y la app se veía en Arial; se quitó esa línea.
+Por la misma razón, el `background` y el `color` de ese `body` también ganan a
+las clases `bg-slate-50`/`dark:bg-slate-900` de `layout.tsx`; no se tocan
+aquí porque cambiarían el aspecto de todas las pantallas: queda para el diseño.
 
 ### Seguridad: dónde vive el JWT
 
