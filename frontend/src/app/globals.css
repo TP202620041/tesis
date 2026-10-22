@@ -19,8 +19,14 @@
   }
 }
 
+/*
+ * Sin `font-family` aqui a proposito: el body hereda la de `html`, que el
+ * preflight de Tailwind toma de `--font-sans` (la Geist que carga `next/font`
+ * en `layout.tsx`). El `Arial` del scaffold, al no estar en una capa, ganaba
+ * a todo y la app se veia en Arial (DEP-06). Tipografia provisional hasta la
+ * identidad visual definitiva.
+ */
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
 }
