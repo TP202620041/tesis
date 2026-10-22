@@ -1,9 +1,9 @@
 # Propuesta: migración que corrige las tildes de las categorías estándar
 
-- **Estado:** abierta <!-- abierta | aceptada | rechazada -->
+- **Estado:** aceptada (2026-10-22) <!-- abierta | aceptada | rechazada -->
 - **Fecha:** 2026-10-22
 - **Origen:** sesión coordinadora. Viene del hallazgo M-1 del informe QA-1 (`docs/qa/2026-10-21-mvp-v0.6.0.md`) y del punto 9 de la propuesta de diseño (`docs/diseno/2026-10-21-propuesta.md` §8).
-- **Decide:** el usuario. En la autorización del 22/10 respondió con la plantilla «[Sí/No] apruebo la migración…» sin elegir, así que sigue pendiente.
+- **Decide:** el usuario. En la autorización del 22/10 respondió primero con la plantilla «[Sí/No]» sin elegir; luego la aprobó explícitamente («Sí, apruebo la migración de tildes»).
 
 ## Contexto
 - **Los nombres sin tildes.** Las seis categorías estándar las siembra `backend/src/main/resources/db/migration/V3__seed_categorias_estandar.sql` sin tildes ni eñes. Cuatro textos muestran el problema:
@@ -33,3 +33,7 @@
 - **QA-1 M-1, parte de datos.** Las tildes de las categorías y de sus descripciones. El resto de M-1 (mensajes del API, correos, línea de tiempo) es código y avanza en la tarea QA-1 del backend sin esta decisión.
 - **La migración de NC-04** que desactiva «Hueco en calzada» puede ir sola o junto con esta.
 - No bloquea DEP-08, DEP-12 ni el rediseño. El frontend muestra los nombres tal como llegan del API.
+
+## Decisión (2026-10-22)
+
+El usuario aprobó la **opción A**: una migración nueva (la siguiente versión libre) que corrige nombres y descripciones de las categorías estándar sin editar V3. Va en la tarea QA-1 del backend. La desactivación de «Hueco en calzada» queda para la migración de NC-04, salvo que convenga juntarlas.
