@@ -62,10 +62,26 @@ export function densidadDeReportes(query: string): Promise<DensidadReportes> {
  *
  * Solo los que creo, no aquellos a los que se adhirio (US-09) — decision
  * tomada en el backend: "mis reportes" es mas estrecho que la matriz de
- * acceso de US-22, donde el adherido si puede ver el historial.
+ * acceso de US-22, donde el adherido si puede ver el historial. Los que
+ * apoya van por {@link misAdhesiones}.
  */
 export async function misReportes(): Promise<ReporteResumen[]> {
   const reportes = await api.get<ReporteResumen[]>('/api/reportes/mis-reportes');
+  return reportes.map(conFotoAbsoluta);
+}
+
+/**
+ * QA-1 M-6 (US-09): reportes de OTROS vecinos a los que el ciudadano se
+ * adhirio, del apoyo mas reciente al mas antiguo y en cualquier estado
+ * (tambien CANCELADO, que no tiene detalle publico: 404).
+ *
+ * Endpoint aparte de `mis-reportes` (handoff del 22/10): la relacion «lo
+ * apoyo, no lo cree» la da la ruta, no un campo, porque el resumen lo
+ * comparte el mapa anonimo; y el detalle `/mis-reportes/[id]` ofrece editar y
+ * retirar, que en un reporte ajeno el backend rechaza con 403.
+ */
+export async function misAdhesiones(): Promise<ReporteResumen[]> {
+  const reportes = await api.get<ReporteResumen[]>('/api/reportes/mis-adhesiones');
   return reportes.map(conFotoAbsoluta);
 }
 

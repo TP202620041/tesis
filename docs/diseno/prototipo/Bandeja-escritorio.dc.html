@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Bandeja municipal</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&amp;display=swap">
+<style>
+body{margin:0;background:#F5F6F8}
+a{color:#1D4F91}a:hover{color:#142F57}
+a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid #FFD43B;outline-offset:0;box-shadow:0 0 0 5px #141B24}
+</style>
+</helmet>
+<div style="font-family: 'Public Sans', system-ui, sans-serif; color: #141B24; background: #F5F6F8">
+
+  <header style="background: #FFFFFF; border-bottom: 1px solid #D6DBE1">
+    <div style="max-width: 1440px; margin: 0 auto; padding: 8px 24px; box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px">
+      <a href="Portada.dc.html" style="display: inline-flex; align-items: center; gap: 10px; text-decoration: none; color: #141B24; min-height: 44px">
+        <svg width="28" height="28" viewBox="0 0 40 40" aria-hidden="true"><defs><clipPath id="pinBandeja"><path d="M20 3C12.8 3 7 8.7 7 15.8 7 25 20 37 20 37s13-12 13-21.2C33 8.7 27.2 3 20 3Z"></path></clipPath></defs><path d="M20 3C12.8 3 7 8.7 7 15.8 7 25 20 37 20 37s13-12 13-21.2C33 8.7 27.2 3 20 3Z" fill="#1F3350"></path><g clip-path="url(#pinBandeja)"><path d="M2 27 38 7" stroke="#FFFFFF" stroke-width="6"></path><path d="M2 27 38 7" stroke="#FFD43B" stroke-width="1.6" stroke-dasharray="3 2.6"></path></g></svg>
+        <span style="font-size: 18px; font-weight: 700">Ciudad Viva</span>
+      </a>
+      <span style="font-size: 14px; font-weight: 600; color: #3A4452; padding: 4px 10px; border-radius: 6px; background: #EDF0F3">Municipalidad de Miraflores</span>
+      <nav aria-label="Gestión municipal" style="display: flex; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 2px; max-width: 100%">
+        <a href="#bandeja" aria-current="page" style="min-height: 44px; padding: 0 12px; display: inline-flex; align-items: center; white-space: nowrap; flex: none; color: #141B24; text-decoration: none; font-weight: 700; font-size: 15px; box-shadow: inset 0 -3px 0 #1F3350">Bandeja</a>
+        <a href="#panel" style="min-height: 44px; padding: 0 12px; display: inline-flex; align-items: center; white-space: nowrap; flex: none; color: #3A4452; text-decoration: none; font-weight: 600; font-size: 15px">Panel del distrito</a>
+        <a href="#categorias" style="min-height: 44px; padding: 0 12px; display: inline-flex; align-items: center; white-space: nowrap; flex: none; color: #3A4452; text-decoration: none; font-weight: 600; font-size: 15px">Categorías</a>
+        <a href="#soporte" style="min-height: 44px; padding: 0 12px; display: inline-flex; align-items: center; white-space: nowrap; flex: none; color: #3A4452; text-decoration: none; font-weight: 600; font-size: 15px">Soporte</a>
+      </nav>
+      <button type="button" aria-label="Cuenta: Funcionario Miraflores" style="margin-left: auto; min-height: 44px; padding: 0 10px 0 6px; border: 1px solid #D6DBE1; border-radius: 22px; background: #FFFFFF; display: inline-flex; align-items: center; gap: 8px; font: 600 14px 'Public Sans', sans-serif; color: #141B24"><span aria-hidden="true" style="width: 32px; height: 32px; border-radius: 50%; background: #1F3350; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700">FM</span>Funcionario Miraflores<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button>
+    </div>
+  </header>
+
+  <main style="max-width: 1440px; margin: 0 auto; padding: 24px; box-sizing: border-box; display: flex; flex-direction: column; gap: 16px">
+    <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px">
+      <div style="display: flex; flex-direction: column; gap: 4px">
+        <h1 style="margin: 0; font-size: 30px; font-weight: 800; letter-spacing: -0.02em">Bandeja</h1>
+        <p style="margin: 0; font-size: 15px; color: #3A4452">20 reportes de vecinos en Miraflores</p>
+      </div>
+      <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap">
+        <span style="font-size: 14px; font-weight: 600; color: #3A4452">Exportar</span>
+        <button type="button" style="min-height: 44px; padding: 0 14px; border: 1px solid #7B8594; border-radius: 8px; background: #FFFFFF; color: #141B24; font: 600 14px 'Public Sans', sans-serif; display: inline-flex; align-items: center; gap: 6px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" x2="12" y1="15" y2="3"></line></svg>CSV</button>
+        <button type="button" style="min-height: 44px; padding: 0 14px; border: 1px solid #7B8594; border-radius: 8px; background: #FFFFFF; color: #141B24; font: 600 14px 'Public Sans', sans-serif; display: inline-flex; align-items: center; gap: 6px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" x2="12" y1="15" y2="3"></line></svg>Excel</button>
+      </div>
+    </div>
+
+    <div role="group" aria-label="Filtrar por estado" style="display: flex; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 6px; border-bottom: 1px solid #D6DBE1; padding-bottom: 12px">
+      <sc-for list="{{ pestanas }}" as="t" hint-placeholder-count="7">
+        <button type="button" onClick="{{ t.pick }}" aria-pressed="{{ t.pressed }}" style="min-height: 40px; padding: 0 12px; border-radius: 8px; border: {{ t.borde }}; background: {{ t.bg }}; color: {{ t.fg }}; font: 600 14px 'Public Sans', sans-serif; display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; flex: none">{{ t.nombre }}<span style="min-width: 22px; padding: 1px 6px; box-sizing: border-box; border-radius: 10px; background: {{ t.cuentaBg }}; color: {{ t.cuentaFg }}; font-size: 13px; font-variant-numeric: tabular-nums">{{ t.n }}</span></button>
+      </sc-for>
+    </div>
+
+    <form style="display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end">
+      <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600">Tipo de daño<select style="min-height: 40px; min-width: 200px; border: 1px solid #7B8594; border-radius: 8px; padding: 0 10px; background: #FFFFFF; font: 400 14px 'Public Sans', sans-serif; color: #141B24"><option>Todos</option></select></label>
+      <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600">Desde<input type="date" style="min-height: 40px; border: 1px solid #7B8594; border-radius: 8px; padding: 0 8px; font: 400 14px 'Public Sans', sans-serif"></label>
+      <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600">Hasta<input type="date" style="min-height: 40px; border: 1px solid #7B8594; border-radius: 8px; padding: 0 8px; font: 400 14px 'Public Sans', sans-serif"></label>
+      <fieldset style="margin: 0 0 0 auto; padding: 0; border: 0; display: flex; flex-direction: column; gap: 4px">
+        <legend style="font-size: 13px; font-weight: 600; padding: 0; margin-bottom: 4px">Ordenar por</legend>
+        <span style="display: inline-flex; background: #EDF0F3; border-radius: 8px; padding: 3px">
+          <button type="button" aria-pressed="true" style="min-height: 34px; padding: 0 12px; border: 0; border-radius: 6px; background: #FFFFFF; box-shadow: 0 1px 2px rgba(20,27,36,0.2); font: 600 14px 'Public Sans', sans-serif; color: #141B24">Más apoyados</button>
+          <button type="button" aria-pressed="false" style="min-height: 34px; padding: 0 12px; border: 0; border-radius: 6px; background: transparent; font: 600 14px 'Public Sans', sans-serif; color: #3A4452">Más recientes</button>
+        </span>
+      </fieldset>
+    </form>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start">
+      <div style="flex: 999 1 640px; min-width: 0; background: #FFFFFF; border: 1px solid #D6DBE1; border-radius: 12px; overflow-x: auto">
+        <div role="table" aria-label="Reportes de la bandeja" style="min-width: 720px">
+          <div role="row" style="display: grid; grid-template-columns: 132px minmax(0, 1fr) 96px 80px 104px 120px; gap: 12px; padding: 10px 16px; border-bottom: 1px solid #D6DBE1; background: #F5F6F8; font-size: 13px; font-weight: 700; color: #3A4452">
+            <span role="columnheader">Estado</span><span role="columnheader">Reporte</span><span role="columnheader">Severidad</span><span role="columnheader" style="text-align: right">Apoyos</span><span role="columnheader">Fecha</span><span role="columnheader">Responsable</span>
+          </div>
+          <sc-for list="{{ filas }}" as="f" hint-placeholder-count="10">
+            <div role="row" style="display: grid; grid-template-columns: 132px minmax(0, 1fr) 96px 80px 104px 120px; gap: 12px; padding: 10px 16px; border-bottom: 1px solid #E3E7EC; align-items: center; background: {{ f.filaBg }}">
+              <span role="cell"><span style="display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px 3px 6px; border-radius: 6px; background: {{ f.bg }}; color: {{ f.fg }}; font-size: 13px; font-weight: 600; white-space: nowrap"><sc-if value="{{ f.esPendiente }}" hint-placeholder-val="{{ false }}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg></sc-if><sc-if value="{{ f.esRecibido }}" hint-placeholder-val="{{ false }}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"></polyline><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg></sc-if><sc-if value="{{ f.esEnProceso }}" hint-placeholder-val="{{ false }}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg></sc-if><sc-if value="{{ f.esResuelto }}" hint-placeholder-val="{{ false }}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></sc-if><sc-if value="{{ f.esRechazado }}" hint-placeholder-val="{{ false }}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></sc-if>{{ f.estado }}</span></span>
+              <span role="cell" style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
+                <button type="button" onClick="{{ f.pick }}" style="align-self: flex-start; min-height: 28px; padding: 0; border: 0; background: transparent; text-align: left; font: 600 15px 'Public Sans', sans-serif; color: #1D4F91; text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; cursor: pointer">{{ f.titulo }}</button>
+                <span style="font-size: 13px; color: #4D5866; display: flex; gap: 8px; align-items: center; flex-wrap: wrap">{{ f.categoria }}<sc-if value="{{ f.reincidencia }}" hint-placeholder-val="{{ false }}"><span style="display: inline-flex; align-items: center; gap: 4px; padding: 1px 6px; border-radius: 4px; border: 1px solid #7B8594; color: #141B24; font-size: 12px; font-weight: 600"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m17 2 4 4-4 4"></path><path d="M3 11v-1a4 4 0 0 1 4-4h14"></path><path d="m7 22-4-4 4-4"></path><path d="M21 13v1a4 4 0 0 1-4 4H3"></path></svg>Posible reincidencia</span></sc-if></span>
+              </span>
+              <span role="cell" style="font-size: 14px">{{ f.severidad }}</span>
+              <span role="cell" style="font-size: 14px; text-align: right; font-variant-numeric: tabular-nums">{{ f.apoyos }}</span>
+              <span role="cell" style="font-size: 14px; font-variant-numeric: tabular-nums">{{ f.fecha }}</span>
+              <span role="cell" style="font-size: 14px; color: {{ f.respColor }}; font-weight: {{ f.respPeso }}">{{ f.responsable }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <p style="margin: 0; padding: 12px 16px; font-size: 14px; color: #3A4452">{{ resumen }}</p>
+      </div>
+
+      <aside aria-label="Reporte seleccionado" style="flex: 1 1 360px; min-width: 0; background: #FFFFFF; border: 1px solid #D6DBE1; border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 16px">
+        <div style="display: flex; flex-direction: column; gap: 8px">
+          <span style="align-self: flex-start; display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 6px; background: {{ sel.bg }}; color: {{ sel.fg }}; font-size: 13px; font-weight: 600"><sc-if value="{{ sel.esPendiente }}" hint-placeholder-val="{{ false }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg></sc-if><sc-if value="{{ sel.esRecibido }}" hint-placeholder-val="{{ false }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"></polyline><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg></sc-if><sc-if value="{{ sel.esEnProceso }}" hint-placeholder-val="{{ false }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg></sc-if><sc-if value="{{ sel.esResuelto }}" hint-placeholder-val="{{ false }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></sc-if><sc-if value="{{ sel.esRechazado }}" hint-placeholder-val="{{ false }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></sc-if>{{ sel.estado }}</span>
+          <h2 style="margin: 0; font-size: 20px; font-weight: 800; line-height: 1.25">{{ sel.titulo }}</h2>
+          <p style="margin: 0; font-size: 14px; color: #3A4452">{{ sel.categoria }} · Severidad {{ sel.severidadMin }} · {{ sel.apoyos }} vecinos · {{ sel.fecha }}</p>
+          <a href="#detalle" style="font-size: 14px; font-weight: 600; text-underline-offset: 3px">Abrir en página completa</a>
+        </div>
+        <sc-if value="{{ sel.reincidencia }}" hint-placeholder-val="{{ false }}">
+          <p style="margin: 0; padding: 10px 12px; border-radius: 8px; background: #EDF0F3; font-size: 14px; line-height: 1.45; color: #141B24">Un comentario de un vecino sugiere que el daño volvió a aparecer. Esta señal es interna: no se publica.</p>
+        </sc-if>
+
+        <sc-if value="{{ sel.final }}" hint-placeholder-val="{{ false }}">
+          <p style="margin: 0; padding: 10px 12px; border-radius: 8px; border: 1px solid #D6DBE1; font-size: 14px; color: #3A4452">Estado final: ya no admite cambios.</p>
+        </sc-if>
+        <sc-if value="{{ sel.abierto }}" hint-placeholder-val="{{ true }}">
+          <fieldset style="margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0">
+            <legend style="font-size: 15px; font-weight: 700; padding: 0; margin-bottom: 6px">Cambiar estado</legend>
+            <sc-for list="{{ transiciones }}" as="x" hint-placeholder-count="2">
+              <label style="min-height: 44px; padding: 0 12px; border: {{ x.borde }}; border-radius: 8px; display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 600; cursor: pointer; background: {{ x.fondo }}"><input type="radio" name="transicion" checked="{{ x.on }}" onChange="{{ x.pick }}" style="width: 18px; height: 18px; margin: 0; accent-color: #1F3350">{{ x.nombre }}</label>
+            </sc-for>
+            <label for="comentario-gestion" style="font-size: 14px; font-weight: 600; margin-top: 4px">Comentario para el vecino <span style="font-weight: 400; color: #4D5866">{{ comentarioReq }}</span></label>
+            <textarea id="comentario-gestion" rows="2" style="box-sizing: border-box; border: 1px solid #7B8594; border-radius: 8px; padding: 8px 10px; font: 400 15px 'Public Sans', sans-serif; resize: vertical"></textarea>
+            <button type="button" style="align-self: flex-start; min-height: 44px; padding: 0 16px; border: 0; border-radius: 8px; background: #1F3350; color: #FFFFFF; font: 700 15px 'Public Sans', sans-serif">Guardar cambio</button>
+          </fieldset>
+          <div style="display: flex; flex-direction: column; gap: 6px; border-top: 1px solid #E3E7EC; padding-top: 14px">
+            <label for="responsable" style="font-size: 15px; font-weight: 700">Responsable interno</label>
+            <div style="display: flex; gap: 8px">
+              <select id="responsable" style="flex: 1; min-height: 44px; border: 1px solid #7B8594; border-radius: 8px; padding: 0 10px; background: #FFFFFF; font: 400 15px 'Public Sans', sans-serif"><option>Sin asignar</option><option>Cuadrilla de pistas</option></select>
+              <button type="button" style="min-height: 44px; padding: 0 14px; border: 1px solid #7B8594; border-radius: 8px; background: #FFFFFF; font: 600 15px 'Public Sans', sans-serif; color: #141B24">Asignar</button>
+            </div>
+          </div>
+        </sc-if>
+
+        <div style="display: flex; flex-direction: column; gap: 10px; border-top: 1px solid #E3E7EC; padding-top: 14px">
+          <h3 style="margin: 0; font-size: 15px; font-weight: 700">Historial de gestión</h3>
+          <ol style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px">
+            <sc-for list="{{ sel.historial }}" as="h" hint-placeholder-count="2">
+              <li style="display: grid; grid-template-columns: 10px minmax(0, 1fr); gap: 10px; align-items: start"><span aria-hidden="true" style="width: 10px; height: 10px; border-radius: 50%; margin-top: 5px; background: #1F3350"></span><span style="display: flex; flex-direction: column; gap: 1px"><span style="font-size: 14px; font-weight: 600">{{ h.evento }}</span><span style="font-size: 13px; color: #4D5866">{{ h.detalle }}</span></span></li>
+            </sc-for>
+          </ol>
+        </div>
+      </aside>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1100}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { filtro: 'ATENDER', sel: 1, transicion: null };
+  }
+  renderVals() {
+    const s = this.state;
+    const E = {
+      PENDIENTE: ['Pendiente', '#FDE3E1', '#9B1C14', '#C8231B'], RECIBIDO: ['Recibido', '#DDE8FC', '#1A3F8F', '#2E6BE6'],
+      EN_PROCESO: ['En proceso', '#FDEFC3', '#6E4100', '#F0A800'], RESUELTO: ['Resuelto', '#D9F5E3', '#0B5A33', '#126B3F'],
+      RECHAZADO: ['Rechazado', '#E7EAEE', '#3A4452', '#4B5563']
+    };
+    const D = [
+      [3, 'Hueco peligroso para motos', 'RESUELTO', 'Hueco en calzada', 'Baja', 3, '15/09/2026'],
+      [1, 'Asfalto deteriorado en todo el tramo', 'RECIBIDO', 'Pista deteriorada', 'Baja', 3, '02/10/2026'],
+      [2, 'Bache profundo frente al parque Kennedy', 'PENDIENTE', 'Bache', 'Media', 3, '21/10/2026'],
+      [10, 'Bache en Miraflores', 'RESUELTO', 'Bache', 'Media', 2, '21/07/2026', true],
+      [9, 'Vereda rota frente a paradero', 'RESUELTO', 'Vereda dañada', 'Baja', 2, '03/08/2026'],
+      [8, 'Semáforo sin funcionar en cruce', 'RESUELTO', 'Semáforo averiado', 'Baja', 2, '14/08/2026'],
+      [7, 'Hueco peligroso para motos', 'RESUELTO', 'Hueco en calzada', 'Media', 2, '24/08/2026'],
+      [6, 'Asfalto deteriorado en todo el tramo', 'RECHAZADO', 'Pista deteriorada', 'Alta', 2, '17/09/2026'],
+      [5, 'Falta señal de pare', 'RECHAZADO', 'Señalización faltante', 'Baja', 2, '19/09/2026'],
+      [4, 'Asfalto deteriorado en todo el tramo', 'RESUELTO', 'Pista deteriorada', 'Alta', 2, '05/10/2026'],
+      [20, 'Vereda rota frente a paradero', 'RESUELTO', 'Vereda dañada', 'Baja', 1, '29/07/2026'],
+      [19, 'Bache profundo en la vía', 'RECHAZADO', 'Bache', 'Media', 1, '22/08/2026'],
+      [18, 'Asfalto deteriorado en todo el tramo', 'RESUELTO', 'Pista deteriorada', 'Media', 1, '24/08/2026'],
+      [17, 'Vereda rota frente a paradero', 'RESUELTO', 'Vereda dañada', 'Baja', 1, '27/08/2026'],
+      [16, 'Vereda rota frente a paradero', 'RESUELTO', 'Vereda dañada', 'Media', 1, '05/09/2026'],
+      [15, 'Falta señal de pare', 'RESUELTO', 'Señalización faltante', 'Alta', 1, '21/09/2026'],
+      [14, 'Falta señal de pare', 'EN_PROCESO', 'Señalización faltante', 'Alta', 1, '02/10/2026'],
+      [13, 'Hueco peligroso para motos', 'RESUELTO', 'Hueco en calzada', 'Baja', 1, '08/10/2026'],
+      [12, 'Semáforo sin funcionar en cruce', 'EN_PROCESO', 'Semáforo averiado', 'Baja', 1, '12/10/2026'],
+      [11, 'Hueco peligroso para motos', 'RESUELTO', 'Hueco en calzada', 'Alta', 1, '16/10/2026']
+    ];
+    const ABIERTOS = ['PENDIENTE', 'RECIBIDO', 'EN_PROCESO'];
+    const todos = D.map((d) => {
+      const e = E[d[2]];
+      const abierto = ABIERTOS.indexOf(d[2]) >= 0;
+      const asignable = d[2] === 'RECIBIDO' || d[2] === 'EN_PROCESO';
+      return {
+        id: d[0], titulo: d[1], k: d[2], esPendiente: d[2] === 'PENDIENTE', esRecibido: d[2] === 'RECIBIDO', esEnProceso: d[2] === 'EN_PROCESO', esResuelto: d[2] === 'RESUELTO', esRechazado: d[2] === 'RECHAZADO', estado: e[0], bg: e[1], fg: e[2], punto: e[3], categoria: d[3], severidad: d[4],
+        severidadMin: d[4].toLowerCase(), apoyos: d[5], fecha: d[6], reincidencia: !!d[7], abierto, final: !abierto,
+        responsable: asignable ? 'Sin asignar' : '—', respColor: asignable ? '#141B24' : '#4D5866', respPeso: asignable ? '700' : '400'
+      };
+    });
+    const cuenta = (pred) => todos.filter(pred).length;
+    const OPC = [
+      { k: 'ATENDER', nombre: 'Por atender', pred: (r) => r.abierto },
+      { k: 'TODOS', nombre: 'Todos', pred: () => true },
+      { k: 'PENDIENTE', nombre: 'Pendiente', pred: (r) => r.k === 'PENDIENTE' },
+      { k: 'RECIBIDO', nombre: 'Recibido', pred: (r) => r.k === 'RECIBIDO' },
+      { k: 'EN_PROCESO', nombre: 'En proceso', pred: (r) => r.k === 'EN_PROCESO' },
+      { k: 'RESUELTO', nombre: 'Resuelto', pred: (r) => r.k === 'RESUELTO' },
+      { k: 'RECHAZADO', nombre: 'Rechazado', pred: (r) => r.k === 'RECHAZADO' }
+    ];
+    const actual = OPC.find((o) => o.k === s.filtro);
+    const pestanas = OPC.map((o) => {
+      const on = o.k === s.filtro;
+      return {
+        nombre: o.nombre, n: cuenta(o.pred), pressed: on ? 'true' : 'false',
+        bg: on ? '#1F3350' : '#FFFFFF', fg: on ? '#FFFFFF' : '#141B24', borde: on ? '1px solid #1F3350' : '1px solid #B9C1CB',
+        cuentaBg: on ? '#FFFFFF' : '#EDF0F3', cuentaFg: '#141B24',
+        pick: () => this.setState({ filtro: o.k })
+      };
+    });
+    const visibles = todos.filter(actual.pred);
+    const filas = visibles.map((r) => Object.assign({}, r, {
+      filaBg: r.id === s.sel ? '#EEF2F8' : '#FFFFFF',
+      pick: () => this.setState({ sel: r.id, transicion: null })
+    }));
+    const sel = todos.find((r) => r.id === s.sel) || todos[1];
+    const HIST = {
+      PENDIENTE: [{ evento: 'Reportado por un vecino', detalle: sel.fecha + ' · asignado a Miraflores por ubicación' }],
+      RECIBIDO: [
+        { evento: 'Pendiente → Recibido', detalle: '«Reporte recibido por la municipalidad» · ' + sel.fecha + ' · Funcionario Miraflores' },
+        { evento: 'Reportado por un vecino', detalle: sel.fecha + ' · asignado a Miraflores por ubicación' }
+      ],
+      EN_PROCESO: [
+        { evento: 'Recibido → En proceso', detalle: '«Cuadrilla asignada» · Funcionario Miraflores' },
+        { evento: 'Pendiente → Recibido', detalle: '«Reporte recibido por la municipalidad» · Funcionario Miraflores' }
+      ],
+      RESUELTO: [
+        { evento: 'En proceso → Resuelto', detalle: '«Trabajo culminado» · Funcionario Miraflores' },
+        { evento: 'Recibido → En proceso', detalle: '«Cuadrilla asignada» · Funcionario Miraflores' },
+        { evento: 'Pendiente → Recibido', detalle: '«Reporte recibido por la municipalidad» · Funcionario Miraflores' }
+      ],
+      RECHAZADO: [
+        { evento: 'Recibido → Rechazado', detalle: '«No corresponde a vía de competencia distrital» · Funcionario Miraflores' },
+        { evento: 'Pendiente → Recibido', detalle: '«Reporte recibido por la municipalidad» · Funcionario Miraflores' }
+      ]
+    };
+    const TR = { PENDIENTE: ['RECIBIDO', 'RECHAZADO'], RECIBIDO: ['EN_PROCESO', 'RECHAZADO'], EN_PROCESO: ['RESUELTO', 'RECHAZADO'] };
+    const transiciones = (TR[sel.k] || []).map((k) => {
+      const on = s.transicion === k;
+      return {
+        nombre: 'Pasar a ' + E[k][0].toLowerCase(), on,
+        borde: on ? '2px solid #1F3350' : '1px solid #B9C1CB', fondo: on ? '#EEF2F8' : '#FFFFFF',
+        pick: () => this.setState({ transicion: k })
+      };
+    });
+    return {
+      pestanas, filas,
+      resumen: visibles.length === 0 ? 'No hay reportes con este filtro.' : 'Mostrando ' + visibles.length + ' de ' + todos.length + ' reportes.',
+      sel: Object.assign({}, sel, { historial: HIST[sel.k] }),
+      transiciones,
+      comentarioReq: s.transicion === 'RECHAZADO' ? '(obligatorio al rechazar)' : '(opcional)'
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>Ciudad Viva</title>
+  <!-- Insignia de las notificaciones push (DIS-1): la silueta del pin «Cívica»
+       en blanco sobre transparente y a todo el lienzo, con la calle calada.
+       Android solo usa el canal alfa de la insignia (la pinta en la barra de
+       estado), así que un icono a color se vería como un cuadrado lleno.
+       Fuente de badge-96.png, que genera scripts/generar-iconos.mjs. -->
+  <g transform="translate(256 256) scale(14) translate(-20 -20)">
+    <defs>
+      <mask id="calle" maskUnits="userSpaceOnUse" x="0" y="0" width="40" height="40">
+        <rect width="40" height="40" fill="#fff"/>
+        <path d="M2 27 38 7" stroke="#000" stroke-width="5"/>
+      </mask>
+    </defs>
+    <path d="M20 3C12.8 3 7 8.7 7 15.8 7 25 20 37 20 37s13-12 13-21.2C33 8.7 27.2 3 20 3Z" fill="#ffffff" mask="url(#calle)"/>
+  </g>
+</svg>

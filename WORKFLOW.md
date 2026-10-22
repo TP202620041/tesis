@@ -1,7 +1,7 @@
 # Workflow de agentes de Claude — Ciudad Viva
 
 > **Documento normativo**, igual que `ARCHITECTURE.md`. Define quién hace qué, cómo avanza una tarea desde el plan hasta `develop` (y de ahí a una versión en `main`, con GitFlow) y qué lo hace cumplir automáticamente.
-> Versión 1.1 · 2026-10-11 (GitFlow). Configuración en `.claude/` (raíz) y en `backend/.claude/` y `frontend/.claude/`.
+> Versión 1.2 · 2026-10-21 (subagentes del coordinador; 1.1 del 2026-10-11: GitFlow). Configuración en `.claude/` (raíz) y en `backend/.claude/` y `frontend/.claude/`.
 
 ## 1. Idea central
 
@@ -23,7 +23,10 @@ Cada agente de Claude Code trabaja **en una sola carpeta, en una sola tarea, en 
 | **Agente de backend** | Claude Code iniciado en `backend/` | `backend/` | `backend/`, el plan, `handoffs/`, `decisions/propuestas/` | Ejecuta tareas `BE-*` y la parte backend de `NC-*`. |
 | **Agente de frontend** | Claude Code iniciado en `frontend/` | `frontend/` | `frontend/`, el plan, `handoffs/`, `decisions/propuestas/` | Ejecuta tareas `FE-*` y la parte frontend de `NC-*`. |
 | **Agente de inferencia** | Claude Code en `inferencia/` (futuro, NC-03) | `inferencia/` | `inferencia/` y lo mismo | Servicio FastAPI + ONNX. |
-| **Revisor de arquitectura** | Subagente `revisor-arquitectura` (modelo Opus, solo lectura) | Lo lanza `/revisar` dentro de la sesión del agente | Nada | Revisa el diff contra las normas sin haber visto cómo se escribió. |
+| **Revisor de arquitectura** | Subagente `revisor-arquitectura` (modelo Opus, solo lectura) | Lo lanza `/revisar` dentro de la sesión del agente, o el coordinador | Nada | Revisa el diff contra las normas sin haber visto cómo se escribió. |
+| **Subagentes del coordinador** | `backend-dev`, `frontend-dev`, `qa-e2e`, `arquitecto`, `disenador-ui` (`.claude/agents/`) | Los lanza la sesión coordinadora, cada uno en su worktree (`isolation: worktree` o el que le indique) | Lo que dice su definición: `backend/`, `frontend/`, informes de QA, propuestas y `docs/`, o prototipos de diseño | Ejecutan una tarea y dejan commits **sin push**; QA y diseño no tocan código. El coordinador corre `/revisar`, publica la rama, abre el PR y lo fusiona con la autorización del usuario. |
+
+**Subagentes del coordinador.** Heredan los hooks de la raíz, así que su guardia es la de `raiz`: bloquea commits en `main`/`develop`, generados y migraciones existentes, pero **no** restringe la carpeta propia. Esa restricción la ponen su definición y el revisor. La guardia evalúa la rama del directorio donde corre cada comando, así que el subagente trabaja en un worktree de su tarea y comprueba `git rev-parse --show-toplevel` y `git branch --show-current` antes de cada commit. El subagente `arquitecto` prepara propuestas; quien decide sigue siendo el usuario (el «Arquitecto y PO técnico» de esta tabla).
 
 **Cómo iniciar cada agente:** abre una terminal en la carpeta (`cd backend` y luego `claude`). Claude Code carga el `CLAUDE.md` de esa carpeta y los de las carpetas superiores, las skills y subagentes de `.claude/` de la raíz, y los hooks del `.claude/settings.json` **de la carpeta donde arrancó** (por eso cada carpeta tiene el suyo).
 
@@ -39,7 +42,7 @@ Cada agente de Claude Code trabaja **en una sola carpeta, en una sola tarea, en 
 | 4. Implementar | — | Cambios mínimos para los criterios de aceptación. Duda de diseño → `/propuesta` y se detiene. Cambio de contrato → `/contrato`. | Compila y los tests nuevos/movidos pasan. |
 | 5. Verificar | `/verificar` | Corre la definición de terminado y cuenta métricas con scripts. | Ninguna métrica peor que la línea base. |
 | 6. Revisar | `/revisar` | El subagente revisor lee el diff y da veredicto. | APTO, o hallazgos corregidos. |
-| 7. Cerrar | (dentro de `/tarea`) | Marca `[x]` en el plan con métricas antes → después; push de la rama; abre el PR contra `develop`. | PR abierto. |
+| 7. Cerrar | (dentro de `/tarea`) | Marca `[x]` en el plan con métricas antes → después; push de la rama; abre el PR contra `develop`. Con subagentes del coordinador, el push y el PR los hace el coordinador. | PR abierto. |
 | 8. Fusionar | El usuario | Revisa el resumen del PR y fusiona con merge commit; la rama se borra. | `develop` actualizado. |
 
 **Definición de terminado** (la mide `/verificar`):
@@ -55,7 +58,7 @@ Cada agente de Claude Code trabaja **en una sola carpeta, en una sola tarea, en 
 |---|---|---|
 | `/tarea <ID>` | Agente de carpeta (lo escribes tú) | Ciclo completo de una tarea, del plan al PR. |
 | `/verificar` | Agente de carpeta | Definición de terminado con números (`contar-archunit.mjs`, `contar-capas.mjs`). |
-| `/revisar [nota]` | Agente de carpeta | Revisión independiente por el subagente `revisor-arquitectura`. |
+| `/revisar [nota]` | Agente de carpeta o el coordinador (un subagente no puede lanzar otro) | Revisión independiente por el subagente `revisor-arquitectura`. |
 | `/contrato <tema>` | Backend publica, frontend consume | Handoff escrito de un cambio de API (§6). |
 | `/propuesta <tema>` | Cualquier agente | Registrar una duda de diseño para que la decidas tú (§7). |
 
@@ -67,7 +70,8 @@ Cada agente de Claude Code trabaja **en una sola carpeta, en una sola tarea, en 
 | **ArchUnit** | `mvn test` | Una violación de capas nueva en el backend. |
 | **ESLint de capas** | `npm run lint` | Un import que rompe las capas del frontend (aviso hasta FE-09, luego error). |
 | **Revisor** | `/revisar` | Reglas que ninguna herramienta mide: señales internas en DTO, SEC-01, eventos de KPI, limpieza de tests, CSP. |
-| **Protección de `main` y `develop`** (activa desde el 11/10) | GitHub → Settings → Branches | Que algo llegue a `main` o `develop` sin PR, un push forzado o el borrado de esas ramas, también para admins. |
+| **CI** (`.github/workflows/ci.yml`, desde el 21/10) | GitHub Actions en cada PR a `develop`/`main` y en cada push a esas ramas (no en PR apilados sobre otra rama: `docs/ci.md`) | Que se fusione algo con el backend o el frontend en rojo: `mvn clean verify` contra PostGIS con guarda de completitud por clase y mínimos de tests, y lint, typecheck, `npm test` y build del frontend. Detalle en `docs/ci.md`. |
+| **Protección de `main` y `develop`** (activa desde el 11/10; check `ci` obligatorio desde el 21/10) | GitHub → Settings → Branches | Que algo llegue a `main` o `develop` sin PR, sin el check `ci` en verde, con un push forzado o borrando esas ramas, también para admins. |
 
 El hook es una red de seguridad, no un sandbox: un comando de shell podría saltárselo. Si bloquea algo legítimo, el agente lo dice y lo hace la sesión de raíz o tú.
 
@@ -112,6 +116,7 @@ Nunca en paralelo: el frontend no consume un contrato que no está en `develop`.
 |---|---|---|
 | Agentes de carpeta | El de la sesión | Ejecutan tareas acotadas con criterios explícitos. |
 | Revisor de arquitectura | Opus | Su valor está en el juicio; corre una vez por tarea. |
+| Subagentes del coordinador | Opus (fijado en su definición) | Tareas completas sin supervisión directa: necesitan el mismo juicio que el revisor. |
 | Coordinador | El más capaz disponible | Decide y redacta normas. |
 
 ## 10. Puesta en marcha (una vez)

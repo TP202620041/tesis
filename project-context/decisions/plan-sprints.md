@@ -36,9 +36,12 @@ Hay un carril de backend y uno de frontend en paralelo. En un mismo sprint el fr
 | S3 | NC-07b (consentimiento, D-12) · US-21 (adaptador Web Push + VAPID) | NC-07b (aceptación en registro e inicio de sesión, `/privacidad`) · US-21 (suscripción + `push` en el SW) · US-06 · FE-05 | v0.4.0 |
 | S4 | US-11 (endpoint de densidad) · BE-06 (incluye `ReincidenciaDetector` → `domain/`) · BE-10 | US-11 (capa de calor) · FE-06 | v0.5.0 |
 | S5 | NC-01 · NC-02 | US-19 · FE-07 · FE-08 | v0.6.0 |
-| S6 | NC-05 · NC-06 · BE-08 | NC-06 (dashboard por periodo, reemplaza US-17 v1) · FE-09 | v0.7.0 |
-| S7 | NC-03 (`inferencia/`) · NC-04 (`clasificacion`) | NC-04 (vista previa al reportar) | v0.8.0 |
-| S8 | Ajustes que pida el diseño | **Diseño de la interfaz**: sistema visual (tokens, tipografía y color), componentes, revisión de cada pantalla, US-23 (modo oscuro y alto contraste) y US-24 (guía de uso) | v1.0.0 |
+| Despliegue | DEP-01..DEP-05 · DEP-08 · DEP-11 · DEP-12 · correcciones de QA-1 · CI (DEP-07) | DEP-06 · correcciones de QA-1 · fase 1 del diseño «Cívica» (DIS-1, con US-23) | v0.7.0 |
+| S6 | NC-05 · NC-06 · BE-08 | NC-06 (dashboard por periodo, reemplaza US-17 v1) · FE-09 | v0.8.0 |
+| S7 | NC-03 (`inferencia/`) · NC-04 (`clasificacion`) | NC-04 (vista previa al reportar) | v0.9.0 |
+| S8 | Ajustes que pida el diseño | **Diseño de la interfaz, fase 2** (mapa con hoja inferior, reporte en pasos, bandeja con panel, portada y desempeño), revisión de cada pantalla y US-24 (guía de uso) | v1.0.0 |
+
+El sprint «Despliegue» se intercaló el 21/10 por decisión del usuario, así que S6 y S7 se corren una versión. v0.7.0 es el MVP listo para desplegar: el primer despliegue (DEP-09) y su prueba de humo (DEP-10) esperan las cuentas del usuario, y lo que exijan corregir sale como hotfix `v0.7.x`. El sistema visual y US-23 del S8 se adelantaron en ese sprint con la dirección «Cívica» (`docs/diseno/`); en el S8 quedan la fase 2 del rediseño y US-24.
 
 Ya hechas antes de S1: BE-01, BE-02, BE-07, FE-01 y FE-02.
 
@@ -49,7 +52,7 @@ Ya hechas antes de S1: BE-01, BE-02, BE-07, FE-01 y FE-02.
 | S5 | US-19: el Gherkin del PDF (pegarlo en `backlog/product_backlog.md`). |
 | S5 | D-10: jurisdicción del funcionario (`distrito_id` o `municipalidad_id`) y las fechas exactas del periodo 2023-2026. |
 | S6 | Fórmulas de los KPIs por periodo; requisitos de recepción por municipalidad (NC-05). |
-| S7 | Clases finales del modelo y umbral (NC-03). Mientras tanto, NC-04 usa un adaptador falso. |
+| S7 | Clases finales del modelo y umbral (NC-03): **decidido el 21/10** (`propuestas/2026-10-21-ml-clases-modelo.md`: `bache` y `grieta` de RDD2022, umbral 0,50). NC-04 arranca con un adaptador falso. |
 
 ## Ejecución
 
@@ -67,3 +70,20 @@ Ya hechas antes de S1: BE-01, BE-02, BE-07, FE-01 y FE-02.
 - **S3 (2026-10-20, v0.4.0):** FE-05 (#41), NC-07b backend (#42) y PWA (#46), US-21 backend (#43) y PWA (#52; reemplaza a #47 y #50), US-06 (#44), D-13 y D-14 (#45), borrador legal (#40). Adelantos del S4 que entran en esta versión: BE-10 (#48), BE-06 parcial (#49) y US-11 backend (#51). Failsafe 238 → 284, Surefire 37 → 57, ArchUnit 48 → 3; frontend 232 → 473 tests, avisos de capas 44 → 18. Verificación en vivo con claves VAPID de desarrollo: 16 comprobaciones del API y, en Chrome, términos, consentimientos y un push real por FCM mostrado por el Service Worker, con la baja al cerrar sesión y el re-registro al volver a entrar. Para decidir: `propuestas/2026-10-20-asignacion-geo-en-distritos.md` (cierra BE-06). Para el S8: falta `/icons/icon-512.png` del manifest.
 - **S4 (2026-10-20, v0.5.0):** FE-06 (#55), US-11 PWA (#57; el backend entró en #51), BE-06 cerrada con la opción A de la propuesta (#58), diagramas de arquitectura (#56) y US-01 términos en diálogo sin pestaña nueva (#59, pedido del usuario). ArchUnit 3 → 0 con Failsafe 284 y Surefire 57 sin cambios; frontend 473 → 547 tests, avisos de capas 18 → 0. Desde S4 la máquina de desarrollo es macOS con JDK 21 (`/opt/homebrew/opt/openjdk@21`) y PostgreSQL en 5432; los IT necesitan `TEST_DB_URL=jdbc:postgresql://localhost:5432/viasegura_test` mientras `AbstractPostgisIT` apunte a 5433. Pendiente para BE-08: la ruta vieja de `PointInPolygonAssignmentStrategy` en `backend/CLAUDE.md`. Antes del S5 siguen pendientes el Gherkin de US-19 y D-10.
 - **S5 (2026-10-21, v0.6.0):** FE-07 (#69), FE-08 (#71), build con esbuild (#72), NC-01 parcial (#70; GESTION_MUNICIPAL y REQUISITO_RECEPCION con NC-06/NC-05, propuesta aceptada opción A), US-19 con criterios provisionales (#68, #73), NC-02 backend (#74) y PWA (#79), mapa sin calles en producción por la CSP del Service Worker (#78), marca visible Ciudad Viva (#62–#66), §10 de responsabilidad sobre fotos en los términos (#64, #67) y diagramas (#80). Failsafe 284 → 309, Surefire 57 → 62, ArchUnit 0 → 0; frontend 547 → 646 tests (76 → 83 archivos), avisos de capas 0. Verificación en vivo en Windows con túneles HTTPS (`cloudflared`) hacia la build de producción. Siguen abiertos para el S6: el Gherkin original de US-19, D-10 y las fórmulas de los KPIs.
+- **Despliegue (2026-10-21/22, v0.7.0):** sprint intercalado para dejar el MVP listo para Railway, Vercel, R2 y Resend (decisiones del usuario del 21/10).
+  - **Equipo y CI:** agentes del equipo (#83) y CI con el check `ci` obligatorio (#84, #88).
+  - **Propuestas** (#87): despliegue, correo, R2 y ML, aceptadas; la de §4.3 sigue abierta.
+  - **Configuración de producción e imagen** (#89), con el runbook (#87, #91).
+  - **PWA instalable** (#85) y foto de perfil validada (#99).
+  - **QA-1 sobre v0.6.0** (#88: 0 bloqueantes, 5 importantes), con correcciones en la PWA (#92) y en el backend (#100, con V18 y SEC-04).
+  - **Primer ADMIN** (#93).
+  - **Fotos en R2** (#96) y **correo con Resend** (#98).
+  - **Diseño «Cívica»:** elegido (#90); su fase 1, con US-23, en #95.
+  - **«Reportes que apoyas»** (#101) y diagramas (#102).
+  - **Propuestas nuevas:** tildes (#94), aceptada; refresco asíncrono del índice (#97), abierta.
+  - **Cifras:**
+    - Failsafe 309 → 418, Surefire 62 → 230, ArchUnit 0 → 0;
+    - frontend 646 → 1015 tests (83 → 118 archivos), avisos de capas 0.
+  - **Imagen del backend:** probada con `prod` contra un PostGIS vacío y S3Mock: V1–V18 y health UP en 9 s.
+  - **Pendiente:** el primer despliegue (DEP-09) y su prueba de humo (DEP-10) esperan las cuentas del usuario y un dominio verificado para Resend. El usuario pidió cortar v0.7.0 antes de desplegar (22/10).
+  - **Siguen abiertos:** D-10, las fórmulas de los KPIs, las columnas de OB2, el Gherkin de US-19, los `[COMPLETAR]` legales, §4.3 y el pool del índice (#97).

@@ -60,6 +60,26 @@ describe('usePerfil', () => {
     expect(result.current.guardado).toBe(false);
   });
 
+  // DEP-11/DEP-12: respuestas del saneado de la foto de perfil.
+  it.each([
+    [503, 'Hay muchas fotos procesandose en este momento. Intenta de nuevo en unos segundos.'],
+    [409, 'Formato de foto no permitido: el archivo no es una imagen JPG, PNG o WEBP valida'],
+    [413, 'La foto supera el tamaño máximo de 10 MB'],
+  ])('un %i de la foto se muestra con el mensaje del API', async (status, mensaje) => {
+    vi.mocked(editarPerfil).mockRejectedValue(new ApiError(status, mensaje, '/api/auth/me'));
+    const { result } = renderHook(() => usePerfil(ANA));
+    const foto = new File(['x'], 'perfil.jpg', { type: 'image/jpeg' });
+
+    let ok = true;
+    await act(async () => {
+      ok = await result.current.guardar({ nombre: 'Ana', foto });
+    });
+
+    expect(ok).toBe(false);
+    expect(result.current.error).toEqual({ mensaje, detalles: [] });
+    expect(result.current.guardado).toBe(false);
+  });
+
   it('sin conexion conserva el texto de la pantalla', async () => {
     vi.mocked(actualizarPreferenciaNotificacion).mockRejectedValue(new NetworkError());
     const { result } = renderHook(() => usePerfil(ANA));

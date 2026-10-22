@@ -93,13 +93,22 @@ export function historial(reporteId: number): Promise<HistorialEntrada[]> {
 /**
  * US-15: responsable interno vigente, o `null` si no hay ninguno.
  *
- * El backend responde 404 cuando el reporte no tiene responsable. Eso no es
- * un fallo sino un estado normal, asi que se traduce a `null` en vez de
- * propagar un error que la pantalla tendria que interpretar.
+ * QA-1 M-4: sin responsable, el backend responde **204 sin cuerpo** (antes
+ * 404). `apiFetch` devuelve `undefined` en un 204, y aqui se normaliza a
+ * `null`: «sin responsable» es un estado normal, no un fallo que la pantalla
+ * tenga que interpretar.
+ *
+ * Transicion: el `catch` del 404 se mantiene mientras pueda haber un backend
+ * anterior a QA-1 desplegado (la PWA nueva hablando con el API viejo). Con
+ * el backend nuevo un 404 ya significa «el reporte no existe»; cuando ambos
+ * esten desplegados se puede quitar y tratarlo como «no disponible».
  */
 export async function responsableActivo(reporteId: number): Promise<AsignacionResponsable | null> {
   try {
-    return await api.get<AsignacionResponsable>(`/api/reportes/${reporteId}/responsable`);
+    const asignacion = await api.get<AsignacionResponsable | undefined>(
+      `/api/reportes/${reporteId}/responsable`,
+    );
+    return asignacion ?? null;
   } catch (e) {
     if (e instanceof ApiError && e.status === 404) return null;
     throw e;

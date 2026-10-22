@@ -23,7 +23,7 @@ export function Calificar({ reporteId }: { reporteId: number }) {
   const [comentario, setComentario] = useState('');
 
   if (cargando) {
-    return <p className="text-sm text-slate-500">Cargando…</p>;
+    return <p className="text-sm text-texto-2">Cargando…</p>;
   }
 
   if (existente) {
@@ -37,20 +37,27 @@ export function Calificar({ reporteId }: { reporteId: number }) {
 
   return (
     <form onSubmit={enviar} className="flex flex-col gap-3" noValidate>
-      <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+      <h2 className="text-sm font-semibold text-texto">
         ¿Cómo fue la atención?
       </h2>
+      {/* La invitacion vive aqui y no en la explicacion del estado (QA-1
+          M-13): al calificar, este formulario se reemplaza por lo que se
+          califico y la invitacion se va con el. */}
+      <p className="text-sm text-texto-2">
+        Puedes calificar la atención recibida. Tu opinión alimenta el índice público de desempeño
+        de tu municipalidad.
+      </p>
       {error && <AlertaError mensaje={error.mensaje} detalles={error.detalles} />}
 
       {/* Grupo de radios, no botones: es una eleccion entre opciones
           excluyentes y asi funciona con teclado y lector de pantalla. */}
       <fieldset className="flex flex-col gap-1.5">
-        <legend className="text-sm text-slate-700 dark:text-slate-200">Calificación</legend>
+        <legend className="text-sm text-texto">Calificación</legend>
         <div className="flex gap-1">
           {[1, 2, 3, 4, 5].map((valor) => (
             <label
               key={valor}
-              className="cursor-pointer text-2xl leading-none"
+              className="cursor-pointer rounded-control px-0.5 text-2xl leading-none has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-foco"
               title={`${valor} de 5`}
             >
               <input
@@ -63,19 +70,20 @@ export function Calificar({ reporteId }: { reporteId: number }) {
               />
               <span
                 aria-hidden="true"
-                className={valor <= estrellas ? 'text-amber-500' : 'text-slate-300 dark:text-slate-600'}
+                className={valor <= estrellas ? 'text-texto' : 'text-linea-campo'}
               >
                 ★
               </span>
-              <span className="sr-only">{valor} estrellas</span>
+              {/* QA-1 M-1: «1 estrella», no «1 estrellas». */}
+              <span className="sr-only">{valor === 1 ? '1 estrella' : `${valor} estrellas`}</span>
             </label>
           ))}
         </div>
       </fieldset>
 
       <div className="flex flex-col gap-1.5">
-        <label htmlFor="comentario-calif" className="text-sm text-slate-700 dark:text-slate-200">
-          Comentario <span className="font-normal text-slate-500">(opcional)</span>
+        <label htmlFor="comentario-calif" className="text-sm text-texto">
+          Comentario <span className="font-normal text-texto-2">(opcional)</span>
         </label>
         <textarea
           id="comentario-calif"
@@ -84,7 +92,7 @@ export function Calificar({ reporteId }: { reporteId: number }) {
           value={comentario}
           onChange={(e) => setComentario(e.target.value)}
           placeholder="¿La reparación quedó bien? ¿Tardaron mucho?"
-          className="rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+          className="bg-superficie text-texto rounded-control border border-linea-campo px-3 py-2 text-sm"
         />
       </div>
 
@@ -105,19 +113,19 @@ function CalificacionEmitida({ calificacion }: { calificacion: Calificacion }) {
   const estrellas = calificacion.estrellas ?? 0;
   return (
     <div className="flex flex-col gap-2" aria-live="polite">
-      <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Tu calificación</h2>
+      <h2 className="text-sm font-semibold text-texto">Tu calificación</h2>
       <p className="flex items-center gap-2">
         <span aria-hidden="true" className="text-2xl leading-none">
           {[1, 2, 3, 4, 5].map((v) => (
             <span
               key={v}
-              className={v <= estrellas ? 'text-amber-500' : 'text-slate-300 dark:text-slate-600'}
+              className={v <= estrellas ? 'text-texto' : 'text-linea-campo'}
             >
               ★
             </span>
           ))}
         </span>
-        <span className="text-sm text-slate-700 dark:text-slate-300">
+        <span className="text-sm text-texto">
           {estrellas} de 5
           {calificacion.createdAt
             ? ` · ${new Date(calificacion.createdAt).toLocaleDateString('es-PE')}`
@@ -125,11 +133,11 @@ function CalificacionEmitida({ calificacion }: { calificacion: Calificacion }) {
         </span>
       </p>
       {calificacion.comentario && (
-        <p className="text-sm text-slate-600 dark:text-slate-400">
+        <p className="text-sm text-texto-2">
           «{calificacion.comentario}»
         </p>
       )}
-      <p className="text-xs text-slate-500 dark:text-slate-400">
+      <p className="text-xs text-texto-2">
         Ya calificaste este reporte. Tu opinión alimenta el índice público de desempeño de tu
         municipalidad.
       </p>

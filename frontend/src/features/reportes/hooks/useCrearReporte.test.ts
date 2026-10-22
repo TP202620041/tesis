@@ -120,6 +120,25 @@ describe('useCrearReporte (US-05, US-06)', () => {
     expect(claveDe(1)).toBe(claveDe(0));
   });
 
+  // DEP-11/DEP-12: respuestas del saneado de la foto. Son del backend, no de
+  // la red: se muestran con su mensaje y el reporte no va a la cola offline.
+  it.each([
+    [503, 'Hay muchas fotos procesandose en este momento. Intenta de nuevo en unos segundos.'],
+    [409, 'Formato de foto no permitido: el archivo no es una imagen JPG, PNG o WEBP valida'],
+    [413, 'La foto supera el tamaño máximo de 10 MB'],
+  ])('un %i de la foto se muestra con el mensaje del API y no se encola', async (status, mensaje) => {
+    vi.mocked(crearReporte).mockRejectedValue(new ApiError(status, mensaje, '/api/reportes'));
+    const { result, enviar } = montar();
+
+    expect(await enviar()).toBeNull();
+    expect(result.current.error).toEqual({ mensaje, detalles: [] });
+    expect(encolar).not.toHaveBeenCalled();
+
+    // El reintento (p. ej. tras el 503) es el mismo intento lógico.
+    await enviar();
+    expect(claveDe(1)).toBe(claveDe(0));
+  });
+
   it('sin ubicación o sin categoría no llega al backend', async () => {
     const { result, enviar } = montar();
 

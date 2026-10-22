@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Detalle de mi reporte (móvil)</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#1D4F91}a:hover{color:#142F57}
+button:focus-visible,a:focus-visible,textarea:focus-visible{outline:3px solid #FFD43B;outline-offset:0;box-shadow:0 0 0 5px #141B24}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; position: relative; overflow: hidden; display: flex; flex-direction: column; font-family: 'Public Sans', system-ui, sans-serif; color: #141B24; background: #F5F6F8">
+  <header style="flex: none; height: 56px; box-sizing: border-box; padding: 0 8px; background: #FFFFFF; border-bottom: 1px solid #D6DBE1; display: flex; align-items: center">
+    <a href="Mis-reportes-movil.dc.html" style="min-height: 44px; padding: 0 10px 0 4px; display: inline-flex; align-items: center; gap: 2px; font-size: 15px; font-weight: 600; text-underline-offset: 3px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg>Mis reportes</a>
+  </header>
+
+  <main style="flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 16px; padding-bottom: 20px">
+    <div aria-hidden="true" style="height: 168px; flex: none; background: repeating-linear-gradient(135deg, #E3E7EC 0 10px, #EDF0F3 10px 20px); display: flex; align-items: center; justify-content: center; color: #4D5866; font-size: 14px; font-weight: 600">Foto del daño</div>
+
+    <div style="padding: 0 16px; display: flex; flex-direction: column; gap: 10px">
+      <span style="align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px 5px 8px; border-radius: 6px; background: #D9F5E3; color: #0B5A33; font-size: 14px; font-weight: 700"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>Resuelto</span>
+      <h1 style="margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.01em; line-height: 1.2">Semáforo sin funcionar en cruce</h1>
+      <p style="margin: 0; font-size: 15px; line-height: 1.5; color: #3A4452">Semáforo averiado · Severidad media<br>Lima · reportado el 09/10/2026</p>
+    </div>
+
+    <!-- Progreso del estado -->
+    <section aria-labelledby="progreso" style="margin: 0 16px; background: #FFFFFF; border: 1px solid #D6DBE1; border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 12px">
+      <h2 id="progreso" style="margin: 0; font-size: 16px; font-weight: 700">Seguimiento</h2>
+      <ol style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column">
+        <li style="display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 12px">
+          <span style="display: flex; flex-direction: column; align-items: center"><span style="width: 28px; height: 28px; border-radius: 50%; background: #FDE3E1; color: #9B1C14; display: flex; align-items: center; justify-content: center"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg></span><span style="flex: 1; width: 2px; background: #C5CCD5; min-height: 16px"></span></span>
+          <span style="padding-bottom: 14px; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 15px; font-weight: 700">Reportado</span><span style="font-size: 13px; color: #4D5866">09/10/2026 · 3 vecinos lo respaldan</span></span>
+        </li>
+        <li style="display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 12px">
+          <span style="display: flex; flex-direction: column; align-items: center"><span style="width: 28px; height: 28px; border-radius: 50%; background: #DDE8FC; color: #1A3F8F; display: flex; align-items: center; justify-content: center"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"></polyline><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg></span><span style="flex: 1; width: 2px; background: #C5CCD5; min-height: 16px"></span></span>
+          <span style="padding-bottom: 14px; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 15px; font-weight: 700">Recibido por la municipalidad</span><span style="font-size: 14px; color: #3A4452">«Reporte recibido por la municipalidad»</span><span style="font-size: 13px; color: #4D5866">11/10/2026 · 00:24</span></span>
+        </li>
+        <li style="display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 12px">
+          <span style="display: flex; flex-direction: column; align-items: center"><span style="width: 28px; height: 28px; border-radius: 50%; background: #FDEFC3; color: #6E4100; display: flex; align-items: center; justify-content: center"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg></span><span style="flex: 1; width: 2px; background: #C5CCD5; min-height: 16px"></span></span>
+          <span style="padding-bottom: 14px; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 15px; font-weight: 700">En proceso</span><span style="font-size: 14px; color: #3A4452">«Cuadrilla asignada»</span><span style="font-size: 13px; color: #4D5866">13/10/2026 · 15:09</span></span>
+        </li>
+        <li style="display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 12px">
+          <span style="display: flex; flex-direction: column; align-items: center"><span style="width: 28px; height: 28px; border-radius: 50%; background: #126B3F; color: #FFFFFF; display: flex; align-items: center; justify-content: center"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></span></span>
+          <span style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 15px; font-weight: 700">Resuelto</span><span style="font-size: 14px; color: #3A4452">«Trabajo culminado»</span><span style="font-size: 13px; color: #4D5866">19/10/2026 · 21:45 · 10 días después del reporte</span></span>
+        </li>
+      </ol>
+    </section>
+
+    <!-- Calificación -->
+    <section aria-labelledby="calificar" style="margin: 0 16px; background: #FFFFFF; border: 1px solid #D6DBE1; border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px">
+      <h2 id="calificar" style="margin: 0; font-size: 16px; font-weight: 700">¿Cómo te atendieron?</h2>
+      <p style="margin: 0; font-size: 14px; line-height: 1.45; color: #3A4452">Tu calificación alimenta el índice público de la Municipalidad de Lima.</p>
+      <fieldset style="margin: 0; padding: 0; border: 0; display: flex; gap: 4px; min-width: 0">
+        <legend style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Calificación de 1 a 5</legend>
+        <sc-for list="{{ estrellas }}" as="e" hint-placeholder-count="5">
+          <button type="button" onClick="{{ e.pick }}" aria-pressed="{{ e.pressed }}" aria-label="{{ e.etiqueta }}" style="width: 48px; height: 48px; border: 0; border-radius: 8px; background: transparent; display: flex; align-items: center; justify-content: center; padding: 0"><svg width="34" height="34" viewBox="0 0 24 24" fill="{{ e.relleno }}" stroke="{{ e.trazo }}" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"></path></svg></button>
+        </sc-for>
+      </fieldset>
+      <p role="status" style="margin: 0; font-size: 14px; font-weight: 600; color: #3A4452">{{ textoNota }}</p>
+      <button type="button" style="min-height: 48px; border: 0; border-radius: 8px; background: #1F3350; color: #FFFFFF; font: 700 16px 'Public Sans', sans-serif">Enviar calificación</button>
+    </section>
+
+    <!-- Comentarios públicos -->
+    <section aria-labelledby="comentarios" style="margin: 0 16px; background: #FFFFFF; border: 1px solid #D6DBE1; border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px">
+      <h2 id="comentarios" style="margin: 0; font-size: 16px; font-weight: 700">¿Quedó bien la reparación?</h2>
+      <p style="margin: 0; font-size: 14px; color: #4D5866">Todavía nadie comentó sobre esta reparación.</p>
+      <label for="comentario" style="font-size: 15px; font-weight: 600">Escribe tu comentario</label>
+      <textarea id="comentario" rows="3" placeholder="¿Pasaste por ahí? Cuéntanos si quedó reparado o volvió a aparecer." style="box-sizing: border-box; border: 1px solid #7B8594; border-radius: 8px; padding: 10px 12px; font: 400 16px 'Public Sans', sans-serif; color: #141B24; resize: vertical"></textarea>
+      <button type="button" style="min-height: 48px; border: 1px solid #7B8594; border-radius: 8px; background: #FFFFFF; color: #141B24; font: 600 16px 'Public Sans', sans-serif">Publicar comentario</button>
+    </section>
+    <a href="#publica" style="margin: 0 16px; font-size: 15px; font-weight: 600; text-underline-offset: 3px">Ver cómo lo ven los demás</a>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { nota: 0 };
+  }
+  renderVals() {
+    const n = this.state.nota;
+    const NOMBRES = ['Muy mala', 'Mala', 'Regular', 'Buena', 'Muy buena'];
+    const estrellas = [1, 2, 3, 4, 5].map((i) => ({
+      relleno: i <= n ? '#141B24' : 'none', trazo: i <= n ? '#141B24' : '#7B8594',
+      pressed: i === n ? 'true' : 'false', etiqueta: i + ' de 5: ' + NOMBRES[i - 1],
+      pick: () => this.setState({ nota: i })
+    }));
+    return { estrellas, textoNota: n ? n + ' de 5 · ' + NOMBRES[n - 1] : 'Elige de 1 a 5 estrellas.' };
+  }
+}
+</script>
+</body>
+</html>

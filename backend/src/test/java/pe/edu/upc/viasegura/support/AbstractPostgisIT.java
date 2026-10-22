@@ -171,8 +171,9 @@ public abstract class AbstractPostgisIT {
         // Evita escribir fotos de test dentro del repo del proyecto.
         registry.add("app.storage.fotos-dir",
                 () -> System.getProperty("java.io.tmpdir") + "/viasegura-test-fotos");
-        // SMTP de tests -> GreenMail embebido (ServerSetupTest.SMTP = 3025).
-        // Solo NotificacionIT levanta GreenMail y envia; el resto no toca mail.
+        // SMTP de tests -> GreenMail embebido (ServerSetupTest.SMTP = 3025),
+        // por SmtpCorreoAdapter (app.correo.tipo=smtp en application-test.yml,
+        // DEP-08). Lo levantan las suites que extienden AbstractPostgisMailIT.
         registry.add("spring.mail.host", () -> "127.0.0.1");
         registry.add("spring.mail.port", () -> "3025");
     }

@@ -89,6 +89,32 @@ export function rutaAceptarTerminos(destino: string): string {
   return `${RUTA_ACEPTAR_TERMINOS}?redirect=${encodeURIComponent(destino)}`;
 }
 
+/**
+ * A donde ir tras iniciar sesion O registrarse (QA-1 I-2: el registro llevaba
+ * a `/sesion`, una pantalla de depuracion). Una sola regla para los dos:
+ * vuelve a `?redirect=` si es una ruta interna (p. ej. llego desde `/reportar`
+ * sin sesion), si no a la puerta de entrada de su rol; y con los terminos
+ * vigentes sin aceptar (NC-07b), antes de nada a la pantalla de aceptacion,
+ * que al terminar sigue a ese mismo destino.
+ */
+export function destinoTrasAcceso(
+  usuario: { rol: Rol; debeAceptarTerminos?: boolean },
+  redirect: string | null | undefined,
+): string {
+  const destino = destinoInterno(redirect, rutaInicialDe(usuario.rol));
+  return usuario.debeAceptarTerminos ? rutaAceptarTerminos(destino) : destino;
+}
+
+/**
+ * `ruta` llevando el `?redirect=` recibido, si es una ruta interna valida.
+ * Para los enlaces entre login y registro: quien llego al login desde
+ * `/reportar` y elige «Regístrate» debe terminar igual en `/reportar`.
+ */
+export function conRedirect(ruta: string, redirect: string | null | undefined): string {
+  const destino = destinoInterno(redirect, '');
+  return destino ? `${ruta}?redirect=${encodeURIComponent(destino)}` : ruta;
+}
+
 /** Roles que pueden entrar a cada area protegida del cliente. */
 export const ROLES_AREA_MUNICIPAL: readonly Rol[] = ['FUNCIONARIO_MUNICIPAL'];
 export const ROLES_AREA_ADMIN: readonly Rol[] = ['ADMIN'];

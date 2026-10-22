@@ -10,7 +10,9 @@ Asesor: Reyes Silva, Patricia
 ## Stack
 
 - **Next.js 16** (App Router, Turbopack) + **React 19** + **TypeScript estricto**.
-- **Tailwind CSS 4** para estilos.
+- **Tailwind CSS 4** para estilos, sobre los tokens del sistema de diseño
+  «Cívica» (ver «Sistema de diseño» en Decisiones técnicas).
+- **lucide-react** para los iconos (empaquetados, sin orígenes nuevos).
 - **Serwist** para el Service Worker (PWA offline-first).
 - **openapi-typescript** para generar los tipos del API desde el contrato real.
 
@@ -23,11 +25,16 @@ Consume el API REST de Spring Boot del directorio hermano `../backend`.
 POSTGRES_PORT=5433 docker compose up -d
 POSTGRES_PORT=5433 mvn spring-boot:run     # queda en :8080
 
-# 2. Frontend
-cp .env.local.example .env.local
+# 2. Frontend (Node 24, ver .nvmrc)
+cp .env.example .env.local
 npm install
 npm run dev                                 # queda en :3000
 ```
+
+`.env.example` es la única plantilla de variables y la única que se versiona
+(`.gitignore` ignora `.env*` salvo ella). Reemplaza a `.env.local.example`,
+que estaba documentada pero nunca entró al repositorio porque ese mismo patrón
+la ignoraba: en un clon limpio el `cp` de arriba fallaba.
 
 > El backend permite el origen `http://localhost:3000` vía CORS
 > (`app.cors.allowed-origins`). Si cambias el puerto del frontend, ajusta esa
@@ -42,6 +49,38 @@ npm run dev                                 # queda en :3000
 | `npm run typecheck` | `tsc --noEmit`. |
 | `npm test` | Suite de Vitest. |
 | `npm run api:sync` | Descarga el OpenAPI del backend y regenera los tipos. |
+| `node scripts/generar-iconos.mjs` | Regenera los PNG y el ICO de la PWA desde los SVG de `public/icons/`. |
+
+## Despliegue en Vercel
+
+- **Proyecto**: *Root Directory* `frontend/`, *framework* Next.js, rama de
+  producción `main`. El *Build Command* se deja en el predeterminado: Vercel
+  ejecuta el script `build` del `package.json` (`next build` + `serwist
+  build`). Sobrescribirlo con `next build` a secas dejaría la PWA sin Service
+  Worker.
+- **Node**: `engines.node` fija `24.x`, y Vercel lo respeta por encima del
+  valor del panel (despliega el último 24.x). `.nvmrc` es para nvm o fnm en
+  local.
+- **Variable**: `NEXT_PUBLIC_API_BASE_URL` (Production y Preview), con el
+  origen HTTPS del API, sin barra final. Se **hornea en el build**: va al
+  bundle del cliente y a la CSP (`connect-src` e `img-src`) que arma
+  `next.config.ts`. Cambiar la URL del API exige volver a construir (un
+  *Redeploy*); editarla en el panel no cambia un despliegue ya hecho. Si
+  falta, está vacía o no empieza por `https://`, **el build de Vercel falla**
+  con un mensaje que lo dice: sin ella la PWA quedaría apuntando a
+  `localhost:8080`, rota y sin ningún aviso, y una página HTTPS no puede
+  llamar a un `http://`. `next.config.ts` lo comprueba solo si `VERCEL_ENV` es
+  `production` o `preview`, no con `VERCEL` a secas: `vercel env pull` deja
+  `VERCEL=1` (con `VERCEL_ENV=development`) en `.env.local` y la guarda
+  rompería el desarrollo local. En local y en la CI no se exige y vale el
+  respaldo `http://localhost:8080`. Ver `.env.example`.
+- **CORS**: el backend debe aceptar el dominio de Vercel
+  (`app.cors.allowed-origins`). Las *Preview* tienen una URL por despliegue,
+  así que contra el API de producción solo funcionan si se agrega su origen.
+- **Service Worker**: `public/sw.js` no está en git; lo genera el build. Tras
+  desplegar, `/sw.js` debe responder 200 con JavaScript y `/manifest.webmanifest`
+  y cada `/icons/*.png` también 200; en Chrome, *DevTools → Application →
+  Manifest* no debe mostrar errores.
 
 ## Testing
 
@@ -81,7 +120,8 @@ src/
 │   ├── auth/                   # almacenamiento del token
 │   ├── sesion/                 # pasos que otras features registran antes del cierre de sesión (D-14)
 │   └── types/domain.ts         # uniones de enums y alias de dominio
-├── components/ui/              # presentacionales compartidos
+├── components/ui/              # presentacionales compartidos (Boton, Campo, Tarjeta, ChipEstado,
+│                               # IndicadorSeveridad, Aviso, EstadoVacio, Icono, Logo, Dialogo)
 ├── map/                        # cliente de mapas encapsulado (Leaflet)
 └── pwa/                        # Service Worker aislado
 ```
@@ -89,7 +129,186 @@ src/
 Las vistas de `app/` componen; la lógica vive en `features/`. Un componente de
 `app/` no debe llamar al API directamente: pasa por `features/<dominio>/api.ts`.
 
+**Títulos de página (QA-1 M-8).** Cada ruta tiene su `<title>` («Mapa de
+reportes · Ciudad Viva»), que también es lo que lee el anunciador de rutas de
+Next al navegar: antes diez pantallas compartían el título de la portada. La
+mayoría de las páginas son de cliente y `metadata` solo se exporta desde un
+componente de servidor, así que el título va en un `layout.tsx` mínimo junto a
+la página (devuelve `children`); las de servidor (login, registro,
+privacidad) lo exportan en la propia `page.tsx`. Ojo con los anidados: en
+Next, un layout que fija `title` como texto deja a sus hijos **sin**
+plantilla, así que `/bandeja` y `/mis-reportes`, que tienen un `[id]` con
+título propio, lo declaran como `{ default, template: PLANTILLA_TITULO }`
+(`app/titulo.ts`); si no, `/bandeja/[id]` salía «Gestión del reporte» sin
+«· Ciudad Viva». `app/titulos.test.ts` recorre `src/app` y falla si una ruta
+queda con el título por defecto, si dos comparten título o si un layout
+padre con título no repite la plantilla.
+
 ## Decisiones técnicas
+
+### Sistema de diseño «Cívica» (DIS-1)
+
+El usuario eligió la dirección A, «Cívica» (21/10; `docs/diseno/README.md` y
+`docs/diseno/2026-10-21-propuesta.md`): tinta azul marino `#1F3350` y blanco,
+Public Sans, foco amarillo `#FFD43B` y un solo color con significado por
+estado. **Se deja el celeste** (`sky-*`, `theme_color #0369a1`): un índice que
+califica a las municipalidades no debería llevar un color en disputa
+partidaria en Lima, menos en año electoral (propuesta §2.3). Esta es la fase 1
+(sistema base); la fase 2 rehace pantalla por pantalla (mapa con hoja
+inferior, reportar en pasos, bandeja con panel, portada, desempeño).
+
+**Tokens, no colores.** `src/app/globals.css` tiene dos capas: variables
+`--cv-*` con los valores de cada tema, y un `@theme inline` que las expone a
+Tailwind con nombres semánticos: `bg-fondo`, `bg-superficie`,
+`bg-superficie-2`, `border-linea`, `border-linea-campo` (el borde de un
+control, 3:1), `text-texto`, `text-texto-2`, `bg-primario`/`text-sobre-primario`,
+`text-enlace`, los mensajes (`error`, `exito`, `aviso`, `info`, cada uno con
+`-fondo`, `-texto` y `-borde`), los estados (`pendiente`, `recibido`…, con
+`-fondo` y `-texto`), `severidad`, `barra`/`pista` del índice, radios
+(`rounded-control` 8 px, `rounded-tarjeta` 12, `rounded-hoja` 16), sombras
+(`shadow-tarjeta`, `shadow-elevada`) y `min-h-objetivo` (44 px). Con `inline`
+la utilidad lee la variable en ejecución: cambiar de tema es cambiar
+`data-theme` en `<html>`, sin una sola clase `dark:`. Por eso:
+
+- **La paleta por defecto de Tailwind está quitada** (`--color-*: initial`).
+  Se migraron unas 1 250 clases `slate-*`, `sky-*`, `red-*`, `amber-*`,
+  `emerald-*` y `white` de 57 archivos; una clase de la paleta que vuelva a
+  aparecer no pinta nada y `app/sin-colores-sueltos.test.ts` la delata.
+- **El contraste se prueba, no se mira.** `scripts/contraste-civica.json`
+  lista 99 pares (texto/fondo, borde/superficie, foco, chips, marcadores) con
+  su mínimo WCAG y los tokens de donde sale cada color. Con el script de la
+  propuesta, `node ../docs/diseno/contraste/contraste.mjs
+  scripts/contraste-civica.json` da **0 fallos** (texto ≥ 4.5:1 en claro y
+  oscuro, ≥ 7:1 en alto contraste; bordes y foco ≥ 3:1). `app/contraste.test.ts`
+  comprueba además que los colores del JSON son los que declara `globals.css`
+  en cada tema: si alguien cambia un token sin volver a medirlo, falla.
+- **Foco visible en todo**: amarillo de 3 px con un anillo oscuro de 2 px por
+  fuera (el amarillo solo no llega a 3:1 sobre blanco). La regla va **fuera**
+  de las capas de Tailwind a propósito, para ganarle a cualquier
+  `outline-none` o sombra de utilidad que quede en un control.
+- **Objetivos de 44 px.** Botones, controles e ítems de navegación miden 44 px.
+  El botón `compacto` (tablas, paginación) baja a 36 px solo con un puntero
+  fino; en una pantalla táctil (`pointer-coarse:`) vuelve a 44.
+
+**Componentes base** (`src/components/ui/`, presentación pura): `clasesDeBoton`
+y `EnlaceBoton` (primario en tinta, secundario, texto, peligro), `Campo` y el
+`Boton` de envío (`form.tsx`, misma API y textos que antes), `Tarjeta`,
+`Aviso` (info, éxito, advertencia, error, sin conexión), `EstadoVacio`,
+`Icono`/`BotonIcono` y `Logo`. Los iconos son de `lucide-react` (ISC), versión
+exacta publicada hace más de dos semanas: cada icono se importa por nombre y
+queda en el bundle, así que la CSP no cambia. Un icono nunca carga solo el
+sentido: va junto a un texto (y es `aria-hidden`) o en un botón solo-icono con
+`aria-label` obligatorio.
+
+**Estados: color + icono + nombre** (`ChipEstado`, propuesta §4). Pendiente en
+rojo con reloj, **Recibido pasa de naranja a azul** con bandeja, En proceso en
+el ámbar de las obras con llave y glifo oscuro, Resuelto en verde con visto,
+Rechazado en gris con equis y Cancelado blanco con borde. Antes rojo, naranja
+y ámbar se confundían con deuteranopía y los chips de texto blanco no llegaban
+a 4.5:1. Como la etiqueta de GOV.UK, el chip solo indica (no es enlace ni
+botón). `lib/types/estados.ts` sigue siendo dominio puro: guarda la clave de
+tokens y el nombre del icono, y el componente los traduce. El marcador del
+mapa usa el mismo color en los tres temas (con anillo blanco y contorno
+oscuro); el color de la marca nunca es un estado. **Cambia una leyenda que ya
+aparece en capturas de la tesis** (Recibido): hay que actualizarlas al cerrar
+el rediseño.
+
+**Severidad** (`IndicadorSeveridad`): tres barras crecientes en tinta, siempre
+con el texto («Severidad alta»), **sin rojo**: no compite con el color del
+estado ni alarma, y es una apreciación del vecino. Sin severidad no dibuja un
+nivel inventado.
+
+**Lo que no cambia** (decisiones de este README): la barra del índice y la
+comparación usan **un solo color** (ahora `barra`, la tinta), la capa de calor
+conserva su **rampa violeta** (ningún estado ni la marca usan violeta) y
+`null` sigue siendo «Sin datos»; en la tabla del índice, además, la pista de un
+«Sin datos» es punteada y la de un «0 %» llena.
+
+**Recibido (azul) frente al calor (violeta).** Con Recibido en azul, el tono
+ya no basta para separarlo del violeta medio de la capa de calor: su
+luminosidad es casi igual (1.14:1 entre `#2e6be6` y `#8b5cf6`), así que ese par
+**no** va en `contraste-civica.json` como si el contraste los distinguiera. Los
+separan la forma y la capa: el marcador es un disco opaco de 20 px con anillo
+blanco y contorno oscuro, en el `markerPane` (encima); la celda de calor es un
+círculo translúcido, sin anillo, que crece con el nivel (6 a 12 px de radio),
+en un `<canvas>` debajo. Cada capa tiene su leyenda con texto y la de calor se
+enciende aparte. Lo dice también el comentario de `model/densidad.ts`.
+
+**Mapa.** Las teselas de OpenStreetMap se desaturan con un filtro CSS sobre
+`.leaflet-tile-pane` (en oscuro se invierten; en alto contraste, escala de
+grises), para que los únicos colores con significado sean los de los
+marcadores y el calor. Es CSS: **no hay orígenes nuevos en la CSP**. Los
+controles, la atribución y los popups de Leaflet toman los tokens. El punto de
+«Ubicación del daño» y el de la ubicación elegida al reportar pasan de rojo y
+celeste al color del texto: un punto rojo se leería como «Pendiente».
+
+### Marco común y navegación por rol (DIS-1)
+
+Cada pantalla armaba su propia cabecera con su propio «Cerrar sesión», que
+competía con las acciones (en `/reportar` era el único botón). Ahora hay un
+marco común, `features/auth/components/MarcoDeLaApp.tsx`, en el layout raíz:
+
+| Rol | Móvil (barra inferior) | Escritorio (cabecera) |
+|---|---|---|
+| Visitante | Mapa · Desempeño · Reportar · Entrar | Mapa · Desempeño · Iniciar sesión · Crear cuenta |
+| Ciudadano | Mapa · Mis reportes · **Reportar** · Desempeño · Cuenta | lo mismo y el menú de cuenta |
+| Funcionario | Bandeja · Panel · Categorías · Cuenta | «Municipalidad de X» · Bandeja · Panel del distrito · Categorías · Soporte · menú |
+| Admin | Soporte · Cuenta | Tickets de soporte · menú |
+
+- **Qué ve cada rol** está en un solo lugar, `features/auth/model/navegacion.ts`
+  (con tests). Como `GuardiaDeRol`, es UX: la autoridad sigue en el backend.
+- **Quién mira** lo da `useUsuarioDelMarco`, que **nunca lleva al login**: el
+  marco está también en las pantallas públicas, y un token vencido en `/mapa`
+  no debe sacar de ahí a quien solo miraba (lo borra y queda como visitante,
+  con `usuarioActualSinRedirigir`). Pregunta `/me` una vez por sesión (el marco
+  no se desmonta al navegar) y otra al iniciar o cerrar sesión. Sin red, con
+  sesión, queda «sin identificar»: se ofrece lo público y el menú de cuenta
+  (para poder salir), y vuelve a preguntar al volver la conexión. La sesión
+  llega a la cabecera y a la barra por props (`ARCHITECTURE.md` §5).
+- **Menú de cuenta**: nombre, rol o municipalidad, enlaces de la cuenta,
+  Apariencia y «Cerrar sesión». Es un desplegable (`aria-expanded`), no un
+  `role="menu"`: adentro hay enlaces y radios que se recorren con Tab. Escape
+  lo cierra y devuelve el foco; se cierra al tocar fuera y al navegar. «Cerrar
+  sesión» usa el mismo `useCerrarSesion`: siguen las preguntas de
+  `antesDeCerrarSesion` (reportes en cola), la baja de push y el tope de espera.
+- La barra inferior es fija, respeta `env(safe-area-inset-bottom)` y fija
+  `--cv-alto-nav`; la cabecera, `--cv-alto-encabezado`. `/mapa` ocupa el alto
+  que dejan las dos (el panel provisional de QA-1 I-4 sigue igual) y los avisos
+  de la cola flotan por encima de la barra. Hay un enlace «Saltar al contenido».
+- Las pantallas de acceso (login, registro, recuperación) no llevan el marco:
+  tienen el suyo, centrado, con el logo. La aceptación de términos lleva solo
+  el logo (mientras no acepte, el resto de la app daría 403).
+- «Dashboard del distrito» pasa a «Panel del distrito», como en la navegación.
+
+### Apariencia: claro, oscuro, alto contraste o sistema (US-23)
+
+- **Selector** «Apariencia: Sistema · Claro · Oscuro · Alto contraste» en el
+  perfil (con la descripción de cada opción) y en el menú de cuenta (para
+  todos los roles). Es un grupo de radios nativos con su `<legend>`; aplica en
+  el acto.
+- **Preferencia del dispositivo**, no de la cuenta: va en `localStorage`
+  (`viasegura.apariencia`), siempre con try/catch (sin almacenamiento, vale en
+  memoria mientras dure la pestaña), y se sincroniza entre pestañas por el
+  evento `storage`. No viaja al backend: no hay nada que guardar ahí.
+- **Antes de pintar**: `public/tema.js`, un script síncrono del mismo origen
+  en el `<head>` del layout raíz, fija `data-theme` en `<html>` mientras el
+  navegador lee el HTML, así que no hay un cuadro en claro antes del oscuro.
+  Síncrono a propósito: un `next/script` `beforeInteractive` se descarga antes
+  pero no bloquea el pintado (por eso la regla `no-sync-scripts` se desactiva
+  en esa línea, con el motivo). **No lee cookies**: leerlas en el layout raíz
+  lo volvería dinámico. **CSP sin cambios**: `script-src 'self'` ya permite un
+  archivo propio y no hace falta otro `'unsafe-inline'`. `<html>` lleva
+  `suppressHydrationWarning` porque el servidor no puede saber el tema.
+- **«Sistema»** respeta primero `prefers-contrast: more` (es una necesidad, no
+  un gusto) y después `prefers-color-scheme`, y sigue los cambios del sistema
+  mientras la app está abierta. Con `forced-colors` manda el sistema operativo.
+- `tema.js` repite las reglas de `features/auth/model/apariencia.ts` en
+  JavaScript plano (corre antes que el bundle). `apariencia.test.ts` lo
+  ejecuta tal cual se sirve con cada combinación de preferencia guardada y
+  sistema, y exige el mismo tema que el modelo.
+- **Alto contraste**: negro sobre blanco (21:1), secundario `#262626`, enlace
+  `#00308F`, bordes de 2 px y chips de estado con contorno negro (el estado lo
+  cargan el icono y el nombre).
 
 ### Cliente HTTP: `fetch` nativo con wrapper
 
@@ -144,6 +363,73 @@ usuario (`/api/auth/me`, `mis-reportes`, `mi-distrito`) y el siguiente usuario
 del dispositivo podría recibirlas offline. Al cerrar sesión (US-04) además se
 borra esa caché, por si la llenó una versión anterior del SW
 (`src/pwa/cachesDeSesion.ts`).
+
+### Marca, iconos de la PWA y tipografía
+
+**Marca «Cívica» (DIS-1).** Un pin cruzado por una calle con su línea
+amarilla discontinua, en tinta `#1F3350` (`docs/diseno/marca/`). Los iconos
+provisionales de DEP-06 (un pin celeste) se reemplazaron por
+`icono-pwa-a.svg` e `icono-pwa-a-maskable.svg`, copiados a `public/icons/` con
+su comentario de origen, y los PNG y el ICO se regeneraron con
+`node scripts/generar-iconos.mjs`; la insignia de push es la silueta del pin
+con la calle calada. El manifest pasa a `theme_color #1F3350` y
+`background_color #F5F6F8` (el fondo claro de la app). En la interfaz, el logo
+es `components/ui/Logo.tsx`: **un solo componente para los tres temas**, porque
+toma el pin y la calle de `--cv-marca` y `--cv-marca-calle` (tinta sobre
+claro, claro sobre oscuro como `marca-a-oscuro.svg`, negro en alto
+contraste); cada instancia recorta la calle con su propio `clipPath` (`useId`).
+
+La estructura viene de DEP-06 y no cambió: reemplazar la identidad es
+reemplazar los SVG de `public/icons/` y correr `node scripts/generar-iconos.mjs`:
+
+- **`any` y `maskable` por separado** (`src/app/manifest.ts`). Un mismo PNG no
+  sirve para ambos: el `maskable` necesita fondo a sangre y el dibujo dentro de
+  la zona segura (círculo de radio 40 %), porque Android lo recorta en círculo
+  o gota; usado como `any`, en cambio, se vería con un margen excesivo. Las
+  fuentes son `public/icons/icono.svg` y `public/icons/icono-maskable.svg`.
+- **`apple-icon.png` opaco y a sangre** (convención de archivo de Next en
+  `src/app/`, que emite el `<link rel="apple-touch-icon">`): iOS rellena de
+  negro la transparencia y redondea las esquinas por su cuenta.
+- **`favicon.ico` con PNG de 16, 32 y 48 px** dentro del ICO.
+- **Avisos push con icono e insignia** (`src/pwa/avisosPush.ts`): el icono es
+  `icon-192.png`; la insignia, `badge-96.png`, que sale de
+  `public/icons/icono-badge.svg` (la silueta del pin en blanco sobre
+  transparente), porque Android solo usa el canal alfa de la insignia para la
+  barra de estado y un icono a color se vería como un cuadrado lleno.
+- Dos tests evitan que vuelva a pasar lo que motivó DEP-06 (el manifest
+  declaraba iconos que no existían y nada fallaba): `src/app/manifest.test.ts`
+  y `src/pwa/avisosPush.test.ts` comprueban que cada icono declarado está en
+  `public/` y que el PNG mide lo que dice `sizes`, leyendo ancho y alto del
+  encabezado `IHDR`, sin dependencias.
+- **Sin `orientation` en el manifest.** El scaffold fijaba `portrait`, que
+  bloquea la rotación de la PWA instalada: quien tiene el teléfono montado en
+  horizontal (en una silla de ruedas, por ejemplo) no podría usarla, y eso
+  incumple WCAG 2.1, criterio 1.3.4 (Orientación). Sin el campo, la app sigue
+  la orientación del dispositivo.
+- Los PNG se versionan en vez de generarse en cada build: el script usa
+  `sharp`, que Next instala como dependencia opcional, y un build de Vercel no
+  debería depender de ella. No se agregó ninguna dependencia.
+
+**Tipografía (DIS-1)**: **Public Sans** (OFL; la de USWDS, derivada de
+Libre Franklin), la de la dirección «Cívica». `layout.tsx` la carga con
+`next/font/google` en la variable `--font-public-sans`, y `--font-sans` del
+`@theme` de Tailwind la toma de ahí (el preflight la aplica a `html`). Es una
+fuente variable: un solo archivo cubre todos los pesos. Reemplaza a Geist y
+Geist Mono, que se quitaron; `font-mono` (versiones de los términos,
+coordenadas) usa la monoespaciada del sistema. El `body` del scaffold fijaba
+`font-family: Arial` fuera de toda capa (`@layer`) de Tailwind, así que ganaba
+siempre y la app se veía en Arial; esa línea se quitó en DEP-06.
+
+Se usa **`next/font/google`** y no `next/font/local` con los archivos en el
+repo: no agrega dependencias ni binarios que mantener, y la fuente es de
+Google Fonts. El costo es que **el build necesita red** para descargarla (en
+Vercel y en la CI la hay; un build sin conexión falla con «Failed to fetch
+`Public Sans` from Google Fonts», mientras que `next dev` solo avisa y usa la
+fuente de respaldo). En ejecución, en cambio, **el navegador no llama a
+Google**: `next/font` autoaloja la fuente en los estáticos de la app y la
+sirve desde el propio origen, así que a la CSP le basta `font-src 'self'`.
+Si alguna vez el build debe correr sin red, la salida es `next/font/local`
+con los `.woff2` de Public Sans en el repo.
 
 ### Seguridad: dónde vive el JWT
 
@@ -397,7 +683,13 @@ canal. Dónde aparece:
 
 - **Registro (US-01):** casilla obligatoria «Acepto los términos de uso y la
   política de privacidad» con enlace a `/privacidad`. Sin marcarla no se envía.
-  Viajan `aceptaTerminos: true` y `versionTerminos`.
+  Viajan `aceptaTerminos: true` y `versionTerminos`. La casilla **solo** se
+  desmarca si el 409 es por términos desactualizados (QA-1 M-2): un correo ya
+  registrado, un error de validación o de red no cambian el texto aceptado, y
+  obligar a marcarla de nuevo solo estorbaba. El campo de contraseña dice
+  «Mínimo 8 caracteres.» antes de enviar (`aria-describedby`) y el largo se
+  valida en el cliente: el 400 del backend llegaba como «password: el tamaño
+  debe estar entre 8 y 72», con el nombre del campo en inglés.
 - **`/privacidad`** (pública): el texto del borrador
   `project-context/legal/terminos-y-privacidad-v1.md` copiado en
   `features/legal/components/TextoTerminosYPrivacidad.tsx`, con el aviso
@@ -533,13 +825,42 @@ Componerla es del cliente, y se hace una sola vez en el gateway (FE-07): los
 usan tal cual, sin importar el cliente HTTP.
 
 - **Foto de reporte** (`/media/fotos/reportes/…`) es **pública**: sirve
-  directo en `<img src>`.
+  directo en `<img src>`, a través de `components/FotoDeReporte.tsx`
+  (QA-1 M-3): si no carga (el archivo ya no está en el servidor, o es una
+  URL antigua que pide sesión), en vez del icono de imagen rota aparece un
+  recuadro neutro «Foto no disponible». El reemplazo conserva el texto
+  alternativo como nombre (`role="img"`, «<alt> (foto no disponible)») y, si
+  la foto era decorativa, sigue siéndolo. El popup del mapa hace lo mismo con
+  su propio `<img>` (`FotoDelPopup` en `map/MapaReportes.tsx`): `map/` es un
+  adaptador y no importa componentes compartidos. Los dos toman el texto y el
+  nombre del reemplazo de la misma regla pura, `lib/types/fotoDeReporte.ts`.
 - **Foto de perfil** (`/api/perfiles/fotos/…`) exige `Authorization`: un
   `<img src>` plano devuelve **401**; hay que traerla con `apiFetch` y
   convertirla a `blob:`. `fotoRequiereAuth()` distingue ambos casos. Lo
   hace `descargarFotoDePerfil` (`features/auth/api.ts`), y los componentes la
   reciben del hook `useFotoDePerfil`, que libera la URL `blob:` al cambiar o
   desmontar.
+
+**Antes de subir (DEP-11).** Las dos fotos que sube el ciudadano, la del
+reporte (`CampoFoto`) y la de perfil (`CampoFotoDePerfil`), pasan al elegirlas
+por la misma regla pura, `lib/types/fotoParaSubir.ts` (en `lib/` porque la usan
+dos features), en el orden del backend: no vacía (0 bytes es su 409 «La foto
+esta vacia»), extensión `jpg`, `jpeg`, `png` o `webp`, más el tipo MIME si el
+navegador lo declara, y hasta 10 MB (los 10 × 1024 × 1024 bytes de
+`max-file-size`). Antes solo la del reporte se validaba; la de perfil llegaba
+al backend y recibía 413, o, por encima de 32 MB, un corte de conexión que la
+pantalla mostraba como «Sin conexión con el servidor» (backend/README,
+DEP-11). Una foto rechazada no
+queda elegida, así que tampoco entra a la cola offline, y el motivo («La foto
+supera 10 MB.», «Formato no permitido. Usa JPG, PNG o WEBP.») se asocia al
+campo con `aria-describedby`, y con `aria-invalid` si el campo quedó sin
+foto. En el reporte, si ya había una foto válida, se conserva y es la que se
+enviará: el campo no se marca inválido y el aviso agrega «Se mantiene la foto
+anterior.» («Quitar» borra la foto y el aviso). Lo que solo se sabe leyendo los
+bytes (que sea de verdad una imagen, los megapíxeles) sigue siendo del
+backend: su 409 «Formato de foto no permitido…» y el 503 sin turno de
+saneado (DEP-12) llegan como `ApiError` y se muestran con el `message` del
+API, sin encolar el reporte.
 
 ### Descargas autenticadas (US-28)
 
@@ -564,6 +885,16 @@ Leaflet vive encapsulado en `src/map/`; el resto de la app solo maneja
 Leaflet manipula el DOM al construirse. El marcador es un `DivIcon` de
 HTML/CSS en vez de la imagen por defecto: evita el problema conocido de
 iconos rotos con bundlers y no obliga a abrir orígenes extra en la CSP.
+
+**Marcadores accesibles (QA-1 M-7).** Leaflet hace de cada marcador un
+`div role="button" tabindex="0"` (Enter abre su popup), pero sin nombre: un
+lector de pantalla anunciaba «botón» decenas de veces. Cada marcador lleva
+ahora como `title` (su nombre accesible, y la sugerencia al pasar el ratón)
+el título, el estado en palabras y el tipo de daño (`nombreDeMarcador`). Leaflet
+lee el `title` solo al crear el marcador, así que el nombre forma parte de la
+`key`. El área táctil mide 28 px (el mínimo es 24, WCAG 2.2 2.5.8) con el
+punto visible de 20 px centrado. La vista Lista sigue siendo la alternativa
+completa al mapa.
 
 Los tiles de OpenStreetMap **sí** están listados en `img-src` de la CSP
 (hosts concretos, no `*`); sin eso el mapa se ve en blanco.
@@ -591,8 +922,44 @@ la cola offline, que guarda fotos en IndexedDB. OpenStreetMap responde con
 dejan de ser opacas y ocupan lo que pesan.
 
 **Un solo host.** La CSP lista solo `https://tile.openstreetmap.org`, que es
-el que usan los dos mapas. Ya no incluye el comodín `*.tile.openstreetmap.org`
+el que usan los tres mapas. Ya no incluye el comodín `*.tile.openstreetmap.org`
 de los antiguos subdominios a/b/c.
+
+**Dónde está el daño (QA-1 I-1).** Los tres detalles de reporte (público,
+del ciudadano y de la bandeja municipal) muestran la sección «Ubicación»
+(`components/UbicacionDelReporte.tsx`, compartida porque la usan `reportes` y
+`gestion`) con tres formas del mismo dato: un mini mapa, las coordenadas en
+texto (latitud, longitud, 5 decimales ≈ 1 m: se pueden copiar y un lector de
+pantalla las lee) y el enlace «Abrir en OpenStreetMap» en otra pestaña.
+- El mini mapa (`map/MiniMapaUbicacion.tsx`) es de **solo lectura**: sin
+  arrastre, zoom táctil, rueda, doble clic ni teclado de Leaflet, para que al
+  desplazar la página con el dedo no se mueva el mapa ni se pierda el punto.
+  Tampoco lleva botones +/-: no aportan en un mapa que solo muestra un punto,
+  y para verlo en grande está el enlace a OpenStreetMap.
+- Los otros dos mapas usan `map/ControlDeZoom.tsx` en vez del control por
+  defecto, que nombraba los botones «Zoom in»/«Zoom out» (Leaflet usa ese
+  texto como `title` y `aria-label`): ahora dicen «Acercar» y «Alejar».
+- El marcador no es interactivo: es una imagen con nombre accesible
+  («Ubicación del daño: <título>»). Se arma como elemento del DOM y no como
+  HTML en texto, porque lleva el título que escribió el ciudadano.
+- El enlace es navegación externa, no un recurso que cargue la página: no
+  pasa por la CSP, que no cambia.
+- Sin coordenadas válidas dice «Sin ubicación registrada», nunca un punto en
+  (0, 0).
+
+**`/mapa` en el móvil (QA-1 I-4, provisional).** Antes, en pantallas
+angostas, filtros, capas y leyenda iban encima del mapa y lo dejaban debajo
+del pliegue (empezaba en y = 922 px con un viewport de 844). Ahora el mapa
+ocupa la primera pantalla: el panel queda plegado en una franja con el conteo
+(siempre visible y en `aria-live`) y un botón «Filtros, capas y leyenda»
+(`aria-expanded`/`aria-controls`, con el número de filtros aplicados) que lo
+despliega encima del mapa, con un alto máximo de ~55 % de la pantalla y su
+propio desplazamiento. En escritorio (`md`) no cambia nada. Es una solución
+provisional compatible con el rediseño, que pondrá una hoja inferior: solo
+cambia el contenedor del panel, no su contenido. Como plegar el panel cambia
+el alto del mapa sin cambiar la ventana, `MapaReportes` observa su contenedor
+(`ResizeObserver` → `invalidateSize`, que emite `moveend` y pasa por el mismo
+debounce y umbral de siempre); sin eso el área nueva quedaba gris.
 
 ### Mapa de calor (US-11): círculos de Leaflet, sin plugin
 
@@ -656,10 +1023,22 @@ Un reporte recién creado puede tardar hasta 60 s en aparecer en la capa.
 
 Verificado end-to-end contra el backend real:
 
-- **US-01** registro (`/registro`) · **US-02** login (`/login`).
-- `/sesion` — verificación de `GET /api/auth/me`. Andamiaje: desaparece
-  cuando existan las landings por rol.
-- **US-05** crear reporte (`/reportar`): GPS con fallback a marcar en el mapa
+- **US-01** registro (`/registro`) · **US-02** login (`/login`). Los dos
+  terminan en el mismo lugar (`destinoTrasAcceso`, QA-1 I-2): el
+  `?redirect=` si es una ruta interna (validado con `destinoInterno`), si no
+  la puerta de entrada del rol (el ciudadano, «Mis reportes»), y antes la
+  aceptación de términos si está pendiente. Los enlaces «Regístrate» e
+  «Inicia sesión» conservan el `?redirect=`: quien llegó al login desde
+  `/reportar` y crea una cuenta vuelve a `/reportar`.
+- `/sesion` (verificación de `GET /api/auth/me`, andamiaje del primer slice)
+  **se eliminó** en QA-1 I-2: el registro llevaba ahí y el ciudadano caía en
+  una pantalla de depuración con el rol y la preferencia en crudo y sin
+  navegación. Ya existían las landings por rol que la reemplazaban, nada más
+  la enlazaba y el perfil (`/perfil`) muestra esos datos de verdad.
+- **US-05** crear reporte (`/reportar`, solo CIUDADANO: la misma
+  `GuardiaDeRol` que «Mis reportes», QA-1 M-10; antes bastaba la sesión y un
+  funcionario o el admin llenaban el formulario entero para recibir un 403 al
+  enviar): GPS con fallback a marcar en el mapa
   (escenario 2), captura de foto, selector de categoría que incorpora las
   personalizadas del distrito (US-29), envío multipart con `Idempotency-Key`
   (US-06) y confirmación que distingue reporte nuevo de adhesión (US-09).
@@ -750,6 +1129,74 @@ Verificado end-to-end contra el backend real:
   tras completarlo, se envió con la MISMA `Idempotency-Key` (reporte #185) y
   salió de la cola.
 
+### 404 e ids inválidos (QA-1 M-11)
+
+- `app/not-found.tsx` es la 404 de toda la app, en castellano, con título
+  propio y enlaces a la portada y al mapa. La de Next estaba en inglés y sin
+  salida.
+- El id de las rutas de detalle (`/reportes/[id]`, `/mis-reportes/[id]`,
+  `/bandeja/[id]`) se valida en el cliente **antes** de llamar al API
+  (`lib/types/idDeRuta.ts`: solo enteros positivos). `/reportes/abc` pedía
+  `/api/reportes/NaN`, que no coincide con la ruta pública del backend: sin
+  sesión respondía 401 y el cliente mandaba al login a quien solo abrió un
+  enlace roto. Ahora dice «Reporte no disponible» sin preguntar nada. No se
+  usa `notFound()`: el detalle ya tiene su propio «no disponible», que es lo
+  mismo que se muestra para un id que no existe o un reporte retirado.
+
+### Reportes que apoyas (QA-1 M-6)
+
+Quien se suma a un reporte ajeno (adhesión, US-09) no lo veía en ninguna
+parte: `mis-reportes` solo trae lo que el ciudadano creó. El backend agregó
+`GET /api/reportes/mis-adhesiones` (handoff del 22/10) y `/mis-reportes` lo
+muestra en una **sección aparte, «Reportes que apoyas»**, debajo de los
+propios:
+
+- **Solo lectura.** Sin editar, retirar ni calificar: son del creador (el
+  backend respondería 403; calificar es solo del creador, US-26). Por eso cada
+  fila lleva al **detalle público** `/reportes/[id]` y nunca a
+  `/mis-reportes/[id]`, que se arma desde `mis-reportes` y ofrece esas
+  acciones (`model/apoyos.ts`, `enlaceDeReporteApoyado`).
+- **Un CANCELADO no enlaza**: su detalle público da 404 (lo retiró su creador,
+  `tieneVistaPublica`). La fila muestra el chip «Cancelado» y dice «El vecino
+  que lo creó lo retiró…» en vez de llevar a «Reporte no disponible».
+- **Carga aparte** (`hooks/useReportesQueApoyas`): si falla (p. ej. contra un
+  backend anterior a QA-1, sin la ruta), la lista propia se ve igual y solo la
+  sección muestra el error con «Reintentar». Se recarga cuando cambia la cola
+  offline: un reporte «Pendiente de envío» puede resultar, al enviarse, una
+  adhesión, y entonces aparece aquí y no entre los propios.
+- **Misma fila que los propios** (`components/ResumenDeReporteEnFila`): foto,
+  título, `ChipEstado`, tipo, severidad, distrito, fecha y vecinos. Estado
+  vacío con `EstadoVacio` que explica cómo se llega a apoyar un reporte.
+- **Tras una adhesión**, la confirmación de `/reportar` ofrece «Ver los
+  reportes que apoyas» (`/mis-reportes#reportes-que-apoyas`) en vez de «Ver
+  mis reportes». Next no puede desplazarse al ancla por su cuenta: el título
+  de la sección aparece recién cuando `GuardiaDeRol` resuelve la sesión, y la
+  lista de arriba lo desplaza hacia abajo al cargar. Por eso la sección lleva
+  el foco a su título (y con él la vista) cuando ella y la lista de arriba ya
+  cargaron.
+- **Los avisos no cambian**: push y correo siguen yendo solo al creador, y la
+  sección lo dice. Avisar también a quien apoya sería una decisión aparte.
+
+Verificado el 22/10 en Chrome (modo visible) contra el backend de `develop`:
+un ciudadano de prueba reportó con GPS un bache a metros de uno ajeno, la
+confirmación dijo «Ya existía un reporte de este daño» y «Ver los reportes que
+apoyas» llevó a la sección con el foco en su título y el reporte primero,
+enlazado a `/reportes/185`; un reporte apoyado que su creador retiró se ve
+«Cancelado», sin enlace y con la explicación. En la bandeja, un reporte sin
+responsable pidió `/responsable` (204) y mostró «Sin responsable asignado».
+
+### Responsable sin asignar: 204 (QA-1 M-4)
+
+`GET /api/reportes/{id}/responsable` responde **204 sin cuerpo** cuando el
+reporte no tiene responsable (antes, 404). `apiFetch` devuelve `undefined` en
+un 204 y `gestion/api.ts` (`responsableActivo`) lo normaliza a `null`, que es
+lo que `useResponsable` muestra como «sin responsable». El `catch` que
+traduce el 404 a `null` **se mantiene durante la transición** (la PWA nueva
+contra un backend anterior a QA-1); con el backend nuevo un 404 significa que
+el reporte no existe, y cuando ambos estén desplegados ese `catch` se puede
+quitar. Lo cubre `gestion/api.test.ts` sobre el cliente real con `fetch`
+falso (200, 204, 404 y 403).
+
 ### `null` no es cero
 
 Las métricas de desempeño llegan en `null` cuando no hay datos: un distrito
@@ -758,6 +1205,15 @@ distingue ambos casos ("Sin datos" vs "0 %") porque confundirlos acusaría de
 mal desempeño a una municipalidad que simplemente no recibió reportes. Por la
 misma razón, al ordenar, los `null` van siempre al final aunque se invierta la
 dirección — igual que el `NULLS LAST` del backend.
+
+El caso contrario también se cuida (QA-1 M-12): un tiempo promedio de
+menos de una hora se muestra «< 1 h», no «0 h». San Miguel promedió 0,01 h
+y, redondeado, parecía cero o falta de dato cuando era la atención más
+rápida. En el móvil la tabla del ranking (46rem) no cabe: va en una región
+con foco (se desplaza también con el teclado) y una indicación visible solo
+en pantallas angostas dice que se desliza hacia los lados. Esa indicación no
+es la descripción accesible de la región (`aria-describedby`): el lector la
+anunciaría también en escritorio, donde está oculta y la tabla cabe.
 
 La barra de progreso usa **un solo color**, no una escala rojo-ámbar-verde:
 colorear por umbrales obligaría a inventar qué tasa cuenta como "mala", un
@@ -842,6 +1298,29 @@ posterior a «hasta» no se consulta y el panel muestra el aviso.
 - **La lista se dibuja encima del mapa**, que sigue montado: conserva su
   encuadre (y su área sigue definiendo los resultados) al volver a la
   pestaña Mapa. Mientras la lista está visible, el mapa queda `inert`.
+- **Filtros y vista en la URL (QA-1 M-9).**
+  `/mapa?distrito=21&categoria=1&estado=RESUELTO&desde=…&hasta=…&vista=lista`
+  (`model/estadoDelMapa.ts`, `hooks/useEstadoDelMapaEnUrl.ts`). Antes eran
+  estado local: al volver del detalle (Atrás o «← Volver al mapa») la
+  pantalla reaparecía en «Todos» y en la vista Mapa, y no había forma de
+  compartir una vista filtrada. Decisiones:
+  - Se escribe con `window.history.replaceState`, que Next integra con su
+    router (`useSearchParams` se actualiza) **sin navegar**: cambiar un filtro
+    no pide nada al servidor ni vuelve a montar el mapa. `replace` y no
+    `push`, como en `/desempeno`.
+  - Una URL editada a mano no rompe: un id que no es entero positivo, un
+    estado que el mapa no muestra (incluido `CANCELADO`) o una fecha imposible
+    cuentan como «sin filtro», y un distrito o tipo que el catálogo no conoce
+    se descarta en cuanto el catálogo carga.
+  - Los filtros conservan su identidad mientras la URL no cambia (se
+    memorizan por el texto de la query): `useBusquedaMapa` depende de ella
+    para el debounce.
+  - La lista y el popup abren el detalle con `?volver=<vista del mapa>`, y
+    «← Volver al mapa» regresa ahí. El parámetro se valida con el mismo
+    filtro de redirección abierta del login (`destinoInterno`) y además debe
+    ser `/mapa`: no puede llevar a otra pantalla ni a otro sitio.
+  - No se guardan el centro ni el zoom: cambian con cada gesto y no son un
+    filtro; tampoco las capas (marcadores y calor), que son de quien mira.
 
 **Sincronización offline (US-06, implementada después):** sin conexión, el
 reporte queda en la cola de IndexedDB con su clave de idempotencia y se envía

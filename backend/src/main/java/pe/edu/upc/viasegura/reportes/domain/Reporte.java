@@ -54,7 +54,7 @@ public class Reporte extends BaseAuditableEntity {
     @Column(nullable = false, length = TITULO_MAX)
     private String titulo;
 
-    @Column(length = 1000)
+    @Column(length = DESCRIPCION_MAX)
     private String descripcion;
 
     /** Severidad declarada por el ciudadano (NC-02). */
@@ -104,6 +104,20 @@ public class Reporte extends BaseAuditableEntity {
 
     public static final int TITULO_MIN = 5;
     public static final int TITULO_MAX = 120;
+    public static final int DESCRIPCION_MAX = 1000;
+
+    /**
+     * Descripcion opcional de hasta {@value #DESCRIPCION_MAX} caracteres
+     * (QA-1 M-2). La creacion es multipart y no pasa por {@code @Valid}: sin
+     * esta regla, una descripcion mas larga llegaba a la columna y respondia
+     * 500. Se cuentan code points, como el {@code varchar} de la base.
+     */
+    public static void validarDescripcion(String descripcion) {
+        if (descripcion != null && descripcion.codePointCount(0, descripcion.length()) > DESCRIPCION_MAX) {
+            throw new IllegalArgumentException(
+                    "La descripción puede tener como máximo " + DESCRIPCION_MAX + " caracteres");
+        }
+    }
 
     /**
      * Titulo sin espacios al borde, validado: obligatorio y de
@@ -117,7 +131,7 @@ public class Reporte extends BaseAuditableEntity {
         int largo = limpio.codePointCount(0, limpio.length());
         if (largo < TITULO_MIN || largo > TITULO_MAX) {
             throw new IllegalArgumentException(
-                    "El titulo debe tener entre " + TITULO_MIN + " y " + TITULO_MAX + " caracteres");
+                    "El título debe tener entre " + TITULO_MIN + " y " + TITULO_MAX + " caracteres");
         }
         return limpio;
     }

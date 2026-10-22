@@ -10,6 +10,7 @@ import {
   type CategoriaGestion,
 } from '../model/categorias';
 import { FormularioCategoria } from './FormularioCategoria';
+import { clasesDeBoton } from '@/components/ui/Boton';
 
 /**
  * US-29: categorías del distrito. Las estándar se listan de solo lectura;
@@ -25,7 +26,7 @@ export function GestionCategorias() {
   const carga = useCategoriasGestion();
 
   if (carga.estado === 'cargando') {
-    return <p className="text-slate-600 dark:text-slate-400">Cargando…</p>;
+    return <p className="text-texto-2">Cargando…</p>;
   }
   if (carga.estado === 'error') {
     return <AlertaError mensaje={carga.error.mensaje} detalles={carga.error.detalles} />;
@@ -36,16 +37,16 @@ export function GestionCategorias() {
   return (
     <div className="flex flex-col gap-8">
       {carga.recargando && (
-        <p role="status" className="text-sm text-slate-500 dark:text-slate-400">
+        <p role="status" className="text-sm text-texto-2">
           Actualizando…
         </p>
       )}
       <section aria-labelledby="titulo-propias" className="flex flex-col gap-3">
-        <h2 id="titulo-propias" className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+        <h2 id="titulo-propias" className="text-lg font-semibold text-texto">
           Categorías de tu distrito
         </h2>
         {propias.length === 0 ? (
-          <p className="text-sm text-slate-600 dark:text-slate-400">
+          <p className="text-sm text-texto-2">
             Aún no hay categorías propias. Las que crees se ofrecerán a los vecinos que reporten en
             tu distrito.
           </p>
@@ -57,8 +58,8 @@ export function GestionCategorias() {
           </ul>
         )}
 
-        <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
-          <h3 className="mb-3 text-sm font-semibold text-slate-900 dark:text-slate-100">
+        <div className="rounded-tarjeta border border-linea bg-superficie p-4">
+          <h3 className="mb-3 text-sm font-semibold text-texto">
             Nueva categoría
           </h3>
           <FormularioCategoria onGuardado={carga.recargar} />
@@ -66,18 +67,18 @@ export function GestionCategorias() {
       </section>
 
       <section aria-labelledby="titulo-estandar" className="flex flex-col gap-3">
-        <h2 id="titulo-estandar" className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+        <h2 id="titulo-estandar" className="text-lg font-semibold text-texto">
           Categorías estándar
         </h2>
-        <p className="text-sm text-slate-600 dark:text-slate-400">
+        <p className="text-sm text-texto-2">
           Comunes a todos los distritos; no se pueden editar ni desactivar.
         </p>
         <ul className="flex flex-col gap-1">
           {estandar.map((c) => (
-            <li key={c.id} className="text-sm text-slate-800 dark:text-slate-200">
+            <li key={c.id} className="text-sm text-texto">
               <strong>{c.nombre}</strong>
               {c.descripcion && (
-                <span className="text-slate-600 dark:text-slate-400"> — {c.descripcion}</span>
+                <span className="text-texto-2"> — {c.descripcion}</span>
               )}
             </li>
           ))}
@@ -102,7 +103,7 @@ function CategoriaPropia({
   }
 
   return (
-    <li className="flex flex-col gap-2 rounded-md border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800">
+    <li className="flex flex-col gap-2 rounded-control border border-linea bg-superficie p-3">
       {editando ? (
         <FormularioCategoria
           categoria={categoria}
@@ -115,22 +116,22 @@ function CategoriaPropia({
       ) : (
         <>
           <div className="flex flex-wrap items-center gap-2">
-            <strong className="text-slate-900 dark:text-slate-100">{categoria.nombre}</strong>
+            <strong className="text-texto">{categoria.nombre}</strong>
             <span
               className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                 categoria.activo
-                  ? 'bg-emerald-100 text-emerald-900 dark:bg-emerald-900 dark:text-emerald-100'
-                  : 'bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-100'
+                  ? 'border border-exito-borde bg-exito-fondo text-exito-texto'
+                  : 'border border-linea bg-superficie-2 text-texto'
               }`}
             >
               {etiquetaDeActiva(categoria.activo)}
             </span>
           </div>
           {categoria.descripcion && (
-            <p className="text-sm text-slate-600 dark:text-slate-400">{categoria.descripcion}</p>
+            <p className="text-sm text-texto-2">{categoria.descripcion}</p>
           )}
           {!categoria.activo && (
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+            <p className="text-xs text-texto-2">
               No se ofrece al reportar. Los reportes que ya la tienen la conservan.
             </p>
           )}
@@ -138,7 +139,7 @@ function CategoriaPropia({
             <button
               type="button"
               onClick={() => setEditando(true)}
-              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm dark:border-slate-600 dark:text-slate-200"
+              className={clasesDeBoton('secundario', 'compacto')}
             >
               Editar
             </button>
@@ -146,7 +147,7 @@ function CategoriaPropia({
               type="button"
               onClick={() => void alternar()}
               disabled={activa.enviando}
-              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm disabled:opacity-60 dark:border-slate-600 dark:text-slate-200"
+              className={clasesDeBoton('secundario', 'compacto')}
             >
               {categoria.activo ? 'Desactivar' : 'Reactivar'}
             </button>

@@ -1,5 +1,9 @@
-import Link from 'next/link';
+import { Suspense } from 'react';
 import type { Metadata } from 'next';
+import {
+  EnlaceDeAcceso,
+  EnlaceDeAccesoSinDestino,
+} from '@/features/auth/components/EnlaceDeAcceso';
 import { FormularioRegistro } from '@/features/auth/components/FormularioRegistro';
 import { TextoTerminosYPrivacidad } from '@/features/legal/components/TextoTerminosYPrivacidad';
 
@@ -11,13 +15,17 @@ export const metadata: Metadata = {
 export default function RegistroPage() {
   return (
     <section className="flex flex-col gap-4">
-      <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Crear cuenta</h1>
-      <FormularioRegistro textoLegal={<TextoTerminosYPrivacidad conTitulo={false} />} />
-      <p className="text-sm text-slate-600 dark:text-slate-400">
+      <h1 className="text-xl font-semibold text-texto">Crear cuenta</h1>
+      {/* `useSearchParams` (el `?redirect=` al que vuelve tras crear la
+          cuenta, QA-1 I-2) obliga a un limite de Suspense, como en el login. */}
+      <Suspense fallback={<p className="text-sm text-texto-2">Cargando…</p>}>
+        <FormularioRegistro textoLegal={<TextoTerminosYPrivacidad conTitulo={false} />} />
+      </Suspense>
+      <p className="text-sm text-texto-2">
         ¿Ya tienes cuenta?{' '}
-        <Link href="/login" className="font-medium text-sky-700 hover:underline dark:text-sky-400">
-          Inicia sesión
-        </Link>
+        <Suspense fallback={<EnlaceDeAccesoSinDestino ruta="/login">Inicia sesión</EnlaceDeAccesoSinDestino>}>
+          <EnlaceDeAcceso ruta="/login">Inicia sesión</EnlaceDeAcceso>
+        </Suspense>
       </p>
     </section>
   );

@@ -1,0 +1,286 @@
+# CI de Ciudad Viva (DEP-07). Qué corre, cómo leer el resumen y qué check
+# exigir en la protección de ramas: docs/ci.md.
+#
+# Check obligatorio: solo `ci`. Agrega los resultados de `cambios`, `backend`
+# y `frontend`, así que un job omitido porque su carpeta no cambió cuenta como
+# éxito, y uno que falla, se cancela o se omite sin motivo hace fallar `ci`.
+name: CI
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# En un PR, un push nuevo cancela la corrida anterior. Se agrupa por número de
+# PR y no por rama: un release/* abre dos PR (a main y a develop) que no deben
+# cancelarse entre sí. Los push y las corridas manuales nunca se cancelan.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    # Explícito para que el runner use `-eo pipefail` (sin `shell`, solo `-e`).
+    shell: bash
+
+jobs:
+  cambios:
+    name: cambios
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read # paths-filter lista los archivos del PR por la API
+    outputs:
+      # Una corrida manual y una versión (push a main) validan todo.
+      backend: ${{ github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || steps.filtro.outputs.backend == 'true' }}
+      frontend: ${{ github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || steps.filtro.outputs.frontend == 'true' }}
+    steps:
+      # En un push, paths-filter usa git: compara con el commit anterior de la
+      # misma rama (base = la rama del push). En un PR usa la API.
+      - uses: actions/checkout@v7
+        if: github.event_name == 'push'
+      # Acción de un tercero: fijada a un SHA (Dependabot la actualiza).
+      - id: filtro
+        if: github.event_name != 'workflow_dispatch'
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          base: ${{ github.ref_name }}
+          # El workflow, sus scripts y los contadores de /verificar que usa
+          # cuentan para las dos carpetas.
+          filters: |
+            backend:
+              - 'backend/**'
+              - '.github/workflows/ci.yml'
+              - '.github/scripts/**'
+              - '.claude/skills/verificar/**'
+            frontend:
+              - 'frontend/**'
+              - '.github/workflows/ci.yml'
+              - '.github/scripts/**'
+              - '.claude/skills/verificar/**'
+
+  backend:
+    name: backend
+    needs: cambios
+    if: needs.cambios.outputs.backend == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      # Igual que backend/docker-compose.yml, con la base de los IT
+      # (AbstractPostgisIT). Credenciales de una base desechable, no secretos.
+      postgis:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_DB: viasegura_test
+          POSTGRES_USER: viasegura
+          POSTGRES_PASSWORD: viasegura
+        ports:
+          - 5432:5432
+        # Por TCP (-h localhost): durante la inicialización la imagen levanta
+        # un servidor temporal solo en el socket local, que pg_isready sin -h
+        # daría por listo antes del reinicio.
+        options: >-
+          --health-cmd "pg_isready -h localhost -U viasegura -d viasegura_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      # S3 de prueba para S3FotoStorageServiceIT (DEP-12): Adobe S3Mock
+      # (Apache-2.0; MinIO quedó archivado). El IT crea los buckets que falten
+      # y se omite si no existe FOTOS_S3_TEST_ENDPOINT.
+      s3mock:
+        image: adobe/s3mock:5.2.3
+        ports:
+          - 9090:9090
+    env:
+      TEST_DB_URL: jdbc:postgresql://localhost:5432/viasegura_test
+      FOTOS_S3_TEST_ENDPOINT: http://localhost:9090
+      TEST_DB_USER: viasegura
+      TEST_DB_PASSWORD: viasegura
+      # Mínimos de tests ejecutados (sin contar los omitidos) que exige
+      # .github/scripts/verificar-backend.mjs. Se suben al cerrar cada versión
+      # con las cifras del CHANGELOG (v0.7.0: 418 y 230). Bajarlos solo en el
+      # PR que quita tests, explicando por qué.
+      MIN_IT_FAILSAFE: 418
+      MIN_SUREFIRE: 230
+      # Clases que en la CI no pueden quedar omitidas (DEP-12): el IT del
+      # adaptador S3 se activa por FOTOS_S3_TEST_ENDPOINT; si el servicio
+      # s3mock o la variable desaparecen, el check falla en vez de omitirlo.
+      CLASES_OBLIGATORIAS: S3FotoStorageServiceIT
+    defaults:
+      run:
+        shell: bash
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: backend/pom.xml
+      - name: Versiones
+        run: mvn -v
+      - name: mvn clean verify
+        run: mvn -B -ntp clean verify
+      # Un BUILD SUCCESS no prueba que los tests se ejecutaron. La guarda
+      # exige el informe de cada clase *IT y *Test no abstracta, ejecutados
+      # (completed - skipped) >= mínimo y 0 errors/failures en Failsafe y
+      # Surefire; publica las cifras del CHANGELOG. Corre aunque Maven falle.
+      - name: Guarda de completitud, cobertura y ArchUnit
+        if: ${{ !cancelled() }}
+        run: node ../.github/scripts/verificar-backend.mjs
+      - name: Subir informe JaCoCo
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: jacoco-backend
+          path: backend/target/site/jacoco
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Subir informes de tests (si falló)
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: informes-tests-backend
+          path: |
+            backend/target/surefire-reports
+            backend/target/failsafe-reports
+          if-no-files-found: ignore
+          retention-days: 14
+
+  frontend:
+    name: frontend
+    needs: cambios
+    if: needs.cambios.outputs.frontend == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+    defaults:
+      run:
+        shell: bash
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      # frontend/.nvmrc si existe; si no, Node 24 LTS (jsdom 30 exige
+      # ^22.22.2 || ^24.15.0 || >=26; Next 16, >=20.9).
+      - id: version-node
+        name: Versión de Node
+        run: |
+          if [ -f .nvmrc ]; then v=$(tr -d '[:space:]' < .nvmrc); else v=24; fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ steps.version-node.outputs.version }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - id: instalar
+        name: npm ci
+        run: npm ci
+      # Lint, typecheck, tests y build corren aunque falle uno de los
+      # anteriores, para ver todos los errores en una sola corrida.
+      - id: lint
+        name: Lint
+        if: ${{ !cancelled() && steps.instalar.outcome == 'success' }}
+        run: npm run lint
+      - id: typecheck
+        name: Typecheck
+        if: ${{ !cancelled() && steps.instalar.outcome == 'success' }}
+        run: npm run typecheck
+      - id: tests
+        name: Tests (con la guarda de completitud)
+        if: ${{ !cancelled() && steps.instalar.outcome == 'success' }}
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee "$RUNNER_TEMP/vitest.log"
+      # Las reglas de capas ya corren en Lint; aquí solo se cuentan.
+      - id: capas
+        name: Avisos de capas (informativo)
+        if: ${{ !cancelled() && steps.instalar.outcome == 'success' }}
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          npx eslint -f json -o "$RUNNER_TEMP/eslint-capas.json" . || true
+          node ../.claude/skills/verificar/contar-capas.mjs "$RUNNER_TEMP/eslint-capas.json" | tee "$RUNNER_TEMP/capas.txt"
+      - id: build
+        name: Build
+        if: ${{ !cancelled() && steps.instalar.outcome == 'success' }}
+        env:
+          NEXT_PUBLIC_API_BASE_URL: https://api.example.invalid
+        run: npm run build
+      - name: Resumen
+        if: ${{ !cancelled() }}
+        env:
+          R_INSTALAR: ${{ steps.instalar.outcome }}
+          R_LINT: ${{ steps.lint.outcome }}
+          R_TYPECHECK: ${{ steps.typecheck.outcome }}
+          R_TESTS: ${{ steps.tests.outcome }}
+          R_BUILD: ${{ steps.build.outcome }}
+        run: |
+          set -o pipefail
+          tests=$(sed -n 's/^Verificacion: \([0-9]*\) tests en \([0-9]*\) archivos.*/\1 tests en \2 archivos/p' "$RUNNER_TEMP/vitest.log" 2>/dev/null | tail -1) || tests=
+          capas=$(awk '/TOTAL avisos de capas/ {print $1}' "$RUNNER_TEMP/capas.txt" 2>/dev/null) || capas=
+          {
+            echo "### Frontend (Node $(node -v))"
+            echo
+            echo "| Paso | Resultado |"
+            echo "|---|---|"
+            echo "| npm ci | ${R_INSTALAR:-skipped} |"
+            echo "| Lint | ${R_LINT:-skipped} |"
+            echo "| Typecheck | ${R_TYPECHECK:-skipped} |"
+            echo "| Tests | ${R_TESTS:-skipped}: **${tests:-sin conteo}** |"
+            echo "| Avisos de capas | ${capas:-n/d} |"
+            echo "| Build | ${R_BUILD:-skipped} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Único check que se exige en la protección de develop y main.
+  ci:
+    name: ci
+    if: always()
+    needs: [cambios, backend, frontend]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Resultado agregado
+        env:
+          R_CAMBIOS: ${{ needs.cambios.result }}
+          R_BACKEND: ${{ needs.backend.result }}
+          R_FRONTEND: ${{ needs.frontend.result }}
+          APLICA_BACKEND: ${{ needs.cambios.outputs.backend }}
+          APLICA_FRONTEND: ${{ needs.cambios.outputs.frontend }}
+        run: |
+          fallo=0
+          {
+            echo "### CI"
+            echo
+            echo "| Job | ¿Cambió su carpeta? | Resultado |"
+            echo "|---|---|---|"
+            echo "| cambios | — | $R_CAMBIOS |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$R_CAMBIOS" != success ]; then
+            echo "::error::cambios terminó en $R_CAMBIOS"
+            fallo=1
+          fi
+          # Si su carpeta cambió, el job debe terminar en success; si no, en skipped.
+          revisar() {
+            local job=$1 aplica=$2 resultado=$3 esperado=skipped cambio=no
+            [ "$aplica" = true ] && esperado=success && cambio=sí
+            echo "| $job | $cambio | $resultado |" >> "$GITHUB_STEP_SUMMARY"
+            if [ "$resultado" != "$esperado" ]; then
+              echo "::error::$job terminó en $resultado (se esperaba $esperado)"
+              fallo=1
+            fi
+          }
+          revisar backend "$APLICA_BACKEND" "$R_BACKEND"
+          revisar frontend "$APLICA_FRONTEND" "$R_FRONTEND"
+          exit $fallo

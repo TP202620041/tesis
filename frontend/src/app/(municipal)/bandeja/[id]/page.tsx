@@ -4,6 +4,7 @@ import { use } from 'react';
 import { GuardiaDeRol } from '@/features/auth/components/GuardiaDeRol';
 import { ROLES_AREA_MUNICIPAL } from '@/features/auth/model/rutas';
 import { DetalleGestionReporte } from '@/features/gestion/components/DetalleGestionReporte';
+import { idDeRuta } from '@/lib/types/idDeRuta';
 
 /**
  * US-14/US-15/US-22: detalle de gestión de un reporte.
@@ -16,7 +17,8 @@ import { DetalleGestionReporte } from '@/features/gestion/components/DetalleGest
 export default function DetalleReportePage({ params }: { params: Promise<{ id: string }> }) {
   // En Next 16 los params llegan como promesa.
   const { id } = use(params);
-  const reporteId = Number(id);
+  // QA-1 M-11: un id que no es entero positivo no llega al API.
+  const reporteId = idDeRuta(id);
 
   return (
     <GuardiaDeRol rolesPermitidos={ROLES_AREA_MUNICIPAL}>

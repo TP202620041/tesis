@@ -13,15 +13,15 @@ Estos diagramas muestran el código **como es**, no como debería ser. Cuando un
 
 ```mermaid
 flowchart LR
-  m_auth["auth<br/>controller · domain · dto · event · repository · service"]
+  m_auth["auth<br/>controller · domain · dto · event · infra · listener · repository · service"]
   m_common["common<br/>config* · domain · exception* · geo* · infra · port · security*"]
   m_desempeno["desempeno<br/>controller · domain · dto · listener · repository · service"]
   m_distritos["distritos<br/>controller · domain · dto · infra · port · repository · service"]
   m_municipalidades["municipalidades<br/>domain · infra · repository · service"]
   m_notificaciones["notificaciones<br/>controller · domain · dto · infra · listener · port · repository · service"]
   m_reportes["reportes<br/>controller · domain · dto · event · infra · port · repository · service"]
-  m_soporte["soporte<br/>controller · domain · dto · repository · service"]
-  m_auth -->|"domain, exception, port, security"| m_common
+  m_soporte["soporte<br/>controller · domain · dto · event · listener · repository · service"]
+  m_auth -->|"config, domain, exception, port, security"| m_common
   m_auth -->|"domain, service"| m_distritos
   m_desempeno -.->|"domain, service (fuera de §4.3)"| m_auth
   m_desempeno -->|"exception"| m_common
@@ -30,14 +30,14 @@ flowchart LR
   m_municipalidades -->|"exception"| m_common
   m_municipalidades -->|"domain"| m_distritos
   m_notificaciones -->|"domain, event, service"| m_auth
-  m_notificaciones -->|"config, domain, exception"| m_common
+  m_notificaciones -->|"config, domain, exception, port"| m_common
   m_notificaciones -.->|"domain, event, service (fuera de §4.3)"| m_reportes
   m_reportes -->|"domain, service"| m_auth
   m_reportes -->|"domain, exception, geo, port"| m_common
   m_reportes -->|"domain, port"| m_distritos
   m_reportes -->|"domain, service"| m_municipalidades
   m_soporte -->|"domain, service"| m_auth
-  m_soporte -->|"domain, exception"| m_common
+  m_soporte -->|"config, domain, exception, port"| m_common
   classDef transversal fill:#eef2f7,stroke:#6b7a90,color:#1f2937
   class m_common transversal
   linkStyle 2,4,10 stroke:#c62828,stroke-width:2px
@@ -45,7 +45,7 @@ flowchart LR
 
 | Origen | Destino | Subpaquetes usados | ¿Prevista en §4.3? |
 |---|---|---|---|
-| `auth` | `common` | `domain`, `exception`, `port`, `security` | sí (common es transversal) |
+| `auth` | `common` | `config`, `domain`, `exception`, `port`, `security` | sí (common es transversal) |
 | `auth` | `distritos` | `domain`, `service` | sí |
 | `desempeno` | `auth` | `domain`, `service` | **no** |
 | `desempeno` | `common` | `exception` | sí (common es transversal) |
@@ -54,14 +54,14 @@ flowchart LR
 | `municipalidades` | `common` | `exception` | sí (common es transversal) |
 | `municipalidades` | `distritos` | `domain` | sí |
 | `notificaciones` | `auth` | `domain`, `event`, `service` | sí |
-| `notificaciones` | `common` | `config`, `domain`, `exception` | sí (common es transversal) |
+| `notificaciones` | `common` | `config`, `domain`, `exception`, `port` | sí (common es transversal) |
 | `notificaciones` | `reportes` | `domain`, `event`, `service` | **no** |
 | `reportes` | `auth` | `domain`, `service` | sí |
 | `reportes` | `common` | `domain`, `exception`, `geo`, `port` | sí (common es transversal) |
 | `reportes` | `distritos` | `domain`, `port` | sí |
 | `reportes` | `municipalidades` | `domain`, `service` | sí |
 | `soporte` | `auth` | `domain`, `service` | sí |
-| `soporte` | `common` | `domain`, `exception` | sí (common es transversal) |
+| `soporte` | `common` | `config`, `domain`, `exception`, `port` | sí (common es transversal) |
 
 Subpaquetes marcados con `*`: fuera de la lista estándar de §4.1. `common`: `config`, `exception`, `geo`, `security`.
 
@@ -75,6 +75,8 @@ Módulos de §4.3 que todavía no existen en el código: `clasificacion` (nuevo)
 - `notificaciones` → `reportes`: §4.3 limita notificaciones → reportes a event y usa domain (notificaciones/domain/Notificacion.java, notificaciones/service/NotificacionService.java).
 - `notificaciones` → `reportes`: §4.3 limita notificaciones → reportes a event y usa service (notificaciones/service/NotificacionService.java).
 <!-- generado:fin modulos-backend -->
+
+Las tres aristas en rojo (`desempeno` → `auth`, `desempeno` → `reportes` y `notificaciones` → `reportes`) están planteadas en la propuesta abierta [`2026-10-21-dependencias-4-3.md`](../../project-context/decisions/propuestas/2026-10-21-dependencias-4-3.md). Mientras el usuario no decida, se siguen dibujando como son.
 
 ## Frontend: features, compartidos y rutas
 
@@ -95,7 +97,6 @@ flowchart LR
     n_app_cuenta["app/(cuenta)"]
     n_app_municipal["app/(municipal)"]
     n_app_public["app/(public)"]
-    n_app_sesion["app/sesion"]
   end
   subgraph g_features["features/"]
     n_features_auth["features/auth<br/>api.ts · components · hooks · model"]
@@ -106,31 +107,39 @@ flowchart LR
     n_features_soporte["features/soporte<br/>api.ts · components · hooks · model"]
   end
   subgraph g_compartidos["compartidos"]
+    n_components["components"]
+    n_lib_types["lib/types"]
     n_map["map"]
     n_pwa["pwa"]
   end
-  n_app -->|"hooks"| n_features_auth
+  n_app -->|"ui/Boton"| n_components
+  n_app -->|"components, hooks"| n_features_auth
   n_app -->|"components, hooks"| n_features_reportes
   n_app -->|"ProveedorPwa"| n_pwa
   n_app_admin -->|"components, model"| n_features_auth
   n_app_admin -->|"components"| n_features_soporte
+  n_app_auth -->|"ui/Logo"| n_components
   n_app_auth -->|"components"| n_features_auth
   n_app_auth -->|"components"| n_features_legal
-  n_app_ciudadano -->|"components, hooks"| n_features_auth
+  n_app_ciudadano -->|"titulo"| n_app
+  n_app_ciudadano -->|"components"| n_features_auth
   n_app_ciudadano -->|"components"| n_features_legal
   n_app_ciudadano -->|"components"| n_features_reportes
+  n_app_ciudadano -->|"idDeRuta"| n_lib_types
   n_app_cuenta -->|"components, hooks, model"| n_features_auth
   n_app_cuenta -->|"components"| n_features_legal
   n_app_cuenta -->|"components"| n_features_soporte
+  n_app_municipal -->|"titulo"| n_app
   n_app_municipal -->|"components, model"| n_features_auth
   n_app_municipal -->|"components"| n_features_desempeno
   n_app_municipal -->|"components"| n_features_gestion
+  n_app_municipal -->|"idDeRuta"| n_lib_types
   n_app_public -->|"hooks, model"| n_features_auth
   n_app_public -->|"components"| n_features_desempeno
   n_app_public -->|"components"| n_features_legal
   n_app_public -->|"components, hooks, model"| n_features_reportes
+  n_app_public -->|"idDeRuta"| n_lib_types
   n_app_public -->|"MapaReportes"| n_map
-  n_app_sesion -->|"components, hooks"| n_features_auth
 ```
 
 ### Features y compartidos
@@ -155,32 +164,34 @@ flowchart LR
     n_map["map"]
     n_pwa["pwa"]
   end
-  n_components -->|"domain, estados"| n_lib_types
-  n_features_auth -->|"ui/dialogo, ui/form"| n_components
+  n_components -->|"domain, estados, fotoDeReporte, tituloYSeveridad, ubicacion"| n_lib_types
+  n_components -->|"MiniMapaUbicacion"| n_map
+  n_features_auth -->|"ui/Boton, ui/Icono, ui/Logo, ui/dialogo, ui/form"| n_components
   n_features_auth -->|"catalogos, client, errors, generated/schema"| n_lib_api
   n_features_auth -->|"token-storage"| n_lib_auth
   n_features_auth -->|"useCarga"| n_lib_hooks
   n_features_auth -->|"antesDeCerrarSesion"| n_lib_sesion
-  n_features_auth -->|"domain"| n_lib_types
+  n_features_auth -->|"domain, fotoParaSubir"| n_lib_types
   n_features_auth -->|"cachesDeSesion, push"| n_pwa
-  n_features_desempeno -->|"ui/form"| n_components
+  n_features_desempeno -->|"ui/Boton, ui/form"| n_components
   n_features_desempeno -->|"catalogos, client, generated/schema"| n_lib_api
   n_features_desempeno -->|"useCarga"| n_lib_hooks
   n_features_desempeno -->|"domain"| n_lib_types
-  n_features_gestion -->|"LineaDeTiempo, ui/form"| n_components
+  n_features_gestion -->|"FotoDeReporte, LineaDeTiempo, UbicacionDelReporte, ui/Boton, ui/ChipEstado, ui/form"| n_components
   n_features_gestion -->|"catalogos, client, errors, generated/schema"| n_lib_api
   n_features_gestion -->|"useCarga"| n_lib_hooks
   n_features_gestion -->|"domain, estados, fechas, tituloYSeveridad"| n_lib_types
   n_features_legal -->|"model"| n_features_auth
-  n_features_reportes -->|"LineaDeTiempo, ui/form"| n_components
+  n_features_reportes -->|"FotoDeReporte, LineaDeTiempo, UbicacionDelReporte, ui/Aviso, ui/Boton, ui/ChipEstado, ui/EstadoVacio, ui/Icono, ui/form"| n_components
+  n_features_reportes -->|"model"| n_features_auth
   n_features_reportes -->|"catalogos, client, errors, generated/schema"| n_lib_api
   n_features_reportes -->|"token-storage"| n_lib_auth
   n_features_reportes -->|"useCarga"| n_lib_hooks
   n_features_reportes -->|"antesDeCerrarSesion"| n_lib_sesion
-  n_features_reportes -->|"domain, estados, fechas, tituloYSeveridad"| n_lib_types
+  n_features_reportes -->|"domain, estados, fechas, fotoParaSubir, tituloYSeveridad"| n_lib_types
   n_features_reportes -->|"MapaSelectorUbicacion"| n_map
   n_features_reportes -->|"colaReportes"| n_pwa
-  n_features_soporte -->|"ui/form"| n_components
+  n_features_soporte -->|"ui/Boton, ui/form"| n_components
   n_features_soporte -->|"client, errors, generated/schema"| n_lib_api
   n_features_soporte -->|"useCarga"| n_lib_hooks
   n_features_soporte -->|"domain"| n_lib_types
@@ -189,60 +200,68 @@ flowchart LR
   n_lib_hooks -->|"errors"| n_lib_api
   n_lib_types -->|"generated/schema"| n_lib_api
   n_map -->|"model"| n_features_reportes
-  n_map -->|"estados, tituloYSeveridad"| n_lib_types
+  n_map -->|"estados, fotoDeReporte, tituloYSeveridad, ubicacion"| n_lib_types
   n_pwa -->|"model"| n_features_reportes
 ```
 
 | Origen | Destino | Qué usa | ¿Permitido por §5? |
 |---|---|---|---|
-| `app` | `features/auth` | `hooks` | sí |
+| `app` | `components` | `ui/Boton` | sí |
+| `app` | `features/auth` | `components`, `hooks` | sí |
 | `app` | `features/reportes` | `components`, `hooks` | sí |
 | `app` | `pwa` | `ProveedorPwa` | sí |
 | `app/(admin)` | `features/auth` | `components`, `model` | sí |
 | `app/(admin)` | `features/soporte` | `components` | sí |
+| `app/(auth)` | `components` | `ui/Logo` | sí |
 | `app/(auth)` | `features/auth` | `components` | sí |
 | `app/(auth)` | `features/legal` | `components` | sí |
-| `app/(ciudadano)` | `features/auth` | `components`, `hooks` | sí |
+| `app/(ciudadano)` | `app` | `titulo` | sí |
+| `app/(ciudadano)` | `features/auth` | `components` | sí |
 | `app/(ciudadano)` | `features/legal` | `components` | sí |
 | `app/(ciudadano)` | `features/reportes` | `components` | sí |
+| `app/(ciudadano)` | `lib/types` | `idDeRuta` | sí |
 | `app/(cuenta)` | `features/auth` | `components`, `hooks`, `model` | sí |
 | `app/(cuenta)` | `features/legal` | `components` | sí |
 | `app/(cuenta)` | `features/soporte` | `components` | sí |
+| `app/(municipal)` | `app` | `titulo` | sí |
 | `app/(municipal)` | `features/auth` | `components`, `model` | sí |
 | `app/(municipal)` | `features/desempeno` | `components` | sí |
 | `app/(municipal)` | `features/gestion` | `components` | sí |
+| `app/(municipal)` | `lib/types` | `idDeRuta` | sí |
 | `app/(public)` | `features/auth` | `hooks`, `model` | sí |
 | `app/(public)` | `features/desempeno` | `components` | sí |
 | `app/(public)` | `features/legal` | `components` | sí |
 | `app/(public)` | `features/reportes` | `components`, `hooks`, `model` | sí |
+| `app/(public)` | `lib/types` | `idDeRuta` | sí |
 | `app/(public)` | `map` | `MapaReportes` | sí |
-| `app/sesion` | `features/auth` | `components`, `hooks` | sí |
-| `components` | `lib/types` | `domain`, `estados` | sí |
-| `features/auth` | `components` | `ui/dialogo`, `ui/form` | sí |
+| `components` | `lib/types` | `domain`, `estados`, `fotoDeReporte`, `tituloYSeveridad`, `ubicacion` | sí |
+| `components` | `map` | `MiniMapaUbicacion` | sí |
+| `features/auth` | `components` | `ui/Boton`, `ui/Icono`, `ui/Logo`, `ui/dialogo`, `ui/form` | sí |
 | `features/auth` | `lib/api` | `catalogos`, `client`, `errors`, `generated/schema` | sí |
 | `features/auth` | `lib/auth` | `token-storage` | sí |
 | `features/auth` | `lib/hooks` | `useCarga` | sí |
 | `features/auth` | `lib/sesion` | `antesDeCerrarSesion` | sí |
-| `features/auth` | `lib/types` | `domain` | sí |
+| `features/auth` | `lib/types` | `domain`, `fotoParaSubir` | sí |
 | `features/auth` | `pwa` | `cachesDeSesion`, `push` | sí |
-| `features/desempeno` | `components` | `ui/form` | sí |
+| `features/desempeno` | `components` | `ui/Boton`, `ui/form` | sí |
 | `features/desempeno` | `lib/api` | `catalogos`, `client`, `generated/schema` | sí |
 | `features/desempeno` | `lib/hooks` | `useCarga` | sí |
 | `features/desempeno` | `lib/types` | `domain` | sí |
-| `features/gestion` | `components` | `LineaDeTiempo`, `ui/form` | sí |
+| `features/gestion` | `components` | `FotoDeReporte`, `LineaDeTiempo`, `UbicacionDelReporte`, `ui/Boton`, `ui/ChipEstado`, `ui/form` | sí |
 | `features/gestion` | `lib/api` | `catalogos`, `client`, `errors`, `generated/schema` | sí |
 | `features/gestion` | `lib/hooks` | `useCarga` | sí |
 | `features/gestion` | `lib/types` | `domain`, `estados`, `fechas`, `tituloYSeveridad` | sí |
 | `features/legal` | `features/auth` | `model` | sí |
-| `features/reportes` | `components` | `LineaDeTiempo`, `ui/form` | sí |
+| `features/reportes` | `components` | `FotoDeReporte`, `LineaDeTiempo`, `UbicacionDelReporte`, `ui/Aviso`, `ui/Boton`, `ui/ChipEstado`, `ui/EstadoVacio`, `ui/Icono`, `ui/form` | sí |
+| `features/reportes` | `features/auth` | `model` | sí |
 | `features/reportes` | `lib/api` | `catalogos`, `client`, `errors`, `generated/schema` | sí |
 | `features/reportes` | `lib/auth` | `token-storage` | sí |
 | `features/reportes` | `lib/hooks` | `useCarga` | sí |
 | `features/reportes` | `lib/sesion` | `antesDeCerrarSesion` | sí |
-| `features/reportes` | `lib/types` | `domain`, `estados`, `fechas`, `tituloYSeveridad` | sí |
+| `features/reportes` | `lib/types` | `domain`, `estados`, `fechas`, `fotoParaSubir`, `tituloYSeveridad` | sí |
 | `features/reportes` | `map` | `MapaSelectorUbicacion` | sí |
 | `features/reportes` | `pwa` | `colaReportes` | sí |
-| `features/soporte` | `components` | `ui/form` | sí |
+| `features/soporte` | `components` | `ui/Boton`, `ui/form` | sí |
 | `features/soporte` | `lib/api` | `client`, `errors`, `generated/schema` | sí |
 | `features/soporte` | `lib/hooks` | `useCarga` | sí |
 | `features/soporte` | `lib/types` | `domain` | sí |
@@ -251,7 +270,7 @@ flowchart LR
 | `lib/hooks` | `lib/api` | `errors` | sí |
 | `lib/types` | `lib/api` | `generated/schema` | sí |
 | `map` | `features/reportes` | `model` | sí |
-| `map` | `lib/types` | `estados`, `tituloYSeveridad` | sí |
+| `map` | `lib/types` | `estados`, `fotoDeReporte`, `tituloYSeveridad`, `ubicacion` | sí |
 | `pwa` | `features/reportes` | `model` | sí |
 
 **Diferencias con §5** (se dibujan como son; la cifra oficial es la de `eslint.capas.mjs` en `/verificar`):

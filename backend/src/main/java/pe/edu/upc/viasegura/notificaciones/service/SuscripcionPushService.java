@@ -80,12 +80,12 @@ public class SuscripcionPushService {
     public ResultadoSuscripcion suscribir(String email, SuscripcionPushRequest req) {
         if (!PoliticaEndpointPush.esPermitido(req.endpoint(), hostsPermitidos)) {
             throw new IllegalArgumentException(
-                    "endpoint: el servicio de push no esta permitido");
+                    "El servicio de notificaciones push de este navegador no está permitido");
         }
         Usuario usuario = usuarioConsultaService.usuarioPorEmail(email);
         if (!consentimientoService.tieneVigente(usuario.getId(), FinalidadConsentimiento.NOTIFICACIONES_PUSH)) {
             throw new BusinessException(
-                    "Para recibir notificaciones push primero acepta el consentimiento NOTIFICACIONES_PUSH");
+                    "Para recibir notificaciones push, primero autorízalas en tu perfil");
         }
         boolean creada = suscripcionRepository.upsert(usuario.getId(), req.endpoint(),
                 req.keys().p256dh(), req.keys().auth(), req.userAgent());
@@ -126,7 +126,7 @@ public class SuscripcionPushService {
         Usuario usuario = usuarioConsultaService.usuarioPorEmail(email);
         SuscripcionPush suscripcion = suscripcionRepository
                 .findByEndpointAndUsuarioId(endpoint, usuario.getId())
-                .orElseThrow(() -> new ResourceNotFoundException("Suscripcion no encontrada"));
+                .orElseThrow(() -> new ResourceNotFoundException("Suscripción no encontrada"));
         suscripcionRepository.delete(suscripcion);
     }
 
@@ -151,6 +151,6 @@ public class SuscripcionPushService {
         return enviadorWebPush.clavePublica()
                 .map(ClavePublicaVapidResponse::new)
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "Las notificaciones push no estan configuradas en este servidor"));
+                        "Las notificaciones push no están configuradas en este servidor"));
     }
 }

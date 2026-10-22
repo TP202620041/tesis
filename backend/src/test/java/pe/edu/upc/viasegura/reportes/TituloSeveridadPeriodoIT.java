@@ -68,6 +68,10 @@ class TituloSeveridadPeriodoIT extends AbstractPostgisIT {
 
     /** {@code null} en titulo o severidad: no se envia ese parametro. */
     private ResultActions crear(String token, String titulo, String severidad) throws Exception {
+        return crear(token, titulo, severidad, null);
+    }
+
+    private ResultActions crear(String token, String titulo, String severidad, String descripcion) throws Exception {
         MockHttpServletRequestBuilder req = multipart("/api/reportes")
                 .param("latitud", String.valueOf(LAT))
                 .param("longitud", String.valueOf(LON))
@@ -78,6 +82,9 @@ class TituloSeveridadPeriodoIT extends AbstractPostgisIT {
         }
         if (severidad != null) {
             req = req.param("severidad", severidad);
+        }
+        if (descripcion != null) {
+            req = req.param("descripcion", descripcion);
         }
         return mockMvc.perform(req);
     }
@@ -119,7 +126,7 @@ class TituloSeveridadPeriodoIT extends AbstractPostgisIT {
     void crear_sinTitulo_400ConMensajeDeCampo() throws Exception {
         crear(tokenCiudadano(), null, "MEDIA")
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message", containsString("titulo")));
+                .andExpect(jsonPath("$.message", containsString("título")));
     }
 
     @ParameterizedTest(name = "titulo «{0}» -> 400")
@@ -127,7 +134,7 @@ class TituloSeveridadPeriodoIT extends AbstractPostgisIT {
     void crear_tituloDeMenosDe5TrasTrim_400(String titulo) throws Exception {
         crear(tokenCiudadano(), titulo, "MEDIA")
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message", containsString("titulo")));
+                .andExpect(jsonPath("$.message", containsString("título")));
     }
 
     @Test
@@ -142,6 +149,19 @@ class TituloSeveridadPeriodoIT extends AbstractPostgisIT {
         crear(tokenCiudadano(), "  Bache  ", "MEDIA")
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.titulo", is("Bache")));
+    }
+
+    @Test
+    void crear_descripcionDeMasDe1000_400YNo500() throws Exception {
+        // QA-1 M-2: la creación es multipart, sin @Valid; antes una descripción
+        // más larga llegaba a la columna varchar(1000) y respondía 500.
+        String token = tokenCiudadano();
+        crear(token, "Bache en la esquina", "MEDIA", "x".repeat(1001))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", is("La descripción puede tener como máximo 1000 caracteres")));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM reporte", Long.class)).isZero();
+        crear(token, "Bache en la esquina", "MEDIA", "x".repeat(1000))
+                .andExpect(status().isCreated());
     }
 
     @Test

@@ -65,13 +65,13 @@ public class DesempenoService {
     public DashboardDistritoResponse dashboardDistrito(String emailFuncionario) {
         Usuario funcionario = usuarioConsultaService.usuarioPorEmail(emailFuncionario);
         if (funcionario.getDistrito() == null) {
-            throw new AccessDeniedException("El funcionario no tiene un distrito de gestion asignado");
+            throw new AccessDeniedException("El funcionario no tiene un distrito de gestión asignado");
         }
         Long distritoId = funcionario.getDistrito().getId();
 
         IndiceDesempenoDistrital fila = indiceRepository.findByDistritoIdAndCategoriaIdIsNull(distritoId)
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "Sin datos de desempeno para el distrito " + distritoId));
+                        "Sin datos de desempeño para el distrito " + distritoId));
 
         long sinResponsable = reporteConsultaService.contarSinResponsable(distritoId);
         Instant limite = Instant.now().minus(DIAS_ESTANCAMIENTO, ChronoUnit.DAYS);

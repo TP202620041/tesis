@@ -1,12 +1,12 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, type ReactNode } from 'react';
 import { EnlaceConDialogo } from '@/components/ui/dialogo';
 import { AlertaError, Boton, Campo } from '@/components/ui/form';
 import { useRegistro } from '../hooks/useRegistro';
-import { PASSWORD_MAX, PASSWORD_MIN } from '../model/password';
-import { RUTA_PRIVACIDAD } from '../model/rutas';
+import { AYUDA_PASSWORD, errorDeLargoDePassword, PASSWORD_MAX, PASSWORD_MIN } from '../model/password';
+import { destinoTrasAcceso, RUTA_PRIVACIDAD } from '../model/rutas';
 import { TITULO_TERMINOS } from '../model/terminos';
 
 /**
@@ -27,10 +27,15 @@ import { TITULO_TERMINOS } from '../model/terminos';
  */
 export function FormularioRegistro({ textoLegal }: { textoLegal: ReactNode }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { enviando, error, terminosDesactualizados, enviar } = useRegistro();
   const [campos, setCampos] = useState({ nombre: '', apellido: '', email: '', password: '' });
   const [acepta, setAcepta] = useState(false);
   const [faltaAceptar, setFaltaAceptar] = useState(false);
+  // QA-1 M-2: el largo de la contraseña se valida antes de enviar. El error
+  // aparece tras el primer intento y desde ahi se recalcula al escribir.
+  const [intentoEnviar, setIntentoEnviar] = useState(false);
+  const errorPassword = intentoEnviar ? errorDeLargoDePassword(campos.password) : null;
 
   function actualizar(clave: keyof typeof campos) {
     return (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -39,16 +44,20 @@ export function FormularioRegistro({ textoLegal }: { textoLegal: ReactNode }) {
 
   async function alEnviar(evento: React.FormEvent) {
     evento.preventDefault();
-    if (!acepta) {
-      setFaltaAceptar(true);
-      return;
-    }
-    const sesion = await enviar(campos);
+    setIntentoEnviar(true);
+    if (!acepta) setFaltaAceptar(true);
+    if (!acepta || errorDeLargoDePassword(campos.password)) return;
+    const { sesion, terminosDesactualizados: textoViejo } = await enviar(campos);
     if (sesion) {
-      router.push('/sesion');
+      // QA-1 I-2: al mismo lugar que el login (antes iba a `/sesion`, una
+      // pantalla de depuracion): al `?redirect=` si es interno, si no a
+      // «Mis reportes».
+      router.push(destinoTrasAcceso(sesion.usuario, searchParams.get('redirect')));
       router.refresh();
-    } else {
+    } else if (textoViejo) {
       // Si el texto quedo viejo, la aceptacion ya no vale: debe releerlo.
+      // Ante cualquier otro error (correo ya registrado, validacion, red) la
+      // casilla sigue marcada: el texto aceptado no cambio (QA-1 M-2).
       setAcepta(false);
     }
   }
@@ -59,7 +68,7 @@ export function FormularioRegistro({ textoLegal }: { textoLegal: ReactNode }) {
       {terminosDesactualizados && (
         <p
           role="status"
-          className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-100"
+          className="border border-aviso-borde rounded-control bg-aviso-fondo px-3 py-2 text-sm text-aviso-texto"
         >
           Los términos cambiaron y no se creó la cuenta. La aplicación se está actualizando;
           vuelve a intentarlo en unos minutos y lee el texto nuevo antes de aceptar.{' '}
@@ -105,12 +114,14 @@ export function FormularioRegistro({ textoLegal }: { textoLegal: ReactNode }) {
         required
         minLength={PASSWORD_MIN}
         maxLength={PASSWORD_MAX}
+        ayuda={AYUDA_PASSWORD}
+        error={errorPassword ?? undefined}
         value={campos.password}
         onChange={actualizar('password')}
       />
 
       <div className="flex flex-col gap-1">
-        <label className="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-200">
+        <label className="flex items-start gap-2 text-sm text-texto">
           <input
             id="acepta-terminos"
             type="checkbox"
@@ -130,14 +141,14 @@ export function FormularioRegistro({ textoLegal }: { textoLegal: ReactNode }) {
               href={RUTA_PRIVACIDAD}
               titulo={TITULO_TERMINOS}
               contenido={textoLegal}
-              className="font-medium text-sky-700 hover:underline dark:text-sky-400"
+              className="font-medium text-enlace hover:underline"
             >
               términos de uso y la política de privacidad
             </EnlaceConDialogo>
           </span>
         </label>
         {faltaAceptar && !acepta && (
-          <p id="acepta-terminos-error" role="alert" className="text-sm text-red-600 dark:text-red-400">
+          <p id="acepta-terminos-error" role="alert" className="text-sm text-error">
             Para crear la cuenta debes aceptar los términos de uso y la política de privacidad.
           </p>
         )}

@@ -13,7 +13,7 @@
 
     <groupId>pe.edu.upc</groupId>
     <artifactId>viasegura</artifactId>
-    <version>0.6.0</version>
+    <version>0.7.0</version>
     <name>viasegura</name>
     <description>Sistema de crowdsourcing geoespacial para reporte ciudadano y gestion municipal de infraestructura vial en Lima Metropolitana</description>
 
@@ -22,13 +22,41 @@
         <jjwt.version>0.12.6</jjwt.version>
         <poi.version>5.3.0</poi.version>
         <archunit.version>1.3.0</archunit.version>
+        <!-- DEP-12: fotos en Cloudflare R2 (API S3) y saneado de imagenes. -->
+        <awssdk.version>2.55.12</awssdk.version>
+        <twelvemonkeys.version>3.15.3</twelvemonkeys.version>
+        <!-- `mvn spring-boot:run` activa el perfil local de forma EXPLICITA
+             (DEP-01, SEC-03): solo asi JwtService acepta el secreto de
+             desarrollo. Otro perfil: -Dspring-boot.run.profiles=dev. -->
+        <spring-boot.run.profiles>local</spring-boot.run.profiles>
     </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <!-- Versiones alineadas de los modulos del AWS SDK v2 (DEP-12). -->
+            <dependency>
+                <groupId>software.amazon.awssdk</groupId>
+                <artifactId>bom</artifactId>
+                <version>${awssdk.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <dependencies>
         <!-- Web / REST -->
+        <!-- Sin el soporte WebSocket de Tomcat: la API no usa WebSocket, y la
+             imagen Docker tiene un limite de 400 MB (DEP-03, DEP-12). -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.apache.tomcat.embed</groupId>
+                    <artifactId>tomcat-embed-websocket</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <!-- Persistencia (Spring Data JPA + Hibernate) -->
@@ -64,6 +92,15 @@
             <artifactId>jjwt-jackson</artifactId>
             <version>${jjwt.version}</version>
             <scope>runtime</scope>
+        </dependency>
+
+        <!-- Actuator (DEP-02): solo /actuator/health, para el healthcheck del
+             despliegue (se configura en el panel de Railway). Sin detalles
+             y sin ningun otro endpoint expuesto; ver "Configuracion de
+             produccion" en el README. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
 
         <!-- Validacion (Jakarta Bean Validation) -->
@@ -128,6 +165,63 @@
             <groupId>com.zerodeplibs</groupId>
             <artifactId>zerodep-web-push-java</artifactId>
             <version>2.1.5</version>
+        </dependency>
+
+        <!-- Fotos en Cloudflare R2 (DEP-12): cliente S3 del AWS SDK v2
+             (Apache-2.0) detras de common/port/FotoStorageService, en
+             common/infra/S3FotoStorageService. Solo el modulo s3 (no el
+             bundle) y el cliente HTTP liviano de java.net.URLConnection en
+             vez de Apache HttpClient 5 y Netty, que el SDK trae por defecto
+             (runtime): una subida o descarga sincrona por peticion no
+             necesita mas, y la imagen Docker tiene un limite de 400 MB
+             (DEP-03). Fuera tambien los modulos opcionales de CRT y de
+             firma de event streams (solo los usan el cliente CRT y
+             operaciones como SelectObjectContent; http-auth-aws los carga
+             de forma opcional). -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>s3</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>software.amazon.awssdk</groupId>
+                    <artifactId>apache5-client</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>software.amazon.awssdk</groupId>
+                    <artifactId>netty-nio-client</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>software.amazon.awssdk</groupId>
+                    <artifactId>crt-core</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>software.amazon.awssdk</groupId>
+                    <artifactId>http-auth-aws-eventstream</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>software.amazon.eventstream</groupId>
+                    <artifactId>eventstream</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>url-connection-client</artifactId>
+        </dependency>
+
+        <!-- Saneado de fotos (DEP-12): lectores ImageIO de TwelveMonkeys
+             (BSD-3) para JPEG (CMYK, archivos con errores tolerables) y WEBP,
+             que el JDK no lee, mas su lector de metadatos para la
+             orientacion EXIF. Detras de common/port/SaneadorDeImagen. -->
+        <dependency>
+            <groupId>com.twelvemonkeys.imageio</groupId>
+            <artifactId>imageio-jpeg</artifactId>
+            <version>${twelvemonkeys.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.twelvemonkeys.imageio</groupId>
+            <artifactId>imageio-webp</artifactId>
+            <version>${twelvemonkeys.version}</version>
         </dependency>
 
         <!-- Testing -->

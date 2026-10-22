@@ -1,6 +1,7 @@
 package pe.edu.upc.viasegura.auth.service;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -14,6 +15,7 @@ import pe.edu.upc.viasegura.auth.dto.AuthResponse;
 import pe.edu.upc.viasegura.auth.dto.LoginRequest;
 import pe.edu.upc.viasegura.auth.dto.RegistroRequest;
 import pe.edu.upc.viasegura.auth.dto.UsuarioResponse;
+import pe.edu.upc.viasegura.auth.event.FotoDePerfilReemplazadaEvent;
 import pe.edu.upc.viasegura.auth.repository.UsuarioRepository;
 import pe.edu.upc.viasegura.common.exception.BusinessException;
 import pe.edu.upc.viasegura.common.exception.ResourceNotFoundException;
@@ -29,6 +31,9 @@ import pe.edu.upc.viasegura.distritos.service.DistritoService;
 @RequiredArgsConstructor
 public class AuthService {
 
+    /** Largo de las columnas {@code usuario.nombre} y {@code usuario.apellido}, como en {@code RegistroRequest}. */
+    static final int LARGO_MAXIMO_NOMBRE = 100;
+
     private final UsuarioRepository usuarioRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
@@ -36,6 +41,7 @@ public class AuthService {
     private final DistritoService distritoService;
     private final FotoStorageService fotoStorageService;
     private final ConsentimientoService consentimientoService;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * US-01: registra una cuenta ciudadana y devuelve un token de sesion.
@@ -46,7 +52,7 @@ public class AuthService {
     public AuthResponse registrar(RegistroRequest request) {
         consentimientoService.exigirVersionVigenteDeTerminos(request.versionTerminos());
         if (usuarioRepository.existsByEmail(request.email())) {
-            throw new BusinessException("El correo ya esta registrado");
+            throw new BusinessException("El correo ya está registrado");
         }
 
         Usuario usuario = Usuario.builder()
@@ -116,14 +122,16 @@ public class AuthService {
 
         if (nombre != null) {
             if (!StringUtils.hasText(nombre)) {
-                throw new IllegalArgumentException("El nombre no puede quedar vacio");
+                throw new IllegalArgumentException("El nombre no puede quedar vacío");
             }
+            exigirLargoMaximo(nombre, "El nombre");
             usuario.setNombre(nombre);
         }
         if (apellido != null) {
             if (!StringUtils.hasText(apellido)) {
-                throw new IllegalArgumentException("El apellido no puede quedar vacio");
+                throw new IllegalArgumentException("El apellido no puede quedar vacío");
             }
+            exigirLargoMaximo(apellido, "El apellido");
             usuario.setApellido(apellido);
         }
         if (distritoId != null) {
@@ -132,10 +140,31 @@ public class AuthService {
         if (foto != null && !foto.vacio()) {
             // Foto de perfil, no de reporte: se guarda aparte y su URL apunta
             // al endpoint autenticado, no al directorio publico (US-30).
+            String anterior = PerfilFotoService.nombreDeArchivo(usuario.getFotoUrl());
             usuario.setFotoUrl(fotoStorageService.almacenarFotoPerfil(foto));
+            if (anterior != null) {
+                // DEP-12: la foto reemplazada ya no tiene finalidad y es un
+                // dato personal (Ley N.° 29733). La borra
+                // FotoDePerfilReemplazadaListener despues del commit, fuera
+                // del hilo de la peticion (D-13): si el cambio de perfil
+                // hiciera rollback, el ciudadano conservaria su foto anterior.
+                eventPublisher.publishEvent(new FotoDePerfilReemplazadaEvent(usuario.getId(), anterior));
+            }
         }
 
         return respuesta(usuarioRepository.save(usuario));
+    }
+
+    /**
+     * Tope de la columna (QA-1 M-2). La edicion del perfil es multipart y no
+     * pasa por {@code @Valid}: sin esta regla, un nombre mas largo llegaba a
+     * la base y respondia 500. Se cuentan code points, como el {@code varchar}.
+     */
+    private static void exigirLargoMaximo(String valor, String campo) {
+        if (valor.codePointCount(0, valor.length()) > LARGO_MAXIMO_NOMBRE) {
+            throw new IllegalArgumentException(
+                    campo + " puede tener como máximo " + LARGO_MAXIMO_NOMBRE + " caracteres");
+        }
     }
 
     private AuthResponse construirRespuesta(Usuario usuario) {

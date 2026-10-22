@@ -1,6 +1,9 @@
 'use client';
 
-export type VistaResultados = 'mapa' | 'lista';
+import type { VistaResultados } from '../model/estadoDelMapa';
+
+// El tipo vive en `model/` porque la vista tambien va en la URL (QA-1 M-9).
+export type { VistaResultados };
 
 const OPCIONES: { vista: VistaResultados; etiqueta: string }[] = [
   { vista: 'mapa', etiqueta: 'Mapa' },
@@ -26,7 +29,7 @@ export function SelectorDeVista({
     <div
       role="group"
       aria-label="Vista de resultados"
-      className="flex gap-1 border-b border-slate-200 bg-white px-2 dark:border-slate-700 dark:bg-slate-800"
+      className="flex gap-1 border-b border-linea bg-superficie px-2"
     >
       {OPCIONES.map(({ vista: opcion, etiqueta }) => {
         const activa = vista === opcion;
@@ -38,8 +41,8 @@ export function SelectorDeVista({
             onClick={() => onElegir(opcion)}
             className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${
               activa
-                ? 'border-sky-600 text-sky-700 dark:text-sky-400'
-                : 'border-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100'
+                ? 'border-primario font-semibold text-texto'
+                : 'border-transparent text-texto-2 hover:text-texto'
             }`}
           >
             {etiqueta}

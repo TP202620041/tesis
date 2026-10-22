@@ -90,7 +90,7 @@ export function FormularioReporte({
       <div className="flex flex-col gap-1.5">
         <label
           htmlFor="categoriaId"
-          className="text-sm font-medium text-slate-700 dark:text-slate-200"
+          className="text-sm font-medium text-texto"
         >
           Tipo de daño
         </label>
@@ -99,9 +99,7 @@ export function FormularioReporte({
           required
           value={categoriaId ?? ''}
           onChange={(e) => setCategoriaElegida(e.target.value ? Number(e.target.value) : null)}
-          className="rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900
-                     focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30
-                     dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+          className="min-h-objetivo rounded-control border border-linea-campo bg-superficie px-3 py-2 text-texto focus:border-primario"
         >
           <option value="">Selecciona…</option>
           {categorias.map((categoria) => (
@@ -112,7 +110,7 @@ export function FormularioReporte({
           ))}
         </select>
         {!distritoId && (
-          <p className="text-xs text-slate-500 dark:text-slate-400">
+          <p className="text-xs text-texto-2">
             Al indicar la ubicación podrían aparecer categorías propias de tu distrito.
           </p>
         )}
@@ -132,9 +130,9 @@ export function FormularioReporte({
       <div className="flex flex-col gap-1.5">
         <label
           htmlFor="descripcion"
-          className="text-sm font-medium text-slate-700 dark:text-slate-200"
+          className="text-sm font-medium text-texto"
         >
-          Descripción <span className="font-normal text-slate-500">(opcional)</span>
+          Descripción <span className="font-normal text-texto-2">(opcional)</span>
         </label>
         <textarea
           id="descripcion"
@@ -143,9 +141,7 @@ export function FormularioReporte({
           value={descripcion}
           onChange={(e) => setDescripcion(e.target.value)}
           placeholder="Ej.: bache profundo en el carril derecho, frente al parque."
-          className="rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900
-                     focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30
-                     dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+          className="rounded-control border border-linea-campo bg-superficie px-3 py-2 text-texto focus:border-primario"
         />
       </div>
 

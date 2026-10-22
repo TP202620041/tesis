@@ -94,7 +94,7 @@ public class ReporteBusquedaService {
         long presentes = Stream.of(minLat, minLon, maxLat, maxLon).filter(Objects::nonNull).count();
         if (presentes != 0 && presentes != 4) {
             throw new IllegalArgumentException(
-                    "El area del mapa requiere minLat, minLon, maxLat y maxLon juntos");
+                    "El área del mapa requiere minLat, minLon, maxLat y maxLon juntos");
         }
     }
 }

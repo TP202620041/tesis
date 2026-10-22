@@ -56,7 +56,7 @@ public class CalificacionService {
                 .orElseThrow(() -> new ResourceNotFoundException("Reporte no encontrado: " + reporteId));
 
         if (reporte.getCreador() == null || !reporte.getCreador().getId().equals(ciudadano.getId())) {
-            throw new AccessDeniedException("Solo el creador del reporte puede calificar la atencion");
+            throw new AccessDeniedException("Solo el creador del reporte puede calificar la atención");
         }
         // Precondicion de estado (conflicto con el estado actual del recurso),
         // mismo criterio que las transiciones invalidas de US-14/15 -> 409.
@@ -67,7 +67,7 @@ public class CalificacionService {
         // por ciudadano; un segundo intento es un duplicado -> 409 (mismo
         // idioma que "Ya reportaste este dano" de US-09).
         if (calificacionRepository.existsByReporteIdAndUsuarioId(reporteId, ciudadano.getId())) {
-            throw new BusinessException("Ya calificaste la atencion de este reporte");
+            throw new BusinessException("Ya calificaste la atención de este reporte");
         }
 
         Calificacion calificacion = calificacionRepository.save(Calificacion.builder()
@@ -112,13 +112,13 @@ public class CalificacionService {
                 .orElseThrow(() -> new ResourceNotFoundException("Reporte no encontrado: " + reporteId));
 
         if (reporte.getCreador() == null || !reporte.getCreador().getId().equals(ciudadano.getId())) {
-            throw new AccessDeniedException("Solo el creador del reporte puede ver su calificacion");
+            throw new AccessDeniedException("Solo el creador del reporte puede ver su calificación");
         }
 
         return calificacionRepository.findByReporteIdAndUsuarioId(reporteId, ciudadano.getId())
                 .map(CalificacionResponse::from)
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "Todavia no calificaste la atencion de este reporte"));
+                        "Todavía no calificaste la atención de este reporte"));
     }
 
     /**

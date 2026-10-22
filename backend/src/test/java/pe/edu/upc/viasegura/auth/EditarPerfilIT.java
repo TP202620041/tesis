@@ -59,8 +59,9 @@ class EditarPerfilIT extends AbstractPostgisIT {
     }
 
     private MockMultipartFile fotoPng() {
+        // Una imagen real: desde DEP-12 la foto se decodifica al guardarse.
         return new MockMultipartFile("foto", "perfil.png", "image/png",
-                new byte[]{(byte) 0x89, 'P', 'N', 'G', 1, 2, 3, 4});
+                pe.edu.upc.viasegura.support.ImagenesDePrueba.png(8, 8));
     }
 
     private org.springframework.test.web.servlet.request.MockMultipartHttpServletRequestBuilder patchMultipart() {
@@ -123,7 +124,30 @@ class EditarPerfilIT extends AbstractPostgisIT {
         mockMvc.perform(patchMultipart()
                         .param("nombre", "")
                         .header("Authorization", "Bearer " + token(ciu)))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", is("El nombre no puede quedar vacío")));
+    }
+
+    @Test
+    void nombreOApellidoDeMasDe100_400YNo500() throws Exception {
+        // QA-1 M-2: la edición es multipart, sin @Valid; antes llegaba a la
+        // columna varchar(100) y respondía 500.
+        Usuario ciu = ciudadano();
+
+        mockMvc.perform(patchMultipart()
+                        .param("nombre", "a".repeat(101))
+                        .header("Authorization", "Bearer " + token(ciu)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", is("El nombre puede tener como máximo 100 caracteres")));
+        mockMvc.perform(patchMultipart()
+                        .param("apellido", "a".repeat(101))
+                        .header("Authorization", "Bearer " + token(ciu)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", is("El apellido puede tener como máximo 100 caracteres")));
+        mockMvc.perform(patchMultipart()
+                        .param("nombre", "a".repeat(100))
+                        .header("Authorization", "Bearer " + token(ciu)))
+                .andExpect(status().isOk());
     }
 
     @Test

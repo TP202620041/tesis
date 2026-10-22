@@ -14,6 +14,9 @@ import pe.edu.upc.viasegura.auth.domain.FinalidadConsentimiento;
  * notificaciones se guarda tal cual: identifica el texto del aviso que vio.</p>
  */
 public record AceptarConsentimientoRequest(
-        @NotNull FinalidadConsentimiento finalidad,
-        @NotBlank @Size(max = 40) String version
+        @NotNull(message = "Indica qué autorización aceptas")
+        FinalidadConsentimiento finalidad,
+        @NotBlank(message = "Falta la versión del texto que aceptas")
+        @Size(max = 40, message = "La versión del texto puede tener como máximo {max} caracteres")
+        String version
 ) {}

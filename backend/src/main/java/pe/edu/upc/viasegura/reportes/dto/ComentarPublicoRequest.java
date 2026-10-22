@@ -5,5 +5,7 @@ import jakarta.validation.constraints.Size;
 
 /** Comentario publico de un ciudadano sobre un reporte resuelto (US-27). */
 public record ComentarPublicoRequest(
-        @NotBlank @Size(max = 1000) String contenido
+        @NotBlank(message = "Escribe tu comentario")
+        @Size(max = 1000, message = "El comentario puede tener como máximo {max} caracteres")
+        String contenido
 ) {}

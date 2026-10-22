@@ -1,0 +1,100 @@
+{
+"Capa semántica común — estados (claro)": [
+ ["chip Pendiente", "#9B1C14", "#FDE3E1", 4.5],
+ ["chip Recibido", "#1A3F8F", "#DDE8FC", 4.5],
+ ["chip En proceso", "#6E4100", "#FDEFC3", 4.5],
+ ["chip Resuelto", "#0B5A33", "#D9F5E3", 4.5],
+ ["chip Rechazado", "#3A4452", "#E7EAEE", 4.5],
+ ["chip Cancelado (borde)", "#4A5463", "#FFFFFF", 4.5],
+ ["chip Cancelado: borde vs blanco (UI)", "#7D8794", "#FFFFFF", 3],
+ ["glifo blanco en marcador Pendiente", "#FFFFFF", "#C8231B", 4.5],
+ ["glifo blanco en marcador Recibido", "#FFFFFF", "#2E6BE6", 4.5],
+ ["glifo tinta en marcador En proceso", "#1A1A1A", "#F0A800", 4.5],
+ ["glifo blanco en marcador Resuelto", "#FFFFFF", "#126B3F", 4.5],
+ ["glifo blanco en marcador Rechazado", "#FFFFFF", "#4B5563", 4.5],
+ ["marcador Pendiente sobre mapa claro #EEF0F2 (UI)", "#C8231B", "#EEF0F2", 3],
+ ["marcador Recibido sobre mapa claro", "#2E6BE6", "#EEF0F2", 3],
+ ["marcador En proceso: anillo tinta sobre mapa claro", "#1A1A1A", "#EEF0F2", 3],
+ ["marcador Resuelto sobre mapa claro", "#126B3F", "#EEF0F2", 3],
+ ["marcador Rechazado sobre mapa claro", "#4B5563", "#EEF0F2", 3],
+ ["En proceso vs Pendiente (luminosidad)", "#F0A800", "#C8231B", 2],
+ ["Recibido vs Resuelto (luminosidad)", "#2E6BE6", "#126B3F", 1.3],
+ ["Rechazado vs Recibido (luminosidad)", "#2E6BE6", "#4B5563", 1.3]
+],
+"Capa semántica común — estados (oscuro)": [
+ ["chip Pendiente", "#FFB4AB", "#4A1712", 4.5],
+ ["chip Recibido", "#B4CCFF", "#172A52", 4.5],
+ ["chip En proceso", "#FFD27A", "#4A3300", 4.5],
+ ["chip Resuelto", "#8EE0AF", "#0F3A26", 4.5],
+ ["chip Rechazado", "#CBD2DB", "#2C333D", 4.5],
+ ["anillo blanco del marcador sobre mapa oscuro #1C232B (UI)", "#FFFFFF", "#1C232B", 3]
+],
+"Calor (sin cambios, README) y severidad": [
+ ["calor nivel 4 sobre mapa claro", "#3b0764", "#EEF0F2", 3],
+ ["calor nivel 1 (borde #6d28d9 en leyenda) sobre blanco", "#6d28d9", "#FFFFFF", 3]
+],
+"A · Cívica (claro)": [
+ ["texto / fondo", "#141B24", "#F5F6F8", 4.5],
+ ["texto / superficie", "#141B24", "#FFFFFF", 4.5],
+ ["texto secundario / fondo", "#4D5866", "#F5F6F8", 4.5],
+ ["texto secundario / superficie-2", "#4D5866", "#EDF0F3", 4.5],
+ ["botón primario (blanco / tinta)", "#FFFFFF", "#1F3350", 4.5],
+ ["enlace / superficie", "#1D4F91", "#FFFFFF", 4.5],
+ ["enlace / fondo", "#1D4F91", "#F5F6F8", 4.5],
+ ["borde de campo / superficie (UI)", "#7B8594", "#FFFFFF", 3],
+ ["foco amarillo / superficie (UI, con contorno tinta)", "#141B24", "#FFD43B", 3],
+ ["barra de desempeño / pista", "#1F3350", "#DDE2E8", 3]
+],
+"A · Cívica (oscuro)": [
+ ["texto / fondo", "#E9EDF2", "#0F141A", 4.5],
+ ["texto / superficie", "#E9EDF2", "#171E26", 4.5],
+ ["texto secundario / superficie", "#A5B0BD", "#171E26", 4.5],
+ ["texto secundario / superficie-2", "#A5B0BD", "#1F2832", 4.5],
+ ["botón primario (fondo / texto)", "#0F141A", "#C9D8F0", 4.5],
+ ["enlace / superficie", "#9DBDF0", "#171E26", 4.5],
+ ["borde de campo / superficie (UI)", "#6B7787", "#171E26", 3],
+ ["foco / superficie (UI)", "#FFD43B", "#171E26", 3],
+ ["barra de desempeño / pista", "#9DBDF0", "#2A3542", 3]
+],
+"A · Alto contraste (US-23)": [
+ ["texto / fondo", "#000000", "#FFFFFF", 7],
+ ["texto secundario", "#262626", "#FFFFFF", 7],
+ ["botón (blanco / negro)", "#FFFFFF", "#000000", 7],
+ ["enlace", "#00308F", "#FFFFFF", 7]
+],
+"B · Señal (claro)": [
+ ["texto / fondo", "#17191B", "#F3F2EE", 4.5],
+ ["texto secundario / fondo", "#4A4D50", "#F3F2EE", 4.5],
+ ["texto secundario / superficie-2", "#4A4D50", "#E9E8E3", 4.5],
+ ["CTA (asfalto / amarillo señal)", "#17191B", "#FFC20E", 4.5],
+ ["barra superior (texto / asfalto)", "#F3F2EE", "#1D1F21", 4.5],
+ ["amarillo sobre asfalto (marca en barra)", "#FFC20E", "#1D1F21", 4.5],
+ ["borde de campo / superficie (UI)", "#1D1F21", "#FFFFFF", 3],
+ ["barra de desempeño / pista", "#17191B", "#DCDAD3", 3]
+],
+"B · Señal (oscuro)": [
+ ["texto / fondo", "#F2F1ED", "#121416", 4.5],
+ ["texto secundario / superficie", "#ABAFB3", "#1B1E21", 4.5],
+ ["CTA", "#121416", "#FFC20E", 4.5],
+ ["borde de campo (UI)", "#8A8F94", "#1B1E21", 3],
+ ["barra de desempeño / pista", "#FFC20E", "#33373B", 3]
+],
+"C · Buganvilla (claro)": [
+ ["texto / fondo", "#2B1720", "#FBF7F5", 4.5],
+ ["texto secundario / fondo", "#6A5560", "#FBF7F5", 4.5],
+ ["texto secundario / superficie-2", "#6A5560", "#F5EDEA", 4.5],
+ ["botón primario (blanco / buganvilla)", "#FFFFFF", "#A1185A", 4.5],
+ ["enlace / superficie", "#A1185A", "#FFFFFF", 4.5],
+ ["texto sobre primario suave", "#7A1043", "#FBE6EF", 4.5],
+ ["borde de campo / superficie (UI)", "#8C7680", "#FFFFFF", 3],
+ ["barra de desempeño / pista", "#A1185A", "#F1E3E8", 3]
+],
+"C · Buganvilla (oscuro)": [
+ ["texto / fondo", "#F8ECF1", "#1B1317", 4.5],
+ ["texto secundario / superficie", "#CDB5C0", "#251A20", 4.5],
+ ["botón primario (fondo / texto)", "#1B1317", "#F28DB9", 4.5],
+ ["enlace / superficie", "#F7A8CA", "#251A20", 4.5],
+ ["borde de campo (UI)", "#8E7580", "#251A20", 3],
+ ["barra de desempeño / pista", "#F28DB9", "#3A2A32", 3]
+]
+}

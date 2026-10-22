@@ -323,7 +323,7 @@ class BusquedaReporteIT extends AbstractPostgisIT {
                         .param("fechaDesde", "2026-02-01T00:00:00Z")
                         .param("fechaHasta", "2026-01-01T00:00:00Z"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message", containsString("fechaDesde")));
+                .andExpect(jsonPath("$.message", is("La fecha de inicio no puede ser posterior a la fecha de fin")));
     }
 
     @Test

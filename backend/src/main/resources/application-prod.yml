@@ -1,0 +1,81 @@
+# Perfil PROD (DEP-02): el despliegue del MVP (imagen de backend/Dockerfile,
+# que lo activa con SPRING_PROFILES_ACTIVE=prod). Variables en el README,
+# seccion "Configuracion de produccion".
+#
+# Obligatorias y SIN valor por defecto: DB_URL, DB_USERNAME, DB_PASSWORD,
+# CORS_ALLOWED_ORIGINS, FOTOS_ALMACEN, CORREO_TIPO, NOTIF_FROM y JWT_SECRET
+# (este ultimo desde application.yml, SEC-03). Con FOTOS_ALMACEN=s3,
+# tambien FOTOS_S3_* (las valida S3FotoStorageService); con
+# FOTOS_ALMACEN=local, FOTOS_DIR (la imagen ya trae /data/fotos). Con
+# CORREO_TIPO=resend, tambien CORREO_API_KEY (la valida ResendCorreoAdapter).
+# Un default aqui arrancaria la app apuntando a algo que no es produccion;
+# mejor que no arranque.
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  jpa:
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+  flyway:
+    # En una base con tablas pero sin historial de Flyway, fallar en vez de
+    # tomarla como linea base y saltarse V1: eso dejaria un esquema a medias.
+    baseline-on-migrate: false
+
+app:
+  storage:
+    # DEP-12: `s3` (R2). Sin default: con el `local` de desarrollo, cada
+    # despliegue borraria las fotos del disco del contenedor sin avisar.
+    tipo: ${FOTOS_ALMACEN}
+    # Solo con FOTOS_ALMACEN=local (un volumen montado en el contenedor).
+    fotos-dir: ${FOTOS_DIR}
+  cors:
+    # Origen(es) de la PWA desplegada (p. ej. https://<proyecto>.vercel.app),
+    # separados por coma. Sin default: el de desarrollo no sirve aqui.
+    allowed-origins: ${CORS_ALLOWED_ORIGINS}
+  correo:
+    # DEP-08: `resend` (Railway bloquea el SMTP saliente). Sin default: con el
+    # `smtp` de desarrollo, cada correo fallaria contra localhost:1025 sin
+    # que nada lo advierta al desplegar.
+    tipo: ${CORREO_TIPO}
+  notificaciones:
+    # Remitente de todos los correos, de un dominio verificado en Resend
+    # (p. ej. "Ciudad Viva <no-reply@<dominio>>"). Sin default: el de
+    # desarrollo usa un dominio que no es del proyecto.
+    email-remitente: ${NOTIF_FROM}
+
+security:
+  jwt:
+    # Explicito, aunque ya es el valor de application.yml: en prod nunca se
+    # acepta el secreto de desarrollo publicado (SEC-03).
+    permitir-secreto-de-desarrollo: false
+
+server:
+  # La plataforma inyecta PORT (Railway lo hace); 8080 si no.
+  port: ${PORT:8080}
+  # Detras del proxy TLS de la plataforma: respeta X-Forwarded-Proto/Host.
+  forward-headers-strategy: framework
+  # Termina las peticiones en curso antes de apagar (redeploy, escalado).
+  shutdown: graceful
+  error:
+    # Errores que no pasan por GlobalExceptionHandler (los responde el
+    # /error de Spring Boot): sin mensaje interno ni traza. Los ApiError del
+    # GlobalExceptionHandler conservan su mensaje (PerfilProdIT).
+    include-message: never
+    include-stacktrace: never
+
+springdoc:
+  # OpenAPI y Swagger UI apagados salvo SPRINGDOC_HABILITADO=true (p. ej.
+  # en un entorno de pruebas). El contrato se consulta en local.
+  api-docs:
+    enabled: ${SPRINGDOC_HABILITADO:false}
+  swagger-ui:
+    enabled: ${SPRINGDOC_HABILITADO:false}
+
+logging:
+  level:
+    root: INFO
+    pe.edu.upc.viasegura: INFO

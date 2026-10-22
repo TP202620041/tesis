@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react';
 import { EnlaceConDialogo } from '@/components/ui/dialogo';
+import { clasesDeBoton } from '@/components/ui/Boton';
 import { AlertaError } from '@/components/ui/form';
 import type { EstadoConsentimientos } from '../hooks/useConsentimientos';
 import {
@@ -51,13 +52,13 @@ export function PrivacidadYConsentimientos({
   return (
     <section
       aria-labelledby="titulo-privacidad"
-      className="flex flex-col gap-3 border-t border-slate-200 pt-4 dark:border-slate-700"
+      className="flex flex-col gap-3 border-t border-linea pt-4"
     >
-      <h2 id="titulo-privacidad" className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+      <h2 id="titulo-privacidad" className="text-sm font-semibold text-texto">
         Privacidad y consentimientos
       </h2>
 
-      {carga.estado === 'cargando' && <p className="text-sm text-slate-500">Cargando…</p>}
+      {carga.estado === 'cargando' && <p className="text-sm text-texto-2">Cargando…</p>}
       {carga.estado === 'error' && (
         <AlertaError mensaje={carga.error.mensaje} detalles={carga.error.detalles} />
       )}
@@ -66,18 +67,18 @@ export function PrivacidadYConsentimientos({
       {carga.datos && (
         <>
           <Fila titulo={etiquetaDeFinalidad('TERMINOS_Y_PRIVACIDAD')}>
-            <p className="text-xs text-slate-600 dark:text-slate-400">
+            <p className="text-xs text-texto-2">
               {textoDeVigencia(vigenteDe(carga.datos, 'TERMINOS_Y_PRIVACIDAD'))}{' '}
               <EnlaceConDialogo
                 href={RUTA_PRIVACIDAD}
                 titulo={TITULO_TERMINOS}
                 contenido={textoLegal}
-                className="text-sky-700 hover:underline dark:text-sky-400"
+                className="text-enlace hover:underline"
               >
                 Leer el texto
               </EnlaceConDialogo>
             </p>
-            <p className="text-xs text-slate-500 dark:text-slate-400">{TEXTO_TERMINOS_NO_REVOCABLES}</p>
+            <p className="text-xs text-texto-2">{TEXTO_TERMINOS_NO_REVOCABLES}</p>
           </Fila>
 
           {FINALIDADES_OPCIONALES.map((finalidad) => {
@@ -85,11 +86,11 @@ export function PrivacidadYConsentimientos({
             const ocupado = procesando === finalidad;
             return (
               <Fila key={finalidad} titulo={etiquetaDeFinalidad(finalidad)}>
-                <p className="text-xs text-slate-600 dark:text-slate-400">
+                <p className="text-xs text-texto-2">
                   {TEXTO_DE_FINALIDAD[finalidad]}
                 </p>
                 <div className="flex flex-wrap items-center gap-3">
-                  <span className="text-xs text-slate-700 dark:text-slate-300">
+                  <span className="text-xs text-texto">
                     {textoDeVigencia(vigente)}
                   </span>
                   <button
@@ -99,8 +100,7 @@ export function PrivacidadYConsentimientos({
                       if (vigente) void revocar(finalidad);
                       else void otorgar(finalidad);
                     }}
-                    className="rounded-md border border-slate-300 px-3 py-1 text-xs text-slate-700 hover:bg-slate-100
-                               disabled:opacity-60 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
+                    className={clasesDeBoton('secundario', 'compacto')}
                   >
                     {ocupado ? 'Guardando…' : vigente ? 'Retirar consentimiento' : 'Otorgar consentimiento'}
                   </button>
@@ -111,8 +111,8 @@ export function PrivacidadYConsentimientos({
           })}
 
           {carga.datos.historial.length > 0 && (
-            <details className="text-xs text-slate-600 dark:text-slate-400">
-              <summary className="cursor-pointer text-slate-700 dark:text-slate-300">
+            <details className="text-xs text-texto-2">
+              <summary className="cursor-pointer text-texto">
                 Historial de consentimientos
               </summary>
               <ul className="mt-2 flex flex-col gap-1">
@@ -136,8 +136,8 @@ export function PrivacidadYConsentimientos({
 
 function Fila({ titulo, children }: { titulo: string; children: ReactNode }) {
   return (
-    <div className="flex flex-col gap-1.5 rounded-md border border-slate-200 p-3 dark:border-slate-700">
-      <h3 className="text-sm font-medium text-slate-800 dark:text-slate-100">{titulo}</h3>
+    <div className="flex flex-col gap-1.5 rounded-control border border-linea p-3">
+      <h3 className="text-sm font-medium text-texto">{titulo}</h3>
       {children}
     </div>
   );

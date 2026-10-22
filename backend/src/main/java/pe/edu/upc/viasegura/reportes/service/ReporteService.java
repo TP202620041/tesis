@@ -93,14 +93,15 @@ public class ReporteService {
         // un envio ya procesado reciba su respuesta guardada aunque venga de
         // una version del cliente que no mandaba estos campos.
         String titulo = Reporte.normalizarTitulo(cmd.titulo());
+        Reporte.validarDescripcion(cmd.descripcion());
         if (cmd.severidad() == null) {
-            throw new IllegalArgumentException("La severidad es obligatoria (BAJA, MEDIA o ALTA)");
+            throw new IllegalArgumentException("La severidad es obligatoria (Baja, Media o Alta)");
         }
 
         CategoriaDano categoria = categoriaRepository.findById(cmd.categoriaId())
-                .orElseThrow(() -> new ResourceNotFoundException("Categoria no encontrada: " + cmd.categoriaId()));
+                .orElseThrow(() -> new ResourceNotFoundException("Categoría no encontrada: " + cmd.categoriaId()));
         if (!categoria.isActivo()) {
-            throw new BusinessException("La categoria seleccionada no esta activa");
+            throw new BusinessException("La categoría seleccionada no está activa");
         }
 
         Point ubicacion = GeometryUtils.point(cmd.longitud(), cmd.latitud());
@@ -110,7 +111,7 @@ public class ReporteService {
         // no para el de residencia del ciudadano ni ningun otro supuesto.
         Distrito distrito = geoAssignmentStrategy.asignarDistrito(ubicacion)
                 .orElseThrow(() -> new BusinessException(
-                        "La ubicacion esta fuera de la cobertura de Lima Metropolitana"));
+                        "La ubicación está fuera de la cobertura de Lima Metropolitana"));
         validarCategoriaParaDistrito(categoria, distrito);
 
         double lon = cmd.longitud();
@@ -175,7 +176,7 @@ public class ReporteService {
 
     private ReporteResponse adherir(Reporte existente, Usuario ciudadano) {
         if (adhesionRepository.existsByReporteIdAndUsuarioId(existente.getId(), ciudadano.getId())) {
-            throw new BusinessException("Ya reportaste este dano");
+            throw new BusinessException("Ya reportaste este daño");
         }
 
         adhesionRepository.save(AdhesionReporte.builder()
@@ -202,6 +203,26 @@ public class ReporteService {
     }
 
     /**
+     * QA-1 M-6: reportes que el ciudadano apoya sin haberlos creado (se
+     * adhirio a ellos, US-09), del apoyo mas reciente al mas antiguo, en
+     * cualquier estado.
+     *
+     * <p>Endpoint propio y no un campo {@code relacion} en mis-reportes: la
+     * relacion depende de quien consulta y {@code ReporteResumenResponse} lo
+     * comparten el mapa publico y las vistas del ciudadano (regla del
+     * proyecto). Ademas, mis-reportes es la lista sobre la que el creador
+     * edita y retira; mezclar ahi reportes ajenos invitaria a acciones que el
+     * backend rechaza con 403.</p>
+     */
+    @Transactional(readOnly = true)
+    public List<ReporteResumenResponse> misAdhesiones(String emailCiudadano) {
+        Usuario ciudadano = usuarioConsultaService.usuarioPorEmail(emailCiudadano);
+        return adhesionRepository.reportesAdheridosPor(ciudadano.getId()).stream()
+                .map(ReporteResumenResponse::from)
+                .toList();
+    }
+
+    /**
      * US-08: el creador edita categoria, titulo, descripcion y/o severidad
      * mientras el reporte sigue PENDIENTE (antes de que la municipalidad lo
      * reciba). Campos {@code null} en el request no se modifican.
@@ -218,9 +239,9 @@ public class ReporteService {
         if (req.categoriaId() != null && !req.categoriaId().equals(categoriaAnterior)) {
             CategoriaDano categoria = categoriaRepository.findById(req.categoriaId())
                     .orElseThrow(() -> new ResourceNotFoundException(
-                            "Categoria no encontrada: " + req.categoriaId()));
+                            "Categoría no encontrada: " + req.categoriaId()));
             if (!categoria.isActivo()) {
-                throw new BusinessException("La categoria seleccionada no esta activa");
+                throw new BusinessException("La categoría seleccionada no está activa");
             }
             // US-29: mismo criterio que al crear -- no se puede cambiar a una
             // categoria personalizada de otro distrito distinto al del reporte.
@@ -279,8 +300,8 @@ public class ReporteService {
         // municipal no puede llegar aqui.
         if (!reporte.getEstado().elCreadorPuedeCancelar()) {
             throw new BusinessException(
-                    "Solo se puede cancelar un reporte en estado PENDIENTE (actual: "
-                            + reporte.getEstado() + ")");
+                    "Solo se puede cancelar un reporte pendiente (estado actual: "
+                            + reporte.getEstado().etiqueta() + ")");
         }
 
         reporte.setEstado(EstadoReporte.CANCELADO);
@@ -325,8 +346,8 @@ public class ReporteService {
         }
         if (reporte.getEstado() != EstadoReporte.PENDIENTE) {
             throw new BusinessException(
-                    "Solo se puede editar o cancelar un reporte en estado PENDIENTE (actual: "
-                            + reporte.getEstado() + ")");
+                    "Solo se puede editar o cancelar un reporte pendiente (estado actual: "
+                            + reporte.getEstado().etiqueta() + ")");
         }
         return reporte;
     }
@@ -341,7 +362,7 @@ public class ReporteService {
         }
         if (categoria.getDistrito() == null || !categoria.getDistrito().getId().equals(distrito.getId())) {
             throw new BusinessException(
-                    "La categoria '" + categoria.getNombre() + "' no esta disponible en " + distrito.getNombre());
+                    "La categoría «" + categoria.getNombre() + "» no está disponible en " + distrito.getNombre());
         }
     }
 
@@ -353,7 +374,7 @@ public class ReporteService {
     private void validarUbicacion(CrearReporteCommand cmd) {
         if (cmd.latitud() == null || cmd.longitud() == null) {
             throw new IllegalArgumentException(
-                    "Ubicacion requerida: active el GPS o ingrese la ubicacion manualmente");
+                    "Ubicación requerida: activa el GPS o marca la ubicación en el mapa");
         }
         double lat = cmd.latitud();
         double lon = cmd.longitud();

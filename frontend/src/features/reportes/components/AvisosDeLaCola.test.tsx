@@ -156,4 +156,11 @@ describe('dialogo de cierre con pendientes (NC-02: no promete enviar lo que no s
     expect(dialogo).not.toHaveTextContent(/se enviarán/);
     expect(dialogo).toHaveTextContent('1 no se enviará solo');
   });
+
+  it('DIS-1: al abrirse lleva el foco a «Conservar», la opción que no pierde nada', () => {
+    render(
+      <DialogoCierreConPendientes cantidad={2} onConservar={vi.fn()} onDescartar={vi.fn()} />,
+    );
+    expect(screen.getByRole('button', { name: 'Conservar' })).toHaveFocus();
+  });
 });

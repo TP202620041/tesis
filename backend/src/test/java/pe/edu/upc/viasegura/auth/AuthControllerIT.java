@@ -1,6 +1,7 @@
 package pe.edu.upc.viasegura.auth;
 
-import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.is;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -69,7 +70,24 @@ class AuthControllerIT extends AbstractPostgisIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"no-es-email\",\"password\":\"123\",\"nombre\":\"\",\"apellido\":\"X\"}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.details.length()", greaterThan(0)));
+                .andExpect(jsonPath("$.message", is("Error de validación")))
+                // QA-1 M-2: una oración por campo, sin el nombre técnico delante.
+                .andExpect(jsonPath("$.details", containsInAnyOrder(
+                        "El correo no tiene un formato válido",
+                        "La contraseña debe tener entre 8 y 72 caracteres",
+                        "Ingresa tu nombre",
+                        "Debes aceptar los términos de uso y la política de privacidad",
+                        "Falta la versión de los términos que aceptas")));
+    }
+
+    @Test
+    void registro_contrasenaCorta_400ConElMensajeDelCampoEnEspanol() throws Exception {
+        // El caso de QA-1 M-2: antes «password: el tamaño debe estar entre 8 y 72».
+        mockMvc.perform(post("/api/auth/registro")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(registro(email(), "123")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.details", contains("La contraseña debe tener entre 8 y 72 caracteres")));
     }
 
     @Test

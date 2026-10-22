@@ -20,7 +20,7 @@ public final class RangoFechas {
     /** Lanza si ambos bordes estan presentes y {@code desde} es posterior a {@code hasta}. */
     public static void validar(Instant desde, Instant hasta) {
         if (desde != null && hasta != null && desde.isAfter(hasta)) {
-            throw new IllegalArgumentException("fechaDesde no puede ser posterior a fechaHasta");
+            throw new IllegalArgumentException("La fecha de inicio no puede ser posterior a la fecha de fin");
         }
     }
 }

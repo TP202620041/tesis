@@ -24,7 +24,7 @@ export function GraficaTasas({ distritos }: { distritos: DistritoComparado[] }) 
 
   return (
     <figure className="flex flex-col gap-2">
-      <figcaption className="text-sm font-medium text-slate-700 dark:text-slate-200">
+      <figcaption className="text-sm font-medium text-texto">
         Tasa de resolución
       </figcaption>
       <div
@@ -42,11 +42,11 @@ export function GraficaTasas({ distritos }: { distritos: DistritoComparado[] }) 
               title={`${d.nombre}: ${etiqueta}`}
               className={`${FILA} text-sm`}
             >
-              <span className="truncate text-slate-700 dark:text-slate-300">{d.nombre}</span>
-              <div className="relative h-3 border-l border-slate-300 dark:border-slate-600">
+              <span className="truncate text-texto">{d.nombre}</span>
+              <div className="relative h-3 border-l border-linea-campo">
                 {tasa != null && (
                   <div
-                    className="h-full rounded-r bg-sky-600 dark:bg-sky-400"
+                    className="h-full rounded-r bg-barra"
                     style={{ width: `${anchoBarra(tasa)}%` }}
                   />
                 )}
@@ -54,8 +54,8 @@ export function GraficaTasas({ distritos }: { distritos: DistritoComparado[] }) 
               <span
                 className={`text-right tabular-nums ${
                   tasa == null
-                    ? 'text-slate-400 dark:text-slate-500'
-                    : 'font-medium text-slate-900 dark:text-slate-100'
+                    ? 'text-texto-2'
+                    : 'font-medium text-texto'
                 }`}
               >
                 {etiqueta}
@@ -65,7 +65,7 @@ export function GraficaTasas({ distritos }: { distritos: DistritoComparado[] }) 
         })}
       </div>
       {/* Escala: la misma rejilla que las barras, para que 0 y 100 caigan en su sitio. */}
-      <div aria-hidden="true" className={`${FILA} text-xs text-slate-400 dark:text-slate-500`}>
+      <div aria-hidden="true" className={`${FILA} text-xs text-texto-2`}>
         <span />
         <span className="flex justify-between">
           <span>0 %</span>

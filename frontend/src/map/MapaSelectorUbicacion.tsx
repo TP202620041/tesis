@@ -4,6 +4,7 @@ import 'leaflet/dist/leaflet.css';
 import { DivIcon } from 'leaflet';
 import { useMemo } from 'react';
 import { MapContainer, Marker, TileLayer, useMap, useMapEvents } from 'react-leaflet';
+import { ControlDeZoom } from './ControlDeZoom';
 
 /**
  * Mapa para marcar una ubicacion (US-05, escenario 2: GPS no disponible).
@@ -42,7 +43,7 @@ function crearIcono(): DivIcon {
       display:block; width:1.5rem; height:1.5rem;
       border-radius:9999px 9999px 9999px 2px;
       transform: rotate(-45deg);
-      background:#0284c7; border:3px solid #fff;
+      background:var(--cv-texto); border:3px solid var(--cv-superficie);
       box-shadow:0 2px 6px rgba(0,0,0,.4);"></span>`,
     iconSize: [24, 24],
     iconAnchor: [12, 24],
@@ -88,6 +89,7 @@ export default function MapaSelectorUbicacion({ valor, onSeleccionar, alto = '20
       style={{ height: alto, width: '100%', borderRadius: '0.5rem' }}
       // El teclado de Leaflet ayuda a la accesibilidad (US-23).
       keyboard
+      zoomControl={false}
     >
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
@@ -95,6 +97,7 @@ export default function MapaSelectorUbicacion({ valor, onSeleccionar, alto = '20
         crossOrigin="anonymous"
         maxZoom={19}
       />
+      <ControlDeZoom />
       <CapturarClic onSeleccionar={onSeleccionar} />
       {valor && (
         <>

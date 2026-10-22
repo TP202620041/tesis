@@ -88,8 +88,8 @@ public class ConsentimientoService implements VerificadorTerminosPendientes {
     public void exigirVersionVigenteDeTerminos(String version) {
         if (!versionTerminos.equals(version)) {
             throw new BusinessException(
-                    "La version de los terminos aceptada no es la vigente (" + versionTerminos
-                            + "): vuelve a leerlos y aceptalos");
+                    "La versión de los términos aceptada no es la vigente (" + versionTerminos
+                            + "): vuelve a leerlos y acéptalos");
         }
     }
 
@@ -191,8 +191,8 @@ public class ConsentimientoService implements VerificadorTerminosPendientes {
     public void revocar(String email, FinalidadConsentimiento finalidad) {
         if (finalidad.esObligatoria()) {
             throw new BusinessException(
-                    "No se puede revocar " + finalidad + ": es necesario para usar la aplicacion. "
-                            + "Para retirarlo hay que solicitar la baja de la cuenta");
+                    "No se puede revocar este consentimiento: es necesario para usar la aplicación. "
+                            + "Para retirarlo hay que solicitar la baja de la cuenta.");
         }
         Usuario usuario = usuarioConsultaService.usuarioPorEmail(email);
         Instant ahora = Instant.now();

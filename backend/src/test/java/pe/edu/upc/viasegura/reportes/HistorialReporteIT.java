@@ -139,7 +139,7 @@ class HistorialReporteIT extends AbstractPostgisIT {
                 .andExpect(jsonPath("$[2].tipoEvento", is("ASIGNACION")))
                 .andExpect(jsonPath("$[2].estadoNuevo", is(nullValue())))
                 // Asignacion redactada: sin nombre de cuadrilla ni autor.
-                .andExpect(jsonPath("$[2].comentario", is("Se asigno un responsable para la atencion del reporte.")))
+                .andExpect(jsonPath("$[2].comentario", is("Se asignó un responsable para la atención del reporte.")))
                 .andExpect(jsonPath("$[2].autor", is(nullValue())));
     }
 

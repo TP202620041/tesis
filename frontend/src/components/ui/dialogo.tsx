@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
+import { clasesDeBoton } from '@/components/ui/Boton';
 
 const sinSuscripcion = () => () => {};
 const enCliente = () => true;
@@ -64,19 +65,18 @@ export function Dialogo({ abierto, alCerrar, titulo, children }: DialogoProps) {
         if (clicEnFondo.current && e.target === e.currentTarget) alCerrar();
         clicEnFondo.current = false;
       }}
-      className="m-auto w-[calc(100%-2rem)] max-w-3xl rounded-lg bg-white p-0 shadow-xl
-                 backdrop:bg-slate-900/60 dark:bg-slate-900"
+      className="m-auto w-[calc(100%-2rem)] max-w-3xl rounded-tarjeta bg-superficie p-0 shadow-elevada
+                 backdrop:bg-velo"
     >
       <div className="flex max-h-[85vh] flex-col">
-        <header className="flex items-center justify-between gap-4 border-b border-slate-200 px-4 py-3 dark:border-slate-700">
-          <h2 id={idTitulo} className="text-base font-semibold text-slate-900 dark:text-slate-100">
+        <header className="flex items-center justify-between gap-4 border-b border-linea px-4 py-3">
+          <h2 id={idTitulo} className="text-base font-semibold text-texto">
             {titulo}
           </h2>
           <button
             type="button"
             onClick={alCerrar}
-            className="rounded-md border border-slate-300 px-3 py-1 text-sm text-slate-700 hover:bg-slate-100
-                       dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
+            className={clasesDeBoton('secundario', 'compacto')}
           >
             Cerrar
           </button>

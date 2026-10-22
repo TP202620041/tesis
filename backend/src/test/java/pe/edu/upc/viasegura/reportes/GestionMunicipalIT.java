@@ -6,6 +6,7 @@ import static org.hamcrest.Matchers.is;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -152,7 +153,9 @@ class GestionMunicipalIT extends AbstractPostgisMailIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(cuerpo(EstadoReporte.RECIBIDO, "reabrir"))
                         .header("Authorization", "Bearer " + token(func)))
-                .andExpect(status().isConflict());
+                .andExpect(status().isConflict())
+                // QA-1 M-1: los estados con su etiqueta, no con el valor del enum.
+                .andExpect(jsonPath("$.message", is("Transición de estado inválida: de Resuelto a Recibido")));
     }
 
     @Test
@@ -315,6 +318,33 @@ class GestionMunicipalIT extends AbstractPostgisMailIT {
     }
 
     @Test
+    void responsable_sinAsignar_204SinCuerpo() throws Exception {
+        // QA-1 M-4: un reporte sin responsable es un estado normal, no un 404
+        // (que la consola del navegador mostraba como error en cada detalle).
+        Usuario func = funcionario(distrito("Miraflores"));
+        Reporte reporte = reporte(distrito("Miraflores"), EstadoReporte.RECIBIDO, ciudadano());
+
+        mockMvc.perform(get("/api/reportes/{id}/responsable", reporte.getId())
+                        .header("Authorization", "Bearer " + token(func)))
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""));
+    }
+
+    @Test
+    void responsable_reporteInexistente_404_yDeOtroDistrito_403() throws Exception {
+        // El 404 queda solo para el reporte que no existe; otro distrito sigue en 403.
+        Usuario funcMiraflores = funcionario(distrito("Miraflores"));
+        Reporte reporteSurco = reporte(distrito("Santiago de Surco"), EstadoReporte.RECIBIDO, ciudadano());
+        String auth = "Bearer " + token(funcMiraflores);
+
+        mockMvc.perform(get("/api/reportes/{id}/responsable", Long.MAX_VALUE).header("Authorization", auth))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message", is("Reporte no encontrado: " + Long.MAX_VALUE)));
+        mockMvc.perform(get("/api/reportes/{id}/responsable", reporteSurco.getId()).header("Authorization", auth))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void reasignarResponsable_desactivaAnteriorYConservaHistorial() throws Exception {
         Usuario func = funcionario(distrito("Miraflores"));
         Reporte reporte = reporte(distrito("Miraflores"), EstadoReporte.RECIBIDO, ciudadano());
@@ -358,7 +388,9 @@ class GestionMunicipalIT extends AbstractPostgisMailIT {
         mockMvc.perform(post("/api/reportes/{id}/responsable", pendiente.getId())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(cuerpoResponsable("Cuadrilla X", null)).header("Authorization", auth))
-                .andExpect(status().isConflict());
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message",
+                        is("No se puede asignar un responsable a un reporte en estado Pendiente")));
         mockMvc.perform(post("/api/reportes/{id}/responsable", resuelto.getId())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(cuerpoResponsable("Cuadrilla X", null)).header("Authorization", auth))

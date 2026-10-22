@@ -17,10 +17,15 @@ import jakarta.validation.constraints.Size;
  * HTTPS; se exige para no guardar algo que nunca podra recibir un envio.</p>
  */
 public record SuscripcionPushRequest(
-        @NotBlank @Size(max = 2048) @Pattern(regexp = "^https://\\S+$", message = "debe ser una URL https")
+        @NotBlank(message = "Falta la dirección de la suscripción push")
+        @Size(max = 2048, message = "La dirección de la suscripción push puede tener como máximo {max} caracteres")
+        @Pattern(regexp = "^https://\\S+$", message = "La dirección de la suscripción push debe ser una URL https")
         String endpoint,
-        @NotNull @Valid ClavesRequest keys,
-        @Size(max = 500) String userAgent
+        @NotNull(message = "Faltan las claves de la suscripción push")
+        @Valid
+        ClavesRequest keys,
+        @Size(max = 500, message = "El nombre del navegador puede tener como máximo {max} caracteres")
+        String userAgent
 ) {
 
     /**
@@ -28,7 +33,11 @@ public record SuscripcionPushRequest(
      * por la regla de ArchUnit de {@code dto/}.
      */
     public record ClavesRequest(
-            @NotBlank @Size(max = 255) String p256dh,
-            @NotBlank @Size(max = 255) String auth
+            @NotBlank(message = "Falta la clave p256dh de la suscripción push")
+            @Size(max = 255, message = "La clave p256dh puede tener como máximo {max} caracteres")
+            String p256dh,
+            @NotBlank(message = "Falta la clave auth de la suscripción push")
+            @Size(max = 255, message = "La clave auth puede tener como máximo {max} caracteres")
+            String auth
     ) {}
 }

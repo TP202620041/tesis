@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- "any": esquinas redondeadas propias para launchers que no recortan. -->
+  <rect width="512" height="512" rx="112" fill="#1F3350"/>
+  <defs><clipPath id="pin"><path d="M256 96c-70 0-126.7 55.4-126.7 124.3C129.3 309.6 256 424 256 424s126.7-114.4 126.7-203.7C382.7 151.4 326 96 256 96Z"/></clipPath></defs>
+  <path d="M256 96c-70 0-126.7 55.4-126.7 124.3C129.3 309.6 256 424 256 424s126.7-114.4 126.7-203.7C382.7 151.4 326 96 256 96Z" fill="#FFFFFF"/>
+  <g clip-path="url(#pin)"><path d="M88 330 424 140" stroke="#1F3350" stroke-width="58"/><path d="M88 330 424 140" stroke="#FFD43B" stroke-width="15" stroke-dasharray="32 26"/></g>
+</svg>

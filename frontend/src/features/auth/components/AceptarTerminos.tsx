@@ -13,6 +13,7 @@ import {
 import { destinoInterno, rutaInicialDe } from '../model/rutas';
 import { VERSION_TERMINOS } from '../model/terminos';
 import { BotonCerrarSesion } from './BotonCerrarSesion';
+import { clasesDeBoton } from '@/components/ui/Boton';
 
 interface Props {
   usuario: Usuario;
@@ -48,7 +49,7 @@ export function AceptarTerminos({ usuario, texto }: Props) {
   }, [yaAceptados, fallidos, router, destino]);
 
   if (carga.estado === 'cargando' || yaAceptados) {
-    return <p className="p-8 text-slate-600 dark:text-slate-400">Cargando…</p>;
+    return <p className="p-8 text-texto-2">Cargando…</p>;
   }
   if (carga.estado === 'error') {
     return (
@@ -57,7 +58,7 @@ export function AceptarTerminos({ usuario, texto }: Props) {
         <button
           type="button"
           onClick={carga.recargar}
-          className="self-start rounded-md border border-slate-300 px-3 py-1.5 text-sm dark:border-slate-600"
+          className={`${clasesDeBoton('secundario', 'compacto')} self-start`}
         >
           Reintentar
         </button>
@@ -72,7 +73,7 @@ export function AceptarTerminos({ usuario, texto }: Props) {
   if (fallidos !== null) {
     return (
       <Marco>
-        <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100">
+        <p className="border border-exito-borde rounded-control bg-exito-fondo px-3 py-2 text-sm text-exito-texto">
           Aceptaste los términos de uso y la política de privacidad.
         </p>
         <AlertaError
@@ -81,7 +82,7 @@ export function AceptarTerminos({ usuario, texto }: Props) {
         <button
           type="button"
           onClick={() => router.replace(destino)}
-          className="self-start rounded-md bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700"
+          className={`${clasesDeBoton('primario')} self-start`}
         >
           Continuar
         </button>
@@ -107,17 +108,17 @@ export function AceptarTerminos({ usuario, texto }: Props) {
   return (
     <Marco>
       <header className="flex flex-col gap-1">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+        <h1 className="text-2xl font-bold text-texto">
           Términos de uso y privacidad
         </h1>
-        <p className="text-sm text-slate-600 dark:text-slate-400">
+        <p className="text-sm text-texto-2">
           Para seguir usando Ciudad Viva, {usuario.nombre}, necesitamos que leas y aceptes la versión{' '}
           <code className="font-mono">{version}</code> de los términos de uso y la política de
           privacidad.
         </p>
       </header>
 
-      <div className="max-h-[50vh] overflow-y-auto rounded-md border border-slate-200 p-4 dark:border-slate-700">
+      <div className="max-h-[50vh] overflow-y-auto rounded-control border border-linea p-4">
         {texto}
       </div>
 
@@ -131,7 +132,7 @@ export function AceptarTerminos({ usuario, texto }: Props) {
       {error && <AlertaError mensaje={error.mensaje} detalles={error.detalles} />}
 
       <form onSubmit={alEnviar} className="flex flex-col gap-4" noValidate>
-        <label className="flex items-start gap-2 text-sm font-medium text-slate-800 dark:text-slate-100">
+        <label className="flex items-start gap-2 text-sm font-medium text-texto">
           <input
             type="checkbox"
             required
@@ -144,8 +145,8 @@ export function AceptarTerminos({ usuario, texto }: Props) {
         </label>
 
         {ofreceAvisos && (
-          <fieldset className="flex flex-col gap-2 rounded-md border border-slate-200 p-3 dark:border-slate-700">
-            <legend className="px-1 text-sm font-semibold text-slate-900 dark:text-slate-100">
+          <fieldset className="flex flex-col gap-2 rounded-control border border-linea p-3">
+            <legend className="px-1 text-sm font-semibold text-texto">
               Avisos sobre tus reportes (opcionales)
             </legend>
             {(['NOTIFICACIONES_CORREO', 'NOTIFICACIONES_PUSH'] as const).map((finalidad) => (
@@ -157,14 +158,14 @@ export function AceptarTerminos({ usuario, texto }: Props) {
                   className="mt-0.5"
                 />
                 <span>
-                  <span className="font-medium text-slate-800 dark:text-slate-100">
+                  <span className="font-medium text-texto">
                     {etiquetaDeFinalidad(finalidad)}.
                   </span>{' '}
-                  <span className="text-slate-600 dark:text-slate-400">{TEXTO_DE_FINALIDAD[finalidad]}</span>
+                  <span className="text-texto-2">{TEXTO_DE_FINALIDAD[finalidad]}</span>
                 </span>
               </label>
             ))}
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+            <p className="text-xs text-texto-2">
               Puedes cambiarlos cuando quieras desde tu perfil. Para recibir push, además tendrás
               que activarlas en este navegador desde tu perfil.
             </p>

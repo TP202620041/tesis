@@ -9,6 +9,9 @@ import jakarta.validation.constraints.Size;
  * rol de responsable, solo el nombre operativo.
  */
 public record AsignarResponsableRequest(
-        @NotBlank @Size(max = 150) String responsable,
-        @Size(max = 500) String notas
+        @NotBlank(message = "Indica el responsable (cuadrilla o persona)")
+        @Size(max = 150, message = "El responsable puede tener como máximo {max} caracteres")
+        String responsable,
+        @Size(max = 500, message = "Las notas pueden tener como máximo {max} caracteres")
+        String notas
 ) {}

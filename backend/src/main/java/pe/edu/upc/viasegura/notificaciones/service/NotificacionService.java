@@ -211,13 +211,17 @@ public class NotificacionService {
         };
     }
 
+    /**
+     * Asunto del correo y titulo del push. Trato de tu, como la PWA (QA-1
+     * M-1).
+     */
     private String asuntoDe(TipoEvento tipo) {
         return switch (tipo) {
-            case REPORTE_RECIBIDO -> "Ciudad Viva: su reporte fue recibido";
-            case REPORTE_EN_PROCESO -> "Ciudad Viva: su reporte esta en proceso";
-            case REPORTE_RESUELTO -> "Ciudad Viva: su reporte fue resuelto";
-            case REPORTE_RECHAZADO -> "Ciudad Viva: su reporte fue rechazado";
-            case ADHESION_REGISTRADA -> "Ciudad Viva: novedad en su reporte";
+            case REPORTE_RECIBIDO -> "Ciudad Viva: tu reporte fue recibido";
+            case REPORTE_EN_PROCESO -> "Ciudad Viva: tu reporte está en proceso";
+            case REPORTE_RESUELTO -> "Ciudad Viva: tu reporte fue resuelto";
+            case REPORTE_RECHAZADO -> "Ciudad Viva: tu reporte fue rechazado";
+            case ADHESION_REGISTRADA -> "Ciudad Viva: novedad en tu reporte";
         };
     }
 
@@ -227,32 +231,36 @@ public class NotificacionService {
      * reporte.
      */
     private String componerResumen(ReporteEstadoCambiadoEvent evento) {
-        return "Su reporte #" + evento.reporteId() + " " + etiquetaDe(evento.nuevo()) + ".";
+        return "Tu reporte #" + evento.reporteId() + " " + etiquetaDe(evento.nuevo()) + ".";
     }
 
     /** El estado en palabras para el ciudadano; el valor tecnico va aparte en el payload. */
     static String etiquetaDe(EstadoReporte estado) {
         return switch (estado) {
-            case PENDIENTE -> "esta pendiente";
+            case PENDIENTE -> "está pendiente";
             case RECIBIDO -> "fue recibido";
-            case EN_PROCESO -> "esta en proceso";
+            case EN_PROCESO -> "está en proceso";
             case RESUELTO -> "fue resuelto";
             case RECHAZADO -> "fue rechazado";
             case CANCELADO -> "fue cancelado";
         };
     }
 
-    /** Mensaje al ciudadano (<= 500 chars, ver columna notificacion.mensaje). */
+    /**
+     * Mensaje al ciudadano (<= 500 chars, ver columna notificacion.mensaje).
+     * Los estados van con su etiqueta («pasó de Recibido a En proceso»), no
+     * con el valor del enum (QA-1 M-1).
+     */
     private String componerMensaje(Usuario destinatario, ReporteEstadoCambiadoEvent evento) {
         StringBuilder sb = new StringBuilder()
-                .append("Hola ").append(destinatario.getNombre()).append(", su reporte");
+                .append("Hola, ").append(destinatario.getNombre()).append(": tu reporte");
         if (evento.distritoNombre() != null) {
             sb.append(" en el distrito de ").append(evento.distritoNombre());
         }
-        sb.append(" paso de ").append(evento.anterior())
-                .append(" a ").append(evento.nuevo()).append(".");
+        sb.append(" pasó de ").append(evento.anterior().etiqueta())
+                .append(" a ").append(evento.nuevo().etiqueta()).append(".");
         if (evento.comentario() != null && !evento.comentario().isBlank()) {
-            sb.append(" Comentario del municipio: ").append(evento.comentario());
+            sb.append(" Comentario de la municipalidad: ").append(evento.comentario());
         }
         String mensaje = sb.toString();
         return mensaje.length() > 500 ? mensaje.substring(0, 500) : mensaje;

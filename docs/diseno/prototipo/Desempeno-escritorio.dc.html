@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Índice de desempeño</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&amp;display=swap">
+<style>
+body{margin:0;background:#F5F6F8}
+a{color:#1D4F91}a:hover{color:#142F57}
+a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid #FFD43B;outline-offset:0;box-shadow:0 0 0 5px #141B24}
+</style>
+</helmet>
+<div style="font-family: 'Public Sans', system-ui, sans-serif; color: #141B24; background: #F5F6F8">
+  <header style="background: #FFFFFF; border-bottom: 1px solid #D6DBE1">
+    <div style="max-width: 1200px; margin: 0 auto; padding: 8px 24px; box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px">
+      <a href="Portada.dc.html" style="display: inline-flex; align-items: center; gap: 10px; text-decoration: none; color: #141B24; min-height: 44px">
+        <svg width="28" height="28" viewBox="0 0 40 40" aria-hidden="true"><defs><clipPath id="pinDesempeno"><path d="M20 3C12.8 3 7 8.7 7 15.8 7 25 20 37 20 37s13-12 13-21.2C33 8.7 27.2 3 20 3Z"></path></clipPath></defs><path d="M20 3C12.8 3 7 8.7 7 15.8 7 25 20 37 20 37s13-12 13-21.2C33 8.7 27.2 3 20 3Z" fill="#1F3350"></path><g clip-path="url(#pinDesempeno)"><path d="M2 27 38 7" stroke="#FFFFFF" stroke-width="6"></path><path d="M2 27 38 7" stroke="#FFD43B" stroke-width="1.6" stroke-dasharray="3 2.6"></path></g></svg>
+        <span style="font-size: 18px; font-weight: 700">Ciudad Viva</span>
+      </a>
+      <nav aria-label="Principal" style="display: flex; flex-wrap: wrap; gap: 2px">
+        <a href="Mapa-movil.dc.html" style="min-height: 44px; padding: 0 12px; display: inline-flex; align-items: center; white-space: nowrap; flex: none; color: #3A4452; text-decoration: none; font-weight: 600; font-size: 15px">Mapa</a>
+        <a href="#desempeno" aria-current="page" style="min-height: 44px; padding: 0 12px; display: inline-flex; align-items: center; white-space: nowrap; flex: none; color: #141B24; text-decoration: none; font-weight: 700; font-size: 15px; box-shadow: inset 0 -3px 0 #1F3350">Desempeño</a>
+        <a href="#guia" style="min-height: 44px; padding: 0 12px; display: inline-flex; align-items: center; white-space: nowrap; flex: none; color: #3A4452; text-decoration: none; font-weight: 600; font-size: 15px">Cómo funciona</a>
+      </nav>
+      <div style="margin-left: auto; display: flex; gap: 8px; align-items: center">
+        <a href="#login" style="min-height: 44px; padding: 0 12px; display: inline-flex; align-items: center; white-space: nowrap; flex: none; font-weight: 600; font-size: 15px">Iniciar sesión</a>
+        <a href="Reportar-movil.dc.html" style="min-height: 44px; padding: 0 16px; display: inline-flex; align-items: center; gap: 6px; border-radius: 8px; background: #1F3350; color: #FFFFFF; text-decoration: none; font-weight: 700; font-size: 15px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>Reportar un daño</a>
+      </div>
+    </div>
+  </header>
+
+  <main style="max-width: 1200px; margin: 0 auto; padding: 32px 24px 48px; box-sizing: border-box; display: flex; flex-direction: column; gap: 20px">
+    <div style="display: flex; flex-direction: column; gap: 8px; max-width: 760px">
+      <h1 style="margin: 0; font-size: 34px; font-weight: 800; letter-spacing: -0.02em">Índice de desempeño distrital</h1>
+      <p style="margin: 0; font-size: 17px; line-height: 1.55; color: #3A4452">Qué tan bien responde cada municipalidad de Lima Metropolitana a los daños que reportan sus vecinos. Sale de los reportes y sus cambios de estado, no de cifras declaradas por las municipalidades.</p>
+      <a href="#metodologia" style="align-self: flex-start; font-size: 15px; font-weight: 600; text-underline-offset: 3px">Cómo se calcula</a>
+    </div>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; justify-content: space-between">
+      <label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 600">Tipo de daño<select style="min-height: 44px; min-width: 240px; border: 1px solid #7B8594; border-radius: 8px; padding: 0 10px; background: #FFFFFF; font: 400 15px 'Public Sans', sans-serif; color: #141B24"><option>Todos los tipos</option></select></label>
+      <p style="margin: 0; font-size: 15px; color: #3A4452">43 distritos · 13 con reportes registrados</p>
+    </div>
+
+    <section aria-labelledby="comparacion" style="background: #FFFFFF; border: 1px solid #D6DBE1; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 16px">
+      <div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; align-items: baseline">
+        <h2 id="comparacion" style="margin: 0; font-size: 20px; font-weight: 800">Comparación</h2>
+        <p role="status" style="margin: 0; font-size: 14px; color: #3A4452">{{ estadoComparacion }}</p>
+      </div>
+      <sc-if value="{{ hayComparacion }}" hint-placeholder-val="{{ true }}">
+        <div role="img" aria-label="{{ resumenGrafica }}" style="display: flex; flex-direction: column; gap: 10px">
+          <sc-for list="{{ comparados }}" as="c" hint-placeholder-count="2">
+            <div style="display: grid; grid-template-columns: minmax(96px, 200px) minmax(80px, 1fr) 64px; gap: 12px; align-items: center; font-size: 15px">
+              <span style="font-weight: 700">{{ c.nombre }}</span>
+              <span style="height: 22px; border-radius: 4px; background: #DDE2E8; overflow: hidden"><span style="display: block; height: 100%; width: {{ c.ancho }}; background: #1F3350"></span></span>
+              <span style="text-align: right; font-weight: 700; font-variant-numeric: tabular-nums">{{ c.tasa }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <div style="overflow-x: auto; border: 1px solid #E3E7EC; border-radius: 10px">
+          <div role="table" aria-label="Comparación de distritos" style="min-width: 520px; font-size: 14px">
+            <div role="row" style="display: grid; grid-template-columns: 180px repeat({{ n }}, minmax(0, 1fr)); gap: 12px; padding: 10px 14px; background: #F5F6F8; font-weight: 700">
+              <span role="columnheader">Indicador</span>
+              <sc-for list="{{ comparados }}" as="c" hint-placeholder-count="2"><span role="columnheader">{{ c.nombre }}</span></sc-for>
+            </div>
+            <div role="row" style="display: grid; grid-template-columns: 180px repeat({{ n }}, minmax(0, 1fr)); gap: 12px; padding: 10px 14px; border-top: 1px solid #E3E7EC">
+              <span role="rowheader" style="color: #3A4452">Tasa de resolución</span>
+              <sc-for list="{{ comparados }}" as="c" hint-placeholder-count="2"><span role="cell" style="font-weight: 600; font-variant-numeric: tabular-nums">{{ c.tasa }}</span></sc-for>
+            </div>
+            <div role="row" style="display: grid; grid-template-columns: 180px repeat({{ n }}, minmax(0, 1fr)); gap: 12px; padding: 10px 14px; border-top: 1px solid #E3E7EC">
+              <span role="rowheader" style="color: #3A4452">Resueltos / total</span>
+              <sc-for list="{{ comparados }}" as="c" hint-placeholder-count="2"><span role="cell" style="font-weight: 600; font-variant-numeric: tabular-nums">{{ c.resueltos }}</span></sc-for>
+            </div>
+            <div role="row" style="display: grid; grid-template-columns: 180px repeat({{ n }}, minmax(0, 1fr)); gap: 12px; padding: 10px 14px; border-top: 1px solid #E3E7EC">
+              <span role="rowheader" style="color: #3A4452">Tiempo promedio</span>
+              <sc-for list="{{ comparados }}" as="c" hint-placeholder-count="2"><span role="cell" style="font-weight: 600">{{ c.tiempo }}</span></sc-for>
+            </div>
+            <div role="row" style="display: grid; grid-template-columns: 180px repeat({{ n }}, minmax(0, 1fr)); gap: 12px; padding: 10px 14px; border-top: 1px solid #E3E7EC">
+              <span role="rowheader" style="color: #3A4452">Satisfacción</span>
+              <sc-for list="{{ comparados }}" as="c" hint-placeholder-count="2"><span role="cell" style="font-weight: 600">{{ c.satisfaccion }}</span></sc-for>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+      <sc-if value="{{ sinComparacion }}" hint-placeholder-val="{{ false }}">
+        <p style="margin: 0; font-size: 15px; color: #3A4452">Marca de 2 a 4 distritos en la columna «Comparar» para verlos lado a lado. La dirección de la página guarda la comparación: puedes compartirla.</p>
+      </sc-if>
+    </section>
+
+    <div style="background: #FFFFFF; border: 1px solid #D6DBE1; border-radius: 12px; overflow-x: auto">
+      <div role="table" aria-label="Ranking de distritos por tasa de resolución" style="min-width: 860px">
+        <div role="row" style="display: grid; grid-template-columns: 40px 88px minmax(0, 1.2fr) minmax(0, 1.6fr) 96px 128px 128px; gap: 12px; padding: 10px 16px; background: #F5F6F8; border-bottom: 1px solid #D6DBE1; font-size: 13px; font-weight: 700; color: #3A4452; align-items: center">
+          <span role="columnheader">#</span><span role="columnheader">Comparar</span><span role="columnheader">Distrito</span>
+          <span role="columnheader" aria-sort="descending" style="display: inline-flex; gap: 4px; align-items: center">Tasa de resolución<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></span>
+          <span role="columnheader" style="text-align: right">Resueltos</span><span role="columnheader">Tiempo promedio</span><span role="columnheader">Satisfacción</span>
+        </div>
+        <sc-for list="{{ filas }}" as="f" hint-placeholder-count="15">
+          <div role="row" style="display: grid; grid-template-columns: 40px 88px minmax(0, 1.2fr) minmax(0, 1.6fr) 96px 128px 128px; gap: 12px; padding: 2px 16px; border-bottom: 1px solid #E3E7EC; align-items: center; font-size: 15px; background: {{ f.fondo }}">
+            <span role="cell" style="color: #4D5866; font-variant-numeric: tabular-nums">{{ f.pos }}</span>
+            <span role="cell"><label style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; cursor: pointer"><input type="checkbox" checked="{{ f.on }}" onChange="{{ f.pick }}" aria-label="{{ f.etiqueta }}" style="width: 20px; height: 20px; margin: 0; accent-color: #1F3350"></label></span>
+            <span role="cell" style="font-weight: 600">{{ f.nombre }}</span>
+            <span role="cell" style="display: grid; grid-template-columns: minmax(0, 1fr) 72px; gap: 10px; align-items: center">
+              <sc-if value="{{ f.conDatos }}" hint-placeholder-val="{{ true }}"><span style="height: 8px; border-radius: 4px; background: #DDE2E8; overflow: hidden"><span style="display: block; height: 100%; width: {{ f.ancho }}; background: #1F3350"></span></span></sc-if>
+              <sc-if value="{{ f.sinDatos }}" hint-placeholder-val="{{ false }}"><span style="height: 8px; border-radius: 4px; border: 1px dashed #7B8594; box-sizing: border-box"></span></sc-if>
+              <span style="text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; color: {{ f.tasaColor }}">{{ f.tasa }}</span>
+            </span>
+            <span role="cell" style="text-align: right; font-variant-numeric: tabular-nums">{{ f.resueltos }}</span>
+            <span role="cell" style="color: {{ f.tiempoColor }}">{{ f.tiempo }}</span>
+            <span role="cell" style="color: {{ f.satColor }}">{{ f.satisfaccion }}</span>
+          </div>
+        </sc-for>
+      </div>
+      <p style="margin: 0; padding: 12px 16px; font-size: 14px; color: #3A4452">Entre paréntesis, el número de calificaciones. Se muestran 15 de 43 distritos. Datos de ejemplo del entorno de desarrollo.</p>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1600}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { comparar: [21, 41], aviso: false };
+  }
+  renderVals() {
+    const s = this.state;
+    const D = [
+      [21, 'Miraflores', 65.0, '13 / 20', '2 d 10 h', '4.1 / 5 (11)'],
+      [8, 'Santiago de Surco', 54.6, '12 / 22', '5 d 16 h', '4.4 / 5 (7)'],
+      [33, 'Barranco', 50.0, '4 / 8', '3 d 16 h', '3.7 / 5 (3)'],
+      [43, 'San Isidro', 46.2, '6 / 13', '3 d 18 h', '4.0 / 5 (6)'],
+      [37, 'Lima', 32.0, '8 / 25', '13 d 7 h', '2.8 / 5 (6)'],
+      [10, 'Los Olivos', 30.0, '3 / 10', '8 d 13 h', '4.0 / 5 (3)'],
+      [9, 'Ate', 29.4, '5 / 17', '15 d 4 h', '2.3 / 5 (4)'],
+      [12, 'Comas', 28.6, '4 / 14', '16 d 20 h', '1.8 / 5 (4)'],
+      [35, 'San Juan de Miraflores', 16.7, '1 / 6', '6 d 21 h', '4.0 / 5 (1)'],
+      [30, 'San Miguel', 14.3, '1 / 7', '0 h', '4.0 / 5 (1)'],
+      [7, 'Villa El Salvador', 11.1, '1 / 9', '28 d 1 h', '2.0 / 5 (1)'],
+      [41, 'San Juan de Lurigancho', 10.7, '3 / 28', '13 d 9 h', '1.7 / 5 (3)'],
+      [25, 'Lince', 0, '0 / 1', null, null],
+      [6, 'Ancón', null, '0 / 0', null, null],
+      [27, 'Breña', null, '0 / 0', null, null]
+    ];
+    const fmt = (t) => (t == null ? 'Sin datos' : t.toFixed(1) + ' %');
+    const filas = D.map((d, i) => {
+      const on = s.comparar.indexOf(d[0]) >= 0;
+      return {
+        pos: i + 1, nombre: d[1], tasa: fmt(d[2]), ancho: (d[2] || 0) + '%', conDatos: d[2] != null, sinDatos: d[2] == null,
+        tasaColor: d[2] == null ? '#4D5866' : '#141B24',
+        resueltos: d[3], tiempo: d[4] || 'Sin datos', tiempoColor: d[4] ? '#141B24' : '#4D5866',
+        satisfaccion: d[5] || 'Sin datos', satColor: d[5] ? '#141B24' : '#4D5866',
+        on, fondo: on ? '#EEF2F8' : '#FFFFFF', etiqueta: 'Comparar ' + d[1],
+        pick: () => {
+          if (on) return this.setState({ comparar: s.comparar.filter((x) => x !== d[0]), aviso: false });
+          if (s.comparar.length >= 4) return this.setState({ aviso: true });
+          this.setState({ comparar: s.comparar.concat([d[0]]), aviso: false });
+        }
+      };
+    });
+    const comparados = D.filter((d) => s.comparar.indexOf(d[0]) >= 0).map((d) => ({
+      nombre: d[1], tasa: fmt(d[2]), ancho: (d[2] || 0) + '%', resueltos: d[3], tiempo: d[4] || 'Sin datos', satisfaccion: d[5] || 'Sin datos'
+    }));
+    const n = comparados.length;
+    return {
+      filas, comparados, n,
+      hayComparacion: n >= 2, sinComparacion: n < 2,
+      resumenGrafica: 'Tasa de resolución: ' + comparados.map((c) => c.nombre + ' ' + c.tasa).join(', '),
+      estadoComparacion: s.aviso ? 'Puedes comparar hasta 4 distritos. Quita uno para agregar otro.' : (n >= 2 ? n + ' distritos seleccionados' : (n === 1 ? 'Marca al menos otro distrito' : 'Ningún distrito seleccionado'))
+    };
+  }
+}
+</script>
+</body>
+</html>

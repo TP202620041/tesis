@@ -32,6 +32,15 @@ export function textoDeSeveridad(valor: string | null | undefined): string | nul
   return etiqueta ? `Severidad ${etiqueta.toLowerCase()}` : null;
 }
 
+/**
+ * Nivel de 1 a 3 (barras llenas del indicador, DIS-1), o `null` si no hay
+ * severidad: sin dato no se dibuja un nivel inventado.
+ */
+export function nivelDeSeveridad(valor: string | null | undefined): 1 | 2 | 3 | null {
+  if (!esSeveridad(valor)) return null;
+  return valor === 'BAJA' ? 1 : valor === 'MEDIA' ? 2 : 3;
+}
+
 /** Lo que se muestra cuando un reporte llega sin titulo. */
 export const SIN_TITULO = 'Sin título';
 

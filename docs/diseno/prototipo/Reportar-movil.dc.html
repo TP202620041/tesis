@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Reportar un daño (móvil)</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#1D4F91}a:hover{color:#142F57}
+button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,label:focus-within{outline:3px solid #FFD43B;outline-offset:0;box-shadow:0 0 0 5px #141B24}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; position: relative; overflow: hidden; display: flex; flex-direction: column; font-family: 'Public Sans', system-ui, sans-serif; color: #141B24; background: #F5F6F8">
+
+  <!-- Cabecera del flujo -->
+  <sc-if value="{{ enFlujo }}" hint-placeholder-val="{{ true }}">
+    <header style="flex: none; background: #FFFFFF; border-bottom: 1px solid #D6DBE1; padding: 6px 8px 12px; display: flex; flex-direction: column; gap: 8px">
+      <div style="display: flex; align-items: center; justify-content: space-between">
+        <sc-if value="{{ hayAtras }}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{ atras }}" style="min-height: 44px; padding: 0 10px 0 4px; border: 0; background: transparent; color: #1D4F91; font: 600 15px 'Public Sans', sans-serif; display: inline-flex; align-items: center; gap: 2px; text-decoration: underline; text-underline-offset: 3px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg>Atrás</button></sc-if>
+        <sc-if value="{{ sinAtras }}" hint-placeholder-val="{{ true }}"><span></span></sc-if>
+        <a href="Mapa-movil.dc.html" style="min-height: 44px; padding: 0 8px; display: inline-flex; align-items: center; color: #4D5866; font-size: 15px; font-weight: 600">Cancelar</a>
+      </div>
+      <div style="padding: 0 8px; display: flex; flex-direction: column; gap: 8px">
+        <ol aria-hidden="true" style="list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px">
+          <li style="height: 6px; border-radius: 3px; background: {{ seg1 }}"></li>
+          <li style="height: 6px; border-radius: 3px; background: {{ seg2 }}"></li>
+          <li style="height: 6px; border-radius: 3px; background: {{ seg3 }}"></li>
+          <li style="height: 6px; border-radius: 3px; background: {{ seg4 }}"></li>
+        </ol>
+        <p style="margin: 0; font-size: 14px; font-weight: 600; color: #4D5866">Paso {{ paso }} de 4 · {{ nombrePaso }}</p>
+      </div>
+    </header>
+  </sc-if>
+
+  <main style="flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column">
+
+    <!-- PASO 1: ubicación -->
+    <sc-if value="{{ p1 }}" hint-placeholder-val="{{ true }}">
+      <div style="padding: 16px 16px 12px; display: flex; flex-direction: column; gap: 6px">
+        <h1 style="margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.01em">¿Dónde está el daño?</h1>
+        <p style="margin: 0; font-size: 15px; line-height: 1.5; color: #3A4452">Mueve el mapa hasta que el pin quede sobre el daño.</p>
+      </div>
+      <div style="position: relative; height: 380px; flex: none; overflow: hidden; border-top: 1px solid #D6DBE1; border-bottom: 1px solid #D6DBE1">
+        <svg width="390" height="380" viewBox="0 0 390 380" role="img" aria-label="Mapa para elegir la ubicación del daño">
+          <defs><pattern id="manzanasUbicacion" width="40" height="32" patternUnits="userSpaceOnUse" patternTransform="rotate(-14)"><rect width="32" height="24" rx="2" fill="#E4E7EB"></rect></pattern></defs>
+          <rect width="390" height="380" fill="#F7F8F9"></rect>
+          <rect width="390" height="380" fill="url(#manzanasUbicacion)"></rect>
+          <rect x="120" y="210" width="70" height="44" rx="5" fill="#CFE3CB" transform="rotate(-14 155 232)"></rect>
+          <g fill="none" stroke-linecap="round">
+            <path d="M180 -10 L204 390" stroke="#CDD3DA" stroke-width="16"></path><path d="M180 -10 L204 390" stroke="#FFFFFF" stroke-width="12"></path>
+            <path d="M-10 160 L400 104" stroke="#CDD3DA" stroke-width="13"></path><path d="M-10 160 L400 104" stroke="#FFFFFF" stroke-width="9"></path>
+            <path d="M-10 300 L400 250" stroke="#CDD3DA" stroke-width="11"></path><path d="M-10 300 L400 250" stroke="#FFFFFF" stroke-width="7"></path>
+          </g>
+          <g font-family="Public Sans, sans-serif" font-size="11" font-weight="600" fill="#4D5866" stroke="#F7F8F9" stroke-width="3" paint-order="stroke">
+            <text x="206" y="60" transform="rotate(86.5 206 60)">Av. Larco</text>
+            <text x="18" y="150" transform="rotate(-7.8 18 150)">Av. Benavides</text>
+            <text x="120" y="250" transform="rotate(-14 120 250)" fill="#3D6B3A">Parque Kennedy</text>
+          </g>
+        </svg>
+        <!-- pin fijo al centro (patrón de FixMyStreet: se mueve el mapa, no el pin) -->
+        <svg width="40" height="52" viewBox="0 0 32 40" aria-hidden="true" style="position: absolute; left: 175px; top: 138px; filter: drop-shadow(0 2px 2px rgba(20, 27, 36, 0.35))"><path d="M16 1.5C8.3 1.5 2 7.6 2 15.2 2 25.4 16 38.5 16 38.5S30 25.4 30 15.2C30 7.6 23.7 1.5 16 1.5Z" fill="#1F3350" stroke="#FFFFFF" stroke-width="2"></path><circle cx="16" cy="15" r="5" fill="#FFD43B"></circle></svg>
+        <span aria-hidden="true" style="position: absolute; left: 191px; top: 188px; width: 8px; height: 4px; border-radius: 50%; background: rgba(20, 27, 36, 0.35)"></span>
+        <button type="button" style="position: absolute; right: 12px; bottom: 12px; min-height: 44px; padding: 0 14px; border: 1px solid #7B8594; border-radius: 10px; background: #FFFFFF; color: #141B24; font: 600 14px 'Public Sans', sans-serif; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 1px 3px rgba(20, 27, 36, 0.16)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="2" x2="5" y1="12" y2="12"></line><line x1="19" x2="22" y1="12" y2="12"></line><line x1="12" x2="12" y1="2" y2="5"></line><line x1="12" x2="12" y1="19" y2="22"></line><circle cx="12" cy="12" r="7"></circle><circle cx="12" cy="12" r="3"></circle></svg>Usar mi ubicación</button>
+      </div>
+      <div style="margin: 16px; padding: 14px; background: #FFFFFF; border: 1px solid #D6DBE1; border-radius: 12px; display: flex; gap: 12px; align-items: flex-start">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1F3350" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none; margin-top: 1px"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"></path><circle cx="12" cy="10" r="3"></circle></svg>
+        <div style="display: flex; flex-direction: column; gap: 3px">
+          <p style="margin: 0; font-size: 15px; font-weight: 700">Miraflores</p>
+          <p style="margin: 0; font-size: 14px; line-height: 1.45; color: #3A4452">Tu reporte llegará a la Municipalidad de Miraflores. No necesitas saber a quién le toca.</p>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- PASO 2: tipo de daño -->
+    <sc-if value="{{ p2 }}" hint-placeholder-val="{{ false }}">
+      <fieldset style="margin: 16px 0 0; padding: 0 16px 16px; border: 0; display: flex; flex-direction: column; gap: 14px; min-width: 0">
+        <legend style="padding: 0; margin-bottom: 14px"><h1 style="margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.01em">¿Qué tipo de daño es?</h1></legend>
+        <sc-if value="{{ errorCategoria }}" hint-placeholder-val="{{ false }}">
+          <p role="alert" style="margin: 0; padding: 10px 12px; border-radius: 8px; background: #FDE3E1; color: #9B1C14; font-size: 14px; font-weight: 600; display: flex; gap: 8px; align-items: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v4"></path><path d="M12 16h.01"></path></svg>Elige el tipo de daño para continuar.</p>
+        </sc-if>
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+          <label style="min-height: 100px; box-sizing: border-box; padding: 12px; border-radius: 12px; border: {{ c1.borde }}; background: {{ c1.bg }}; display: flex; flex-direction: column; justify-content: space-between; gap: 10px; cursor: pointer">
+            <span style="display: flex; justify-content: space-between; align-items: flex-start">
+              <span aria-hidden="true" style="width: 40px; height: 40px; border-radius: 10px; background: #EDF0F3; color: #1F3350; display: flex; align-items: center; justify-content: center"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2 16h5.5c.8 0 1.2-.4 1.6-1.1C9.6 14 10.6 13 12 13s2.4 1 2.9 1.9c.4.7.8 1.1 1.6 1.1H22"></path><path d="M10 18.5h4"></path><path d="M5 20h2"></path><path d="M17 20h2"></path></svg></span>
+              <input type="radio" name="categoria" checked="{{ c1.on }}" onChange="{{ c1.pick }}" style="width: 20px; height: 20px; margin: 0; accent-color: #1F3350">
+            </span>
+            <span style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 15px; font-weight: 700; line-height: 1.25">Bache</span></span>
+          </label>
+          <label style="min-height: 100px; box-sizing: border-box; padding: 12px; border-radius: 12px; border: {{ c4.borde }}; background: {{ c4.bg }}; display: flex; flex-direction: column; justify-content: space-between; gap: 10px; cursor: pointer">
+            <span style="display: flex; justify-content: space-between; align-items: flex-start">
+              <span aria-hidden="true" style="width: 40px; height: 40px; border-radius: 10px; background: #EDF0F3; color: #1F3350; display: flex; align-items: center; justify-content: center"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="15" rx="8" ry="4"></ellipse><path d="M8.5 13.5 10 15l-1 1.5"></path><path d="M15.5 13.2 14.5 15l1.2 1.4"></path><path d="M12 4v5"></path><path d="m9.5 6.5 2.5 2.5 2.5-2.5"></path></svg></span>
+              <input type="radio" name="categoria" checked="{{ c4.on }}" onChange="{{ c4.pick }}" style="width: 20px; height: 20px; margin: 0; accent-color: #1F3350">
+            </span>
+            <span style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 15px; font-weight: 700; line-height: 1.25">Hueco en calzada</span></span>
+          </label>
+          <label style="min-height: 100px; box-sizing: border-box; padding: 12px; border-radius: 12px; border: {{ c6.borde }}; background: {{ c6.bg }}; display: flex; flex-direction: column; justify-content: space-between; gap: 10px; cursor: pointer">
+            <span style="display: flex; justify-content: space-between; align-items: flex-start">
+              <span aria-hidden="true" style="width: 40px; height: 40px; border-radius: 10px; background: #EDF0F3; color: #1F3350; display: flex; align-items: center; justify-content: center"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3 3 21"></path><path d="M17 3l4 18"></path><path d="M12 4v2"></path><path d="M12 9v2"></path><path d="m12 14-1.5 2 2 1.5L11 21"></path></svg></span>
+              <input type="radio" name="categoria" checked="{{ c6.on }}" onChange="{{ c6.pick }}" style="width: 20px; height: 20px; margin: 0; accent-color: #1F3350">
+            </span>
+            <span style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 15px; font-weight: 700; line-height: 1.25">Pista deteriorada</span></span>
+          </label>
+          <label style="min-height: 100px; box-sizing: border-box; padding: 12px; border-radius: 12px; border: {{ c2.borde }}; background: {{ c2.bg }}; display: flex; flex-direction: column; justify-content: space-between; gap: 10px; cursor: pointer">
+            <span style="display: flex; justify-content: space-between; align-items: flex-start">
+              <span aria-hidden="true" style="width: 40px; height: 40px; border-radius: 10px; background: #EDF0F3; color: #1F3350; display: flex; align-items: center; justify-content: center"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="1"></rect><path d="M3 12h18"></path><path d="M9 5v7"></path><path d="M15 12v7"></path><path d="m13 6 -1.5 2.5L13 10l-1 2"></path></svg></span>
+              <input type="radio" name="categoria" checked="{{ c2.on }}" onChange="{{ c2.pick }}" style="width: 20px; height: 20px; margin: 0; accent-color: #1F3350">
+            </span>
+            <span style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 15px; font-weight: 700; line-height: 1.25">Vereda dañada</span></span>
+          </label>
+          <label style="min-height: 100px; box-sizing: border-box; padding: 12px; border-radius: 12px; border: {{ c3.borde }}; background: {{ c3.bg }}; display: flex; flex-direction: column; justify-content: space-between; gap: 10px; cursor: pointer">
+            <span style="display: flex; justify-content: space-between; align-items: flex-start">
+              <span aria-hidden="true" style="width: 40px; height: 40px; border-radius: 10px; background: #EDF0F3; color: #1F3350; display: flex; align-items: center; justify-content: center"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="16" rx="2.5"></rect><circle cx="12" cy="6.5" r="1.3"></circle><circle cx="12" cy="10" r="1.3"></circle><circle cx="12" cy="13.5" r="1.3"></circle><path d="M12 18v4"></path><path d="m4 4 3 3"></path><path d="m20 4-3 3"></path></svg></span>
+              <input type="radio" name="categoria" checked="{{ c3.on }}" onChange="{{ c3.pick }}" style="width: 20px; height: 20px; margin: 0; accent-color: #1F3350">
+            </span>
+            <span style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 15px; font-weight: 700; line-height: 1.25">Semáforo averiado</span></span>
+          </label>
+          <label style="min-height: 100px; box-sizing: border-box; padding: 12px; border-radius: 12px; border: {{ c5.borde }}; background: {{ c5.bg }}; display: flex; flex-direction: column; justify-content: space-between; gap: 10px; cursor: pointer">
+            <span style="display: flex; justify-content: space-between; align-items: flex-start">
+              <span aria-hidden="true" style="width: 40px; height: 40px; border-radius: 10px; background: #EDF0F3; color: #1F3350; display: flex; align-items: center; justify-content: center"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 13v8"></path><path d="M12 3v3"></path><path d="M18 6a2 2 0 0 1 1.387.56l2.307 2.22a1 1 0 0 1 0 1.44l-2.307 2.22A2 2 0 0 1 18 13H6a2 2 0 0 1-1.387-.56l-2.306-2.22a1 1 0 0 1 0-1.44l2.306-2.22A2 2 0 0 1 6 6z"></path></svg></span>
+              <input type="radio" name="categoria" checked="{{ c5.on }}" onChange="{{ c5.pick }}" style="width: 20px; height: 20px; margin: 0; accent-color: #1F3350">
+            </span>
+            <span style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 15px; font-weight: 700; line-height: 1.25">Señalización faltante</span></span>
+          </label>
+          <label style="min-height: 100px; box-sizing: border-box; padding: 12px; border-radius: 12px; border: {{ c90.borde }}; background: {{ c90.bg }}; display: flex; flex-direction: column; justify-content: space-between; gap: 10px; cursor: pointer">
+            <span style="display: flex; justify-content: space-between; align-items: flex-start">
+              <span aria-hidden="true" style="width: 40px; height: 40px; border-radius: 10px; background: #EDF0F3; color: #1F3350; display: flex; align-items: center; justify-content: center"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="5" stroke-dasharray="2.5 2"></circle></svg></span>
+              <input type="radio" name="categoria" checked="{{ c90.on }}" onChange="{{ c90.pick }}" style="width: 20px; height: 20px; margin: 0; accent-color: #1F3350">
+            </span>
+            <span style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 15px; font-weight: 700; line-height: 1.25">Tapa de buzón faltante</span><span style="font-size: 12px; font-weight: 600; color: #4D5866">Propia de Miraflores</span></span>
+          </label>
+        </div>
+      </fieldset>
+    </sc-if>
+
+    <!-- PASO 3: detalles -->
+    <sc-if value="{{ p3 }}" hint-placeholder-val="{{ false }}">
+      <div style="padding: 16px; display: flex; flex-direction: column; gap: 20px">
+        <h1 style="margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.01em">Cuéntanos cómo es</h1>
+        <div style="display: flex; flex-direction: column; gap: 6px">
+          <label for="titulo" style="font-size: 16px; font-weight: 700">Título</label>
+          <p id="titulo-ayuda" style="margin: 0; font-size: 14px; color: #4D5866">Una frase que lo identifique. De 5 a 120 caracteres.</p>
+          <input id="titulo" aria-describedby="titulo-ayuda titulo-cuenta" value="Bache profundo frente al paradero" style="min-height: 48px; box-sizing: border-box; border: 1px solid #7B8594; border-radius: 8px; padding: 0 12px; font: 400 16px 'Public Sans', sans-serif; color: #141B24; background: #FFFFFF">
+          <p id="titulo-cuenta" style="margin: 0; font-size: 13px; color: #4D5866; text-align: right">33 de 120</p>
+        </div>
+        <fieldset style="margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0">
+          <legend style="font-size: 16px; font-weight: 700; padding: 0">Severidad</legend>
+          <p style="margin: -2px 0 2px; font-size: 14px; color: #4D5866">¿Qué tan grave es? Elige una opción.</p>
+          <sc-if value="{{ errorSeveridad }}" hint-placeholder-val="{{ false }}">
+            <p role="alert" style="margin: 0; padding: 10px 12px; border-radius: 8px; background: #FDE3E1; color: #9B1C14; font-size: 14px; font-weight: 600">Elige la severidad del daño.</p>
+          </sc-if>
+          <sc-for list="{{ severidades }}" as="v" hint-placeholder-count="3">
+            <label style="min-height: 60px; box-sizing: border-box; padding: 10px 12px; border-radius: 10px; border: {{ v.borde }}; background: {{ v.bg }}; display: flex; align-items: center; gap: 12px; cursor: pointer">
+              <input type="radio" name="severidad" checked="{{ v.on }}" onChange="{{ v.pick }}" style="width: 20px; height: 20px; margin: 0; accent-color: #1F3350; flex: none">
+              <svg width="20" height="16" viewBox="0 0 20 16" aria-hidden="true" style="flex: none"><rect x="1" y="10" width="4" height="6" rx="1" fill="#141B24"></rect><rect x="8" y="5" width="4" height="11" rx="1" fill="{{ v.b2 }}"></rect><rect x="15" y="0" width="4" height="16" rx="1" fill="{{ v.b3 }}"></rect></svg>
+              <span style="display: flex; flex-direction: column; gap: 1px">
+                <span style="font-size: 15px; font-weight: 700">{{ v.nombre }}</span>
+                <span style="font-size: 13px; color: #4D5866">{{ v.ayuda }}</span>
+              </span>
+            </label>
+          </sc-for>
+        </fieldset>
+        <div style="display: flex; flex-direction: column; gap: 6px">
+          <p style="margin: 0; font-size: 16px; font-weight: 700">Foto <span style="font-weight: 400; color: #4D5866">(opcional)</span></p>
+          <button type="button" style="min-height: 96px; border: 2px dashed #7B8594; border-radius: 12px; background: #FFFFFF; color: #141B24; font: 600 15px 'Public Sans', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path><circle cx="12" cy="13" r="3"></circle></svg>Tomar o elegir una foto</button>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px">
+          <label for="descripcion" style="font-size: 16px; font-weight: 700">Descripción <span style="font-weight: 400; color: #4D5866">(opcional)</span></label>
+          <textarea id="descripcion" rows="3" placeholder="Ej.: en el carril derecho, frente al paradero" style="box-sizing: border-box; border: 1px solid #7B8594; border-radius: 8px; padding: 10px 12px; font: 400 16px 'Public Sans', sans-serif; color: #141B24; resize: vertical"></textarea>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- PASO 4: revisar -->
+    <sc-if value="{{ p4 }}" hint-placeholder-val="{{ false }}">
+      <div style="padding: 16px; display: flex; flex-direction: column; gap: 16px">
+        <h1 style="margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.01em">Revisa antes de enviar</h1>
+        <dl style="margin: 0; background: #FFFFFF; border: 1px solid #D6DBE1; border-radius: 12px; display: flex; flex-direction: column">
+          <div style="padding: 12px 14px; border-bottom: 1px solid #E3E7EC; display: flex; justify-content: space-between; gap: 12px; align-items: flex-start"><div><dt style="font-size: 13px; color: #4D5866">Ubicación</dt><dd style="margin: 2px 0 0; font-size: 15px; font-weight: 600">Av. Larco, Miraflores</dd></div><button type="button" onClick="{{ ir1 }}" aria-label="Cambiar la ubicación" style="min-height: 44px; border: 0; background: transparent; color: #1D4F91; font: 600 15px 'Public Sans', sans-serif; text-decoration: underline; text-underline-offset: 3px">Cambiar</button></div>
+          <div style="padding: 12px 14px; border-bottom: 1px solid #E3E7EC; display: flex; justify-content: space-between; gap: 12px; align-items: flex-start"><div><dt style="font-size: 13px; color: #4D5866">Tipo de daño</dt><dd style="margin: 2px 0 0; font-size: 15px; font-weight: 600">{{ categoriaTxt }}</dd></div><button type="button" onClick="{{ ir2 }}" aria-label="Cambiar el tipo de daño" style="min-height: 44px; border: 0; background: transparent; color: #1D4F91; font: 600 15px 'Public Sans', sans-serif; text-decoration: underline; text-underline-offset: 3px">Cambiar</button></div>
+          <div style="padding: 12px 14px; border-bottom: 1px solid #E3E7EC; display: flex; justify-content: space-between; gap: 12px; align-items: flex-start"><div><dt style="font-size: 13px; color: #4D5866">Título y severidad</dt><dd style="margin: 2px 0 0; font-size: 15px; font-weight: 600">Bache profundo frente al paradero · {{ severidadTxt }}</dd></div><button type="button" onClick="{{ ir3 }}" aria-label="Cambiar el título y la severidad" style="min-height: 44px; border: 0; background: transparent; color: #1D4F91; font: 600 15px 'Public Sans', sans-serif; text-decoration: underline; text-underline-offset: 3px">Cambiar</button></div>
+          <div style="padding: 12px 14px; display: flex; justify-content: space-between; gap: 12px; align-items: flex-start"><div><dt style="font-size: 13px; color: #4D5866">Foto</dt><dd style="margin: 2px 0 0; font-size: 15px; font-weight: 600">Sin foto</dd></div><button type="button" onClick="{{ ir3 }}" aria-label="Agregar una foto" style="min-height: 44px; border: 0; background: transparent; color: #1D4F91; font: 600 15px 'Public Sans', sans-serif; text-decoration: underline; text-underline-offset: 3px">Cambiar</button></div>
+        </dl>
+        <div style="padding: 12px 14px; border-radius: 12px; background: #EDF0F3; display: flex; gap: 10px; align-items: flex-start">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1F3350" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none; margin-top: 1px"><path d="M12 20h.01"></path><path d="M8.5 16.429a5 5 0 0 1 7 0"></path><path d="M5 12.859a10 10 0 0 1 5.17-2.69"></path><path d="M19 12.859a10 10 0 0 0-2.007-1.523"></path><path d="M2 8.82a15 15 0 0 1 4.177-2.643"></path><path d="M22 8.82a15 15 0 0 0-11.288-3.764"></path><path d="m2 2 20 20"></path></svg>
+          <p style="margin: 0; font-size: 14px; line-height: 1.5; color: #3A4452">Si te quedas sin señal, el reporte se guarda en tu teléfono y se envía solo al volver la conexión.</p>
+        </div>
+        <p style="margin: 0; font-size: 14px; line-height: 1.5; color: #3A4452">Si ya hay un reporte igual a menos de 20 m, tu envío se suma a ese y lo respalda.</p>
+      </div>
+    </sc-if>
+
+    <!-- ENVIADO -->
+    <sc-if value="{{ p5 }}" hint-placeholder-val="{{ false }}">
+      <div style="flex: 1; padding: 40px 20px 20px; display: flex; flex-direction: column; gap: 20px">
+        <div style="width: 64px; height: 64px; border-radius: 50%; background: #D9F5E3; color: #0B5A33; display: flex; align-items: center; justify-content: center"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></div>
+        <div style="display: flex; flex-direction: column; gap: 8px">
+          <h1 style="margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -0.01em">Reporte enviado</h1>
+          <p style="margin: 0; font-size: 16px; line-height: 1.5; color: #3A4452">Llegó a la Municipalidad de Miraflores con estado <b>Pendiente</b>. Te avisaremos cada vez que cambie.</p>
+        </div>
+        <div style="background: #FFFFFF; border: 1px solid #D6DBE1; border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 8px">
+          <p style="margin: 0; font-size: 16px; font-weight: 700">Bache profundo frente al paradero</p>
+          <p style="margin: 0; font-size: 14px; color: #4D5866">{{ categoriaTxt }} · Severidad {{ severidadMin }} · Miraflores</p>
+          <span style="align-self: flex-start; display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px 4px 7px; border-radius: 6px; background: #FDE3E1; color: #9B1C14; font-size: 13px; font-weight: 600"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>Pendiente</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 10px; margin-top: auto">
+          <a href="Mi-reporte-movil.dc.html" style="min-height: 48px; border-radius: 8px; background: #1F3350; color: #FFFFFF; text-decoration: none; font-weight: 600; font-size: 16px; display: flex; align-items: center; justify-content: center">Ver mi reporte</a>
+          <a href="Mapa-movil.dc.html" style="min-height: 48px; border-radius: 8px; border: 1px solid #7B8594; background: #FFFFFF; color: #141B24; text-decoration: none; font-weight: 600; font-size: 16px; display: flex; align-items: center; justify-content: center">Volver al mapa</a>
+        </div>
+      </div>
+    </sc-if>
+  </main>
+
+  <!-- Acción fija -->
+  <sc-if value="{{ enFlujo }}" hint-placeholder-val="{{ true }}">
+    <div style="flex: none; padding: 12px 16px 16px; background: #FFFFFF; border-top: 1px solid #D6DBE1">
+      <button type="button" onClick="{{ continuar }}" style="width: 100%; min-height: 50px; border: 0; border-radius: 8px; background: #1F3350; color: #FFFFFF; font: 700 16px 'Public Sans', sans-serif">{{ continuarTxt }}</button>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { paso: 1, categoria: null, severidad: null, errorCategoria: false, errorSeveridad: false };
+  }
+  renderVals() {
+    const s = this.state;
+    const CATS = [
+      { id: 1, nombre: 'Bache' }, { id: 4, nombre: 'Hueco en calzada' }, { id: 6, nombre: 'Pista deteriorada' },
+      { id: 2, nombre: 'Vereda dañada' }, { id: 3, nombre: 'Semáforo averiado' }, { id: 5, nombre: 'Señalización faltante' },
+      { id: 90, nombre: 'Tapa de buzón faltante' }
+    ];
+    const catEstilo = {};
+    CATS.forEach((c) => {
+      const on = s.categoria === c.id;
+      catEstilo['c' + c.id] = {
+        on, borde: on ? '2px solid #1F3350' : '1px solid #B9C1CB', bg: on ? '#EEF2F8' : '#FFFFFF',
+        pick: () => this.setState({ categoria: c.id, errorCategoria: false })
+      };
+    });
+    const SEV = [
+      { k: 'BAJA', nombre: 'Baja', ayuda: 'Molesta, pero se puede pasar', n: 1 },
+      { k: 'MEDIA', nombre: 'Media', ayuda: 'Obliga a frenar o a desviarse', n: 2 },
+      { k: 'ALTA', nombre: 'Alta', ayuda: 'Puede causar un accidente', n: 3 }
+    ];
+    const severidades = SEV.map((v) => {
+      const on = s.severidad === v.k;
+      return Object.assign({}, v, {
+        on, borde: on ? '2px solid #1F3350' : '1px solid #B9C1CB', bg: on ? '#EEF2F8' : '#FFFFFF',
+        b2: v.n >= 2 ? '#141B24' : '#C5CCD5', b3: v.n >= 3 ? '#141B24' : '#C5CCD5',
+        pick: () => this.setState({ severidad: v.k, errorSeveridad: false })
+      });
+    });
+    const p = s.paso;
+    const seg = (n) => (p >= n ? '#1F3350' : '#D6DBE1');
+    const cat = CATS.find((c) => c.id === s.categoria);
+    const sev = SEV.find((v) => v.k === s.severidad);
+    const continuar = () => {
+      if (p === 2 && !s.categoria) return this.setState({ errorCategoria: true });
+      if (p === 3 && !s.severidad) return this.setState({ errorSeveridad: true });
+      this.setState({ paso: p + 1 });
+    };
+    return {
+      paso: p, p1: p === 1, p2: p === 2, p3: p === 3, p4: p === 4, p5: p === 5, enFlujo: p < 5,
+      seg1: seg(1), seg2: seg(2), seg3: seg(3), seg4: seg(4),
+      hayAtras: p > 1, sinAtras: p === 1,
+      nombrePaso: ['Ubicación', 'Tipo de daño', 'Detalles', 'Revisión'][p - 1] || '',
+      atras: () => this.setState({ paso: Math.max(1, p - 1) }),
+      continuar, continuarTxt: p === 4 ? 'Enviar reporte' : 'Continuar',
+      ...catEstilo, severidades,
+      errorCategoria: s.errorCategoria, errorSeveridad: s.errorSeveridad,
+      categoriaTxt: cat ? cat.nombre : 'Bache',
+      severidadTxt: sev ? 'Severidad ' + sev.nombre.toLowerCase() : 'Severidad media',
+      severidadMin: sev ? sev.nombre.toLowerCase() : 'media',
+      ir1: () => this.setState({ paso: 1 }), ir2: () => this.setState({ paso: 2 }), ir3: () => this.setState({ paso: 3 })
+    };
+  }
+}
+</script>
+</body>
+</html>

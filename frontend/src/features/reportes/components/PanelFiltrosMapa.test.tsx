@@ -164,6 +164,47 @@ describe('PanelFiltrosMapa', () => {
     }
   });
 
+  describe('plegable en el móvil (QA-1 I-4)', () => {
+    it('arranca plegado, con un botón que dice qué controla', async () => {
+      renderizar();
+      const boton = screen.getByRole('button', { name: /Filtros, capas y leyenda/ });
+      expect(boton).toHaveAttribute('aria-expanded', 'false');
+      const contenido = document.getElementById(boton.getAttribute('aria-controls')!);
+      // Plegado = `hidden` por debajo de `md` (en escritorio `md:flex` lo muestra siempre).
+      expect(contenido).toHaveClass('hidden', 'md:flex');
+      expect(contenido).toContainElement(screen.getByLabelText('Distrito'));
+
+      await userEvent.click(boton);
+      expect(boton).toHaveAttribute('aria-expanded', 'true');
+      expect(contenido).not.toHaveClass('hidden');
+      expect(contenido).toHaveClass('flex');
+
+      await userEvent.click(boton);
+      expect(boton).toHaveAttribute('aria-expanded', 'false');
+    });
+
+    it('el conteo queda fuera de lo plegable: se ve y se anuncia aunque el panel esté cerrado', () => {
+      renderizar({ total: 7 });
+      const boton = screen.getByRole('button', { name: /Filtros, capas y leyenda/ });
+      const contenido = document.getElementById(boton.getAttribute('aria-controls')!);
+      expect(contenido).not.toContainElement(screen.getByText('7 reportes en esta zona'));
+    });
+
+    it('el botón dice cuántos filtros hay aplicados', () => {
+      renderizar({ filtros: { ...FILTROS_VACIOS, distritoId: 21, estado: 'RESUELTO' } });
+      expect(screen.getByRole('button', { name: /Filtros, capas y leyenda/ })).toHaveTextContent(
+        /2\s*filtros aplicados/,
+      );
+    });
+
+    it('sin filtros el botón no muestra contador', () => {
+      renderizar();
+      expect(screen.getByRole('button', { name: /Filtros, capas y leyenda/ })).not.toHaveTextContent(
+        /aplicado/,
+      );
+    });
+  });
+
   it('no ofrece CANCELADO como filtro de estado', () => {
     // El backend ya no los devuelve por defecto: sería un filtro que
     // siempre da cero.
