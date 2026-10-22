@@ -41,7 +41,20 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<'/'>) {
   return (
-    <html lang="es-PE" className={`${publicSans.variable} h-full antialiased`}>
+    // `suppressHydrationWarning`: `tema.js` pone `data-theme` en <html> antes
+    // de que React hidrate, y el HTML del servidor no lo trae (no puede saber
+    // la preferencia del dispositivo). React acepta el atributo del DOM.
+    <html lang="es-PE" className={`${publicSans.variable} h-full antialiased`} suppressHydrationWarning>
+      <head>
+        {/* US-23: fija el tema antes del primer pintado (ver public/tema.js).
+            Síncrono A PROPÓSITO: un `next/script` `beforeInteractive` se
+            descarga antes pero no bloquea, y la página se pintaría un cuadro
+            en claro antes de pasar a oscuro. Es un archivo de ~1 KB del mismo
+            origen (`script-src 'self'` ya lo permite, sin `'unsafe-inline'`
+            nuevo) que el Service Worker deja en caché. */}
+        {/* eslint-disable-next-line @next/next/no-sync-scripts -- ver el comentario de arriba */}
+        <script src="/tema.js" />
+      </head>
       <body className="flex min-h-full flex-col bg-fondo text-texto">
         <ProveedorPwa>
           {/* DIS-1: cabecera, navegación por rol y menú de cuenta comunes. Los

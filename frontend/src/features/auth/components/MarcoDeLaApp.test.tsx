@@ -88,6 +88,8 @@ describe('MarcoDeLaApp (DIS-1)', () => {
     expect(within(panel).getByRole('link', { name: 'Mi perfil' })).toHaveAttribute('href', '/perfil');
     expect(within(panel).getByRole('link', { name: 'Soporte' })).toHaveAttribute('href', '/soporte');
     expect(within(panel).getByRole('button', { name: 'Cerrar sesión' })).toBeInTheDocument();
+    // US-23: la apariencia también se elige desde el menú.
+    expect(within(panel).getByRole('group', { name: 'Apariencia' })).toBeInTheDocument();
 
     // Escape cierra y devuelve el foco al botón.
     await usuario.keyboard('{Escape}');

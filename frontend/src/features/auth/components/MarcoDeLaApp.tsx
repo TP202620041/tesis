@@ -2,9 +2,11 @@
 
 import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
+import { useTemaDeLaApp } from '../hooks/useApariencia';
 import { useUsuarioDelMarco } from '../hooks/useUsuarioDelMarco';
 import { modoDelMarco } from '../model/navegacion';
 import { BarraInferiorDeLaApp, CabeceraDeLaApp } from './NavegacionDelMarco';
+import { SelectorDeApariencia } from './SelectorDeApariencia';
 
 /**
  * Marco común de la app (DIS-1): cabecera con el logo y, según el rol, la
@@ -15,6 +17,7 @@ import { BarraInferiorDeLaApp, CabeceraDeLaApp } from './NavegacionDelMarco';
  * Vive en el layout raíz para no desmontarse al navegar: pregunta quién mira
  * una vez por sesión (`useUsuarioDelMarco`) y se lo pasa a la cabecera y a la
  * barra por props. Las pantallas de acceso no lo llevan (`modoDelMarco`).
+ * También mantiene el tema (US-23) en todas las pantallas, incluidas esas.
  *
  * Fija dos medidas como variables CSS para quien las necesite (el mapa ocupa
  * el alto que queda; los avisos flotantes van por encima de la barra):
@@ -23,10 +26,12 @@ import { BarraInferiorDeLaApp, CabeceraDeLaApp } from './NavegacionDelMarco';
 export function MarcoDeLaApp({ children }: { children: ReactNode }) {
   const ruta = usePathname();
   const usuario = useUsuarioDelMarco();
+  useTemaDeLaApp();
   const modo = modoDelMarco(ruta);
 
   if (modo === 'ninguno') return <>{children}</>;
   const completo = modo === 'completo';
+  const apariencia = <SelectorDeApariencia variante="menu" />;
 
   return (
     <div
@@ -43,11 +48,11 @@ export function MarcoDeLaApp({ children }: { children: ReactNode }) {
       >
         Saltar al contenido
       </a>
-      <CabeceraDeLaApp usuario={usuario} ruta={ruta} conNavegacion={completo} />
+      <CabeceraDeLaApp usuario={usuario} ruta={ruta} conNavegacion={completo} extrasDeCuenta={apariencia} />
       <div id="contenido" tabIndex={-1} className="flex flex-1 flex-col pb-[var(--cv-alto-nav)]">
         {children}
       </div>
-      {completo && <BarraInferiorDeLaApp usuario={usuario} ruta={ruta} />}
+      {completo && <BarraInferiorDeLaApp usuario={usuario} ruta={ruta} extrasDeCuenta={apariencia} />}
     </div>
   );
 }

@@ -10,6 +10,7 @@ import { usePushEnEsteNavegador } from '../hooks/usePushEnEsteNavegador';
 import { FotoDePerfil } from './FotoDePerfil';
 import { PrivacidadYConsentimientos } from './PrivacidadYConsentimientos';
 import { PushEnEsteNavegador } from './PushEnEsteNavegador';
+import { SelectorDeApariencia } from './SelectorDeApariencia';
 
 /**
  * US-30: el ciudadano edita sus datos, su foto y como quiere recibir avisos.
@@ -144,6 +145,11 @@ export function EditarPerfil({ inicial, textoLegal }: { inicial: Usuario; textoL
           cada navegador. Si un push no llega, el aviso cae a correo solo si diste ese
           consentimiento.
         </p>
+      </section>
+
+      {/* US-23: también está en el menú de cuenta; aquí, con la descripción. */}
+      <section className="border-t border-slate-200 pt-4 dark:border-slate-700">
+        <SelectorDeApariencia />
       </section>
 
       <PrivacidadYConsentimientos
