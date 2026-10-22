@@ -232,25 +232,26 @@ estructura, para que el cambio sea reemplazar los SVG de `public/icons/` y corre
   `sharp`, que Next instala como dependencia opcional, y un build de Vercel no
   debería depender de ella. No se agregó ninguna dependencia.
 
-**Tipografía**: se usa la Geist que `layout.tsx` carga con `next/font`, vía
-`--font-sans` del `@theme` de Tailwind, que el preflight aplica a `html`. El
-`body` del scaffold fijaba `font-family: Arial` fuera de toda capa (`@layer`) de
-Tailwind, así que ganaba siempre y la app se veía en Arial; se quitó esa línea.
-Por la misma razón, el `background` y el `color` de ese `body` también ganan a
-las clases `bg-slate-50`/`dark:bg-slate-900` de `layout.tsx`; no se tocan
-aquí porque cambiarían el aspecto de todas las pantallas: queda para el diseño.
+**Tipografía (DIS-1)**: **Public Sans** (OFL; la de USWDS, derivada de
+Libre Franklin), la de la dirección «Cívica». `layout.tsx` la carga con
+`next/font/google` en la variable `--font-public-sans`, y `--font-sans` del
+`@theme` de Tailwind la toma de ahí (el preflight la aplica a `html`). Es una
+fuente variable: un solo archivo cubre todos los pesos. Reemplaza a Geist y
+Geist Mono, que se quitaron; `font-mono` (versiones de los términos,
+coordenadas) usa la monoespaciada del sistema. El `body` del scaffold fijaba
+`font-family: Arial` fuera de toda capa (`@layer`) de Tailwind, así que ganaba
+siempre y la app se veía en Arial; esa línea se quitó en DEP-06.
 
-Se mantiene **`next/font/google`** (`src/app/layout.tsx`) en vez de
-`next/font/local` con los archivos de la fuente en el repo: no agrega ninguna
-dependencia ni binarios que mantener, y la tipografía es provisional. El
-costo es que **el build necesita red** para descargar Geist de Google Fonts
-(en Vercel y en la CI la hay; un build sin conexión falla con «Failed to
-fetch `Geist` from Google Fonts», mientras que `next dev` solo avisa y usa la
-fuente de respaldo). En ejecución, en
-cambio, el navegador no llama a Google: `next/font` empaqueta la fuente en los
-estáticos de la app y la sirve desde el propio origen, así que a la CSP le
-basta `font-src 'self'`. Si la identidad definitiva trae su propia fuente,
-lo natural es pasar a `next/font/local`.
+Se usa **`next/font/google`** y no `next/font/local` con los archivos en el
+repo: no agrega dependencias ni binarios que mantener, y la fuente es de
+Google Fonts. El costo es que **el build necesita red** para descargarla (en
+Vercel y en la CI la hay; un build sin conexión falla con «Failed to fetch
+`Public Sans` from Google Fonts», mientras que `next dev` solo avisa y usa la
+fuente de respaldo). En ejecución, en cambio, **el navegador no llama a
+Google**: `next/font` autoaloja la fuente en los estáticos de la app y la
+sirve desde el propio origen, así que a la CSP le basta `font-src 'self'`.
+Si alguna vez el build debe correr sin red, la salida es `next/font/local`
+con los `.woff2` de Public Sans en el repo.
 
 ### Seguridad: dónde vive el JWT
 
