@@ -6,6 +6,7 @@ Diagramas de Ciudad Viva en Mermaid, que GitHub dibuja al abrir cada archivo. La
 |---|---|---|---|
 | C4 · contexto: actores y sistemas externos | [c4-contexto.md](c4-contexto.md) | manual | `flowchart` |
 | C4 · contenedores: PWA, API, base de datos, servicios externos e inferencia (planificado) | [c4-contenedores.md](c4-contenedores.md) | manual | `flowchart` |
+| C4 · despliegue del MVP: Vercel, Railway (API, PostGIS, respaldo), R2, correo HTTP, push y OSM | [c4-despliegue.md](c4-despliegue.md) | manual, según la propuesta de despliegue | `flowchart` |
 | Capas y qué puede depender de qué (backend, frontend, inferencia) | [capas.md](capas.md) | manual, según §3–§6 | `flowchart` |
 | Módulos del backend y features del frontend, con sus dependencias reales | [modulos.md](modulos.md) | **generado** desde los `import` | `flowchart` |
 | Modelo de datos (ER) y vistas materializadas | [modelo-datos.md](modelo-datos.md) | **generado** desde las migraciones Flyway | `erDiagram`, `flowchart` |
