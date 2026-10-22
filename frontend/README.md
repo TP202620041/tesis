@@ -813,7 +813,10 @@ Verificado end-to-end contra el backend real:
   una pantalla de depuración con el rol y la preferencia en crudo y sin
   navegación. Ya existían las landings por rol que la reemplazaban, nada más
   la enlazaba y el perfil (`/perfil`) muestra esos datos de verdad.
-- **US-05** crear reporte (`/reportar`): GPS con fallback a marcar en el mapa
+- **US-05** crear reporte (`/reportar`, solo CIUDADANO: la misma
+  `GuardiaDeRol` que «Mis reportes», QA-1 M-10; antes bastaba la sesión y un
+  funcionario o el admin llenaban el formulario entero para recibir un 403 al
+  enviar): GPS con fallback a marcar en el mapa
   (escenario 2), captura de foto, selector de categoría que incorpora las
   personalizadas del distrito (US-29), envío multipart con `Idempotency-Key`
   (US-06) y confirmación que distingue reporte nuevo de adhesión (US-09).

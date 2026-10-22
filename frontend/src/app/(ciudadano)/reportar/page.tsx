@@ -1,22 +1,27 @@
 'use client';
 
 import { BotonCerrarSesion } from '@/features/auth/components/BotonCerrarSesion';
-import { useSesionRequerida } from '@/features/auth/hooks/useSesionRequerida';
+import { GuardiaDeRol } from '@/features/auth/components/GuardiaDeRol';
 import { NuevoReporte } from '@/features/reportes/components/NuevoReporte';
 
-/** US-05: crear un reporte de daño vial. */
+/**
+ * US-05: crear un reporte de daño vial.
+ *
+ * Solo CIUDADANO, con la misma guardia que «Mis reportes» (QA-1 M-10): antes
+ * bastaba con tener sesion, y un funcionario o el admin completaban el
+ * formulario entero para recibir recien al enviar un «Acceso denegado» (el
+ * backend solo deja crear reportes al ciudadano). Sin sesion, la guardia
+ * lleva al login y vuelve aqui.
+ */
 export default function ReportarPage() {
-  const sesion = useSesionRequerida('/login?redirect=/reportar');
-
-  if (sesion.estado === 'cargando') {
-    return <p className="p-8 text-slate-600 dark:text-slate-400">Cargando…</p>;
-  }
-  if (sesion.estado === 'anonimo') return null;
-
   return (
-    <main className="mx-auto flex w-full max-w-lg flex-col gap-6 px-4 py-8">
-      <BotonCerrarSesion className="self-end" />
-      <NuevoReporte usuarioId={sesion.usuario.id} />
-    </main>
+    <GuardiaDeRol rolesPermitidos={['CIUDADANO']}>
+      {(usuario) => (
+        <main className="mx-auto flex w-full max-w-lg flex-col gap-6 px-4 py-8">
+          <BotonCerrarSesion className="self-end" />
+          <NuevoReporte usuarioId={usuario.id} />
+        </main>
+      )}
+    </GuardiaDeRol>
   );
 }
