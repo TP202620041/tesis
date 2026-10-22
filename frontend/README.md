@@ -126,6 +126,16 @@ src/
 Las vistas de `app/` componen; la lógica vive en `features/`. Un componente de
 `app/` no debe llamar al API directamente: pasa por `features/<dominio>/api.ts`.
 
+**Títulos de página (QA-1 M-8).** Cada ruta tiene su `<title>` («Mapa de
+reportes · Ciudad Viva»), que también es lo que lee el anunciador de rutas de
+Next al navegar: antes diez pantallas compartían el título de la portada. La
+mayoría de las páginas son de cliente y `metadata` solo se exporta desde un
+componente de servidor, así que el título va en un `layout.tsx` mínimo junto a
+la página (devuelve `children`); las de servidor (login, registro,
+privacidad) lo exportan en la propia `page.tsx`. `app/titulos.test.ts`
+recorre `src/app` y falla si una ruta queda con el título por defecto o si
+dos comparten título.
+
 ## Decisiones técnicas
 
 ### Cliente HTTP: `fetch` nativo con wrapper
