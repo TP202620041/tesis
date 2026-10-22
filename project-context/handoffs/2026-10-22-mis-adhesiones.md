@@ -1,10 +1,10 @@
 # Handoff de contrato: reportes que el ciudadano apoya (QA-1 M-6)
 
-- **Estado:** pendiente <!-- pendiente | atendido -->
+- **Estado:** atendido <!-- pendiente | atendido -->
 - **Fecha:** 2026-10-22
 - **Origen:** backend, rama `bugfix/qa1-backend`, commit `87ef26f` (PR por abrir; lo abre el coordinador)
 - **Historia o tarea:** QA-1 M-6 (US-07, US-09)
-- **Atendido por:** _(frontend, rama y fecha)_
+- **Atendido por:** frontend, rama `feature/qa1-mis-adhesiones`, 2026-10-22. `api:sync` contra el backend de `develop` (f22f7e6): `misAdhesiones` en `features/reportes/api.ts`, `useReportesQueApoyas` y la sección «Reportes que apoyas» en `/mis-reportes` (solo lectura; cada fila al detalle público `/reportes/{id}`; un CANCELADO sin enlace y con «El vecino que lo creó lo retiró…»). La confirmación de una adhesión enlaza a `/mis-reportes#reportes-que-apoyas`. Los avisos siguen yendo solo al creador. Ver `frontend/README.md`, «Reportes que apoyas (QA-1 M-6)».
 
 ## Endpoints afectados
 | Método | Ruta | Cambio |
