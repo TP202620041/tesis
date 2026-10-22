@@ -1099,11 +1099,17 @@ confirmaría que ese archivo existe y se trata de fotos de personas.
   responde, 503 con mensaje (`ServicioNoDisponibleException`): la PWA lo
   muestra y no lo toma como error de red, así que el reporte no queda en la
   cola offline.
-- **La foto de perfil reemplazada se borra** (`eliminarFotoPerfil`) después
-  del commit del cambio de perfil, nunca antes: si el cambio fallara, el
-  ciudadano conservaría la anterior. Ya no tiene finalidad y es un dato
-  personal (Ley N.° 29733). Si el borrado falla, se registra y queda un
-  huérfano; el perfil no se ve afectado.
+- **La foto de perfil reemplazada se borra** (`eliminarFotoPerfil`): ya no
+  tiene finalidad y es un dato personal (Ley N.° 29733). `AuthService`
+  publica `auth/event/FotoDePerfilReemplazadaEvent` y
+  `auth/listener/FotoDePerfilReemplazadaListener` lo atiende **después del
+  commit** (si el cambio de perfil hiciera rollback, el ciudadano
+  conservaría la anterior) y solo encola
+  `PerfilFotoService#eliminarFotoReemplazada`, que es `@Async` en el executor
+  acotado de `AsyncConfig`: el borrado en R2 es una llamada HTTP y, como las
+  notificaciones (D-13), no corre en el hilo de la petición ni con la
+  conexión a la base tomada. Nunca lanza: con la cola llena o R2 caído se
+  registra y la foto queda huérfana; el perfil no se ve afectado.
 
 ### Saneado: sin EXIF, orientada y a 2048 px
 

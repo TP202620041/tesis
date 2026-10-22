@@ -2,18 +2,23 @@ package pe.edu.upc.viasegura.auth.service;
 
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.Resource;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import pe.edu.upc.viasegura.auth.domain.Usuario;
+import pe.edu.upc.viasegura.auth.event.FotoDePerfilReemplazadaEvent;
 import pe.edu.upc.viasegura.auth.repository.UsuarioRepository;
+import pe.edu.upc.viasegura.common.config.AsyncConfig;
 import pe.edu.upc.viasegura.common.port.FotoStorageService;
 
 /**
  * Acceso a la foto de perfil (US-30) verificando que quien la pide sea su
- * dueno.
+ * dueno, y borrado de la foto reemplazada (DEP-12).
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class PerfilFotoService {
@@ -65,6 +70,26 @@ public class PerfilFotoService {
             return Optional.empty();
         }
         return Optional.of(new FotoPerfil(recurso, contentType(archivoRegistrado)));
+    }
+
+    /**
+     * Borra la foto de perfil que el ciudadano reemplazo (DEP-12). La encola
+     * {@code FotoDePerfilReemplazadaListener} despues del commit.
+     *
+     * <p>{@code @Async} en el executor acotado ({@link AsyncConfig#EJECUTOR}) y
+     * sin transaccion, como las notificaciones (D-13): el borrado en R2 es una
+     * llamada HTTP que no debe correr en el hilo de la peticion ni con una
+     * conexion a la base tomada. Nunca lanza: si el borrado falla, la foto
+     * queda huerfana y se registra.</p>
+     */
+    @Async(AsyncConfig.EJECUTOR)
+    public void eliminarFotoReemplazada(FotoDePerfilReemplazadaEvent evento) {
+        try {
+            fotoStorageService.eliminarFotoPerfil(evento.nombreArchivo());
+        } catch (RuntimeException e) {
+            log.warn("No se pudo borrar la foto de perfil reemplazada {} del usuario {}: {}",
+                    evento.nombreArchivo(), evento.usuarioId(), e.toString());
+        }
     }
 
     /**

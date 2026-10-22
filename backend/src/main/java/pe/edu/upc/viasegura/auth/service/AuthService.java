@@ -1,13 +1,12 @@
 package pe.edu.upc.viasegura.auth.service;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 import pe.edu.upc.viasegura.auth.domain.PreferenciaNotificacion;
 import pe.edu.upc.viasegura.auth.domain.Rol;
@@ -16,6 +15,7 @@ import pe.edu.upc.viasegura.auth.dto.AuthResponse;
 import pe.edu.upc.viasegura.auth.dto.LoginRequest;
 import pe.edu.upc.viasegura.auth.dto.RegistroRequest;
 import pe.edu.upc.viasegura.auth.dto.UsuarioResponse;
+import pe.edu.upc.viasegura.auth.event.FotoDePerfilReemplazadaEvent;
 import pe.edu.upc.viasegura.auth.repository.UsuarioRepository;
 import pe.edu.upc.viasegura.common.exception.BusinessException;
 import pe.edu.upc.viasegura.common.exception.ResourceNotFoundException;
@@ -38,6 +38,7 @@ public class AuthService {
     private final DistritoService distritoService;
     private final FotoStorageService fotoStorageService;
     private final ConsentimientoService consentimientoService;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * US-01: registra una cuenta ciudadana y devuelve un token de sesion.
@@ -134,33 +135,19 @@ public class AuthService {
         if (foto != null && !foto.vacio()) {
             // Foto de perfil, no de reporte: se guarda aparte y su URL apunta
             // al endpoint autenticado, no al directorio publico (US-30).
-            String anterior = usuario.getFotoUrl();
+            String anterior = PerfilFotoService.nombreDeArchivo(usuario.getFotoUrl());
             usuario.setFotoUrl(fotoStorageService.almacenarFotoPerfil(foto));
-            eliminarAlConfirmar(anterior);
+            if (anterior != null) {
+                // DEP-12: la foto reemplazada ya no tiene finalidad y es un
+                // dato personal (Ley N.° 29733). La borra
+                // FotoDePerfilReemplazadaListener despues del commit, fuera
+                // del hilo de la peticion (D-13): si el cambio de perfil
+                // hiciera rollback, el ciudadano conservaria su foto anterior.
+                eventPublisher.publishEvent(new FotoDePerfilReemplazadaEvent(usuario.getId(), anterior));
+            }
         }
 
         return respuesta(usuarioRepository.save(usuario));
-    }
-
-    /**
-     * Borra la foto de perfil reemplazada cuando la transaccion confirma
-     * (DEP-12): ya no tiene finalidad y es un dato personal (Ley N.° 29733).
-     * Despues del commit y no antes: si el cambio de perfil fallara, el
-     * usuario conservaria su foto anterior. El borrado no lanza
-     * ({@link FotoStorageService#eliminarFotoPerfil}): si falla, queda un
-     * huerfano y el perfil ya actualizado no se ve afectado.
-     */
-    private void eliminarAlConfirmar(String fotoUrlAnterior) {
-        String nombre = PerfilFotoService.nombreDeArchivo(fotoUrlAnterior);
-        if (nombre == null || !TransactionSynchronizationManager.isSynchronizationActive()) {
-            return;
-        }
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                fotoStorageService.eliminarFotoPerfil(nombre);
-            }
-        });
     }
 
     private AuthResponse construirRespuesta(Usuario usuario) {
