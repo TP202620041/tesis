@@ -10,7 +10,14 @@ import jakarta.mail.internet.MimeMessage;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -225,6 +232,37 @@ class PasswordResetIT extends AbstractPostgisMailIT {
         assertThat(greenMail.waitForIncomingEmail(3000, 3)).isTrue();
         assertThat(greenMail.waitForIncomingEmail(1000, 4)).isFalse();
         assertThat(greenMail.getReceivedMessages()).hasSize(3);
+    }
+
+    @Test
+    void topePorCuenta_pedidosSimultaneosDeLaMismaCuenta_creanComoMaximoTres() throws Exception {
+        // Sin serializar por cuenta, los seis cuentan 0 tokens antes de que
+        // alguno haga commit y los seis crean el suyo.
+        Usuario usuario = ciudadano();
+        int pedidos = 6;
+        ExecutorService hilos = Executors.newFixedThreadPool(pedidos);
+        CountDownLatch largada = new CountDownLatch(1);
+        try {
+            List<Future<Object>> resultados = new ArrayList<>();
+            for (int i = 0; i < pedidos; i++) {
+                resultados.add(hilos.submit(() -> {
+                    largada.await();
+                    passwordResetService.solicitarRecuperacion(usuario.getEmail());
+                    return null;
+                }));
+            }
+            largada.countDown();
+            for (Future<Object> resultado : resultados) {
+                resultado.get(30, TimeUnit.SECONDS);
+            }
+        } finally {
+            hilos.shutdownNow();
+        }
+
+        assertThat(tokenRepository.countByUsuarioIdAndCreatedAtAfter(
+                usuario.getId(), Instant.now().minus(1, ChronoUnit.HOURS))).isEqualTo(3);
+        assertThat(greenMail.waitForIncomingEmail(5000, 3)).isTrue();
+        assertThat(greenMail.waitForIncomingEmail(1000, 4)).isFalse();
     }
 
     @Test

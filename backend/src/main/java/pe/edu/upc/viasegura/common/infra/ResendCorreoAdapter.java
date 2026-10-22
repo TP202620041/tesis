@@ -40,9 +40,10 @@ import pe.edu.upc.viasegura.common.port.MensajeCorreo;
  *       ella.</li>
  * </ul>
  *
- * <p><b>Timeouts</b> de conexion y de lectura (5 s cada uno por defecto): el
- * envio corre en el executor asincrono acotado, y un proveedor lento no debe
- * ocupar sus pocos hilos. <b>Sin reintentos</b> en esta version: llegan con
+ * <p><b>Timeouts</b>: 3 s de conexion y 10 s de lectura por defecto, los de la
+ * propuesta aceptada. El envio corre en el executor asincrono acotado, fuera
+ * de la peticion: el timeout acota cuanto ocupa uno de sus pocos hilos un
+ * proveedor que no responde. <b>Sin reintentos</b> en esta version: llegan con
  * ENVIO_CORREO (NC-05), que registrara los intentos.</p>
  *
  * <p><b>Errores:</b> una respuesta 4xx/5xx o la falta de respuesta se traducen
@@ -78,8 +79,8 @@ public class ResendCorreoAdapter implements CorreoSaliente {
     public ResendCorreoAdapter(
             @Value("${app.correo.api-key:}") String apiKey,
             @Value("${app.notificaciones.email-remitente:}") String remitente,
-            @Value("${app.correo.resend.timeout-conexion-segundos:5}") long timeoutConexionSegundos,
-            @Value("${app.correo.resend.timeout-lectura-segundos:5}") long timeoutLecturaSegundos) {
+            @Value("${app.correo.resend.timeout-conexion-segundos:3}") long timeoutConexionSegundos,
+            @Value("${app.correo.resend.timeout-lectura-segundos:10}") long timeoutLecturaSegundos) {
         this(URL_API, apiKey, remitente,
                 Duration.ofSeconds(timeoutConexionSegundos), Duration.ofSeconds(timeoutLecturaSegundos));
         log.info("Correo saliente por Resend (remitente {})", this.remitente);

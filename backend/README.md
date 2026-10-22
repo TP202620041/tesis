@@ -131,11 +131,11 @@ preferible que no arranque y que el log diga qué falta.
   false`): un SMTP caído afecta a cada envío, no a la API, y no debe marcarla
   como caída ni hacer fallar un despliegue. La base de datos sí cuenta: sin
   ella la API no sirve.
-- **Correo con timeouts de 5 s**: SMTP en conexión, lectura y escritura
-  (JavaMail espera indefinidamente por defecto) y Resend en conexión y
-  lectura. Desde DEP-08 ningún correo se envía dentro de una petición: un
-  proveedor lento ocupa un hilo del executor asíncrono, no la respuesta al
-  usuario ni una conexión de la base.
+- **Correo con timeouts**: SMTP con 5 s en conexión, lectura y escritura
+  (JavaMail espera indefinidamente por defecto) y Resend con 3 s de conexión
+  y 10 s de lectura. Desde DEP-08 ningún correo se envía dentro de una
+  petición: un proveedor lento ocupa un hilo del executor asíncrono, no la
+  respuesta al usuario ni una conexión de la base.
 
 ### Imagen (`backend/Dockerfile`)
 
@@ -1526,8 +1526,10 @@ puede llevar un token.
 **Resend sin SDK.** No suma dependencias (la imagen está al borde de los
 400 MB): `Authorization: Bearer <CORREO_API_KEY>`, `Content-Type:
 application/json` y un `User-Agent` propio, que Resend exige (sin él responde
-403, error 1010). Timeouts de 5 s de conexión y 5 s de lectura, porque el envío
-ocupa uno de los pocos hilos del executor asíncrono. Sin reintentos: llegarán
+403, error 1010). Timeouts de 3 s de conexión y 10 s de lectura, los de la
+propuesta aceptada: el envío corre fuera de la petición, así que esperar más a
+Resend no demora a nadie, y el timeout acota cuánto ocupa uno de los pocos
+hilos del executor asíncrono un proveedor que no responde. Sin reintentos: llegarán
 con NC-05 (ENVIO_CORREO, con registro de intentos). Una respuesta 4xx o 5xx, o
 la falta de respuesta, se traduce a `CorreoNoEnviadoException` con el status y
 el código de error de Resend (`validation_error`, `rate_limit_exceeded`…).
@@ -1590,15 +1592,26 @@ casos: cuenta inexistente, cuenta existente, proveedor caído y tope
 alcanzado. Antes, un fallo del correo daba 500 solo con una cuenta existente
 (revelaba cuáles existen), la respuesta tardaba lo que tardara el SMTP solo
 con cuenta, y el log guardaba el correo no registrado (ya no se registra). Con
-cuenta, la petición hace una consulta, un conteo y un `INSERT`; sin cuenta,
-una consulta: la diferencia ya no depende del proveedor de correo.
+cuenta, la petición hace una consulta, toma el candado de la cuenta, cuenta e
+inserta; sin cuenta, una consulta: la diferencia ya no depende del proveedor
+de correo.
 
 **Tope por cuenta.** Como máximo 3 tokens por cuenta en una hora (cuenta
 `password_reset_token.created_at`, sin migración). El cuarto pedido no crea
 token ni envía, y responde igual. Sin el tope, un bucle sobre el endpoint
 gastaría la cuota diaria del proveedor (100 correos en Resend Free) y dejaría
-sin avisos a todos. Dos pedidos simultáneos pueden pasar ambos el conteo (a lo
-sumo un token de más): se acepta.
+sin avisos a todos. **Sin carreras:** antes de contar, el servicio toma un
+candado consultivo de PostgreSQL por cuenta (`pg_advisory_xact_lock` sobre un
+hash de `recuperacion-contrasena:<id>`, en
+`PasswordResetTokenRepository#bloquearSolicitudesDeRecuperacion`), que se
+libera con el commit. Los pedidos simultáneos de una misma cuenta pasan de a
+uno, y cada conteo ya ve los tokens de los anteriores; los de cuentas
+distintas no se esperan. Se eligió un candado consultivo y no
+`SELECT … FOR UPDATE` sobre `usuario` porque no bloquea ninguna fila: ni la
+edición del perfil ni los `INSERT` de otras tablas que referencian al usuario
+esperan por él. `PasswordResetIT` lanza seis pedidos simultáneos para la misma
+cuenta y comprueba que quedan tres tokens y llegan tres correos (sin el
+candado quedaban seis).
 
 **Respuesta de soporte: cambio de comportamiento.** Si el correo falla, la
 respuesta del ADMIN queda guardada (el usuario la ve en `GET /mis-tickets`) y
@@ -1614,12 +1627,13 @@ error no lleva la clave, el destinatario ni el token. Además
 `SmtpCorreoAdapterTest`, `MensajeCorreoTest`, `ValidacionCorreoSalienteTest`
 y los tests de los dos listeners (cola llena, token vencido, proveedor
 caído). `ArranqueCorreoIT` arranca la aplicación real sin base: sin
-`CORREO_TIPO` en `prod` y con `CORREO_TIPO=brevo`, no arranca. En los IT los correos
-siguen por SMTP a GreenMail (`app.correo.tipo: smtp` literal en
+`CORREO_TIPO` en `prod` y con `CORREO_TIPO=brevo`, no arranca. En los IT los
+correos siguen por SMTP a GreenMail (`app.correo.tipo: smtp` literal en
 `application-test.yml`, para que un `CORREO_TIPO` del entorno no mande la
 suite a Resend): `PasswordResetIT` (misma respuesta con y sin cuenta, 202 con
-GreenMail detenido y el token guardado, el tope y su ventana de una hora) y
-`TicketSoporteIT` (la respuesta queda guardada con el correo caído). El
+GreenMail detenido y el token guardado, el tope, su ventana de una hora y
+seis pedidos simultáneos) y `TicketSoporteIT` (la respuesta queda guardada
+con el correo caído). El
 executor de test espera a la tarea, así que al volver la petición el correo ya
 llegó; igual se espera con `waitForIncomingEmail`, acotado.
 

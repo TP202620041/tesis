@@ -91,9 +91,11 @@ app:
     # Con tipo=resend y sin clave, la aplicacion no arranca.
     api-key: ${CORREO_API_KEY:}
     resend:
-      # Timeouts cortos: el envio corre en el executor asincrono acotado.
-      timeout-conexion-segundos: 5
-      timeout-lectura-segundos: 5
+      # Los de la propuesta aceptada: 3 s para conectar y 10 s para la
+      # respuesta. El envio corre en el executor asincrono acotado, fuera de
+      # la peticion, asi que esperar mas a Resend no demora a nadie.
+      timeout-conexion-segundos: 3
+      timeout-lectura-segundos: 10
   # Notificaciones al ciudadano (US-16/US-21). El remitente es el de todos
   # los correos (NOTIF_FROM); con Resend, de un dominio verificado.
   notificaciones:

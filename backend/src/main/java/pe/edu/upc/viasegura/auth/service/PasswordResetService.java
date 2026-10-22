@@ -75,6 +75,9 @@ public class PasswordResetService {
         }
         Usuario usuario = encontrado.get();
 
+        // Pedidos simultaneos de la misma cuenta, de a uno hasta el commit:
+        // si no, todos cuentan antes de que alguno guarde y el tope no frena.
+        tokenRepository.bloquearSolicitudesDeRecuperacion(usuario.getId());
         long recientes = tokenRepository.countByUsuarioIdAndCreatedAtAfter(
                 usuario.getId(), Instant.now().minus(VENTANA_TOPE));
         if (recientes >= MAXIMO_TOKENS_POR_VENTANA) {
