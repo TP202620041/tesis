@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { Public_Sans } from 'next/font/google';
+import { MarcoDeLaApp } from '@/features/auth/components/MarcoDeLaApp';
 import { ProveedorPwa } from '@/pwa/ProveedorPwa';
 import { SincronizadorDeReportes } from './SincronizadorDeReportes';
 import { PLANTILLA_TITULO } from './titulo';
@@ -43,8 +44,12 @@ export default function RootLayout({ children }: LayoutProps<'/'>) {
     <html lang="es-PE" className={`${publicSans.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col bg-fondo text-texto">
         <ProveedorPwa>
-          {children}
-          <SincronizadorDeReportes />
+          {/* DIS-1: cabecera, navegación por rol y menú de cuenta comunes. Los
+              avisos de la cola van dentro para ubicarse sobre la barra inferior. */}
+          <MarcoDeLaApp>
+            {children}
+            <SincronizadorDeReportes />
+          </MarcoDeLaApp>
         </ProveedorPwa>
       </body>
     </html>

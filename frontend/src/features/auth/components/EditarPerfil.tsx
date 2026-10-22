@@ -7,7 +7,6 @@ import { PREFERENCIAS_NOTIFICACION, type PreferenciaNotificacion, type Usuario }
 import { useConsentimientos } from '../hooks/useConsentimientos';
 import { useDistritosDeResidencia, usePerfil } from '../hooks/usePerfil';
 import { usePushEnEsteNavegador } from '../hooks/usePushEnEsteNavegador';
-import { BotonCerrarSesion } from './BotonCerrarSesion';
 import { FotoDePerfil } from './FotoDePerfil';
 import { PrivacidadYConsentimientos } from './PrivacidadYConsentimientos';
 import { PushEnEsteNavegador } from './PushEnEsteNavegador';
@@ -36,12 +35,9 @@ export function EditarPerfil({ inicial, textoLegal }: { inicial: Usuario; textoL
 
   return (
     <main className="mx-auto flex w-full max-w-lg flex-col gap-6 px-4 py-6">
-      <div className="flex items-center justify-between gap-3">
-        <Link href="/mis-reportes" className="text-sm text-sky-700 hover:underline dark:text-sky-400">
-          ← Volver a mis reportes
-        </Link>
-        <BotonCerrarSesion />
-      </div>
+      <Link href="/mis-reportes" className="self-start text-sm text-sky-700 hover:underline dark:text-sky-400">
+        ← Volver a mis reportes
+      </Link>
 
       <header className="flex items-center gap-4">
         <FotoDePerfil fotoUrl={usuario.fotoUrl} nombre={usuario.nombre} />

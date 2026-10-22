@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import type { ReactNode } from 'react';
 import { LineaDeTiempo } from '@/components/LineaDeTiempo';
 import { FotoDeReporte } from '@/components/FotoDeReporte';
 import { UbicacionDelReporte } from '@/components/UbicacionDelReporte';
@@ -22,20 +21,12 @@ import { EditarReporte } from './EditarReporte';
  * Seguimiento de un reporte propio: estado, historial (US-22), edicion o
  * retiro (US-08) y calificacion (US-26).
  *
- * `cierreDeSesion` lo pasa la pagina (es un componente de `auth`).
- *
  * `reporteId` es `null` si el id de la URL no es valido (QA-1 M-11): se dice
  * «Reporte no disponible» sin pedir nada al API.
  */
-export function DetalleMiReporte({
-  reporteId,
-  cierreDeSesion,
-}: {
-  reporteId: number | null;
-  cierreDeSesion: ReactNode;
-}) {
+export function DetalleMiReporte({ reporteId }: { reporteId: number | null }) {
   if (reporteId === null) return <ReporteNoDisponible />;
-  return <DetalleCargado reporteId={reporteId} cierreDeSesion={cierreDeSesion} />;
+  return <DetalleCargado reporteId={reporteId} />;
 }
 
 function ReporteNoDisponible() {
@@ -54,13 +45,7 @@ function ReporteNoDisponible() {
   );
 }
 
-function DetalleCargado({
-  reporteId,
-  cierreDeSesion,
-}: {
-  reporteId: number;
-  cierreDeSesion: ReactNode;
-}) {
+function DetalleCargado({ reporteId }: { reporteId: number }) {
   const carga = useMiReporte(reporteId);
 
   // Tras editar o retirar se recarga mostrando "Cargando…", como antes de
@@ -81,12 +66,9 @@ function DetalleCargado({
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 py-6">
-      <div className="flex items-center justify-between gap-3">
-        <Link href="/mis-reportes" className="text-sm text-sky-700 hover:underline dark:text-sky-400">
-          ← Volver a mis reportes
-        </Link>
-        {cierreDeSesion}
-      </div>
+      <Link href="/mis-reportes" className="self-start text-sm text-sky-700 hover:underline dark:text-sky-400">
+        ← Volver a mis reportes
+      </Link>
 
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>

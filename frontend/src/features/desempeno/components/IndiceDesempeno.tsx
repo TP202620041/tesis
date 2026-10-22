@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { useComparacionEnUrl } from '../hooks/useComparacionEnUrl';
 import {
@@ -44,31 +43,15 @@ export function IndiceDesempeno() {
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-6">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-            Índice de desempeño distrital
-          </h1>
-          <p className="mt-1 max-w-2xl text-sm text-slate-600 dark:text-slate-400">
-            Qué tan bien responde cada municipalidad de Lima Metropolitana a los daños viales que
-            reportan sus vecinos. Los datos salen de los reportes ciudadanos y sus cambios de
-            estado, no de cifras declaradas por las municipalidades.
-          </p>
-        </div>
-        <nav className="flex gap-2">
-          <Link
-            href="/mapa"
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm dark:border-slate-600 dark:text-slate-200"
-          >
-            Ver el mapa
-          </Link>
-          <Link
-            href="/reportar"
-            className="rounded-md bg-sky-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-sky-700"
-          >
-            Reportar un daño
-          </Link>
-        </nav>
+      <header>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+          Índice de desempeño distrital
+        </h1>
+        <p className="mt-1 max-w-2xl text-sm text-slate-600 dark:text-slate-400">
+          Qué tan bien responde cada municipalidad de Lima Metropolitana a los daños viales que
+          reportan sus vecinos. Los datos salen de los reportes ciudadanos y sus cambios de
+          estado, no de cifras declaradas por las municipalidades.
+        </p>
       </header>
 
       {error && (

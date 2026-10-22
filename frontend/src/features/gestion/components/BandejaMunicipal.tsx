@@ -12,15 +12,10 @@ import { ordenar, TablaBandeja, type OrdenBandeja } from './TablaBandeja';
 /**
  * US-13: bandeja de reportes del distrito del funcionario.
  *
- * `cierreDeSesion` lo pasa la pagina (es un componente de `auth`).
+ * La navegacion del area municipal (panel, categorias, soporte) y «Cerrar
+ * sesión» son del marco comun de la app (DIS-1).
  */
-export function BandejaMunicipal({
-  usuario,
-  cierreDeSesion,
-}: {
-  usuario: Usuario;
-  cierreDeSesion: ReactNode;
-}) {
+export function BandejaMunicipal({ usuario }: { usuario: Usuario }) {
   const [filtros, setFiltros] = useState<FiltrosBandeja>(FILTROS_BANDEJA_VACIOS);
   const [orden, setOrden] = useState<OrdenBandeja>('apoyos');
   const categorias = useCategoriasDelDistrito(usuario.distritoId ?? null);
@@ -32,37 +27,14 @@ export function BandejaMunicipal({
 
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-6">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-            Bandeja municipal
-          </h1>
-          <p className="text-sm text-slate-600 dark:text-slate-400">
-            Reportes de {usuario.distritoNombre ?? 'tu distrito'} · {usuario.nombre}{' '}
-            {usuario.apellido}
-          </p>
-        </div>
-        <nav className="flex flex-wrap gap-2">
-          <Link
-            href="/dashboard"
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm dark:border-slate-600 dark:text-slate-200"
-          >
-            Dashboard del distrito
-          </Link>
-          <Link
-            href="/categorias"
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm dark:border-slate-600 dark:text-slate-200"
-          >
-            Categorías
-          </Link>
-          <Link
-            href="/soporte"
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm dark:border-slate-600 dark:text-slate-200"
-          >
-            Soporte
-          </Link>
-          {cierreDeSesion}
-        </nav>
+      <header>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+          Bandeja municipal
+        </h1>
+        <p className="text-sm text-slate-600 dark:text-slate-400">
+          Reportes de {usuario.distritoNombre ?? 'tu distrito'} · {usuario.nombre}{' '}
+          {usuario.apellido}
+        </p>
       </header>
 
       {error && (

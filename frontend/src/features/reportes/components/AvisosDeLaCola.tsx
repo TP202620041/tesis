@@ -23,7 +23,7 @@ export function AvisoPendientesSinSesion({ cantidad, ruta }: { cantidad: number;
   return (
     <p
       role="status"
-      className="fixed inset-x-4 bottom-4 z-[1100] mx-auto max-w-lg rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-lg dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100"
+      className="fixed inset-x-4 bottom-[calc(var(--cv-alto-nav,0px)+1rem)] z-[1100] mx-auto max-w-lg rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-lg dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100"
     >
       Tienes {plural(cantidad)} de envío:{' '}
       <Link
@@ -47,9 +47,10 @@ export const RUTA_PENDIENTES_DE_ENVIO = '/mis-reportes#pendientes-de-envio';
  * muestra en «Mis reportes», donde ya esta la lista para completarlos.
  *
  * Se puede cerrar por el resto de la sesion de la pestaña (vuelve si
- * aparecen mas incompletos), y va a `bottom-12` y no pegado al borde: en
- * `/mapa` en un movil, pegado abajo tapaba la atribucion de OpenStreetMap
- * (obligatoria por su licencia).
+ * aparecen mas incompletos), y va 3rem por encima de la barra inferior del
+ * movil (`--cv-alto-nav`, DIS-1; en escritorio, del borde), no pegado a
+ * ella: en `/mapa` en un movil, pegado abajo tapaba la atribucion de
+ * OpenStreetMap (obligatoria por su licencia).
  */
 export function AvisoReportesIncompletos({
   cantidad,
@@ -65,7 +66,7 @@ export function AvisoReportesIncompletos({
   return (
     <div
       role="status"
-      className="fixed inset-x-4 bottom-12 z-[1100] mx-auto flex max-w-lg items-start gap-3 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-lg dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100"
+      className="fixed inset-x-4 bottom-[calc(var(--cv-alto-nav,0px)+3rem)] z-[1100] mx-auto flex max-w-lg items-start gap-3 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-lg dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100"
     >
       <p className="flex-1">
         {cantidad === 1

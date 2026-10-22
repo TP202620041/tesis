@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import type { ReactNode } from 'react';
 import { FotoDeReporte } from '@/components/FotoDeReporte';
 import { estiloDeEstado } from '@/lib/types/estados';
 import { textoDeSeveridad, tituloVisible } from '@/lib/types/tituloYSeveridad';
@@ -12,16 +11,10 @@ import { PendientesDeEnvio } from './PendientesDeEnvio';
 /**
  * US-07: los reportes que el ciudadano envio, con su estado actual.
  *
- * `cierreDeSesion` es el boton de cerrar sesion (feature `auth`): lo pasa la
- * pagina, porque una feature no importa componentes de otra.
+ * La navegacion (perfil, mapa, reportar, soporte) y «Cerrar sesión» son del
+ * marco comun de la app (DIS-1), no de esta pantalla.
  */
-export function ListaMisReportes({
-  usuarioId,
-  cierreDeSesion,
-}: {
-  usuarioId: number;
-  cierreDeSesion: ReactNode;
-}) {
+export function ListaMisReportes({ usuarioId }: { usuarioId: number }) {
   const carga = useMisReportes();
   const cola = useReportesEnCola(usuarioId);
   const cargando = carga.estado === 'cargando';
@@ -31,40 +24,11 @@ export function ListaMisReportes({
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Mis reportes</h1>
-          <p className="text-sm text-slate-600 dark:text-slate-400">
-            Los daños que enviaste y en qué va cada uno.
-          </p>
-        </div>
-        <nav className="flex flex-wrap gap-2">
-          <Link
-            href="/perfil"
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm dark:border-slate-600 dark:text-slate-200"
-          >
-            Mi perfil
-          </Link>
-          <Link
-            href="/mapa"
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm dark:border-slate-600 dark:text-slate-200"
-          >
-            Ver el mapa
-          </Link>
-          <Link
-            href="/reportar"
-            className="rounded-md bg-sky-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-sky-700"
-          >
-            Reportar un daño
-          </Link>
-          <Link
-            href="/soporte"
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm dark:border-slate-600 dark:text-slate-200"
-          >
-            Soporte
-          </Link>
-          {cierreDeSesion}
-        </nav>
+      <header>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Mis reportes</h1>
+        <p className="text-sm text-slate-600 dark:text-slate-400">
+          Los daños que enviaste y en qué va cada uno.
+        </p>
       </header>
 
       {error && (

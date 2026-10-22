@@ -331,6 +331,14 @@
   box-shadow: 0 0 0 5px var(--cv-foco-contorno);
 }
 
+/* Destinos de foco programático (`tabindex="-1"`: el contenido al que lleva
+   «Saltar al contenido»): reciben el foco para que el lector siga desde ahí,
+   pero no son controles, así que no se enmarcan. */
+[tabindex='-1']:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
 /* Alto contraste: los bordes de 1 px pasan a 2 px. */
 [data-theme='alto-contraste'] .border {
   border-width: 2px;
