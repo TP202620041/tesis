@@ -953,7 +953,9 @@ menos de una hora se muestra «< 1 h», no «0 h». San Miguel promedió 0,01 h
 y, redondeado, parecía cero o falta de dato cuando era la atención más
 rápida. En el móvil la tabla del ranking (46rem) no cabe: va en una región
 con foco (se desplaza también con el teclado) y una indicación visible solo
-en pantallas angostas dice que se desliza hacia los lados.
+en pantallas angostas dice que se desliza hacia los lados. Esa indicación no
+es la descripción accesible de la región (`aria-describedby`): el lector la
+anunciaría también en escritorio, donde está oculta y la tabla cabe.
 
 La barra de progreso usa **un solo color**, no una escala rojo-ámbar-verde:
 colorear por umbrales obligaría a inventar qué tasa cuenta como "mala", un

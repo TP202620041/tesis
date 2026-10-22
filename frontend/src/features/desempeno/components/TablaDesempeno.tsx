@@ -42,8 +42,11 @@ export function TablaDesempeno({ filas, orden, onOrdenar, comparados, onAlternar
     <div className="flex flex-col gap-1.5">
       {/* QA-1 M-12: en el movil la tabla (46rem) no cabe y obligaba a
           desplazarse en horizontal sin ninguna pista: tasa, tiempo y
-          satisfaccion quedaban fuera de la vista. */}
-      <p id="ranking-desplazable" className="text-xs text-slate-500 md:hidden dark:text-slate-400">
+          satisfaccion quedaban fuera de la vista. Es texto visible solo en
+          pantallas angostas y NO la descripcion accesible de la region: con
+          `aria-describedby` el lector lo anunciaba tambien en escritorio,
+          donde la tabla cabe. En el movil se lee en su orden, antes de la tabla. */}
+      <p className="text-xs text-slate-500 md:hidden dark:text-slate-400">
         Desliza la tabla hacia los lados para ver todas las columnas.{' '}
         <span aria-hidden="true">→</span>
       </p>
@@ -51,7 +54,6 @@ export function TablaDesempeno({ filas, orden, onOrdenar, comparados, onAlternar
       <div
         role="region"
         aria-label="Ranking de distritos"
-        aria-describedby="ranking-desplazable"
         tabIndex={0}
         className="overflow-x-auto rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/50"
       >

@@ -187,13 +187,17 @@ describe('IndiceDesempeno: comparar distritos (US-19)', () => {
 });
 
 describe('IndiceDesempeno: ranking en el móvil (QA-1 M-12)', () => {
-  it('la tabla va en una región con foco que avisa que se desplaza en horizontal', async () => {
+  it('la tabla va en una región con foco y un aviso visible solo en el móvil dice que se desliza', async () => {
     render(<IndiceDesempeno />);
 
     const region = await screen.findByRole('region', { name: 'Ranking de distritos' });
     expect(region).toHaveAttribute('tabindex', '0');
-    expect(region).toHaveAccessibleDescription(/Desliza la tabla hacia los lados/);
     expect(within(region).getByRole('table')).toBeInTheDocument();
+    // Texto oculto desde `md`, y no es la descripción de la región: si no,
+    // el lector lo anunciaría también en escritorio, donde la tabla cabe.
+    expect(screen.getByText(/Desliza la tabla hacia los lados/)).toHaveClass('md:hidden');
+    expect(region).not.toHaveAttribute('aria-describedby');
+    expect(region).not.toHaveAccessibleDescription();
   });
 
   it('un tiempo promedio de menos de una hora dice «< 1 h», no «0 h»', async () => {
