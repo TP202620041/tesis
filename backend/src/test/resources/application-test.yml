@@ -13,12 +13,19 @@ security:
 # del entorno no debe llevar la suite a un bucket. S3FotoStorageServiceIT lo
 # cambia a `s3` solo cuando existe FOTOS_S3_TEST_ENDPOINT.
 #
+# Correo por SMTP (DEP-08), literal por la misma razon: un CORREO_TIPO del
+# entorno no debe mandar los correos de la suite a un proveedor real. El SMTP
+# es GreenMail (AbstractPostgisIT).
+#
 # Primer ADMIN (DEP-04): vacio a proposito, aunque el entorno de quien corre
 # los tests defina ADMIN_INICIAL_*. El seeder del contexto no hace nada;
 # AdministradorInicialSeederIT lo instancia con los valores de cada caso.
 app:
   storage:
     tipo: local
+  correo:
+    tipo: smtp
+    api-key: ""
   admin-inicial:
     email: ""
     password: ""

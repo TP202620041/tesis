@@ -28,7 +28,12 @@ import pe.edu.upc.viasegura.ViaSeguraApplication;
  */
 class ArranqueAlmacenDeFotosIT {
 
-    /** Todo lo obligatorio del perfil prod menos FOTOS_ALMACEN. */
+    /**
+     * Todo lo obligatorio del perfil prod menos FOTOS_ALMACEN, incluidas las
+     * variables del correo (DEP-08): sin ellas, el arranque podria fallar
+     * primero por {@code CORREO_TIPO} o {@code NOTIF_FROM}, segun el orden en
+     * que Spring evalue las condiciones.
+     */
     private static String[] argumentosDeProdSinAlmacen() {
         byte[] clave = new byte[48];
         new SecureRandom().nextBytes(clave);
@@ -41,6 +46,8 @@ class ArranqueAlmacenDeFotosIT {
                 "--DB_PASSWORD=nada",
                 "--CORS_ALLOWED_ORIGINS=https://pwa.ciudadviva.test",
                 "--FOTOS_DIR=" + System.getProperty("java.io.tmpdir") + "/viasegura-test-fotos",
+                "--CORREO_TIPO=smtp",
+                "--NOTIF_FROM=Ciudad Viva <no-reply@ciudadviva.test>",
         };
     }
 

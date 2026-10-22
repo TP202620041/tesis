@@ -1,29 +1,30 @@
 package pe.edu.upc.viasegura.notificaciones.infra;
 
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import pe.edu.upc.viasegura.auth.domain.Usuario;
+import pe.edu.upc.viasegura.common.port.CorreoSaliente;
+import pe.edu.upc.viasegura.common.port.MensajeCorreo;
 import pe.edu.upc.viasegura.notificaciones.domain.AvisoReporte;
 import pe.edu.upc.viasegura.notificaciones.domain.CanalNotificacion;
 import pe.edu.upc.viasegura.notificaciones.port.NotificacionCanalAdapter;
 
 /**
- * Canal EMAIL: envio real por SMTP via {@link JavaMailSender}. En desarrollo
- * el SMTP apunta a Mailhog (docker-compose); en tests a GreenMail embebido.
- * Es el canal de fallback de US-16 (Escenario 2).
+ * Canal EMAIL: el aviso sale por el puerto {@link CorreoSaliente} (DEP-08),
+ * que en desarrollo y en los IT es SMTP (Mailhog, GreenMail) y en produccion
+ * la API HTTP de Resend. Es el canal de fallback de US-16 (Escenario 2).
+ *
+ * <p>Ya corre asincrono y fuera de transaccion ({@code NotificacionService},
+ * D-13): aqui solo cambia el transporte.</p>
  */
 @Component
 @RequiredArgsConstructor
 public class EmailNotificacionAdapter implements NotificacionCanalAdapter {
 
-    private final JavaMailSender mailSender;
+    static final String ETIQUETA = "aviso-reporte";
 
-    @Value("${app.notificaciones.email-remitente:Ciudad Viva <no-reply@viasegura.pe>}")
-    private String remitente;
+    private final CorreoSaliente correo;
 
     @Override
     public CanalNotificacion canal() {
@@ -37,11 +38,8 @@ public class EmailNotificacionAdapter implements NotificacionCanalAdapter {
 
     @Override
     public void enviar(Usuario destinatario, AvisoReporte aviso) {
-        SimpleMailMessage correo = new SimpleMailMessage();
-        correo.setFrom(remitente);
-        correo.setTo(destinatario.getEmail());
-        correo.setSubject(aviso.asunto());
-        correo.setText(aviso.mensaje());
-        mailSender.send(correo); // lanza MailException si el SMTP falla
+        // Lanza CorreoNoEnviadoException si el proveedor falla; NotificacionService
+        // la registra como FALLIDA.
+        correo.enviar(new MensajeCorreo(destinatario.getEmail(), aviso.asunto(), aviso.mensaje(), ETIQUETA));
     }
 }

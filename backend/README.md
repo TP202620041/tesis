@@ -87,10 +87,13 @@ preferible que no arranque y que el log diga qué falta.
 | `FOTOS_S3_ACCESS_KEY_ID`, `FOTOS_S3_SECRET_ACCESS_KEY` | con `s3` | Token de R2 con *Object Read & Write* limitado a esos dos buckets. |
 | `FOTOS_DIR` | con `local` | Directorio de las fotos. La imagen ya trae `FOTOS_DIR=/data/fotos`. |
 | `FOTOS_SANEADO_MAX_CONCURRENTES` | no (2) | Saneados de fotos simultáneos; con `-Xmx512m`, 2. |
+| `CORREO_TIPO` | sí | `resend` (el plan de Railway bloquea el SMTP saliente); `smtp` solo en local y en los tests. Sin ella no arranca (DEP-08, ver «Correo saliente»). Con otro valor tampoco: `common/config/ValidacionCorreoSaliente` lo rechaza antes de crear ningún bean, con un mensaje que nombra la variable y los valores admitidos. |
+| `NOTIF_FROM` | sí | Remitente de todos los correos: `Ciudad Viva <no-reply@<dominio verificado en Resend>>`. Sin ella no arranca. |
+| `CORREO_API_KEY` | con `CORREO_TIPO=resend` | Clave de la API de Resend (secreto). Sin ella el adaptador no arranca. |
 | `PORT` | no (8080) | Lo inyecta la plataforma. |
 | `SPRINGDOC_HABILITADO` | no (`false`) | `true` publica `/v3/api-docs` y Swagger UI. |
 | `ADMIN_INICIAL_EMAIL`, `ADMIN_INICIAL_PASSWORD`, `ADMIN_INICIAL_NOMBRE` | solo en el primer arranque | Crean el primer ADMIN en una base sin ninguno. Después se borra `ADMIN_INICIAL_PASSWORD`; las otras dos pueden quedar (ver «Operación en producción»). |
-| `JWT_EXPIRATION_MINUTES`, `VAPID_*`, `PUSH_*`, `MAIL_*`, `NOTIF_FROM`, `LEGAL_VERSION_TERMINOS`, `ASYNC_*` | no | Las mismas de `application.yml`, con sus valores por defecto. |
+| `JWT_EXPIRATION_MINUTES`, `VAPID_*`, `PUSH_*`, `MAIL_*` (solo con `smtp`), `LEGAL_VERSION_TERMINOS`, `ASYNC_*` | no | Las mismas de `application.yml`, con sus valores por defecto. |
 
 ### Qué cambia respecto de `local`
 
@@ -128,9 +131,11 @@ preferible que no arranque y que el log diga qué falta.
   false`): un SMTP caído afecta a cada envío, no a la API, y no debe marcarla
   como caída ni hacer fallar un despliegue. La base de datos sí cuenta: sin
   ella la API no sirve.
-- **SMTP con timeouts de 5 s** (conexión, lectura y escritura). JavaMail
-  espera indefinidamente por defecto, y la recuperación de contraseña y el
-  soporte envían correo dentro de la petición.
+- **Correo con timeouts**: SMTP con 5 s en conexión, lectura y escritura
+  (JavaMail espera indefinidamente por defecto) y Resend con 3 s de conexión
+  y 10 s de lectura. Desde DEP-08 ningún correo se envía dentro de una
+  petición: un proveedor lento ocupa un hilo del executor asíncrono, no la
+  respuesta al usuario ni una conexión de la base.
 
 ### Imagen (`backend/Dockerfile`)
 
@@ -179,11 +184,18 @@ TwelveMonkeys suman unos 9 MB, aun usando solo el módulo `s3` del SDK con el
 cliente HTTP de `URLConnection` (sin Apache HttpClient, Netty, CRT ni firma
 de *event streams*) y quitando `tomcat-embed-websocket`, que la API no usa.
 Con esas exclusiones la primera medición (400,07 MB) bajó a 399,7 MB. La
-próxima dependencia (p. ej. DEP-08) pasará el límite: si importa, la salida
-de fondo es un JRE propio con `jlink` (unos 80 MB menos) o medir el criterio
-sobre la imagen comprimida. La columna *DISK USAGE* de Docker Desktop
+próxima dependencia pasará el límite: si importa, la salida de fondo es un
+JRE propio con `jlink` (unos 80 MB menos) o medir el criterio sobre la imagen
+comprimida. La columna *DISK USAGE* de Docker Desktop
 (586 MB) suma la imagen comprimida y la descomprimida, así que no es el
 tamaño de la imagen.
+
+**Con DEP-08 (2026-10-22): 399,75 MB** sin comprimir (399.749.120 bytes,
+381,23 MiB; la suma exacta de `docker history --human=false`) y 186 MB
+comprimida. DEP-08 no suma dependencias: el correo por HTTP usa el
+`RestClient` de Spring y el `HttpClient` del JDK, sin el SDK de Resend, y su
+código agrega unos 29 KB a la capa de la aplicación (0,45 MB). El criterio se
+sigue cumpliendo, con unos 250 KB de margen.
 
 **Verificación (2026-10-21)**, con la imagen contra un PostGIS 16-3.4 vacío y
 temporal:
@@ -214,6 +226,9 @@ como código. El paso a paso está en el runbook de despliegue
 - **Health check.** `GET /actuator/health` responde `UP` en cuanto Tomcat
   arranca; los *seeders* de distritos y municipalidades terminan alrededor de
   un segundo después (solo hacen algo en el primer despliegue).
+- **Correo (DEP-08).** El plan de Railway bloquea el SMTP saliente:
+  `CORREO_TIPO=resend`, `CORREO_API_KEY` y un `NOTIF_FROM` de un dominio
+  verificado en Resend (ver «Correo saliente»).
 - **Fotos en R2, sin volumen (DEP-12).** Con `FOTOS_ALMACEN=s3` las fotos
   van a Cloudflare R2 y el contenedor no escribe en disco: no hace falta un
   volumen ni, por lo tanto, `RAILWAY_RUN_UID=0`, y la imagen corre con su
@@ -481,8 +496,9 @@ src/main/java/pe/edu/upc/viasegura/
 │   ├── security/      # SecurityConfig, JwtService, JwtAuthenticationFilter
 │   ├── exception/     # GlobalExceptionHandler, ApiError, excepciones de dominio
 │   ├── domain/        # BaseAuditableEntity (createdAt/updatedAt)
-│   ├── port/          # FotoStorageService (fotos de reporte y de perfil, D-11), SaneadorDeImagen (DEP-12)
-│   └── infra/         # LocalFotoStorageService (disco), S3FotoStorageService (R2), ImageIoSaneadorDeImagen
+│   ├── port/          # FotoStorageService (fotos, D-11), SaneadorDeImagen (DEP-12) y CorreoSaliente (DEP-08)
+│   └── infra/         # LocalFotoStorageService (disco), S3FotoStorageService (R2), ImageIoSaneadorDeImagen,
+│                      #   SmtpCorreoAdapter y ResendCorreoAdapter
 ├── auth/              # US-01..US-04  (Usuario, login/registro, roles)
 ├── distritos/         # Distrito (límites GEOGRAPHY, base de asignación)
 ├── municipalidades/   # Municipalidad (1:1 con distrito, D-09) y PeriodoGestion (NC-01)
@@ -502,7 +518,8 @@ Cada dominio se organiza en `controller/ · service/ · repository/ · dto/ · d
 - **Repository** (Spring Data JPA) para acceso a datos.
 - **Strategy** para la asignación geoespacial de distrito (`distritos/port/` +
   `distritos/infra/`) y para el envío multicanal de notificaciones
-  (`notificaciones/port/` + `notificaciones/infra/`).
+  (`notificaciones/port/` + `notificaciones/infra/`), y para el transporte del
+  correo (`common/port/CorreoSaliente`: SMTP o Resend, DEP-08).
 - **Manejo centralizado de excepciones** con `@RestControllerAdvice`.
 - **DTOs** desacoplados de las entidades JPA en todas las capas de API.
 
@@ -1452,7 +1469,10 @@ Con la cola llena la tarea **nunca** corre en el hilo que la pidió (no se usa
 justo cuando el sistema está saturado. `ReporteEstadoCambiadoListener` atrapa
 el rechazo y deja un WARN con el reporte, el ciudadano y el estado del aviso
 perdido. Perder un aviso en ese caso se acepta: el reporte y su historial no
-dependen de él.
+dependen de él. Lo mismo hacen los correos de recuperación y de soporte
+(DEP-08): `RecuperacionSolicitadaListener` y `TicketRespondidoListener`
+encolan en este executor y, si los rechaza, registran el id del token o del
+ticket (ver «Correo saliente»).
 
 **En los IT** el bean real no existe (`@Profile("!test")`) y
 `support/EjecutorSincronoTestConfig` registra uno con el mismo nombre que
@@ -1472,6 +1492,160 @@ indique (entregado, 410, error, sin claves). Ningún test llama a un servicio de
 push real. `ZerodepWebPushAdapterTest` prueba el adaptador real sin red: carga
 de claves, arranque sin claves, firma y cifrado contra un puerto local cerrado,
 y clasificación de respuestas.
+
+## Correo saliente (DEP-08)
+
+Todo correo sale por un solo puerto, `common/port/CorreoSaliente`
+(`enviar(MensajeCorreo)`), con dos adaptadores en `common/infra` que se eligen
+con `app.correo.tipo` (`CORREO_TIPO`):
+
+| Tipo | Adaptador | Dónde | Cómo |
+|---|---|---|---|
+| `smtp` (por defecto) | `SmtpCorreoAdapter` | local (Mailhog, UI en :8025) y los IT (GreenMail en el 3025) | `JavaMailSender` de Spring Boot con `spring.mail.*` (`MAIL_*`), timeouts de 5 s |
+| `resend` | `ResendCorreoAdapter` | producción | `POST https://api.resend.com/emails` con `RestClient` y el `HttpClient` del JDK |
+
+**Por qué un puerto, y por qué en `common`.** El plan de Railway bloquea el
+SMTP saliente, así que en producción el correo va por HTTP, y cambiar de
+proveedor tiene que ser solo configuración. El correo lo usan tres módulos
+(`auth`: recuperación de contraseña, US-03; `soporte`: respuesta a un ticket,
+US-25; `notificaciones`: aviso de cambio de estado, US-16), y D-11 reserva
+`common/port` para la E/S que usan dos o más. En `notificaciones` crearía el
+ciclo `auth` → `notificaciones` → `auth`. Ninguna clase fuera de
+`SmtpCorreoAdapter` usa `JavaMailSender`: lo comprueba
+`CorreoSoloPorElPuertoTest` (ArchUnit). El proveedor (Resend y no Brevo) lo
+eligió el usuario; la comparación está en
+`project-context/decisions/propuestas/2026-10-21-correo-saliente-http.md`.
+
+**El mensaje.** `MensajeCorreo` lleva destinatario, asunto, texto y una
+etiqueta (`recuperacion`, `soporte` o `aviso-reporte`), pero no el remitente:
+lo fija el adaptador desde `NOTIF_FROM`. La etiqueta viaja a Resend como
+`tags: [{"name": "categoria", "value": …}]`, para filtrar en su panel, y nunca
+es un dato personal. Su `toString` solo muestra la etiqueta, porque el texto
+puede llevar un token.
+
+**Resend sin SDK.** No suma dependencias (la imagen está al borde de los
+400 MB): `Authorization: Bearer <CORREO_API_KEY>`, `Content-Type:
+application/json` y un `User-Agent` propio, que Resend exige (sin él responde
+403, error 1010). Timeouts de 3 s de conexión y 10 s de lectura, los de la
+propuesta aceptada: el envío corre fuera de la petición, así que esperar más a
+Resend no demora a nadie, y el timeout acota cuánto ocupa uno de los pocos
+hilos del executor asíncrono un proveedor que no responde. Sin reintentos: llegarán
+con NC-05 (ENVIO_CORREO, con registro de intentos). Una respuesta 4xx o 5xx, o
+la falta de respuesta, se traduce a `CorreoNoEnviadoException` con el status y
+el código de error de Resend (`validation_error`, `rate_limit_exceeded`…).
+Nunca lleva el `message` de Resend (puede repetir el destinatario), el texto ni
+la clave, y por eso tampoco encadena la excepción original.
+
+**Dominio verificado.** Resend solo envía a cualquier destinatario desde un
+dominio verificado (registros SPF y DKIM; DMARC recomendado). Desde
+`onboarding@resend.dev` solo llega al correo del dueño de la cuenta, y a
+cualquier otro responde 403. Por eso `NOTIF_FROM` es
+`Ciudad Viva <no-reply@<dominio verificado>>`; mientras no haya dominio, el
+correo de producción solo llega a esa dirección y cada envío rechazado deja un
+WARN. Cuota del plan gratuito: 100 correos al día y 3.000 al mes.
+
+**Arranque.** En `prod`, `CORREO_TIPO` y `NOTIF_FROM` no tienen valor por
+defecto (`ArranqueCorreoIT`, `PerfilProdIT`): con el `smtp` de desarrollo,
+cada correo fallaría contra `localhost:1025` sin que nada lo advirtiera al
+desplegar. Con un valor que no elige ningún adaptador (`brevo`, `resend `
+con un espacio), `common/config/ValidacionCorreoSaliente` (un
+`BeanFactoryPostProcessor`, como `ValidacionAlmacenDeFotos` de DEP-12) lo
+rechaza antes de crear ningún bean y de tocar la base, con un mensaje que
+nombra `CORREO_TIPO` y los valores admitidos; sin ella el error sería un
+genérico «required a bean of type CorreoSaliente». Con `resend`,
+`ResendCorreoAdapter` no arranca sin `CORREO_API_KEY` o sin remitente, y el
+mensaje nombra la variable sin repetir valores. El health sigue sin incluir
+el correo (`management.health.mail.enabled: false`).
+
+**Fuera de la petición y de la transacción (patrón de D-13).** Antes, la
+recuperación de contraseña y la respuesta de soporte enviaban con
+`JavaMailSender` dentro del `@Transactional`: un SMTP lento retenía una
+conexión del pool, y un fallo revertía la operación y daba 500. Ahora:
+
+1. El servicio guarda y publica un evento con **solo el id**:
+   `auth/event/RecuperacionSolicitadaEvent(tokenId)` (el valor del token
+   nunca viaja en un evento, que puede terminar en un log) o
+   `soporte/event/TicketRespondidoEvent(ticketId)`.
+2. El listener `AFTER_COMMIT` (`auth/listener/RecuperacionSolicitadaListener`,
+   `soporte/listener/TicketRespondidoListener`) encola el envío en el executor
+   acotado de `AsyncConfig` y vuelve.
+3. En ese hilo pide el mensaje al servicio
+   (`PasswordResetService#mensajeDeRecuperacion`,
+   `TicketSoporteService#mensajeDeRespuesta`: una lectura corta en su propia
+   transacción, que devuelve vacío si el token se usó o venció mientras
+   esperaba) y lo envía por `CorreoSaliente` sin transacción abierta. El
+   contenido del correo sigue en el servicio de su módulo; el listener no toca
+   repositorios ni arma textos.
+4. Un fallo se registra con el id (nunca el correo ni el token) y no se
+   propaga.
+
+Los listeners encolan con el `TaskExecutor` y no con `@Async` en el método:
+con la cola llena el executor rechaza la tarea, y así el listener registra
+**qué** correo se pierde, como `ReporteEstadoCambiadoListener`. Con `@Async`,
+el rechazo lo atraparía la sincronización de la transacción de Spring y solo
+quedaría un error genérico. `EmailNotificacionAdapter` (los avisos de US-16)
+solo cambia el transporte: ya corría asíncrono y fuera de la transacción.
+
+**Recuperación de contraseña: la misma respuesta exista o no la cuenta.**
+`POST /api/auth/recuperar-password` responde 202 sin cuerpo en todos los
+casos: cuenta inexistente, cuenta existente, proveedor caído y tope
+alcanzado. Antes, un fallo del correo daba 500 solo con una cuenta existente
+(revelaba cuáles existen), la respuesta tardaba lo que tardara el SMTP solo
+con cuenta, y el log guardaba el correo no registrado (ya no se registra). Con
+cuenta, la petición hace una consulta, toma el candado de la cuenta, cuenta e
+inserta; sin cuenta, una consulta: la diferencia ya no depende del proveedor
+de correo.
+
+**Tope por cuenta.** Como máximo 3 tokens por cuenta en una hora (cuenta
+`password_reset_token.created_at`, sin migración). El cuarto pedido no crea
+token ni envía, y responde igual. Sin el tope, un bucle sobre el endpoint
+gastaría la cuota diaria del proveedor (100 correos en Resend Free) y dejaría
+sin avisos a todos. **Sin carreras:** antes de contar, el servicio toma un
+candado consultivo de PostgreSQL por cuenta (`pg_advisory_xact_lock` sobre un
+hash de `recuperacion-contrasena:<id>`, en
+`PasswordResetTokenRepository#bloquearSolicitudesDeRecuperacion`), que se
+libera con el commit. Los pedidos simultáneos de una misma cuenta pasan de a
+uno, y cada conteo ya ve los tokens de los anteriores; los de cuentas
+distintas no se esperan. Se eligió un candado consultivo y no
+`SELECT … FOR UPDATE` sobre `usuario` porque no bloquea ninguna fila: ni la
+edición del perfil ni los `INSERT` de otras tablas que referencian al usuario
+esperan por él. `PasswordResetIT` lanza seis pedidos simultáneos para la misma
+cuenta y comprueba que quedan tres tokens y llegan tres correos (sin el
+candado quedaban seis).
+
+**Respuesta de soporte: cambio de comportamiento.** Si el correo falla, la
+respuesta del ADMIN queda guardada (el usuario la ve en `GET /mis-tickets`) y
+el `PATCH` responde 200; antes se revertía y daba 500. El correo es un aviso,
+no la respuesta.
+
+**Tests.** `ResendCorreoAdapterTest`, sin red (`MockRestServiceServer`):
+método, URL, cabeceras (`Authorization`, `User-Agent`, `Content-Type`), el
+cuerpo JSON exacto, respuestas 4xx y 5xx con su status, la falta de respuesta
+y dos casos con un socket local: un servidor que nunca responde (corta en el
+timeout de lectura) y un puerto cerrado. Todos comprueban que el mensaje del
+error no lleva la clave, el destinatario ni el token. Además
+`SmtpCorreoAdapterTest`, `MensajeCorreoTest`, `ValidacionCorreoSalienteTest`
+y los tests de los dos listeners (cola llena, token vencido, proveedor
+caído). `ArranqueCorreoIT` arranca la aplicación real sin base: sin
+`CORREO_TIPO` en `prod` y con `CORREO_TIPO=brevo`, no arranca. En los IT los
+correos siguen por SMTP a GreenMail (`app.correo.tipo: smtp` literal en
+`application-test.yml`, para que un `CORREO_TIPO` del entorno no mande la
+suite a Resend): `PasswordResetIT` (misma respuesta con y sin cuenta, 202 con
+GreenMail detenido y el token guardado, el tope, su ventana de una hora y
+seis pedidos simultáneos) y `TicketSoporteIT` (la respuesta queda guardada
+con el correo caído). El
+executor de test espera a la tarea, así que al volver la petición el correo ya
+llegó; igual se espera con `waitForIncomingEmail`, acotado.
+
+**Verificación con la imagen (2026-10-22)**, perfil `prod` contra una base
+temporal vacía: sin `CORREO_TIPO` no arranca (`Could not resolve placeholder
+'CORREO_TIPO'`); con `CORREO_TIPO=resend` y sin `CORREO_API_KEY`, tampoco
+(«Con CORREO_TIPO=resend falta CORREO_API_KEY…»). Con una clave inventada
+arranca, y `POST /api/auth/recuperar-password` responde 202 sin cuerpo con y
+sin cuenta (58 ms y 14 ms: la diferencia es el conteo y el `INSERT`, no el
+proveedor). El envío corre en `viasegura-async-1`, y la API real de Resend lo
+rechaza con 401 `validation_error` (clave inválida, no el 403 de un
+`User-Agent` faltante), que queda como un WARN con el id del token.
 
 ## Consentimiento (D-12, NC-07b)
 
@@ -1573,8 +1747,8 @@ para los dos canales en un solo lugar.
 canal EMAIL y el fallback de push a email) solo salen con
 `NOTIFICACIONES_CORREO` vigente. Los correos de **seguridad** (recuperar la
 contraseña, US-03) y la **respuesta de soporte** (US-25, la pidió el usuario)
-se envían siempre: usan `JavaMailSender` directo y no pasan por
-`NotificacionService`. Si el usuario no autoriza ningún canal, cada intento se
+se envían siempre: salen por el puerto `CorreoSaliente` directo y no pasan
+por `NotificacionService`. Si el usuario no autoriza ningún canal, cada intento se
 registra `FALLIDA`, como un canal no disponible, sin error: el cambio de estado
 se confirma igual.
 
@@ -1716,6 +1890,12 @@ verificado en una base de test vacía.
 - **Fotos huérfanas.** Si la transacción falla después de subir la foto, el
   archivo u objeto queda en el disco o el bucket (aceptable en el MVP).
   Mejora posible: borrarlo en `afterCompletion` con estado `ROLLED_BACK`.
+- **Correo sin reintentos ni registro de envíos (DEP-08).** Si el proveedor
+  rechaza o no responde, el correo de recuperación o de soporte se pierde y
+  solo queda un WARN con el id (la persona puede volver a pedir el token; la
+  respuesta de soporte queda visible en la app). NC-05 (ENVIO_CORREO) traerá
+  los intentos registrados. El tope de recuperación es por cuenta: no hay un
+  límite de tasa general por IP.
 - **Dataset de distritos simplificado** (5,130 vértices, IGN/INEI): margen de
   error medido ≈ metros (≤ ~20 m en bordes terrestres; 0.044 % de mala
   asignación sobre 20k puntos). Suficiente para el MVP. El dataset detallado
