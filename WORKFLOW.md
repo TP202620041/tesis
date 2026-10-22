@@ -70,7 +70,8 @@ Cada agente de Claude Code trabaja **en una sola carpeta, en una sola tarea, en 
 | **ArchUnit** | `mvn test` | Una violación de capas nueva en el backend. |
 | **ESLint de capas** | `npm run lint` | Un import que rompe las capas del frontend (aviso hasta FE-09, luego error). |
 | **Revisor** | `/revisar` | Reglas que ninguna herramienta mide: señales internas en DTO, SEC-01, eventos de KPI, limpieza de tests, CSP. |
-| **Protección de `main` y `develop`** (activa desde el 11/10) | GitHub → Settings → Branches | Que algo llegue a `main` o `develop` sin PR, un push forzado o el borrado de esas ramas, también para admins. |
+| **CI** (`.github/workflows/ci.yml`, desde el 21/10) | GitHub Actions en cada PR y push a `develop`/`main` | Que se fusione algo con el backend o el frontend en rojo: `mvn clean verify` contra PostGIS con guarda de completitud por clase y mínimos de tests, y lint, typecheck, `npm test` y build del frontend. Detalle en `docs/ci.md`. |
+| **Protección de `main` y `develop`** (activa desde el 11/10; check `ci` obligatorio desde el 21/10) | GitHub → Settings → Branches | Que algo llegue a `main` o `develop` sin PR, sin el check `ci` en verde, con un push forzado o borrando esas ramas, también para admins. |
 
 El hook es una red de seguridad, no un sandbox: un comando de shell podría saltárselo. Si bloquea algo legítimo, el agente lo dice y lo hace la sesión de raíz o tú.
 
