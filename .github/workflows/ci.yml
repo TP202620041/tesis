@@ -1,0 +1,310 @@
+# CI de Ciudad Viva (DEP-07). Qué corre, cómo leer el resumen y qué check
+# exigir en la protección de ramas: docs/ci.md.
+#
+# Check obligatorio: solo `ci`. Agrega los resultados de `cambios`, `backend`
+# y `frontend`, así que un job omitido porque su carpeta no cambió cuenta como
+# éxito, y uno que falla, se cancela o se omite sin motivo hace fallar `ci`.
+name: CI
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# En un PR, un push nuevo cancela la corrida anterior. Se agrupa por número de
+# PR y no por rama: un release/* abre dos PR (a main y a develop) que no deben
+# cancelarse entre sí. Los push y las corridas manuales nunca se cancelan.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    # Explícito para que el runner use `-eo pipefail` (sin `shell`, solo `-e`).
+    shell: bash
+
+jobs:
+  cambios:
+    name: cambios
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read # paths-filter lista los archivos del PR por la API
+    outputs:
+      # Una corrida manual y una versión (push a main) validan todo.
+      backend: ${{ github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || steps.filtro.outputs.backend == 'true' }}
+      frontend: ${{ github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || steps.filtro.outputs.frontend == 'true' }}
+    steps:
+      # En un push, paths-filter usa git: compara con el commit anterior de la
+      # misma rama (base = la rama del push). En un PR usa la API.
+      - uses: actions/checkout@v7
+        if: github.event_name == 'push'
+      - id: filtro
+        if: github.event_name != 'workflow_dispatch'
+        uses: dorny/paths-filter@v4
+        with:
+          base: ${{ github.ref_name }}
+          filters: |
+            backend:
+              - 'backend/**'
+              - '.github/workflows/ci.yml'
+            frontend:
+              - 'frontend/**'
+              - '.github/workflows/ci.yml'
+
+  backend:
+    name: backend
+    needs: cambios
+    if: needs.cambios.outputs.backend == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      # Igual que backend/docker-compose.yml, con la base de los IT
+      # (AbstractPostgisIT). Credenciales de una base desechable, no secretos.
+      postgis:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_DB: viasegura_test
+          POSTGRES_USER: viasegura
+          POSTGRES_PASSWORD: viasegura
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U viasegura -d viasegura_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      TEST_DB_URL: jdbc:postgresql://localhost:5432/viasegura_test
+      TEST_DB_USER: viasegura
+      TEST_DB_PASSWORD: viasegura
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: backend/pom.xml
+      - name: Versiones
+        run: mvn -v
+      - name: mvn clean verify
+        run: mvn -B -ntp clean verify
+      # Un BUILD SUCCESS no prueba que los tests se ejecutaron (un filtro mal
+      # escrito pasa sin correr nada): se exige completed > 0 y se publican
+      # las cifras del CHANGELOG. Corre también si Maven falló.
+      - name: Conteo de tests, cobertura y ArchUnit
+        if: ${{ !cancelled() }}
+        run: |
+          total=$(node ../.claude/skills/verificar/contar-archunit.mjs 2>/dev/null | awk '/TOTAL/ {print $1}') || total=
+          export ARCHUNIT_CONGELADAS="${total:-n/d}"
+          python3 - <<'PY'
+          import csv, glob, os, sys
+          import xml.etree.ElementTree as ET
+
+          errores, filas = [], []
+
+          ruta = 'target/failsafe-reports/failsafe-summary.xml'
+          if os.path.exists(ruta):
+              raiz = ET.parse(ruta).getroot()
+              fs = {k: int(raiz.findtext(k) or 0) for k in ('completed', 'errors', 'failures', 'skipped')}
+              filas.append(('Tests de integración (Failsafe `completed`)',
+                            f"**{fs['completed']}** (errors {fs['errors']}, failures {fs['failures']}, skipped {fs['skipped']})"))
+              if fs['completed'] == 0:
+                  errores.append('Failsafe completed = 0: no se ejecutó ningún IT.')
+              if fs['errors'] or fs['failures']:
+                  errores.append(f"Failsafe: {fs['errors']} errors y {fs['failures']} failures.")
+          else:
+              errores.append(f'No existe {ruta}: Failsafe no corrió.')
+
+          st = dict(tests=0, errors=0, failures=0, skipped=0)
+          informes = glob.glob('target/surefire-reports/TEST-*.xml')
+          for informe in informes:
+              suite = ET.parse(informe).getroot()
+              for k in st:
+                  st[k] += int(suite.get(k, 0))
+          filas.append(('Tests unitarios (Surefire)',
+                        f"**{st['tests']}** en {len(informes)} clases (errors {st['errors']}, failures {st['failures']})"))
+          if st['tests'] == 0:
+              errores.append('Surefire no ejecutó ningún test.')
+
+          ruta = 'target/site/jacoco/jacoco.csv'
+          if os.path.exists(ruta):
+              s = dict(LINE_MISSED=0, LINE_COVERED=0, BRANCH_MISSED=0, BRANCH_COVERED=0)
+              with open(ruta, newline='') as f:
+                  for fila in csv.DictReader(f):
+                      for k in s:
+                          s[k] += int(fila[k])
+              def pct(cub, falt):
+                  total = cub + falt
+                  return f'{100 * cub / total:.1f} % ({cub}/{total})' if total else 'n/d'
+              filas.append(('Cobertura de líneas (JaCoCo)', pct(s['LINE_COVERED'], s['LINE_MISSED'])))
+              filas.append(('Cobertura de ramas (JaCoCo)', pct(s['BRANCH_COVERED'], s['BRANCH_MISSED'])))
+          else:
+              filas.append(('Cobertura (JaCoCo)', 'sin informe'))
+
+          filas.append(('Violaciones congeladas de ArchUnit', os.environ.get('ARCHUNIT_CONGELADAS', 'n/d')))
+
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as out:
+              out.write('### Backend\n\n| Métrica | Valor |\n|---|---|\n')
+              out.writelines(f'| {m} | {v} |\n' for m, v in filas)
+              out.writelines(f'\n> **Error:** {e}\n' for e in errores)
+          for m, v in filas:
+              print(f'{m}: {v}')
+          for e in errores:
+              print(f'::error::{e}')
+          sys.exit(1 if errores else 0)
+          PY
+      - name: Subir informe JaCoCo
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: jacoco-backend
+          path: backend/target/site/jacoco
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Subir informes de tests (si falló)
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: informes-tests-backend
+          path: |
+            backend/target/surefire-reports
+            backend/target/failsafe-reports
+          if-no-files-found: ignore
+          retention-days: 14
+
+  frontend:
+    name: frontend
+    needs: cambios
+    if: needs.cambios.outputs.frontend == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      # frontend/.nvmrc si existe; si no, Node 24 LTS (jsdom 30 exige
+      # ^22.22.2 || ^24.15.0 || >=26; Next 16, >=20.9).
+      - id: version-node
+        name: Versión de Node
+        run: |
+          if [ -f .nvmrc ]; then v=$(tr -d '[:space:]' < .nvmrc); else v=24; fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ steps.version-node.outputs.version }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - id: instalar
+        name: npm ci
+        run: npm ci
+      # Lint, typecheck, tests y build corren aunque falle uno de los
+      # anteriores, para ver todos los errores en una sola corrida.
+      - id: lint
+        name: Lint
+        if: ${{ !cancelled() && steps.instalar.outcome == 'success' }}
+        run: npm run lint
+      - id: typecheck
+        name: Typecheck
+        if: ${{ !cancelled() && steps.instalar.outcome == 'success' }}
+        run: npm run typecheck
+      - id: tests
+        name: Tests (con la guarda de completitud)
+        if: ${{ !cancelled() && steps.instalar.outcome == 'success' }}
+        run: npm test 2>&1 | tee "$RUNNER_TEMP/vitest.log"
+      # Las reglas de capas ya corren en Lint; aquí solo se cuentan.
+      - id: capas
+        name: Avisos de capas (informativo)
+        if: ${{ !cancelled() && steps.instalar.outcome == 'success' }}
+        continue-on-error: true
+        run: |
+          npx eslint -f json -o "$RUNNER_TEMP/eslint-capas.json" . || true
+          node ../.claude/skills/verificar/contar-capas.mjs "$RUNNER_TEMP/eslint-capas.json" | tee "$RUNNER_TEMP/capas.txt"
+      - id: build
+        name: Build
+        if: ${{ !cancelled() && steps.instalar.outcome == 'success' }}
+        env:
+          NEXT_PUBLIC_API_BASE_URL: https://api.example.invalid
+        run: npm run build
+      - name: Resumen
+        if: ${{ !cancelled() }}
+        env:
+          R_INSTALAR: ${{ steps.instalar.outcome }}
+          R_LINT: ${{ steps.lint.outcome }}
+          R_TYPECHECK: ${{ steps.typecheck.outcome }}
+          R_TESTS: ${{ steps.tests.outcome }}
+          R_BUILD: ${{ steps.build.outcome }}
+        run: |
+          tests=$(sed -n 's/^Verificacion: \([0-9]*\) tests en \([0-9]*\) archivos.*/\1 tests en \2 archivos/p' "$RUNNER_TEMP/vitest.log" 2>/dev/null | tail -1) || tests=
+          capas=$(awk '/TOTAL avisos de capas/ {print $1}' "$RUNNER_TEMP/capas.txt" 2>/dev/null) || capas=
+          {
+            echo "### Frontend (Node $(node -v))"
+            echo
+            echo "| Paso | Resultado |"
+            echo "|---|---|"
+            echo "| npm ci | ${R_INSTALAR:-skipped} |"
+            echo "| Lint | ${R_LINT:-skipped} |"
+            echo "| Typecheck | ${R_TYPECHECK:-skipped} |"
+            echo "| Tests | ${R_TESTS:-skipped}: **${tests:-sin conteo}** |"
+            echo "| Avisos de capas | ${capas:-n/d} |"
+            echo "| Build | ${R_BUILD:-skipped} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Único check que se exige en la protección de develop y main.
+  ci:
+    name: ci
+    if: always()
+    needs: [cambios, backend, frontend]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Resultado agregado
+        env:
+          R_CAMBIOS: ${{ needs.cambios.result }}
+          R_BACKEND: ${{ needs.backend.result }}
+          R_FRONTEND: ${{ needs.frontend.result }}
+          APLICA_BACKEND: ${{ needs.cambios.outputs.backend }}
+          APLICA_FRONTEND: ${{ needs.cambios.outputs.frontend }}
+        run: |
+          fallo=0
+          {
+            echo "### CI"
+            echo
+            echo "| Job | ¿Cambió su carpeta? | Resultado |"
+            echo "|---|---|---|"
+            echo "| cambios | — | $R_CAMBIOS |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$R_CAMBIOS" != success ]; then
+            echo "::error::cambios terminó en $R_CAMBIOS"
+            fallo=1
+          fi
+          # Si su carpeta cambió, el job debe terminar en success; si no, en skipped.
+          revisar() {
+            local job=$1 aplica=$2 resultado=$3 esperado=skipped cambio=no
+            [ "$aplica" = true ] && esperado=success && cambio=sí
+            echo "| $job | $cambio | $resultado |" >> "$GITHUB_STEP_SUMMARY"
+            if [ "$resultado" != "$esperado" ]; then
+              echo "::error::$job terminó en $resultado (se esperaba $esperado)"
+              fallo=1
+            fi
+          }
+          revisar backend "$APLICA_BACKEND" "$R_BACKEND"
+          revisar frontend "$APLICA_FRONTEND" "$R_FRONTEND"
+          exit $fallo
