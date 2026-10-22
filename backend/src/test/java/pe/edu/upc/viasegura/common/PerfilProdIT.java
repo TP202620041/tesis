@@ -45,7 +45,7 @@ import pe.edu.upc.viasegura.support.AbstractPostgisIT;
  * conocido.</p>
  */
 @ActiveProfiles("prod")
-@TestPropertySource(properties = "CORS_ALLOWED_ORIGINS=https://pwa.ciudadviva.test")
+@TestPropertySource(properties = {"CORS_ALLOWED_ORIGINS=https://pwa.ciudadviva.test", "FOTOS_ALMACEN=local"})
 class PerfilProdIT extends AbstractPostgisIT {
 
     private static final String SECRETO_PROPIO = secretoAleatorio();
@@ -93,6 +93,8 @@ class PerfilProdIT extends AbstractPostgisIT {
         assertThat(environment.getProperty("springdoc.api-docs.enabled")).isEqualTo("false");
         assertThat(environment.getProperty("springdoc.swagger-ui.enabled")).isEqualTo("false");
         assertThat(environment.getProperty("app.cors.allowed-origins")).isEqualTo("https://pwa.ciudadviva.test");
+        // DEP-12: en prod el almacen de fotos sale de FOTOS_ALMACEN, sin default.
+        assertThat(environment.getProperty("app.storage.tipo")).isEqualTo("local");
     }
 
     @Test

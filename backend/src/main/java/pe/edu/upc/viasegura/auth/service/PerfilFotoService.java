@@ -36,9 +36,10 @@ public class PerfilFotoService {
      * coincidira con un nombre UUID guardado en la base, asi que se rechaza
      * antes de llegar al filesystem. Es mas fuerte que sanear la cadena: no
      * hay que anticipar todas las formas de escaparse, porque la unica
-     * entrada aceptada es un valor que el propio servidor genero.
-     * {@code LocalFotoStorageService#cargarFotoPerfil} agrega ademas una
-     * verificacion de contencion de ruta como segunda barrera.</p>
+     * entrada aceptada es un valor que el propio servidor genero. Los
+     * adaptadores agregan una segunda barrera: el local verifica que la ruta
+     * quede dentro del directorio de perfiles y el S3 solo acepta nombres
+     * {@code <uuid>.<ext>}.</p>
      *
      * @return vacio si el usuario no tiene foto, si el archivo pedido no es
      *         el suyo, o si el archivo ya no existe en disco
@@ -66,14 +67,24 @@ public class PerfilFotoService {
         return Optional.of(new FotoPerfil(recurso, contentType(archivoRegistrado)));
     }
 
-    /** Ultimo segmento de la URL registrada (`/api/perfiles/fotos/<uuid>.png`). */
-    private static String nombreDeArchivo(String fotoUrl) {
+    /**
+     * Ultimo segmento de la URL registrada (`/api/perfiles/fotos/<uuid>.jpg`),
+     * o {@code null} si no hay. Tambien lo usa {@code AuthService} para borrar
+     * la foto reemplazada.
+     */
+    static String nombreDeArchivo(String fotoUrl) {
+        if (!StringUtils.hasText(fotoUrl)) {
+            return null;
+        }
         int ultimaBarra = fotoUrl.lastIndexOf('/');
         String nombre = ultimaBarra >= 0 ? fotoUrl.substring(ultimaBarra + 1) : fotoUrl;
         return StringUtils.hasText(nombre) ? nombre : null;
     }
 
-    /** Solo se aceptan estos formatos al subir (LocalFotoStorageService). */
+    /**
+     * Por la extension del nombre registrado: desde DEP-12 siempre {@code .jpg}
+     * (la foto se guarda saneada); las demas son de fotos anteriores.
+     */
     private static String contentType(String nombreArchivo) {
         String extension = StringUtils.getFilenameExtension(nombreArchivo.toLowerCase());
         if (extension == null) {

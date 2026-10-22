@@ -3,9 +3,11 @@
 # seccion "Configuracion de produccion".
 #
 # Obligatorias y SIN valor por defecto: DB_URL, DB_USERNAME, DB_PASSWORD,
-# CORS_ALLOWED_ORIGINS, FOTOS_DIR y JWT_SECRET (este ultimo desde
-# application.yml, SEC-03). Un default aqui arrancaria la app apuntando a
-# algo que no es produccion; mejor que no arranque.
+# CORS_ALLOWED_ORIGINS, FOTOS_ALMACEN y JWT_SECRET (este ultimo desde
+# application.yml, SEC-03). Con FOTOS_ALMACEN=s3, tambien FOTOS_S3_* (las
+# valida S3FotoStorageService); con FOTOS_ALMACEN=local, FOTOS_DIR (la imagen
+# ya trae /data/fotos). Un default aqui arrancaria la app apuntando a algo
+# que no es produccion; mejor que no arranque.
 spring:
   datasource:
     url: ${DB_URL}
@@ -23,6 +25,10 @@ spring:
 
 app:
   storage:
+    # DEP-12: `s3` (R2). Sin default: con el `local` de desarrollo, cada
+    # despliegue borraria las fotos del disco del contenedor sin avisar.
+    tipo: ${FOTOS_ALMACEN}
+    # Solo con FOTOS_ALMACEN=local (un volumen montado en el contenedor).
     fotos-dir: ${FOTOS_DIR}
   cors:
     # Origen(es) de la PWA desplegada (p. ej. https://<proyecto>.vercel.app),

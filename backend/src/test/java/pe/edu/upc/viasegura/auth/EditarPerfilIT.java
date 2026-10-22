@@ -59,8 +59,9 @@ class EditarPerfilIT extends AbstractPostgisIT {
     }
 
     private MockMultipartFile fotoPng() {
+        // Una imagen real: desde DEP-12 la foto se decodifica al guardarse.
         return new MockMultipartFile("foto", "perfil.png", "image/png",
-                new byte[]{(byte) 0x89, 'P', 'N', 'G', 1, 2, 3, 4});
+                pe.edu.upc.viasegura.support.ImagenesDePrueba.png(8, 8));
     }
 
     private org.springframework.test.web.servlet.request.MockMultipartHttpServletRequestBuilder patchMultipart() {

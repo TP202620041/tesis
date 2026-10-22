@@ -6,6 +6,8 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 import pe.edu.upc.viasegura.auth.domain.PreferenciaNotificacion;
 import pe.edu.upc.viasegura.auth.domain.Rol;
@@ -132,10 +134,33 @@ public class AuthService {
         if (foto != null && !foto.vacio()) {
             // Foto de perfil, no de reporte: se guarda aparte y su URL apunta
             // al endpoint autenticado, no al directorio publico (US-30).
+            String anterior = usuario.getFotoUrl();
             usuario.setFotoUrl(fotoStorageService.almacenarFotoPerfil(foto));
+            eliminarAlConfirmar(anterior);
         }
 
         return respuesta(usuarioRepository.save(usuario));
+    }
+
+    /**
+     * Borra la foto de perfil reemplazada cuando la transaccion confirma
+     * (DEP-12): ya no tiene finalidad y es un dato personal (Ley N.° 29733).
+     * Despues del commit y no antes: si el cambio de perfil fallara, el
+     * usuario conservaria su foto anterior. El borrado no lanza
+     * ({@link FotoStorageService#eliminarFotoPerfil}): si falla, queda un
+     * huerfano y el perfil ya actualizado no se ve afectado.
+     */
+    private void eliminarAlConfirmar(String fotoUrlAnterior) {
+        String nombre = PerfilFotoService.nombreDeArchivo(fotoUrlAnterior);
+        if (nombre == null || !TransactionSynchronizationManager.isSynchronizationActive()) {
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                fotoStorageService.eliminarFotoPerfil(nombre);
+            }
+        });
     }
 
     private AuthResponse construirRespuesta(Usuario usuario) {
