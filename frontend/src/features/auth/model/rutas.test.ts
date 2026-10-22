@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  conRedirect,
   descripcionDeArea,
   destinoInterno,
+  destinoTrasAcceso,
   puedeAcceder,
   rutaAceptarTerminos,
   rutaInicialDe,
@@ -12,6 +14,41 @@ import {
   RUTA_SOPORTE_ADMIN,
 } from './rutas';
 import { ROLES } from '@/lib/types/domain';
+
+describe('destinoTrasAcceso (QA-1 I-2: login y registro van al mismo lugar)', () => {
+  const ciudadano = { rol: 'CIUDADANO' as const, debeAceptarTerminos: false };
+
+  it('sin redirect, a la puerta de entrada del rol', () => {
+    expect(destinoTrasAcceso(ciudadano, null)).toBe('/mis-reportes');
+    expect(destinoTrasAcceso({ rol: 'FUNCIONARIO_MUNICIPAL' }, null)).toBe('/bandeja');
+  });
+
+  it('vuelve al redirect si es una ruta interna', () => {
+    expect(destinoTrasAcceso(ciudadano, '/reportar')).toBe('/reportar');
+    expect(destinoTrasAcceso(ciudadano, 'https://otro.example')).toBe('/mis-reportes');
+  });
+
+  it('nunca a la pantalla de depuración /sesion por defecto', () => {
+    for (const rol of ROLES) expect(destinoTrasAcceso({ rol }, null)).not.toBe('/sesion');
+  });
+
+  it('con los términos pendientes, antes a la aceptación y después al destino', () => {
+    expect(destinoTrasAcceso({ ...ciudadano, debeAceptarTerminos: true }, '/reportar')).toBe(
+      rutaAceptarTerminos('/reportar'),
+    );
+  });
+});
+
+describe('conRedirect', () => {
+  it('lleva el redirect interno al otro formulario de acceso', () => {
+    expect(conRedirect('/registro', '/reportar')).toBe('/registro?redirect=%2Freportar');
+  });
+
+  it('sin redirect válido, la ruta a secas', () => {
+    expect(conRedirect('/registro', null)).toBe('/registro');
+    expect(conRedirect('/registro', '//otro.example')).toBe('/registro');
+  });
+});
 
 describe('rutaInicialDe', () => {
   it('lleva al funcionario a su bandeja', () => {

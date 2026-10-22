@@ -65,7 +65,12 @@ afterEach(() => {
 });
 
 describe('FormularioRegistro (NC-07b)', () => {
-  function conRegistro(enviar = vi.fn().mockResolvedValue({ usuario: USUARIO })) {
+  // Recien registrado: los terminos se aceptaron al crear la cuenta.
+  const REGISTRADO = { ...USUARIO, debeAceptarTerminos: false };
+
+  function conRegistro(
+    enviar = vi.fn().mockResolvedValue({ sesion: { usuario: REGISTRADO }, terminosDesactualizados: false }),
+  ) {
     vi.mocked(useRegistro).mockReturnValue({
       enviando: false,
       error: null,
@@ -113,7 +118,83 @@ describe('FormularioRegistro (NC-07b)', () => {
       email: 'ana@lima.pe',
       password: 'secreta123',
     });
-    expect(push).toHaveBeenCalledWith('/sesion');
+    // QA-1 I-2: a «Mis reportes», como el login; nunca a la pantalla de
+    // depuración `/sesion`, que ya no existe.
+    expect(push).toHaveBeenCalledWith('/mis-reportes');
+  });
+
+  it('vuelve al ?redirect= interno con que se llegó (p. ej. desde /reportar)', async () => {
+    parametros.valor = new URLSearchParams('redirect=/reportar');
+    conRegistro();
+    render(<FormularioRegistro textoLegal={TEXTO_LEGAL} />);
+    const usuario = await llenar();
+
+    await usuario.click(screen.getByRole('checkbox'));
+    await usuario.click(screen.getByRole('button', { name: 'Crear cuenta' }));
+
+    expect(push).toHaveBeenCalledWith('/reportar');
+  });
+
+  it('un ?redirect= a otro sitio se ignora', async () => {
+    parametros.valor = new URLSearchParams('redirect=https://otro.example');
+    conRegistro();
+    render(<FormularioRegistro textoLegal={TEXTO_LEGAL} />);
+    const usuario = await llenar();
+
+    await usuario.click(screen.getByRole('checkbox'));
+    await usuario.click(screen.getByRole('button', { name: 'Crear cuenta' }));
+
+    expect(push).toHaveBeenCalledWith('/mis-reportes');
+  });
+
+  describe('QA-1 M-2', () => {
+    it('dice el mínimo de la contraseña antes de enviar', () => {
+      conRegistro();
+      render(<FormularioRegistro textoLegal={TEXTO_LEGAL} />);
+      expect(screen.getByLabelText('Contraseña')).toHaveAccessibleDescription('Mínimo 8 caracteres.');
+    });
+
+    it('con una contraseña corta no envía y lo explica en castellano', async () => {
+      const enviar = conRegistro();
+      render(<FormularioRegistro textoLegal={TEXTO_LEGAL} />);
+      const usuario = userEvent.setup();
+      await usuario.type(screen.getByLabelText('Contraseña'), 'abc');
+      await usuario.click(screen.getByRole('checkbox'));
+      await usuario.click(screen.getByRole('button', { name: 'Crear cuenta' }));
+
+      expect(enviar).not.toHaveBeenCalled();
+      const campo = screen.getByLabelText('Contraseña');
+      expect(campo).toHaveAttribute('aria-invalid', 'true');
+      expect(campo).toHaveAccessibleDescription(/al menos 8 caracteres/);
+      // La casilla ya marcada no se toca.
+      expect(screen.getByRole('checkbox')).toBeChecked();
+
+      // Al corregirla, el error se va solo.
+      await usuario.type(campo, 'defghi');
+      expect(campo).not.toHaveAttribute('aria-invalid');
+    });
+
+    it('un error que no es de los términos (p. ej. correo ya registrado) deja la casilla marcada', async () => {
+      const enviar = conRegistro(vi.fn().mockResolvedValue({ sesion: null, terminosDesactualizados: false }));
+      render(<FormularioRegistro textoLegal={TEXTO_LEGAL} />);
+      const usuario = await llenar();
+      await usuario.click(screen.getByRole('checkbox'));
+      await usuario.click(screen.getByRole('button', { name: 'Crear cuenta' }));
+
+      expect(enviar).toHaveBeenCalled();
+      expect(screen.getByRole('checkbox')).toBeChecked();
+      expect(push).not.toHaveBeenCalled();
+    });
+
+    it('con los términos desactualizados sí la desmarca: hay que leer el texto nuevo', async () => {
+      conRegistro(vi.fn().mockResolvedValue({ sesion: null, terminosDesactualizados: true }));
+      render(<FormularioRegistro textoLegal={TEXTO_LEGAL} />);
+      const usuario = await llenar();
+      await usuario.click(screen.getByRole('checkbox'));
+      await usuario.click(screen.getByRole('button', { name: 'Crear cuenta' }));
+
+      expect(screen.getByRole('checkbox')).not.toBeChecked();
+    });
   });
 
   it('muestra los términos en un diálogo sin salir del formulario ni perder lo escrito', async () => {

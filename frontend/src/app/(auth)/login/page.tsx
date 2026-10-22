@@ -1,6 +1,10 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import {
+  EnlaceDeAcceso,
+  EnlaceDeAccesoSinDestino,
+} from '@/features/auth/components/EnlaceDeAcceso';
 import { FormularioLogin } from '@/features/auth/components/FormularioLogin';
 
 export const metadata: Metadata = {
@@ -33,9 +37,10 @@ export default function LoginPage() {
 
       <p className="text-sm text-slate-600 dark:text-slate-400">
         ¿No tienes cuenta?{' '}
-        <Link href="/registro" className="font-medium text-sky-700 hover:underline dark:text-sky-400">
-          Regístrate
-        </Link>
+        {/* Conserva el `?redirect=`: al crear la cuenta vuelve a donde iba. */}
+        <Suspense fallback={<EnlaceDeAccesoSinDestino ruta="/registro">Regístrate</EnlaceDeAccesoSinDestino>}>
+          <EnlaceDeAcceso ruta="/registro">Regístrate</EnlaceDeAcceso>
+        </Suspense>
       </p>
     </section>
   );

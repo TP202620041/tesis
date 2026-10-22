@@ -2,7 +2,7 @@
 
 import 'leaflet/dist/leaflet.css';
 import { DivIcon, canvas, type LatLngBounds } from 'leaflet';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   CircleMarker,
   MapContainer,
@@ -10,11 +10,15 @@ import {
   Popup,
   TileLayer,
   Tooltip,
+  useMap,
   useMapEvents,
 } from 'react-leaflet';
+import { ControlDeZoom } from './ControlDeZoom';
 import type { BoundingBox } from '@/features/reportes/model/bbox';
 import { estiloDeNivel, textoDeRango, type CeldaCalor } from '@/features/reportes/model/densidad';
+import { nombreDeMarcador } from '@/features/reportes/model/marcador';
 import { ESTADOS_EN_MAPA, estiloDeEstado } from '@/lib/types/estados';
+import { FOTO_NO_DISPONIBLE, nombreDelReemplazo } from '@/lib/types/fotoDeReporte';
 import { textoDeSeveridad, tituloVisible } from '@/lib/types/tituloYSeveridad';
 import type { ReporteResumen } from '@/features/reportes/model/tipos';
 
@@ -36,15 +40,26 @@ import type { ReporteResumen } from '@/features/reportes/model/tipos';
 const CENTRO_LIMA: [number, number] = [-12.06, -77.04];
 const ZOOM_INICIAL = 13;
 
+/**
+ * Lado del area tactil del marcador, en px. QA-1 M-7: el marcador medía 18 px,
+ * por debajo del minimo de 24 px para un objetivo tactil (WCAG 2.2, 2.5.8);
+ * con 28 px queda holgado. El punto visible sigue chico (20 px) y centrado:
+ * el borde transparente agranda donde se puede tocar sin tapar mas mapa.
+ */
+const LADO_MARCADOR = 28;
+
 function iconoDeEstado(color: string): DivIcon {
   return new DivIcon({
     className: '',
     html: `<span style="
-      display:block; width:1.1rem; height:1.1rem; border-radius:9999px;
-      background:${color}; border:2.5px solid #fff;
-      box-shadow:0 1px 4px rgba(0,0,0,.5);"></span>`,
-    iconSize: [18, 18],
-    iconAnchor: [9, 9],
+      display:flex; align-items:center; justify-content:center; width:100%; height:100%;">
+      <span style="
+        display:block; width:1.25rem; height:1.25rem; border-radius:9999px;
+        background:${color}; border:2.5px solid #fff;
+        box-shadow:0 1px 4px rgba(0,0,0,.5);"></span>
+    </span>`,
+    iconSize: [LADO_MARCADOR, LADO_MARCADOR],
+    iconAnchor: [LADO_MARCADOR / 2, LADO_MARCADOR / 2],
   });
 }
 
@@ -79,6 +94,25 @@ function ObservarArea({ onAreaCambiada }: { onAreaCambiada: (b: BoundingBox) => 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  return null;
+}
+
+/**
+ * Avisa a Leaflet cuando cambia el tamaño de su contenedor sin que cambie la
+ * ventana. QA-1 I-4: en el movil, plegar o desplegar el panel de filtros
+ * cambia el alto del mapa; Leaflet solo escucha el `resize` de la ventana, y
+ * sin `invalidateSize` el area nueva quedaria gris hasta el siguiente gesto.
+ * `invalidateSize` emite `moveend`, asi que el area visible que informa
+ * `ObservarArea` tambien se actualiza (con el debounce y el umbral de siempre).
+ */
+function AjustarAlContenedor() {
+  const mapa = useMap();
+  useEffect(() => {
+    if (typeof ResizeObserver === 'undefined') return;
+    const observador = new ResizeObserver(() => mapa.invalidateSize());
+    observador.observe(mapa.getContainer());
+    return () => observador.disconnect();
+  }, [mapa]);
   return null;
 }
 
@@ -135,6 +169,8 @@ interface Props {
   mostrarMarcadores?: boolean;
   /** Celdas de la capa de calor (US-11); vacia o ausente = capa apagada. */
   celdasCalor?: CeldaCalor[];
+  /** Enlace «Ver detalle» del popup (QA-1 M-9: lleva `?volver=` a la vista actual). */
+  hrefDelDetalle?: (reporteId: number) => string;
 }
 
 export default function MapaReportes({
@@ -144,6 +180,7 @@ export default function MapaReportes({
   alto = '100%',
   mostrarMarcadores = true,
   celdasCalor = [],
+  hrefDelDetalle = (reporteId) => `/reportes/${reporteId}`,
 }: Props) {
   // Un icono por color, no por marcador: con cientos de reportes, crear un
   // DivIcon por cada uno seria trabajo repetido para las pocas variantes
@@ -167,6 +204,7 @@ export default function MapaReportes({
       zoom={ZOOM_INICIAL}
       style={{ height: alto, width: '100%' }}
       keyboard
+      zoomControl={false}
     >
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
@@ -174,15 +212,24 @@ export default function MapaReportes({
         crossOrigin="anonymous"
         maxZoom={19}
       />
+      <ControlDeZoom />
       <ObservarArea onAreaCambiada={onAreaCambiada} />
+      <AjustarAlContenedor />
 
       <CapaCalor celdas={celdasCalor} />
 
       {mostrarMarcadores && reportes.map((reporte) => {
         const estilo = estiloDeEstado(reporte.estado ?? '');
+        const nombre = nombreDeMarcador(reporte);
         return (
           <Marker
-            key={reporte.id}
+            // QA-1 M-7: Leaflet hace del marcador un `div role="button"`
+            // (para abrir el popup con el teclado) cuyo unico nombre posible
+            // es su `title`. Leaflet solo lo lee al crear el marcador, asi
+            // que el nombre va en la `key`: si cambian el estado o el titulo
+            // del reporte, el marcador se vuelve a crear con el nombre nuevo.
+            key={`${reporte.id}:${nombre}`}
+            title={nombre}
             position={[reporte.latitud ?? 0, reporte.longitud ?? 0]}
             icon={iconos.get(estilo.color) ?? iconoDesconocido}
             eventHandlers={
@@ -190,12 +237,61 @@ export default function MapaReportes({
             }
           >
             <Popup>
-              <PopupReporte reporte={reporte} />
+              <PopupReporte reporte={reporte} href={hrefDelDetalle(reporte.id ?? 0)} />
             </Popup>
           </Marker>
         );
       })}
     </MapContainer>
+  );
+}
+
+const ESTILO_FOTO_POPUP = {
+  width: '100%',
+  maxHeight: '8rem',
+  objectFit: 'cover',
+  borderRadius: '.25rem',
+  marginBottom: '.5rem',
+} as const;
+
+/**
+ * Foto del popup con reemplazo «Foto no disponible» si no carga (QA-1 M-3).
+ *
+ * Hace lo mismo que `components/FotoDeReporte.tsx` pero con su propio `<img>`:
+ * `map/` es un adaptador y no importa componentes compartidos (solo `model/`
+ * y `lib/`, ARCHITECTURE §5.3). El texto y el nombre accesible del reemplazo
+ * salen de la misma regla pura, `lib/types/fotoDeReporte.ts`. El error se
+ * recuerda por URL: si cambia `src` se vuelve a intentar.
+ */
+function FotoDelPopup({ src, alt }: { src: string; alt: string }) {
+  const [fallida, setFallida] = useState<string | null>(null);
+
+  if (fallida === src) {
+    const nombre = nombreDelReemplazo(alt);
+    return (
+      <div
+        role={nombre ? 'img' : undefined}
+        aria-label={nombre ?? undefined}
+        aria-hidden={nombre ? undefined : true}
+        style={{
+          ...ESTILO_FOTO_POPUP,
+          height: '4rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: '#f1f5f9',
+          color: '#64748b',
+          fontSize: '.75rem',
+        }}
+      >
+        <span aria-hidden="true">{FOTO_NO_DISPONIBLE}</span>
+      </div>
+    );
+  }
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={src} alt={alt} style={ESTILO_FOTO_POPUP} onError={() => setFallida(src)} />
   );
 }
 
@@ -206,7 +302,7 @@ export default function MapaReportes({
  * reporte: el endpoint de busqueda ya devuelve foto, titulo, categoria,
  * severidad (NC-02), fecha, estado y distrito.
  */
-function PopupReporte({ reporte }: { reporte: ReporteResumen }) {
+function PopupReporte({ reporte, href }: { reporte: ReporteResumen; href: string }) {
   const estilo = estiloDeEstado(reporte.estado ?? '');
   // Ya absoluta: la compone `reportes/api.ts` (`buscarReportes`).
   const foto = reporte.fotoUrl;
@@ -222,20 +318,7 @@ function PopupReporte({ reporte }: { reporte: ReporteResumen }) {
     <div style={{ minWidth: '13rem' }}>
       {/* La foto de un reporte es publica: sirve directo en <img src>, sin
           token. La de perfil no lo seria (ver auth/api: descargarFotoDePerfil). */}
-      {foto && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={foto}
-          alt={`Foto del daño reportado: ${tituloVisible(reporte.titulo)}`}
-          style={{
-            width: '100%',
-            maxHeight: '8rem',
-            objectFit: 'cover',
-            borderRadius: '.25rem',
-            marginBottom: '.5rem',
-          }}
-        />
-      )}
+      {foto && <FotoDelPopup src={foto} alt={`Foto del daño reportado: ${tituloVisible(reporte.titulo)}`} />}
       <p style={{ margin: '0 0 .25rem', fontWeight: 600 }}>{tituloVisible(reporte.titulo)}</p>
       <p style={{ margin: '0 0 .25rem', fontSize: '.8rem' }}>
         {[reporte.categoriaNombre, textoDeSeveridad(reporte.severidad)].filter(Boolean).join(' · ')}
@@ -268,7 +351,7 @@ function PopupReporte({ reporte }: { reporte: ReporteResumen }) {
           comentarios de US-27) viven en su propia pagina, que ademas se
           puede enlazar y compartir. */}
       <a
-        href={`/reportes/${reporte.id}`}
+        href={href}
         style={{ display: 'inline-block', marginTop: '.5rem', fontWeight: 600 }}
       >
         Ver detalle

@@ -13,10 +13,14 @@ interface CampoProps extends InputHTMLAttributes<HTMLInputElement> {
   id: string;
   etiqueta: string;
   error?: string;
+  /** Indicacion que se ve ANTES de equivocarse (p. ej. el minimo de una contraseña). */
+  ayuda?: string;
 }
 
-export function Campo({ id, etiqueta, error, ...props }: CampoProps) {
+export function Campo({ id, etiqueta, error, ayuda, ...props }: CampoProps) {
   const idError = `${id}-error`;
+  const idAyuda = `${id}-ayuda`;
+  const descripcion = [ayuda ? idAyuda : null, error ? idError : null].filter(Boolean).join(' ');
   return (
     <div className="flex flex-col gap-1.5">
       <label htmlFor={id} className="text-sm font-medium text-slate-700 dark:text-slate-200">
@@ -25,13 +29,18 @@ export function Campo({ id, etiqueta, error, ...props }: CampoProps) {
       <input
         id={id}
         aria-invalid={error ? true : undefined}
-        aria-describedby={error ? idError : undefined}
+        aria-describedby={descripcion || undefined}
         className="rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900
                    outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30
                    dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100
                    aria-[invalid=true]:border-red-500"
         {...props}
       />
+      {ayuda && (
+        <p id={idAyuda} className="text-xs text-slate-500 dark:text-slate-400">
+          {ayuda}
+        </p>
+      )}
       {error && (
         <p id={idError} role="alert" className="text-sm text-red-600 dark:text-red-400">
           {error}

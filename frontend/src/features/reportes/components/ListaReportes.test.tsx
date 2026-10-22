@@ -35,6 +35,16 @@ describe('ListaReportes', () => {
     expect(enlace).toHaveTextContent('3 vecinos lo reportaron');
   });
 
+  it('QA-1 M-9: el enlace al detalle lo arma quien compone (con la vista del mapa a la que volver)', () => {
+    render(
+      <ListaReportes consultaHecha cargando={false}
+        reportes={[reporte(7)]}
+        hrefDelDetalle={(id) => `/reportes/${id}?volver=%2Fmapa%3Fdistrito%3D21`}
+      />,
+    );
+    expect(screen.getByRole('link')).toHaveAttribute('href', '/reportes/7?volver=%2Fmapa%3Fdistrito%3D21');
+  });
+
   it('NC-02: muestra título, categoría y severidad', () => {
     render(
       <ListaReportes consultaHecha cargando={false}

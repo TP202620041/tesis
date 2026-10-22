@@ -40,6 +40,13 @@ export function Calificar({ reporteId }: { reporteId: number }) {
       <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
         ¿Cómo fue la atención?
       </h2>
+      {/* La invitacion vive aqui y no en la explicacion del estado (QA-1
+          M-13): al calificar, este formulario se reemplaza por lo que se
+          califico y la invitacion se va con el. */}
+      <p className="text-sm text-slate-600 dark:text-slate-400">
+        Puedes calificar la atención recibida. Tu opinión alimenta el índice público de desempeño
+        de tu municipalidad.
+      </p>
       {error && <AlertaError mensaje={error.mensaje} detalles={error.detalles} />}
 
       {/* Grupo de radios, no botones: es una eleccion entre opciones
@@ -67,7 +74,8 @@ export function Calificar({ reporteId }: { reporteId: number }) {
               >
                 ★
               </span>
-              <span className="sr-only">{valor} estrellas</span>
+              {/* QA-1 M-1: «1 estrella», no «1 estrellas». */}
+              <span className="sr-only">{valor === 1 ? '1 estrella' : `${valor} estrellas`}</span>
             </label>
           ))}
         </div>

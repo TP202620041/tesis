@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { FotoDeReporte } from '@/components/FotoDeReporte';
 import { estiloDeEstado } from '@/lib/types/estados';
 import { textoDeSeveridad, tituloVisible } from '@/lib/types/tituloYSeveridad';
 import { useReportesEnCola } from '../hooks/useColaOffline';
@@ -120,8 +121,8 @@ export function ListaMisReportes({
                 >
                   {foto ? (
                     // Foto de reporte: pública, sirve directo en <img src>.
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
+                    // Decorativa: el título de la fila ya nombra el reporte.
+                    <FotoDeReporte
                       src={foto}
                       alt=""
                       className="size-14 shrink-0 rounded object-cover"

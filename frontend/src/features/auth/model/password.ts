@@ -10,18 +10,32 @@
 export const PASSWORD_MIN = 8;
 export const PASSWORD_MAX = 72;
 
+/** Ayuda que se muestra bajo el campo ANTES de enviar (QA-1 M-2). */
+export const AYUDA_PASSWORD = `Mínimo ${PASSWORD_MIN} caracteres.`;
+
+/**
+ * Error de largo de una contraseña, o `null` si cumple. QA-1 M-2: el registro
+ * la valida antes de enviar; si no, el backend respondia «Error de validacion
+ * / password: el tamaño debe estar entre 8 y 72», con el campo en ingles.
+ */
+export function errorDeLargoDePassword(password: string): string | null {
+  if (password.length < PASSWORD_MIN) {
+    return `La contraseña debe tener al menos ${PASSWORD_MIN} caracteres.`;
+  }
+  if (password.length > PASSWORD_MAX) {
+    return `La contraseña no puede tener más de ${PASSWORD_MAX} caracteres.`;
+  }
+  return null;
+}
+
 /**
  * Errores de la contraseña nueva y su confirmación, en el orden en que se
  * muestran. Lista vacía = se puede enviar.
  */
 export function erroresDePasswordNueva(password: string, confirmacion: string): string[] {
   const errores: string[] = [];
-  if (password.length < PASSWORD_MIN) {
-    errores.push(`La contraseña debe tener al menos ${PASSWORD_MIN} caracteres.`);
-  }
-  if (password.length > PASSWORD_MAX) {
-    errores.push(`La contraseña no puede tener más de ${PASSWORD_MAX} caracteres.`);
-  }
+  const largo = errorDeLargoDePassword(password);
+  if (largo) errores.push(largo);
   if (password !== confirmacion) {
     errores.push('Las contraseñas no coinciden.');
   }

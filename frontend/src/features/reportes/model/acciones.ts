@@ -31,6 +31,17 @@ export function puedeCalificar(estado: string): boolean {
 }
 
 /**
+ * `true` si el reporte tiene vista publica (`/reportes/[id]`). QA-1 M-13: un
+ * reporte CANCELADO no la tiene (el backend responde 404 a cualquiera: lo
+ * retiro su creador antes de que entrara al flujo municipal), asi que no se
+ * ofrece el enlace «Ver cómo lo ven los demás», que llevaba a «Reporte no
+ * disponible».
+ */
+export function tieneVistaPublica(estado: string): boolean {
+  return estado !== 'CANCELADO';
+}
+
+/**
  * `true` si el reporte ya no puede cambiar por accion de nadie.
  *
  * Util para explicarle al ciudadano por que no hay acciones disponibles, en
@@ -53,7 +64,10 @@ export function explicacionDeEstado(estado: string): string {
     case 'EN_PROCESO':
       return 'La municipalidad está trabajando en la reparación.';
     case 'RESUELTO':
-      return 'La municipalidad marcó el daño como reparado. Puedes calificar la atención recibida.';
+      // Sin «Puedes calificar…» (QA-1 M-13): esa invitacion la hace el
+      // formulario de calificacion, que desaparece al calificar; aqui
+      // quedaba escrita tambien despues.
+      return 'La municipalidad marcó el daño como reparado.';
     case 'RECHAZADO':
       return 'La municipalidad desestimó el reporte. Revisa el historial para ver el motivo.';
     case 'CANCELADO':

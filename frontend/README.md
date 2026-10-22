@@ -126,6 +126,21 @@ src/
 Las vistas de `app/` componen; la lógica vive en `features/`. Un componente de
 `app/` no debe llamar al API directamente: pasa por `features/<dominio>/api.ts`.
 
+**Títulos de página (QA-1 M-8).** Cada ruta tiene su `<title>` («Mapa de
+reportes · Ciudad Viva»), que también es lo que lee el anunciador de rutas de
+Next al navegar: antes diez pantallas compartían el título de la portada. La
+mayoría de las páginas son de cliente y `metadata` solo se exporta desde un
+componente de servidor, así que el título va en un `layout.tsx` mínimo junto a
+la página (devuelve `children`); las de servidor (login, registro,
+privacidad) lo exportan en la propia `page.tsx`. Ojo con los anidados: en
+Next, un layout que fija `title` como texto deja a sus hijos **sin**
+plantilla, así que `/bandeja` y `/mis-reportes`, que tienen un `[id]` con
+título propio, lo declaran como `{ default, template: PLANTILLA_TITULO }`
+(`app/titulo.ts`); si no, `/bandeja/[id]` salía «Gestión del reporte» sin
+«· Ciudad Viva». `app/titulos.test.ts` recorre `src/app` y falla si una ruta
+queda con el título por defecto, si dos comparten título o si un layout
+padre con título no repite la plantilla.
+
 ## Decisiones técnicas
 
 ### Cliente HTTP: `fetch` nativo con wrapper
@@ -489,7 +504,13 @@ canal. Dónde aparece:
 
 - **Registro (US-01):** casilla obligatoria «Acepto los términos de uso y la
   política de privacidad» con enlace a `/privacidad`. Sin marcarla no se envía.
-  Viajan `aceptaTerminos: true` y `versionTerminos`.
+  Viajan `aceptaTerminos: true` y `versionTerminos`. La casilla **solo** se
+  desmarca si el 409 es por términos desactualizados (QA-1 M-2): un correo ya
+  registrado, un error de validación o de red no cambian el texto aceptado, y
+  obligar a marcarla de nuevo solo estorbaba. El campo de contraseña dice
+  «Mínimo 8 caracteres.» antes de enviar (`aria-describedby`) y el largo se
+  valida en el cliente: el 400 del backend llegaba como «password: el tamaño
+  debe estar entre 8 y 72», con el nombre del campo en inglés.
 - **`/privacidad`** (pública): el texto del borrador
   `project-context/legal/terminos-y-privacidad-v1.md` copiado en
   `features/legal/components/TextoTerminosYPrivacidad.tsx`, con el aviso
@@ -625,7 +646,15 @@ Componerla es del cliente, y se hace una sola vez en el gateway (FE-07): los
 usan tal cual, sin importar el cliente HTTP.
 
 - **Foto de reporte** (`/media/fotos/reportes/…`) es **pública**: sirve
-  directo en `<img src>`.
+  directo en `<img src>`, a través de `components/FotoDeReporte.tsx`
+  (QA-1 M-3): si no carga (el archivo ya no está en el servidor, o es una
+  URL antigua que pide sesión), en vez del icono de imagen rota aparece un
+  recuadro neutro «Foto no disponible». El reemplazo conserva el texto
+  alternativo como nombre (`role="img"`, «<alt> (foto no disponible)») y, si
+  la foto era decorativa, sigue siéndolo. El popup del mapa hace lo mismo con
+  su propio `<img>` (`FotoDelPopup` en `map/MapaReportes.tsx`): `map/` es un
+  adaptador y no importa componentes compartidos. Los dos toman el texto y el
+  nombre del reemplazo de la misma regla pura, `lib/types/fotoDeReporte.ts`.
 - **Foto de perfil** (`/api/perfiles/fotos/…`) exige `Authorization`: un
   `<img src>` plano devuelve **401**; hay que traerla con `apiFetch` y
   convertirla a `blob:`. `fotoRequiereAuth()` distingue ambos casos. Lo
@@ -657,6 +686,16 @@ Leaflet manipula el DOM al construirse. El marcador es un `DivIcon` de
 HTML/CSS en vez de la imagen por defecto: evita el problema conocido de
 iconos rotos con bundlers y no obliga a abrir orígenes extra en la CSP.
 
+**Marcadores accesibles (QA-1 M-7).** Leaflet hace de cada marcador un
+`div role="button" tabindex="0"` (Enter abre su popup), pero sin nombre: un
+lector de pantalla anunciaba «botón» decenas de veces. Cada marcador lleva
+ahora como `title` (su nombre accesible, y la sugerencia al pasar el ratón)
+el título, el estado en palabras y el tipo de daño (`nombreDeMarcador`). Leaflet
+lee el `title` solo al crear el marcador, así que el nombre forma parte de la
+`key`. El área táctil mide 28 px (el mínimo es 24, WCAG 2.2 2.5.8) con el
+punto visible de 20 px centrado. La vista Lista sigue siendo la alternativa
+completa al mapa.
+
 Los tiles de OpenStreetMap **sí** están listados en `img-src` de la CSP
 (hosts concretos, no `*`); sin eso el mapa se ve en blanco.
 
@@ -683,8 +722,44 @@ la cola offline, que guarda fotos en IndexedDB. OpenStreetMap responde con
 dejan de ser opacas y ocupan lo que pesan.
 
 **Un solo host.** La CSP lista solo `https://tile.openstreetmap.org`, que es
-el que usan los dos mapas. Ya no incluye el comodín `*.tile.openstreetmap.org`
+el que usan los tres mapas. Ya no incluye el comodín `*.tile.openstreetmap.org`
 de los antiguos subdominios a/b/c.
+
+**Dónde está el daño (QA-1 I-1).** Los tres detalles de reporte (público,
+del ciudadano y de la bandeja municipal) muestran la sección «Ubicación»
+(`components/UbicacionDelReporte.tsx`, compartida porque la usan `reportes` y
+`gestion`) con tres formas del mismo dato: un mini mapa, las coordenadas en
+texto (latitud, longitud, 5 decimales ≈ 1 m: se pueden copiar y un lector de
+pantalla las lee) y el enlace «Abrir en OpenStreetMap» en otra pestaña.
+- El mini mapa (`map/MiniMapaUbicacion.tsx`) es de **solo lectura**: sin
+  arrastre, zoom táctil, rueda, doble clic ni teclado de Leaflet, para que al
+  desplazar la página con el dedo no se mueva el mapa ni se pierda el punto.
+  Tampoco lleva botones +/-: no aportan en un mapa que solo muestra un punto,
+  y para verlo en grande está el enlace a OpenStreetMap.
+- Los otros dos mapas usan `map/ControlDeZoom.tsx` en vez del control por
+  defecto, que nombraba los botones «Zoom in»/«Zoom out» (Leaflet usa ese
+  texto como `title` y `aria-label`): ahora dicen «Acercar» y «Alejar».
+- El marcador no es interactivo: es una imagen con nombre accesible
+  («Ubicación del daño: <título>»). Se arma como elemento del DOM y no como
+  HTML en texto, porque lleva el título que escribió el ciudadano.
+- El enlace es navegación externa, no un recurso que cargue la página: no
+  pasa por la CSP, que no cambia.
+- Sin coordenadas válidas dice «Sin ubicación registrada», nunca un punto en
+  (0, 0).
+
+**`/mapa` en el móvil (QA-1 I-4, provisional).** Antes, en pantallas
+angostas, filtros, capas y leyenda iban encima del mapa y lo dejaban debajo
+del pliegue (empezaba en y = 922 px con un viewport de 844). Ahora el mapa
+ocupa la primera pantalla: el panel queda plegado en una franja con el conteo
+(siempre visible y en `aria-live`) y un botón «Filtros, capas y leyenda»
+(`aria-expanded`/`aria-controls`, con el número de filtros aplicados) que lo
+despliega encima del mapa, con un alto máximo de ~55 % de la pantalla y su
+propio desplazamiento. En escritorio (`md`) no cambia nada. Es una solución
+provisional compatible con el rediseño, que pondrá una hoja inferior: solo
+cambia el contenedor del panel, no su contenido. Como plegar el panel cambia
+el alto del mapa sin cambiar la ventana, `MapaReportes` observa su contenedor
+(`ResizeObserver` → `invalidateSize`, que emite `moveend` y pasa por el mismo
+debounce y umbral de siempre); sin eso el área nueva quedaba gris.
 
 ### Mapa de calor (US-11): círculos de Leaflet, sin plugin
 
@@ -748,10 +823,22 @@ Un reporte recién creado puede tardar hasta 60 s en aparecer en la capa.
 
 Verificado end-to-end contra el backend real:
 
-- **US-01** registro (`/registro`) · **US-02** login (`/login`).
-- `/sesion` — verificación de `GET /api/auth/me`. Andamiaje: desaparece
-  cuando existan las landings por rol.
-- **US-05** crear reporte (`/reportar`): GPS con fallback a marcar en el mapa
+- **US-01** registro (`/registro`) · **US-02** login (`/login`). Los dos
+  terminan en el mismo lugar (`destinoTrasAcceso`, QA-1 I-2): el
+  `?redirect=` si es una ruta interna (validado con `destinoInterno`), si no
+  la puerta de entrada del rol (el ciudadano, «Mis reportes»), y antes la
+  aceptación de términos si está pendiente. Los enlaces «Regístrate» e
+  «Inicia sesión» conservan el `?redirect=`: quien llegó al login desde
+  `/reportar` y crea una cuenta vuelve a `/reportar`.
+- `/sesion` (verificación de `GET /api/auth/me`, andamiaje del primer slice)
+  **se eliminó** en QA-1 I-2: el registro llevaba ahí y el ciudadano caía en
+  una pantalla de depuración con el rol y la preferencia en crudo y sin
+  navegación. Ya existían las landings por rol que la reemplazaban, nada más
+  la enlazaba y el perfil (`/perfil`) muestra esos datos de verdad.
+- **US-05** crear reporte (`/reportar`, solo CIUDADANO: la misma
+  `GuardiaDeRol` que «Mis reportes», QA-1 M-10; antes bastaba la sesión y un
+  funcionario o el admin llenaban el formulario entero para recibir un 403 al
+  enviar): GPS con fallback a marcar en el mapa
   (escenario 2), captura de foto, selector de categoría que incorpora las
   personalizadas del distrito (US-29), envío multipart con `Idempotency-Key`
   (US-06) y confirmación que distingue reporte nuevo de adhesión (US-09).
@@ -842,6 +929,20 @@ Verificado end-to-end contra el backend real:
   tras completarlo, se envió con la MISMA `Idempotency-Key` (reporte #185) y
   salió de la cola.
 
+### 404 e ids inválidos (QA-1 M-11)
+
+- `app/not-found.tsx` es la 404 de toda la app, en castellano, con título
+  propio y enlaces a la portada y al mapa. La de Next estaba en inglés y sin
+  salida.
+- El id de las rutas de detalle (`/reportes/[id]`, `/mis-reportes/[id]`,
+  `/bandeja/[id]`) se valida en el cliente **antes** de llamar al API
+  (`lib/types/idDeRuta.ts`: solo enteros positivos). `/reportes/abc` pedía
+  `/api/reportes/NaN`, que no coincide con la ruta pública del backend: sin
+  sesión respondía 401 y el cliente mandaba al login a quien solo abrió un
+  enlace roto. Ahora dice «Reporte no disponible» sin preguntar nada. No se
+  usa `notFound()`: el detalle ya tiene su propio «no disponible», que es lo
+  mismo que se muestra para un id que no existe o un reporte retirado.
+
 ### `null` no es cero
 
 Las métricas de desempeño llegan en `null` cuando no hay datos: un distrito
@@ -850,6 +951,15 @@ distingue ambos casos ("Sin datos" vs "0 %") porque confundirlos acusaría de
 mal desempeño a una municipalidad que simplemente no recibió reportes. Por la
 misma razón, al ordenar, los `null` van siempre al final aunque se invierta la
 dirección — igual que el `NULLS LAST` del backend.
+
+El caso contrario también se cuida (QA-1 M-12): un tiempo promedio de
+menos de una hora se muestra «< 1 h», no «0 h». San Miguel promedió 0,01 h
+y, redondeado, parecía cero o falta de dato cuando era la atención más
+rápida. En el móvil la tabla del ranking (46rem) no cabe: va en una región
+con foco (se desplaza también con el teclado) y una indicación visible solo
+en pantallas angostas dice que se desliza hacia los lados. Esa indicación no
+es la descripción accesible de la región (`aria-describedby`): el lector la
+anunciaría también en escritorio, donde está oculta y la tabla cabe.
 
 La barra de progreso usa **un solo color**, no una escala rojo-ámbar-verde:
 colorear por umbrales obligaría a inventar qué tasa cuenta como "mala", un
@@ -934,6 +1044,29 @@ posterior a «hasta» no se consulta y el panel muestra el aviso.
 - **La lista se dibuja encima del mapa**, que sigue montado: conserva su
   encuadre (y su área sigue definiendo los resultados) al volver a la
   pestaña Mapa. Mientras la lista está visible, el mapa queda `inert`.
+- **Filtros y vista en la URL (QA-1 M-9).**
+  `/mapa?distrito=21&categoria=1&estado=RESUELTO&desde=…&hasta=…&vista=lista`
+  (`model/estadoDelMapa.ts`, `hooks/useEstadoDelMapaEnUrl.ts`). Antes eran
+  estado local: al volver del detalle (Atrás o «← Volver al mapa») la
+  pantalla reaparecía en «Todos» y en la vista Mapa, y no había forma de
+  compartir una vista filtrada. Decisiones:
+  - Se escribe con `window.history.replaceState`, que Next integra con su
+    router (`useSearchParams` se actualiza) **sin navegar**: cambiar un filtro
+    no pide nada al servidor ni vuelve a montar el mapa. `replace` y no
+    `push`, como en `/desempeno`.
+  - Una URL editada a mano no rompe: un id que no es entero positivo, un
+    estado que el mapa no muestra (incluido `CANCELADO`) o una fecha imposible
+    cuentan como «sin filtro», y un distrito o tipo que el catálogo no conoce
+    se descarta en cuanto el catálogo carga.
+  - Los filtros conservan su identidad mientras la URL no cambia (se
+    memorizan por el texto de la query): `useBusquedaMapa` depende de ella
+    para el debounce.
+  - La lista y el popup abren el detalle con `?volver=<vista del mapa>`, y
+    «← Volver al mapa» regresa ahí. El parámetro se valida con el mismo
+    filtro de redirección abierta del login (`destinoInterno`) y además debe
+    ser `/mapa`: no puede llevar a otra pantalla ni a otro sitio.
+  - No se guardan el centro ni el zoom: cambian con cada gesto y no son un
+    filtro; tampoco las capas (marcadores y calor), que son de quien mira.
 
 **Sincronización offline (US-06, implementada después):** sin conexión, el
 reporte queda en la cola de IndexedDB con su clave de idempotencia y se envía

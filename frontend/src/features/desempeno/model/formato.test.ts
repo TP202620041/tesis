@@ -63,6 +63,14 @@ describe('formatearTiempo', () => {
   it('sin resueltos no hay tiempo promedio', () => {
     expect(formatearTiempo(null)).toBe(SIN_DATOS);
   });
+
+  it('QA-1 M-12: menos de una hora no se muestra como «0 h»', () => {
+    // San Miguel promedió 0,01 h: «0 h» parecía cero o falta de dato.
+    expect(formatearTiempo(0.01)).toBe('< 1 h');
+    expect(formatearTiempo(0.96)).toBe('< 1 h');
+    expect(formatearTiempo(0)).toBe('< 1 h');
+    expect(formatearTiempo(1)).toBe('1 h');
+  });
 });
 
 describe('formatearSatisfaccion', () => {

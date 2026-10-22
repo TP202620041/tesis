@@ -48,6 +48,13 @@ export default function Home() {
           Crear cuenta
         </Link>
       </div>
+
+      {/* QA-1 E-3: la politica de privacidad se enlazaba solo desde el registro. */}
+      <footer className="text-sm text-slate-600 dark:text-slate-400">
+        <Link href="/privacidad" className="hover:underline">
+          Términos de uso y privacidad
+        </Link>
+      </footer>
     </main>
   );
 }

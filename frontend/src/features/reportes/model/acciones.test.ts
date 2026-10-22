@@ -5,6 +5,7 @@ import {
   puedeCalificar,
   puedeCancelar,
   puedeEditar,
+  tieneVistaPublica,
 } from './acciones';
 import { ESTADOS_REPORTE } from '@/lib/types/domain';
 
@@ -68,6 +69,22 @@ describe('explicacionDeEstado', () => {
 
   it('menciona las acciones disponibles en los estados que las tienen', () => {
     expect(explicacionDeEstado('PENDIENTE')).toMatch(/editarlo|retirarlo/);
-    expect(explicacionDeEstado('RESUELTO')).toMatch(/calificar/i);
+  });
+
+  it('QA-1 M-13: RESUELTO no invita a calificar (lo hace el formulario, que se va al calificar)', () => {
+    // Antes «Puedes calificar…» seguía escrito después de calificar.
+    expect(explicacionDeEstado('RESUELTO')).not.toMatch(/calificar/i);
+  });
+});
+
+describe('tieneVistaPublica (QA-1 M-13)', () => {
+  it('un reporte cancelado no tiene vista pública: no se ofrece el enlace', () => {
+    expect(tieneVistaPublica('CANCELADO')).toBe(false);
+  });
+
+  it('los demás estados sí (incluido el rechazado: la decisión municipal es pública)', () => {
+    for (const estado of ESTADOS_REPORTE.filter((e) => e !== 'CANCELADO')) {
+      expect(tieneVistaPublica(estado)).toBe(true);
+    }
   });
 });

@@ -185,3 +185,30 @@ describe('IndiceDesempeno: comparar distritos (US-19)', () => {
     expect(replace).toHaveBeenCalledWith('/desempeno?comparar=21,4&categoria=3', { scroll: false });
   });
 });
+
+describe('IndiceDesempeno: ranking en el móvil (QA-1 M-12)', () => {
+  it('la tabla va en una región con foco y un aviso visible solo en el móvil dice que se desliza', async () => {
+    render(<IndiceDesempeno />);
+
+    const region = await screen.findByRole('region', { name: 'Ranking de distritos' });
+    expect(region).toHaveAttribute('tabindex', '0');
+    expect(within(region).getByRole('table')).toBeInTheDocument();
+    // Texto oculto desde `md`, y no es la descripción de la región: si no,
+    // el lector lo anunciaría también en escritorio, donde la tabla cabe.
+    expect(screen.getByText(/Desliza la tabla hacia los lados/)).toHaveClass('md:hidden');
+    expect(region).not.toHaveAttribute('aria-describedby');
+    expect(region).not.toHaveAccessibleDescription();
+  });
+
+  it('un tiempo promedio de menos de una hora dice «< 1 h», no «0 h»', async () => {
+    vi.mocked(rankingDistrital).mockResolvedValue([
+      fila(33, 'San Miguel', { totalReportes: 2, totalResueltos: 1, tasaResolucion: 50, tiempoPromedioHoras: 0.01 }),
+    ]);
+    render(<IndiceDesempeno />);
+
+    const region = await screen.findByRole('region', { name: 'Ranking de distritos' });
+    const sanMiguel = await within(region).findByRole('row', { name: /San Miguel/ });
+    expect(sanMiguel).toHaveTextContent('< 1 h');
+    expect(sanMiguel).not.toHaveTextContent(/\b0 h/);
+  });
+});
