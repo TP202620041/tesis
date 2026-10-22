@@ -43,6 +43,16 @@ describe('/reportar (QA-1 M-10)', () => {
     expect(screen.getByText('Formulario del usuario 7')).toBeInTheDocument();
   });
 
+  it('QA-1 E-3: tiene salida a «Mis reportes» y al mapa, no solo «Cerrar sesión»', () => {
+    comoRol('CIUDADANO');
+    render(<ReportarPage />);
+    const nav = screen.getByRole('navigation', { name: 'Secciones' });
+    expect(nav).toContainElement(screen.getByRole('link', { name: 'Mis reportes' }));
+    expect(screen.getByRole('link', { name: 'Mis reportes' })).toHaveAttribute('href', '/mis-reportes');
+    expect(screen.getByRole('link', { name: 'Ver el mapa' })).toHaveAttribute('href', '/mapa');
+    expect(screen.getByRole('button', { name: 'Cerrar sesión' })).toBeInTheDocument();
+  });
+
   it.each(['FUNCIONARIO_MUNICIPAL', 'ADMIN'] as const)(
     '%s no llega a completar un formulario que el backend le rechazaría',
     (rol) => {
