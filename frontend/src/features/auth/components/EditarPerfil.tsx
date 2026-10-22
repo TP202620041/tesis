@@ -7,6 +7,7 @@ import { PREFERENCIAS_NOTIFICACION, type PreferenciaNotificacion, type Usuario }
 import { useConsentimientos } from '../hooks/useConsentimientos';
 import { useDistritosDeResidencia, usePerfil } from '../hooks/usePerfil';
 import { usePushEnEsteNavegador } from '../hooks/usePushEnEsteNavegador';
+import { CampoFotoDePerfil } from './CampoFotoDePerfil';
 import { FotoDePerfil } from './FotoDePerfil';
 import { PrivacidadYConsentimientos } from './PrivacidadYConsentimientos';
 import { PushEnEsteNavegador } from './PushEnEsteNavegador';
@@ -101,19 +102,7 @@ export function EditarPerfil({ inicial, textoLegal }: { inicial: Usuario; textoL
           </p>
         </div>
 
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="foto" className="text-sm font-medium text-texto">
-            Foto de perfil <span className="font-normal text-texto-2">(opcional)</span>
-          </label>
-          <input
-            id="foto"
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            onChange={(e) => setFoto(e.target.files?.[0] ?? null)}
-            className="text-sm text-texto"
-          />
-          {foto && <p className="text-xs text-texto-2">Se subirá: {foto.name}</p>}
-        </div>
+        <CampoFotoDePerfil id="foto" valor={foto} onCambiar={setFoto} />
 
         <Boton cargando={guardando}>Guardar cambios</Boton>
       </form>
