@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { distritoPorCoordenadas, listarCategorias } from '@/lib/api/catalogos';
 import { ApiError, NetworkError } from '@/lib/api/errors';
 import type { CategoriaDano, Distrito } from '@/lib/types/domain';
 import { crearReporte } from '../api';
 import { useEncolarReporte } from '../hooks/useColaOffline';
+import type { ReporteCreado } from '../model/tipos';
 import { FormularioReporte } from './FormularioReporte';
 
 vi.mock('next/dynamic', () => ({ default: () => () => null }));
@@ -153,5 +154,70 @@ describe('FormularioReporte sin conexión (US-06)', () => {
     await usuario.click(screen.getByRole('button', { name: 'Enviar reporte' }));
     await waitFor(() => expect(crearReporte).toHaveBeenCalledTimes(2));
     expect(claveDe(1)).toBe(claveDe(0));
+  });
+});
+
+describe('FormularioReporte: la foto (DEP-11)', () => {
+  const MB = 1024 * 1024;
+  const SIN_TURNO =
+    'Hay muchas fotos procesandose en este momento. Intenta de nuevo en unos segundos.';
+
+  /** Un `File` que dice pesar `bytes` sin reservarlos. */
+  function archivo(nombre: string, tipo: string, bytes: number): File {
+    const f = new File(['x'], nombre, { type: tipo });
+    Object.defineProperty(f, 'size', { value: bytes });
+    return f;
+  }
+
+  beforeEach(() => {
+    // jsdom no implementa las URL `blob:` de la vista previa.
+    Object.assign(URL, {
+      createObjectURL: vi.fn(() => 'blob:vista-previa'),
+      revokeObjectURL: vi.fn(),
+    });
+  });
+
+  afterEach(() => {
+    // Primero se desmonta: la limpieza de la vista previa llama a
+    // `revokeObjectURL`, y el `cleanup` de vitest.setup corre DESPUES de este
+    // afterEach (los `after` van en orden inverso).
+    cleanup();
+    // Se quitan para no dejar el global de jsdom modificado en otros archivos.
+    const urlMutable = URL as unknown as Record<string, unknown>;
+    delete urlMutable.createObjectURL;
+    delete urlMutable.revokeObjectURL;
+  });
+
+  it('una foto de más de 10 MB no viaja con el reporte (ni a la cola)', async () => {
+    vi.mocked(crearReporte).mockResolvedValueOnce({ id: 40, esAdhesion: false } as ReporteCreado);
+    const onCreado = vi.fn();
+    const usuario = userEvent.setup();
+    render(<FormularioReporte usuarioId={7} onCreado={onCreado} onEncolado={vi.fn()} />);
+
+    await usuario.upload(
+      screen.getByLabelText('Foto del daño (opcional)'),
+      archivo('bache.jpg', 'image/jpeg', 10 * MB + 1),
+    );
+    expect(screen.getByText('La foto supera 10 MB.')).toBeInTheDocument();
+    await llenarYEnviar(usuario);
+
+    await waitFor(() => expect(onCreado).toHaveBeenCalledTimes(1));
+    expect(crearReporte).toHaveBeenCalledWith(expect.objectContaining({ foto: null }));
+  });
+
+  it('el 503 del saneado se muestra con el mensaje del API y el reporte no se encola', async () => {
+    vi.mocked(crearReporte).mockRejectedValueOnce(new ApiError(503, SIN_TURNO, '/api/reportes'));
+    const onEncolado = vi.fn();
+    const usuario = userEvent.setup();
+    render(<FormularioReporte usuarioId={7} onCreado={vi.fn()} onEncolado={onEncolado} />);
+    const foto = archivo('bache.jpg', 'image/jpeg', 4 * MB);
+
+    await usuario.upload(screen.getByLabelText('Foto del daño (opcional)'), foto);
+    await llenarYEnviar(usuario);
+
+    expect(await screen.findByText(SIN_TURNO)).toBeInTheDocument();
+    expect(crearReporte).toHaveBeenCalledWith(expect.objectContaining({ foto }));
+    expect(encolar).not.toHaveBeenCalled();
+    expect(onEncolado).not.toHaveBeenCalled();
   });
 });
