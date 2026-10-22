@@ -56,7 +56,7 @@ function iconoDeEstado(color: string): DivIcon {
       <span style="
         display:block; width:1.25rem; height:1.25rem; border-radius:9999px;
         background:${color}; border:2.5px solid #fff;
-        box-shadow:0 1px 4px rgba(0,0,0,.5);"></span>
+        box-shadow:0 0 0 1px rgba(20,27,36,.65), 0 1px 4px rgba(0,0,0,.45);"></span>
     </span>`,
     iconSize: [LADO_MARCADOR, LADO_MARCADOR],
     iconAnchor: [LADO_MARCADOR / 2, LADO_MARCADOR / 2],
@@ -279,8 +279,8 @@ function FotoDelPopup({ src, alt }: { src: string; alt: string }) {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: '#f1f5f9',
-          color: '#64748b',
+          background: 'var(--cv-superficie-2)',
+          color: 'var(--cv-texto-2)',
           fontSize: '.75rem',
         }}
       >
@@ -330,7 +330,7 @@ function PopupReporte({ reporte, href }: { reporte: ReporteResumen; href: string
             padding: '.1rem .45rem',
             borderRadius: '9999px',
             background: estilo.color,
-            color: '#fff',
+            color: estilo.glifo,
             fontSize: '.75rem',
           }}
         >

@@ -21,7 +21,7 @@ import type { HistorialEntrada } from '@/lib/types/domain';
 export function LineaDeTiempo({ entradas }: { entradas: HistorialEntrada[] }) {
   if (entradas.length === 0) {
     return (
-      <p className="text-sm text-slate-500 dark:text-slate-400">
+      <p className="text-sm text-texto-2">
         Todavía no hay movimientos registrados.
       </p>
     );
@@ -33,14 +33,14 @@ export function LineaDeTiempo({ entradas }: { entradas: HistorialEntrada[] }) {
         <li key={entrada.id} className="flex gap-3">
           <span
             aria-hidden="true"
-            className="mt-1.5 size-2 shrink-0 rounded-full bg-slate-400 dark:bg-slate-500"
+            className="mt-1.5 size-2 shrink-0 rounded-full bg-texto-2"
           />
           <div className="min-w-0 flex-1 text-sm">
-            <p className="text-slate-900 dark:text-slate-100">{describir(entrada)}</p>
+            <p className="text-texto">{describir(entrada)}</p>
             {entrada.comentario && (
-              <p className="text-slate-600 dark:text-slate-400">{entrada.comentario}</p>
+              <p className="text-texto-2">{entrada.comentario}</p>
             )}
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+            <p className="text-xs text-texto-2">
               {entrada.fecha ? new Date(entrada.fecha).toLocaleString('es-PE') : '—'}
               {entrada.autor ? ` · ${entrada.autor}` : ''}
             </p>

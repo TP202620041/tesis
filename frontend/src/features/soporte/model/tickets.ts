@@ -93,10 +93,10 @@ export function etiquetaDeEstadoTicket(estado: EstadoTicket): string {
 export function claseDeEstadoTicket(estado: EstadoTicket): string {
   switch (estado) {
     case 'ABIERTO':
-      return 'bg-amber-100 text-amber-900 dark:bg-amber-900 dark:text-amber-100';
+      return 'bg-aviso-fondo text-aviso-texto';
     case 'EN_PROCESO':
-      return 'bg-sky-100 text-sky-900 dark:bg-sky-900 dark:text-sky-100';
+      return 'bg-info-fondo text-info-texto';
     case 'CERRADO':
-      return 'bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-100';
+      return 'bg-superficie-2 text-texto';
   }
 }

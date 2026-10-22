@@ -7,6 +7,7 @@ import {
   type FiltrosExportacion,
   type FormatoExportacion,
 } from '../model/exportacion';
+import { clasesDeBoton } from '@/components/ui/Boton';
 
 const ETIQUETA: Record<FormatoExportacion, string> = {
   CSV: 'Exportar CSV',
@@ -31,9 +32,7 @@ export function ExportarReportes({ filtros }: { filtros: FiltrosExportacion }) {
             type="button"
             disabled={exportando !== null}
             onClick={() => void exportar(filtros, formato)}
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700 transition
-                       hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60
-                       dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
+            className={clasesDeBoton('secundario', 'compacto')}
           >
             {exportando === formato ? 'Exportando…' : ETIQUETA[formato]}
           </button>

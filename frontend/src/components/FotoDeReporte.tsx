@@ -42,7 +42,7 @@ export function FotoDeReporte({ src, alt, className = '', claseDelReemplazo = ''
         role={nombre ? 'img' : undefined}
         aria-label={nombre ?? undefined}
         aria-hidden={nombre ? undefined : true}
-        className={`flex items-center justify-center bg-slate-100 p-2 text-center text-xs text-slate-500 dark:bg-slate-700 dark:text-slate-300 ${className} ${claseDelReemplazo}`}
+        className={`flex items-center justify-center bg-superficie-2 p-2 text-center text-xs text-texto-2 ${className} ${claseDelReemplazo}`}
       >
         <span aria-hidden="true">{FOTO_NO_DISPONIBLE}</span>
       </div>

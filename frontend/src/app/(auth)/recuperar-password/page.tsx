@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 export default function RecuperarPasswordPage() {
   return (
     <section className="flex flex-col gap-4">
-      <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
+      <h1 className="text-xl font-semibold text-texto">
         Recuperar contraseña
       </h1>
       <RecuperarPassword />

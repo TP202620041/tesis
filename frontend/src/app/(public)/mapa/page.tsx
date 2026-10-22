@@ -15,7 +15,7 @@ import { rutaDelDetalle } from '@/features/reportes/model/estadoDelMapa';
 
 const MapaReportes = dynamic(() => import('@/map/MapaReportes'), {
   ssr: false,
-  loading: () => <div className="size-full animate-pulse bg-slate-200 dark:bg-slate-700" />,
+  loading: () => <div className="size-full animate-pulse bg-superficie-2" />,
 });
 
 /**
@@ -46,7 +46,7 @@ const MapaReportes = dynamic(() => import('@/map/MapaReportes'), {
 export default function MapaPage() {
   return (
     // `useSearchParams` (dentro de `useEstadoDelMapaEnUrl`) exige un limite de Suspense.
-    <Suspense fallback={<p className="p-8 text-slate-600 dark:text-slate-400">Cargando el mapa…</p>}>
+    <Suspense fallback={<p className="p-8 text-texto-2">Cargando el mapa…</p>}>
       <MapaConFiltros />
     </Suspense>
   );
@@ -74,7 +74,7 @@ function MapaConFiltros() {
       <h1 className="sr-only">Mapa de reportes</h1>
 
       {busqueda.error && (
-        <p role="alert" className="bg-red-50 px-4 py-2 text-sm text-red-800 dark:bg-red-950 dark:text-red-200">
+        <p role="alert" className="bg-error-fondo px-4 py-2 text-sm text-error-texto">
           {busqueda.error}
         </p>
       )}
@@ -115,7 +115,7 @@ function MapaConFiltros() {
               />
             </div>
             {vista === 'lista' && (
-              <div className="absolute inset-0 z-10 overflow-y-auto bg-white dark:bg-slate-900">
+              <div className="absolute inset-0 z-10 overflow-y-auto bg-superficie">
                 <ListaReportes
                   key={busqueda.claveConsulta}
                   reportes={busqueda.reportes}
@@ -130,7 +130,7 @@ function MapaConFiltros() {
       </div>
 
       {busqueda.total > MAXIMO_MARCADORES && (
-        <p className="bg-amber-50 px-4 py-2 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+        <p className="bg-aviso-fondo px-4 py-2 text-sm text-aviso-texto">
           Se muestran {MAXIMO_MARCADORES} de {busqueda.total} reportes. Acerca el mapa o aplica un
           filtro para verlos todos.
         </p>

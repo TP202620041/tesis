@@ -11,6 +11,7 @@ import {
   rutaInicialDe,
 } from '../model/rutas';
 import type { Rol, Usuario } from '@/lib/types/domain';
+import { clasesDeBoton } from '@/components/ui/Boton';
 
 /**
  * Restringe un area del cliente a ciertos roles.
@@ -47,7 +48,7 @@ export function GuardiaDeRol({ rolesPermitidos, children }: Props) {
   }, [sesion.estado, debeAceptar, router]);
 
   if (sesion.estado === 'cargando') {
-    return <p className="p-8 text-slate-600 dark:text-slate-400">Cargando…</p>;
+    return <p className="p-8 text-texto-2">Cargando…</p>;
   }
   if (sesion.estado === 'anonimo' || debeAceptar) return null;
 
@@ -67,16 +68,16 @@ function AccesoDenegado({
 }) {
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center gap-4 px-4">
-      <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
+      <h1 className="text-xl font-semibold text-texto">
         Esta sección no es para tu cuenta
       </h1>
-      <p className="text-slate-600 dark:text-slate-400">
+      <p className="text-texto-2">
         {descripcionDeArea(rolesPermitidos)} Tu cuenta está registrada como{' '}
         <strong>{etiquetaDeRol(usuario.rol)}</strong>.
       </p>
       <Link
         href={rutaInicialDe(usuario.rol)}
-        className="self-start rounded-md bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700"
+        className={`${clasesDeBoton('primario')} self-start`}
       >
         Ir a mi inicio
       </Link>

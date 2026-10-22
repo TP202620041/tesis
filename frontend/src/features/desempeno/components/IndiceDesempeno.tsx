@@ -44,10 +44,10 @@ export function IndiceDesempeno() {
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-6">
       <header>
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+        <h1 className="text-2xl font-bold text-texto">
           Índice de desempeño distrital
         </h1>
-        <p className="mt-1 max-w-2xl text-sm text-slate-600 dark:text-slate-400">
+        <p className="mt-1 max-w-2xl text-sm text-texto-2">
           Qué tan bien responde cada municipalidad de Lima Metropolitana a los daños viales que
           reportan sus vecinos. Los datos salen de los reportes ciudadanos y sus cambios de
           estado, no de cifras declaradas por las municipalidades.
@@ -55,7 +55,7 @@ export function IndiceDesempeno() {
       </header>
 
       {error && (
-        <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-800 dark:bg-red-950 dark:text-red-200">
+        <p role="alert" className="rounded-control bg-error-fondo px-3 py-2 text-sm text-error-texto">
           {error}
         </p>
       )}
@@ -64,7 +64,7 @@ export function IndiceDesempeno() {
         <div className="flex flex-col gap-1.5">
           <label
             htmlFor="categoria"
-            className="text-sm font-medium text-slate-700 dark:text-slate-200"
+            className="text-sm font-medium text-texto"
           >
             Tipo de daño
           </label>
@@ -74,7 +74,7 @@ export function IndiceDesempeno() {
             onChange={(e) =>
               comparacion.cambiarCategoria(e.target.value ? Number(e.target.value) : null)
             }
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+            className="min-h-objetivo bg-superficie text-texto rounded-control border border-linea-campo px-3 py-2 text-sm"
           >
             <option value="">Todos los tipos</option>
             {categorias.map((c) => (
@@ -85,7 +85,7 @@ export function IndiceDesempeno() {
           </select>
         </div>
 
-        <p aria-live="polite" className="pb-2 text-sm text-slate-600 dark:text-slate-400">
+        <p aria-live="polite" className="pb-2 text-sm text-texto-2">
           {cargando
             ? 'Cargando…'
             : `${filas.length} distritos · ${conDatos} con reportes registrados`}
@@ -93,13 +93,13 @@ export function IndiceDesempeno() {
       </section>
 
       {categoriaId != null && !cargando && (
-        <p className="rounded-md bg-slate-100 px-3 py-2 text-sm text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+        <p className="rounded-control bg-superficie-2 px-3 py-2 text-sm text-texto">
           Al filtrar por tipo de daño solo aparecen los distritos que tienen reportes de ese tipo.
         </p>
       )}
 
       {!cargando && filas.length === 0 && !error && (
-        <p className="rounded-md border border-dashed border-slate-300 p-8 text-center text-slate-500 dark:border-slate-600">
+        <p className="rounded-control border border-dashed border-linea-campo p-8 text-center text-texto-2">
           Todavía no hay reportes de este tipo en ningún distrito.
         </p>
       )}
@@ -115,14 +115,14 @@ export function IndiceDesempeno() {
 
       {!cargando && filas.length > 0 && (
         <>
-          <p className="text-sm text-slate-600 dark:text-slate-400">
+          <p className="text-sm text-texto-2">
             Marca de {MIN_COMPARAR} a {MAX_COMPARAR} distritos en la columna «Comparar» para verlos
             lado a lado. La dirección de la página guarda la comparación: puedes compartirla.
           </p>
           {/* Siempre montado: un aviso que aparece dentro de una region viva se anuncia. */}
           <p
             role="status"
-            className="text-sm font-medium text-amber-800 empty:hidden dark:text-amber-300"
+            className="text-sm font-medium text-aviso-texto empty:hidden"
           >
             {comparacion.aviso}
           </p>
@@ -136,7 +136,7 @@ export function IndiceDesempeno() {
         </>
       )}
 
-      <footer className="flex flex-col gap-1 border-t border-slate-200 pt-4 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
+      <footer className="flex flex-col gap-1 border-t border-linea pt-4 text-xs text-texto-2">
         <p>
           <strong>Tasa de resolución:</strong> reportes resueltos sobre el total recibido.{' '}
           <strong>Tiempo promedio:</strong> desde que se reporta el daño hasta que se marca como

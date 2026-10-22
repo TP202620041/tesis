@@ -9,9 +9,10 @@ import Link from 'next/link';
  * - `texto`: acción menor, sin caja (sigue midiendo 44 px de alto).
  * - `peligro`: acción destructiva (descartar, retirar), en el rojo de error.
  *
- * Todos miden al menos 44 px de alto (objetivo táctil, WCAG 2.5.5) salvo el
- * tamaño `compacto` (36 px), que queda para tablas y barras densas de
- * escritorio. El foco lo da la regla global de `globals.css`.
+ * Todos miden al menos 44 px de alto (objetivo táctil, WCAG 2.5.5). El tamaño
+ * `compacto`, para tablas y barras densas, baja a 36 px solo con un puntero
+ * fino (ratón); en una pantalla táctil (`pointer: coarse`) vuelve a 44. El
+ * foco lo da la regla global de `globals.css`.
  */
 export type VarianteBoton = 'primario' | 'secundario' | 'texto' | 'peligro';
 export type TamanoBoton = 'normal' | 'compacto';
@@ -29,7 +30,7 @@ const VARIANTES: Record<VarianteBoton, string> = {
 
 const TAMANOS: Record<TamanoBoton, string> = {
   normal: 'min-h-objetivo px-4 text-base',
-  compacto: 'min-h-9 px-3 text-sm',
+  compacto: 'min-h-9 px-3 text-sm pointer-coarse:min-h-objetivo',
 };
 
 /** Clases de un botón; sirven igual para un `<button>`, un `<a>` o un `<Link>`. */

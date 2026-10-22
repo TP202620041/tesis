@@ -235,6 +235,11 @@
 }
 
 @theme inline {
+  /* Sin la paleta por defecto de Tailwind (slate, sky, red…): solo existen
+     los colores de abajo, así que una clase `slate-*` o `sky-*` olvidada no
+     pinta nada, y `src/app/sin-colores-sueltos.test.ts` la delata. */
+  --color-*: initial;
+
   --color-fondo: var(--cv-fondo);
   --color-superficie: var(--cv-superficie);
   --color-superficie-2: var(--cv-superficie-2);

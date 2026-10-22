@@ -1,14 +1,13 @@
 'use client';
 
+import { clasesDeBoton } from '@/components/ui/Boton';
 import { AlertaError } from '@/components/ui/form';
 import type { usePushEnEsteNavegador } from '../hooks/usePushEnEsteNavegador';
 import { textoDeEstadoPush } from '../model/push';
 
 type EstadoPushNavegador = ReturnType<typeof usePushEnEsteNavegador>;
 
-const BOTON =
-  'self-start rounded-md border border-slate-300 px-3 py-1 text-xs text-slate-700 hover:bg-slate-100 ' +
-  'disabled:opacity-60 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700';
+const BOTON = `${clasesDeBoton('secundario', 'compacto')} self-start`;
 
 /**
  * US-21: activar o desactivar push en ESTE navegador, dentro de la fila del
@@ -20,11 +19,11 @@ export function PushEnEsteNavegador({ push }: { push: EstadoPushNavegador }) {
   const { estado, consentido, procesando, error, activar, desactivar } = push;
 
   return (
-    <div className="flex flex-col gap-1.5 border-t border-slate-200 pt-2 dark:border-slate-700">
-      <p className="text-xs font-medium text-slate-700 dark:text-slate-200">En este navegador</p>
-      {estado === null && !error && <p className="text-xs text-slate-500">Comprobando…</p>}
+    <div className="flex flex-col gap-1.5 border-t border-linea pt-2">
+      <p className="text-xs font-medium text-texto">En este navegador</p>
+      {estado === null && !error && <p className="text-xs text-texto-2">Comprobando…</p>}
       {estado !== null && (
-        <p aria-live="polite" className="text-xs text-slate-600 dark:text-slate-400">
+        <p aria-live="polite" className="text-xs text-texto-2">
           {consentido || estado !== 'activo'
             ? textoDeEstadoPush(estado)
             : 'Este navegador tiene una suscripción, pero falta tu consentimiento para recibir push.'}

@@ -97,9 +97,10 @@ describe('EstadoVacio', () => {
 });
 
 describe('Botones', () => {
-  it('miden 44 px de alto salvo el tamaño compacto', () => {
+  it('miden 44 px de alto; el compacto, solo con ratón baja a 36', () => {
     expect(clasesDeBoton('primario')).toContain('min-h-objetivo');
-    expect(clasesDeBoton('secundario', 'compacto')).not.toContain('min-h-objetivo');
+    expect(clasesDeBoton('secundario', 'compacto')).toContain('min-h-9');
+    expect(clasesDeBoton('secundario', 'compacto')).toContain('pointer-coarse:min-h-objetivo');
   });
 
   it('el primario va en tinta (primario), sin celeste', () => {

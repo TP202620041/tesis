@@ -13,7 +13,7 @@ import {
  */
 const MiniMapaUbicacion = dynamic(() => import('@/map/MiniMapaUbicacion'), {
   ssr: false,
-  loading: () => <div className="h-48 w-full animate-pulse bg-slate-200 dark:bg-slate-700" />,
+  loading: () => <div className="h-48 w-full animate-pulse bg-superficie-2" />,
 });
 
 interface Props {
@@ -40,9 +40,9 @@ export function UbicacionDelReporte({ latitud, longitud, titulo }: Props) {
   return (
     <section
       aria-labelledby="ubicacion-del-reporte"
-      className="flex flex-col gap-2 rounded-md border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800"
+      className="flex flex-col gap-2 rounded-control border border-linea bg-superficie p-4"
     >
-      <h2 id="ubicacion-del-reporte" className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+      <h2 id="ubicacion-del-reporte" className="text-sm font-semibold text-texto">
         Ubicación
       </h2>
       {ubicacion ? (
@@ -51,7 +51,7 @@ export function UbicacionDelReporte({ latitud, longitud, titulo }: Props) {
               recuadro, para que no tapen nada de la pagina. La `key` vuelve a
               montar el mapa si cambia el punto: Leaflet solo lee el centro al
               crearse. */}
-          <div className="isolate overflow-hidden rounded-md border border-slate-200 dark:border-slate-700">
+          <div className="isolate overflow-hidden rounded-control border border-linea">
             <MiniMapaUbicacion
               key={`${ubicacion.latitud},${ubicacion.longitud}`}
               latitud={ubicacion.latitud}
@@ -59,7 +59,7 @@ export function UbicacionDelReporte({ latitud, longitud, titulo }: Props) {
               etiqueta={`Ubicación del daño: ${titulo}`}
             />
           </div>
-          <p className="text-sm text-slate-700 dark:text-slate-300">
+          <p className="text-sm text-texto">
             Coordenadas (latitud, longitud):{' '}
             <span className="font-mono tabular-nums">{textoDeCoordenadas(ubicacion)}</span>
           </p>
@@ -67,14 +67,14 @@ export function UbicacionDelReporte({ latitud, longitud, titulo }: Props) {
             href={enlaceOpenStreetMap(ubicacion)}
             target="_blank"
             rel="noopener noreferrer"
-            className="self-start text-sm font-medium text-sky-700 hover:underline dark:text-sky-400"
+            className="self-start text-sm font-medium text-enlace hover:underline"
           >
             Abrir en OpenStreetMap{' '}
             <span className="sr-only">(se abre en otra pestaña)</span>
           </a>
         </>
       ) : (
-        <p className="text-sm text-slate-600 dark:text-slate-400">Sin ubicación registrada.</p>
+        <p className="text-sm text-texto-2">Sin ubicación registrada.</p>
       )}
     </section>
   );

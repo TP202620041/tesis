@@ -4,6 +4,7 @@ import type { DistritoComparado } from '../model/comparacion';
 import { MIN_COMPARAR } from '../model/comparacion';
 import { formatearTasa, formatearTiempo, SIN_DATOS } from '../model/formato';
 import { GraficaTasas } from './GraficaTasas';
+import { clasesDeBoton } from '@/components/ui/Boton';
 
 interface Props {
   distritos: DistritoComparado[];
@@ -27,24 +28,23 @@ export function ComparacionDistritos({ distritos, categoriaNombre, onQuitar, onL
   return (
     <section
       aria-labelledby="titulo-comparacion"
-      className="flex flex-col gap-4 rounded-lg border border-slate-200 p-4 dark:border-slate-700"
+      className="flex flex-col gap-4 rounded-tarjeta border border-linea p-4"
     >
       <header className="flex flex-wrap items-center justify-between gap-2">
-        <h2 id="titulo-comparacion" className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+        <h2 id="titulo-comparacion" className="text-lg font-semibold text-texto">
           {titulo}
         </h2>
         <button
           type="button"
           onClick={onLimpiar}
-          className="rounded-md border border-slate-300 px-3 py-1 text-sm text-slate-700 hover:bg-slate-100
-                     dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
+          className={clasesDeBoton('secundario', 'compacto')}
         >
           Limpiar comparación
         </button>
       </header>
 
       {distritos.length < MIN_COMPARAR ? (
-        <div className="flex flex-col gap-2 text-sm text-slate-700 dark:text-slate-300">
+        <div className="flex flex-col gap-2 text-sm text-texto">
           <p>Elige al menos un distrito más en la tabla para comparar.</p>
           <ul className="flex flex-wrap gap-2">
             {distritos.map((d) => (
@@ -63,11 +63,11 @@ export function ComparacionDistritos({ distritos, categoriaNombre, onQuitar, onL
                 de atención de cada distrito.
               </caption>
               <thead>
-                <tr className="border-b border-slate-300 dark:border-slate-600">
+                <tr className="border-b border-linea-campo">
                   <td className="px-2 py-2" />
                   {distritos.map((d) => (
                     <th key={d.distritoId} scope="col" className="px-2 py-2 text-left align-top">
-                      <span className="block font-semibold text-slate-900 dark:text-slate-100">
+                      <span className="block font-semibold text-texto">
                         {d.nombre}
                       </span>
                       <BotonQuitar distrito={d} onQuitar={onQuitar} />
@@ -95,7 +95,7 @@ export function ComparacionDistritos({ distritos, categoriaNombre, onQuitar, onL
           <GraficaTasas distritos={distritos} />
 
           {categoriaNombre != null && distritos.some((d) => d.fila == null) && (
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+            <p className="text-xs text-texto-2">
               «{SIN_DATOS}»: ese distrito no tiene reportes de este tipo de daño. No es un 0 %:
               no participa de la métrica.
             </p>
@@ -116,8 +116,8 @@ function Fila({
   children: (d: DistritoComparado) => string;
 }) {
   return (
-    <tr className="border-b border-slate-200 last:border-0 dark:border-slate-700">
-      <th scope="row" className="px-2 py-2 text-left font-medium text-slate-600 dark:text-slate-300">
+    <tr className="border-b border-linea last:border-0">
+      <th scope="row" className="px-2 py-2 text-left font-medium text-texto-2">
         {titulo}
       </th>
       {distritos.map((d) => {
@@ -127,8 +127,8 @@ function Fila({
             key={d.distritoId}
             className={`px-2 py-2 tabular-nums ${
               valor === SIN_DATOS
-                ? 'text-slate-400 dark:text-slate-500'
-                : 'text-slate-900 dark:text-slate-100'
+                ? 'text-texto-2'
+                : 'text-texto'
             }`}
           >
             {valor}
@@ -153,7 +153,7 @@ function BotonQuitar({
       type="button"
       onClick={() => onQuitar(distrito.distritoId)}
       aria-label={`Quitar ${distrito.nombre} de la comparación`}
-      className="text-xs font-normal text-sky-700 hover:underline dark:text-sky-400"
+      className="text-xs font-normal text-enlace hover:underline"
     >
       {conNombre ? `${distrito.nombre} ✕` : 'Quitar'}
     </button>

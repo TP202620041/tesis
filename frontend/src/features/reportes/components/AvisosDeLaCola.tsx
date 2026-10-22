@@ -5,6 +5,7 @@ import { useEffect } from 'react';
 import { X } from 'lucide-react';
 import { BotonIcono } from '@/components/ui/Icono';
 import { useCierreDelAvisoDeIncompletos } from '../hooks/useCierreDelAvisoDeIncompletos';
+import { clasesDeBoton } from '@/components/ui/Boton';
 
 /** Rutas donde no tiene sentido pedir que inicie sesion: ya esta en eso. */
 const RUTAS_DE_ACCESO = ['/login', '/registro', '/recuperar-password'];
@@ -23,12 +24,12 @@ export function AvisoPendientesSinSesion({ cantidad, ruta }: { cantidad: number;
   return (
     <p
       role="status"
-      className="fixed inset-x-4 bottom-[calc(var(--cv-alto-nav,0px)+1rem)] z-[1100] mx-auto max-w-lg rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-lg dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100"
+      className="fixed inset-x-4 bottom-[calc(var(--cv-alto-nav,0px)+1rem)] z-[1100] mx-auto max-w-lg rounded-control border border-aviso-borde bg-aviso-fondo px-4 py-3 text-sm text-aviso-texto shadow-elevada"
     >
       Tienes {plural(cantidad)} de envío:{' '}
       <Link
         href={`/login?redirect=${encodeURIComponent(ruta)}`}
-        className="font-medium text-sky-700 underline dark:text-sky-400"
+        className="font-medium text-enlace underline"
       >
         inicia sesión para enviarlos
       </Link>
@@ -66,7 +67,7 @@ export function AvisoReportesIncompletos({
   return (
     <div
       role="status"
-      className="fixed inset-x-4 bottom-[calc(var(--cv-alto-nav,0px)+3rem)] z-[1100] mx-auto flex max-w-lg items-start gap-3 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-lg dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100"
+      className="fixed inset-x-4 bottom-[calc(var(--cv-alto-nav,0px)+3rem)] z-[1100] mx-auto flex max-w-lg items-start gap-3 rounded-control border border-aviso-borde bg-aviso-fondo px-4 py-3 text-sm text-aviso-texto shadow-elevada"
     >
       <p className="flex-1">
         {cantidad === 1
@@ -74,7 +75,7 @@ export function AvisoReportesIncompletos({
           : `Tienes ${cantidad} reportes sin enviar a los que les faltan datos: `}
         <Link
           href={RUTA_PENDIENTES_DE_ENVIO}
-          className="font-medium text-sky-700 underline dark:text-sky-400"
+          className="font-medium text-enlace underline"
         >
           complétalos en Mis reportes
         </Link>
@@ -136,33 +137,33 @@ export function DialogoCierreConPendientes({
   }, [onConservar]);
 
   return (
-    <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-slate-900/50 p-4">
+    <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-velo p-4">
       <div
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="cierre-pendientes-titulo"
-        className="flex w-full max-w-md flex-col gap-4 rounded-lg bg-white p-6 shadow-xl dark:bg-slate-800"
+        className="flex w-full max-w-md flex-col gap-4 rounded-tarjeta bg-superficie p-6 shadow-elevada"
       >
-        <h2 id="cierre-pendientes-titulo" className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+        <h2 id="cierre-pendientes-titulo" className="text-lg font-semibold text-texto">
           {cantidad === 1
             ? 'Tienes 1 reporte sin enviar en este dispositivo.'
             : `Tienes ${cantidad} reportes sin enviar en este dispositivo.`}
         </h2>
-        <p className="text-sm text-slate-700 dark:text-slate-300">
+        <p className="text-sm text-texto">
           {textoDelCierre(seEnviaran, requierenAccion)}
         </p>
         <div className="flex flex-wrap justify-end gap-3">
           <button
             type="button"
             onClick={onDescartar}
-            className="rounded-md border border-red-300 px-4 py-2 text-sm font-medium text-red-700 dark:border-red-700 dark:text-red-300"
+            className={clasesDeBoton('peligro')}
           >
             Descartarlos
           </button>
           <button
             type="button"
             onClick={onConservar}
-            className="rounded-md bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700"
+            className={clasesDeBoton('primario')}
           >
             Conservar
           </button>

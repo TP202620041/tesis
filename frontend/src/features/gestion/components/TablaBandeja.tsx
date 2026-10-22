@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { estiloDeEstado } from '@/lib/types/estados';
+import { ChipEstado } from '@/components/ui/ChipEstado';
 import { textoDeSeveridad, tituloVisible } from '@/lib/types/tituloYSeveridad';
 import type { ReporteGestion } from '../model/tipos';
 
@@ -41,7 +41,7 @@ interface Props {
 export function TablaBandeja({ reportes, orden, onOrdenar }: Props) {
   if (reportes.length === 0) {
     return (
-      <p className="rounded-md border border-dashed border-slate-300 p-8 text-center text-slate-500 dark:border-slate-600 dark:text-slate-400">
+      <p className="rounded-control border border-dashed border-linea-campo p-8 text-center text-texto-2">
         No hay reportes que coincidan con los filtros.
       </p>
     );
@@ -50,7 +50,7 @@ export function TablaBandeja({ reportes, orden, onOrdenar }: Props) {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-2 text-sm">
-        <span className="text-slate-600 dark:text-slate-400">Ordenar por:</span>
+        <span className="text-texto-2">Ordenar por:</span>
         <BotonOrden actual={orden} valor="apoyos" onOrdenar={onOrdenar}>
           Más apoyados
         </BotonOrden>
@@ -61,48 +61,40 @@ export function TablaBandeja({ reportes, orden, onOrdenar }: Props) {
 
       <ul className="flex flex-col gap-2">
         {reportes.map((reporte) => {
-          const estilo = estiloDeEstado(reporte.estado ?? '');
           return (
             <li key={reporte.id}>
               <Link
                 href={`/bandeja/${reporte.id}`}
-                className="flex items-start gap-3 rounded-md border border-slate-200 bg-white p-3
-                           transition hover:border-sky-400 dark:border-slate-700 dark:bg-slate-800"
+                className="flex items-start gap-3 rounded-control border border-linea bg-superficie p-3
+                           transition hover:border-primario"
               >
-                <span
-                  aria-hidden="true"
-                  className="mt-1 size-3 shrink-0 rounded-full"
-                  style={{ background: estilo.color }}
-                />
                 <span className="min-w-0 flex-1">
                   <span className="flex flex-wrap items-center gap-2">
                     {/* NC-02: el titulo y la severidad los declara el ciudadano;
                         el funcionario los ve pero no los cambia. */}
-                    <strong className="text-slate-900 dark:text-slate-100">
+                    <strong className="text-texto">
                       {tituloVisible(reporte.titulo)}
                     </strong>
-                    <span className="text-xs text-slate-500 dark:text-slate-400">
-                      {estilo.etiqueta}
-                    </span>
+                    <ChipEstado estado={reporte.estado ?? ''} />
                     {reporte.posibleReincidencia && (
                       // Marcado por US-27: un vecino comentó que el daño
                       // reaparecio o quedo mal reparado.
-                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900 dark:bg-amber-900 dark:text-amber-100">
+                      <span className="rounded-full bg-aviso-fondo px-2 py-0.5 text-xs text-aviso-texto">
                         Posible reincidencia
                       </span>
                     )}
                   </span>
-                  <span className="mt-0.5 block text-sm text-slate-700 dark:text-slate-300">
+                  <span className="mt-0.5 block text-sm text-texto">
                     {[reporte.categoriaNombre, textoDeSeveridad(reporte.severidad)]
                       .filter(Boolean)
                       .join(' · ')}
                   </span>
                   {reporte.descripcion && (
-                    <span className="mt-0.5 block truncate text-sm text-slate-600 dark:text-slate-400">
+                    <span className="mt-0.5 block truncate text-sm text-texto-2">
                       {reporte.descripcion}
                     </span>
                   )}
-                  <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">
+                  <span className="mt-0.5 block text-xs text-texto-2">
                     {reporte.createdAt
                       ? new Date(reporte.createdAt).toLocaleDateString('es-PE')
                       : '—'}
@@ -137,10 +129,10 @@ function BotonOrden({
       type="button"
       aria-pressed={activo}
       onClick={() => onOrdenar(valor)}
-      className={`rounded-md px-2 py-1 ${
+      className={`min-h-9 rounded-control border px-3 py-1 pointer-coarse:min-h-objetivo ${
         activo
-          ? 'bg-sky-600 text-white'
-          : 'border border-slate-300 text-slate-700 dark:border-slate-600 dark:text-slate-200'
+          ? 'border-primario bg-primario font-semibold text-sobre-primario'
+          : 'border-linea-campo bg-superficie text-texto hover:bg-superficie-2'
       }`}
     >
       {children}

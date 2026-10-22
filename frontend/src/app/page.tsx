@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { clasesDeBoton } from '@/components/ui/Boton';
 
 /**
  * Portada publica. En esta fase es solo la puerta al slice de acceso; el mapa
@@ -9,8 +10,8 @@ export default function Home() {
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-2xl flex-col justify-center gap-8 px-4 py-10">
       <div>
-        <h1 className="text-3xl font-bold text-sky-700 dark:text-sky-400">Ciudad Viva</h1>
-        <p className="mt-2 text-slate-600 dark:text-slate-400">
+        <h1 className="text-3xl font-bold text-texto">Ciudad Viva</h1>
+        <p className="mt-2 text-texto-2">
           Reporta baches, veredas dañadas y semáforos averiados en Lima Metropolitana. Tu reporte
           llega automáticamente a la municipalidad del distrito donde ocurre.
         </p>
@@ -22,35 +23,33 @@ export default function Home() {
       <nav className="flex flex-wrap gap-3">
         <Link
           href="/mapa"
-          className="rounded-md bg-sky-600 px-4 py-2 font-medium text-white transition hover:bg-sky-700"
+          className={clasesDeBoton('primario')}
         >
           Ver el mapa de reportes
         </Link>
         <Link
           href="/desempeno"
-          className="rounded-md border border-slate-300 px-4 py-2 font-medium text-slate-700
-                     transition hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200
-                     dark:hover:bg-slate-800"
+          className={clasesDeBoton('secundario')}
         >
           Desempeño por distrito
         </Link>
       </nav>
 
-      <div className="flex flex-wrap items-center gap-3 border-t border-slate-200 pt-6 text-sm dark:border-slate-700">
-        <span className="text-slate-600 dark:text-slate-400">¿Quieres reportar un daño?</span>
-        <Link href="/login" className="font-medium text-sky-700 hover:underline dark:text-sky-400">
+      <div className="flex flex-wrap items-center gap-3 border-t border-linea pt-6 text-sm">
+        <span className="text-texto-2">¿Quieres reportar un daño?</span>
+        <Link href="/login" className="font-medium text-enlace hover:underline">
           Iniciar sesión
         </Link>
         <Link
           href="/registro"
-          className="font-medium text-sky-700 hover:underline dark:text-sky-400"
+          className="font-medium text-enlace hover:underline"
         >
           Crear cuenta
         </Link>
       </div>
 
       {/* QA-1 E-3: la politica de privacidad se enlazaba solo desde el registro. */}
-      <footer className="text-sm text-slate-600 dark:text-slate-400">
+      <footer className="text-sm text-texto-2">
         <Link href="/privacidad" className="hover:underline">
           Términos de uso y privacidad
         </Link>

@@ -7,6 +7,7 @@ import { useTituloSugerido } from '../hooks/useTituloSugerido';
 import { avisoDeIncompleto, type ReporteEnCola } from '../model/colaOffline';
 import { erroresDeTituloYSeveridad } from '../model/titulo';
 import { CampoSeveridad, CampoTitulo } from './CamposTituloYSeveridad';
+import { clasesDeBoton } from '@/components/ui/Boton';
 
 type Accion = { clave: string; tipo: 'descartar' | 'reenviar' };
 
@@ -46,12 +47,12 @@ export function PendientesDeEnvio({
   return (
     <section
       aria-labelledby="pendientes-de-envio"
-      className="flex flex-col gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 dark:border-amber-700 dark:bg-amber-950"
+      className="flex flex-col gap-2 rounded-control border border-aviso-borde bg-aviso-fondo p-3"
     >
-      <h2 id="pendientes-de-envio" className="text-sm font-semibold text-amber-900 dark:text-amber-100">
+      <h2 id="pendientes-de-envio" className="text-sm font-semibold text-aviso-texto">
         Pendiente de envío
       </h2>
-      <p className="text-xs text-amber-900 dark:text-amber-100">
+      <p className="text-xs text-aviso-texto">
         Guardados en este dispositivo sin conexión. Se envían solos cuando vuelve la señal.
       </p>
       <ul className="flex flex-col gap-1.5">
@@ -60,24 +61,24 @@ export function PendientesDeEnvio({
           return (
             <li
               key={r.idempotencyKey}
-              className="flex flex-col gap-1 rounded bg-white px-3 py-2 text-sm dark:bg-slate-800"
+              className="flex flex-col gap-1 rounded bg-superficie px-3 py-2 text-sm"
             >
-              <span className="text-slate-700 dark:text-slate-200">
+              <span className="text-texto">
                 {r.datos.titulo ? <strong>{r.datos.titulo} · </strong> : null}
                 Reporte del {new Date(r.creadoEn).toLocaleString('es-PE')}
                 {r.foto ? ' · con foto' : ''}
               </span>
 
               {r.visible === 'pendiente' && (
-                <span className="text-amber-800 dark:text-amber-200">Pendiente de envío</span>
+                <span className="text-aviso-texto">Pendiente de envío</span>
               )}
               {r.visible === 'rechazado' && (
-                <span role="alert" className="text-red-700 dark:text-red-300">
+                <span role="alert" className="text-error">
                   No se pudo enviar{r.motivo ? `: ${r.motivo}` : ''}
                 </span>
               )}
               {r.visible === 'caducado' && (
-                <span role="alert" className="text-red-700 dark:text-red-300">
+                <span role="alert" className="text-error">
                   Caducado: revisa Mis reportes antes de reenviarlo
                 </span>
               )}
@@ -92,7 +93,7 @@ export function PendientesDeEnvio({
                     <button
                       type="button"
                       onClick={() => setConfirmando({ clave: r.idempotencyKey, tipo: 'reenviar' })}
-                      className="text-sm font-medium text-sky-700 hover:underline dark:text-sky-400"
+                      className="text-sm font-medium text-enlace hover:underline"
                     >
                       Reenviar
                     </button>
@@ -100,7 +101,7 @@ export function PendientesDeEnvio({
                   <button
                     type="button"
                     onClick={() => setConfirmando({ clave: r.idempotencyKey, tipo: 'descartar' })}
-                    className="text-sm font-medium text-sky-700 hover:underline dark:text-sky-400"
+                    className="text-sm font-medium text-enlace hover:underline"
                   >
                     Descartar
                   </button>
@@ -109,7 +110,7 @@ export function PendientesDeEnvio({
 
               {enConfirmacion && (
                 <span className="flex flex-wrap items-center gap-3">
-                  <span className="text-slate-700 dark:text-slate-200">
+                  <span className="text-texto">
                     {enConfirmacion.tipo === 'reenviar'
                       ? '¿Confirmas que no aparece en Mis reportes? Se enviará como un reporte nuevo.'
                       : '¿Descartar este reporte? No se podrá recuperar.'}
@@ -121,14 +122,14 @@ export function PendientesDeEnvio({
                       if (enConfirmacion.tipo === 'reenviar') onReenviarConClaveNueva(r);
                       else onDescartar(r.idempotencyKey);
                     }}
-                    className="text-sm font-medium text-red-700 hover:underline dark:text-red-300"
+                    className="text-sm font-medium text-error hover:underline"
                   >
                     Sí, {enConfirmacion.tipo === 'reenviar' ? 'reenviar' : 'descartar'}
                   </button>
                   <button
                     type="button"
                     onClick={() => setConfirmando(null)}
-                    className="text-sm font-medium text-slate-600 hover:underline dark:text-slate-300"
+                    className="text-sm font-medium text-texto-2 hover:underline"
                   >
                     Cancelar
                   </button>
@@ -187,11 +188,11 @@ function CompletarReporte({
   }
 
   return (
-    <form onSubmit={guardar} noValidate className="flex flex-col gap-2 border-t border-amber-200 pt-2 dark:border-amber-800">
+    <form onSubmit={guardar} noValidate className="flex flex-col gap-2 border-t border-aviso-borde pt-2">
       {/* Aviso fijo, no una alerta: ya esta en la pantalla al llegar. */}
-      <p className="text-amber-900 dark:text-amber-100">{avisoDeIncompleto(reporte)}</p>
+      <p className="text-aviso-texto">{avisoDeIncompleto(reporte)}</p>
       {error && (
-        <p role="alert" className="text-red-700 dark:text-red-300">
+        <p role="alert" className="text-error">
           {error}
         </p>
       )}
@@ -210,7 +211,7 @@ function CompletarReporte({
       <button
         type="submit"
         disabled={guardando}
-        className="self-start rounded-md bg-sky-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-sky-700 disabled:opacity-60"
+        className={`${clasesDeBoton('primario', 'compacto')} self-start`}
       >
         {guardando ? 'Guardando…' : 'Completar'}
       </button>
