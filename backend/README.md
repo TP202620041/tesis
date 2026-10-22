@@ -50,9 +50,71 @@ Swagger UI: `http://localhost:8080/swagger-ui.html`.
 - `dev` — entorno compartido; toda la configuración por variables de entorno
   (`DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET`).
 - `test` — lo activan los IT (`src/test/resources/application-test.yml`).
+- `prod` — el despliegue; ver [Configuración de producción](#configuración-de-producción).
 
 Fuera de `local` y `test`, `JWT_SECRET` es obligatorio: sin él la aplicación
 no arranca (ver SEC-03).
+
+## Configuración de producción
+
+El perfil `prod` (`application-prod.yml`) es el del despliegue del MVP
+(backend y PostGIS en Railway, PWA en Vercel). Su criterio: **ninguna
+variable que apunte a un recurso de producción tiene valor por defecto**. Un
+default arrancaría la aplicación contra algo que no es producción; es
+preferible que no arranque y que el log diga qué falta.
+
+### Variables de entorno
+
+| Variable | Obligatoria | Qué es |
+|---|---|---|
+| `JWT_SECRET` | sí | Base64 de al menos 32 bytes (`openssl rand -base64 48`). Sin ella, o con el secreto de desarrollo, no arranca (SEC-03). |
+| `DB_URL` | sí | `jdbc:postgresql://<host>:<puerto>/<base>` de un PostgreSQL 16 que tenga PostGIS 3.4 disponible (la V1 ejecuta `CREATE EXTENSION postgis`). |
+| `DB_USERNAME`, `DB_PASSWORD` | sí | Credenciales de esa base. |
+| `CORS_ALLOWED_ORIGINS` | sí | Origen exacto de la PWA (`https://<proyecto>.vercel.app`); varios, separados por coma. |
+| `FOTOS_DIR` | sí | Directorio de las fotos. La imagen ya trae `FOTOS_DIR=/data/fotos`. |
+| `PORT` | no (8080) | Lo inyecta la plataforma. |
+| `SWAGGER_ENABLED` | no (`false`) | `true` publica `/v3/api-docs` y Swagger UI. |
+| `JWT_EXPIRATION_MINUTES`, `VAPID_*`, `PUSH_*`, `MAIL_*`, `NOTIF_FROM`, `LEGAL_VERSION_TERMINOS`, `ASYNC_*` | no | Las mismas de `application.yml`, con sus valores por defecto. |
+
+### Qué cambia respecto de `local`
+
+- **Errores.** `server.error.include-message` e `include-stacktrace` en
+  `never`. Solo afectan al `/error` de Spring Boot, que responde lo que no
+  pasa por `GlobalExceptionHandler` (un rechazo del firewall de Spring
+  Security, un fallo en un filtro). Los `ApiError` de `GlobalExceptionHandler`
+  conservan su `message`, que es el que muestra el frontend
+  (`frontend/src/lib/api/errors.ts`); `PerfilProdIT` lo comprueba con un 409
+  conocido.
+- **OpenAPI y Swagger UI** apagados salvo `SWAGGER_ENABLED=true`: la
+  documentación del contrato se consulta en local.
+- **Flyway** con `baseline-on-migrate: false`. En una base con tablas pero sin
+  historial de Flyway, la aplicación falla en vez de tomarla como línea base
+  y saltarse la V1, lo que dejaría un esquema a medias.
+- **Detrás del proxy** de la plataforma: `server.port: ${PORT:8080}` y
+  `forward-headers-strategy: framework`, para que la aplicación vea el
+  esquema y el host originales (`https`). Hoy nada usa la IP del cliente; si
+  algún día se usa (límite de intentos, auditoría), conviene pasar a
+  `native` con la lista de proxies de confianza, porque `framework` acepta las
+  cabeceras `X-Forwarded-*` de quien las envíe.
+- **Apagado ordenado** (`server.shutdown: graceful`): en un redespliegue
+  terminan las peticiones en curso.
+- **Logs** en `INFO` y sin el SQL de Hibernate.
+
+### Healthcheck y tiempos de espera (todos los perfiles)
+
+- **Actuator** expone solo `GET /actuator/health`, pública y exacta en
+  `SecurityConfig`, y responde únicamente `{"status":"UP"}`: sin detalles ni
+  componentes que revelen la base o las versiones. Ningún otro endpoint de
+  Actuator se expone por web, ni siquiera a un ADMIN (`/actuator/env` o
+  `/actuator/heapdump` entregarían el secreto JWT y la contraseña de la base).
+  Lo prueba `ActuatorHealthIT`.
+- El health **no incluye el correo** (`management.health.mail.enabled:
+  false`): un SMTP caído afecta a cada envío, no a la API, y no debe marcarla
+  como caída ni hacer fallar un despliegue. La base de datos sí cuenta: sin
+  ella la API no sirve.
+- **SMTP con timeouts de 5 s** (conexión, lectura y escritura). JavaMail
+  espera indefinidamente por defecto, y la recuperación de contraseña y el
+  soporte envían correo dentro de la petición.
 
 Activar otro perfil: `SPRING_PROFILES_ACTIVE=dev mvn spring-boot:run`.
 
@@ -506,7 +568,9 @@ git: por eso `JwtService` lo rechaza por su contenido.
 el que no es Base64, los de 31 y 32 bytes, el publicado con y sin la bandera
 (y con otra codificación), que los mensajes no lo repiten y que un token de
 ADMIN forjado con el secreto viejo no verifica en un entorno con secreto
-propio.
+propio. `PerfilProdIT` arranca el perfil `prod` con un secreto propio,
+comprueba que ahí la bandera queda en `false` y que un token forjado con el
+secreto publicado recibe 401.
 
 ## Frescura del índice de desempeño
 

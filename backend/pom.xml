@@ -66,6 +66,14 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- Actuator (DEP-02): solo /actuator/health, para el healthcheck del
+             despliegue (railway.toml). Sin detalles y sin ningun otro endpoint
+             expuesto; ver "Configuracion de produccion" en el README. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
         <!-- Validacion (Jakarta Bean Validation) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
