@@ -7,6 +7,14 @@ spring:
   jpa:
     show-sql: true
 
+# Secreto JWT de DESARROLLO (DEP-01): esta publicado en el repositorio, asi
+# que solo sirve en una maquina local. Fuera de los perfiles local y test,
+# JwtService lo rechaza al arrancar. Exportar JWT_SECRET lo reemplaza.
+security:
+  jwt:
+    secret: ${JWT_SECRET:Y2hhbmdlLW1lLXRoaXMtaXMtYS1kZXYtb25seS1zZWNyZXQtMDEyMzQ1Njc4OQ==}
+    permitir-secreto-de-desarrollo: true
+
 logging:
   level:
     pe.edu.upc.viasegura: DEBUG

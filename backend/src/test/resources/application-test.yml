@@ -1,0 +1,10 @@
+# Perfil TEST (lo activa AbstractPostgisIT). La BD, el SMTP y el directorio
+# de fotos los fija AbstractPostgisIT con @DynamicPropertySource.
+#
+# Secreto JWT de desarrollo (DEP-01): application.yml ya no trae un valor
+# por defecto, y los tests firman sus tokens con este secreto publicado.
+# Literal y no ${JWT_SECRET:...}: los tests no deben depender del entorno.
+security:
+  jwt:
+    secret: Y2hhbmdlLW1lLXRoaXMtaXMtYS1kZXYtb25seS1zZWNyZXQtMDEyMzQ1Njc4OQ==
+    permitir-secreto-de-desarrollo: true

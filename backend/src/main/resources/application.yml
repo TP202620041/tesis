@@ -92,9 +92,16 @@ app:
 # Parametros de seguridad / JWT (leidos por JwtService)
 security:
   jwt:
-    # Secreto Base64 (>= 256 bits). En prod se inyecta por variable de entorno.
-    secret: ${JWT_SECRET:Y2hhbmdlLW1lLXRoaXMtaXMtYS1kZXYtb25seS1zZWNyZXQtMDEyMzQ1Njc4OQ==}
+    # Secreto Base64 de al menos 32 bytes (`openssl rand -base64 48`). SIN
+    # valor por defecto a proposito (DEP-01, SEC-03 en el README): con el
+    # secreto cualquiera firma un token de ADMIN, y un default versionado
+    # dejaba firmando con un secreto publico a todo entorno que olvidara
+    # JWT_SECRET. Si falta, JwtService no deja arrancar la aplicacion.
+    secret: ${JWT_SECRET:}
     expiration-minutes: ${JWT_EXPIRATION_MINUTES:120}
+    # Solo los perfiles local y test aceptan el secreto de desarrollo
+    # publicado en el repositorio (application-local.yml).
+    permitir-secreto-de-desarrollo: false
 
 springdoc:
   swagger-ui:

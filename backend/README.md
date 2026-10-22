@@ -45,9 +45,14 @@ Swagger UI: `http://localhost:8080/swagger-ui.html`.
 
 ## Perfiles
 
-- `local` (por defecto) — apunta al Postgres de `docker-compose.yml`.
+- `local` (por defecto) — apunta al Postgres de `docker-compose.yml` y firma
+  los JWT con el secreto de desarrollo si no exportas `JWT_SECRET` (SEC-03).
 - `dev` — entorno compartido; toda la configuración por variables de entorno
   (`DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET`).
+- `test` — lo activan los IT (`src/test/resources/application-test.yml`).
+
+Fuera de `local` y `test`, `JWT_SECRET` es obligatorio: sin él la aplicación
+no arranca (ver SEC-03).
 
 Activar otro perfil: `SPRING_PROFILES_ACTIVE=dev mvn spring-boot:run`.
 
@@ -455,6 +460,53 @@ públicos y del ciudadano (la búsqueda por filtros y por área, que son dos
 queries), el `POST` de crear/adherirse, y que la bandeja y el cambio de estado
 **sí** lo devuelven. Con el DTO anterior fallan exactamente los siete casos
 públicos y del ciudadano.
+
+### SEC-03 — El secreto JWT tenía un valor por defecto versionado
+
+**Detectado:** 2026-10-21, al preparar el despliegue del MVP (DEP-01).
+**Estado:** corregido y cubierto por tests. **Exige rotar el secreto** en
+todo entorno que haya usado el viejo.
+
+**El problema.** `application.yml` resolvía `security.jwt.secret` con
+`${JWT_SECRET:<valor>}`, es decir, con un secreto por defecto escrito en el
+repositorio (y repetido en `.env.example`). Un entorno que olvidara definir
+`JWT_SECRET` arrancaba sin ningún aviso, firmando con un secreto público.
+
+**Por qué importaba.** El JWT lleva el email como `subject`, y
+`JwtAuthenticationFilter` carga el usuario, con su rol real, a partir de ese
+email. Quien conoce el secreto firma un token con el email de cualquier
+cuenta y la suplanta sin saber su contraseña: un ADMIN, o un funcionario que
+gestiona los reportes de su distrito y con ellos las métricas de desempeño
+(ver SEC-01). Bastaba con leer el repositorio en GitHub.
+
+**La corrección.**
+
+- La configuración base ya no trae valor por defecto (`${JWT_SECRET:}`).
+- `JwtService` no deja arrancar la aplicación si el secreto falta, está
+  vacío, no es Base64 o tiene menos de 32 bytes (lo mínimo para HS256). El
+  mensaje dice cómo generar uno (`openssl rand -base64 48`) y nunca repite el
+  valor recibido.
+- El secreto de desarrollo sigue en el repositorio (`application-local.yml`
+  y `src/test/resources/application-test.yml`), pero `JwtService` lo rechaza
+  salvo con `security.jwt.permitir-secreto-de-desarrollo=true`, que solo
+  marcan los perfiles `local` y `test`; `prod` la fija en `false`. La
+  comparación es por bytes decodificados, así que otra codificación de la
+  misma clave también se rechaza.
+- `.env.example` deja `JWT_SECRET=` vacío, con la instrucción para
+  generarlo.
+
+**Rotación.** Todo entorno que haya corrido con el secreto viejo (un
+despliegue sin `JWT_SECRET`, o uno que copió el valor de `.env.example`) debe
+generar uno nuevo. Rotar invalida de una vez todos los tokens emitidos,
+también los forjados; a los usuarios solo se les pide volver a iniciar
+sesión. Borrar el valor del archivo no basta, porque sigue en el historial de
+git: por eso `JwtService` lo rechaza por su contenido.
+
+**Regresión:** `JwtServiceTest` cubre el secreto ausente, vacío o en blanco,
+el que no es Base64, los de 31 y 32 bytes, el publicado con y sin la bandera
+(y con otra codificación), que los mensajes no lo repiten y que un token de
+ADMIN forjado con el secreto viejo no verifica en un entorno con secreto
+propio.
 
 ## Frescura del índice de desempeño
 
