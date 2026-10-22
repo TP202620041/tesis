@@ -10,7 +10,9 @@ Asesor: Reyes Silva, Patricia
 ## Stack
 
 - **Next.js 16** (App Router, Turbopack) + **React 19** + **TypeScript estricto**.
-- **Tailwind CSS 4** para estilos.
+- **Tailwind CSS 4** para estilos, sobre los tokens del sistema de diseño
+  «Cívica» (ver «Sistema de diseño» en Decisiones técnicas).
+- **lucide-react** para los iconos (empaquetados, sin orígenes nuevos).
 - **Serwist** para el Service Worker (PWA offline-first).
 - **openapi-typescript** para generar los tipos del API desde el contrato real.
 
@@ -118,7 +120,8 @@ src/
 │   ├── auth/                   # almacenamiento del token
 │   ├── sesion/                 # pasos que otras features registran antes del cierre de sesión (D-14)
 │   └── types/domain.ts         # uniones de enums y alias de dominio
-├── components/ui/              # presentacionales compartidos
+├── components/ui/              # presentacionales compartidos (Boton, Campo, Tarjeta, ChipEstado,
+│                               # IndicadorSeveridad, Aviso, EstadoVacio, Icono, Logo, Dialogo)
 ├── map/                        # cliente de mapas encapsulado (Leaflet)
 └── pwa/                        # Service Worker aislado
 ```
@@ -142,6 +145,160 @@ queda con el título por defecto, si dos comparten título o si un layout
 padre con título no repite la plantilla.
 
 ## Decisiones técnicas
+
+### Sistema de diseño «Cívica» (DIS-1)
+
+El usuario eligió la dirección A, «Cívica» (21/10; `docs/diseno/README.md` y
+`docs/diseno/2026-10-21-propuesta.md`): tinta azul marino `#1F3350` y blanco,
+Public Sans, foco amarillo `#FFD43B` y un solo color con significado por
+estado. **Se deja el celeste** (`sky-*`, `theme_color #0369a1`): un índice que
+califica a las municipalidades no debería llevar un color en disputa
+partidaria en Lima, menos en año electoral (propuesta §2.3). Esta es la fase 1
+(sistema base); la fase 2 rehace pantalla por pantalla (mapa con hoja
+inferior, reportar en pasos, bandeja con panel, portada, desempeño).
+
+**Tokens, no colores.** `src/app/globals.css` tiene dos capas: variables
+`--cv-*` con los valores de cada tema, y un `@theme inline` que las expone a
+Tailwind con nombres semánticos: `bg-fondo`, `bg-superficie`,
+`bg-superficie-2`, `border-linea`, `border-linea-campo` (el borde de un
+control, 3:1), `text-texto`, `text-texto-2`, `bg-primario`/`text-sobre-primario`,
+`text-enlace`, los mensajes (`error`, `exito`, `aviso`, `info`, cada uno con
+`-fondo`, `-texto` y `-borde`), los estados (`pendiente`, `recibido`…, con
+`-fondo` y `-texto`), `severidad`, `barra`/`pista` del índice, radios
+(`rounded-control` 8 px, `rounded-tarjeta` 12, `rounded-hoja` 16), sombras
+(`shadow-tarjeta`, `shadow-elevada`) y `min-h-objetivo` (44 px). Con `inline`
+la utilidad lee la variable en ejecución: cambiar de tema es cambiar
+`data-theme` en `<html>`, sin una sola clase `dark:`. Por eso:
+
+- **La paleta por defecto de Tailwind está quitada** (`--color-*: initial`).
+  Se migraron unas 1 250 clases `slate-*`, `sky-*`, `red-*`, `amber-*`,
+  `emerald-*` y `white` de 57 archivos; una clase de la paleta que vuelva a
+  aparecer no pinta nada y `app/sin-colores-sueltos.test.ts` la delata.
+- **El contraste se prueba, no se mira.** `scripts/contraste-civica.json`
+  lista 99 pares (texto/fondo, borde/superficie, foco, chips, marcadores) con
+  su mínimo WCAG y los tokens de donde sale cada color. Con el script de la
+  propuesta, `node ../docs/diseno/contraste/contraste.mjs
+  scripts/contraste-civica.json` da **0 fallos** (texto ≥ 4.5:1 en claro y
+  oscuro, ≥ 7:1 en alto contraste; bordes y foco ≥ 3:1). `app/contraste.test.ts`
+  comprueba además que los colores del JSON son los que declara `globals.css`
+  en cada tema: si alguien cambia un token sin volver a medirlo, falla.
+- **Foco visible en todo**: amarillo de 3 px con un anillo oscuro de 2 px por
+  fuera (el amarillo solo no llega a 3:1 sobre blanco). La regla va **fuera**
+  de las capas de Tailwind a propósito, para ganarle a cualquier
+  `outline-none` o sombra de utilidad que quede en un control.
+- **Objetivos de 44 px.** Botones, controles e ítems de navegación miden 44 px.
+  El botón `compacto` (tablas, paginación) baja a 36 px solo con un puntero
+  fino; en una pantalla táctil (`pointer-coarse:`) vuelve a 44.
+
+**Componentes base** (`src/components/ui/`, presentación pura): `clasesDeBoton`
+y `EnlaceBoton` (primario en tinta, secundario, texto, peligro), `Campo` y el
+`Boton` de envío (`form.tsx`, misma API y textos que antes), `Tarjeta`,
+`Aviso` (info, éxito, advertencia, error, sin conexión), `EstadoVacio`,
+`Icono`/`BotonIcono` y `Logo`. Los iconos son de `lucide-react` (ISC), versión
+exacta publicada hace más de dos semanas: cada icono se importa por nombre y
+queda en el bundle, así que la CSP no cambia. Un icono nunca carga solo el
+sentido: va junto a un texto (y es `aria-hidden`) o en un botón solo-icono con
+`aria-label` obligatorio.
+
+**Estados: color + icono + nombre** (`ChipEstado`, propuesta §4). Pendiente en
+rojo con reloj, **Recibido pasa de naranja a azul** con bandeja, En proceso en
+el ámbar de las obras con llave y glifo oscuro, Resuelto en verde con visto,
+Rechazado en gris con equis y Cancelado blanco con borde. Antes rojo, naranja
+y ámbar se confundían con deuteranopía y los chips de texto blanco no llegaban
+a 4.5:1. Como la etiqueta de GOV.UK, el chip solo indica (no es enlace ni
+botón). `lib/types/estados.ts` sigue siendo dominio puro: guarda la clave de
+tokens y el nombre del icono, y el componente los traduce. El marcador del
+mapa usa el mismo color en los tres temas (con anillo blanco y contorno
+oscuro); el color de la marca nunca es un estado. **Cambia una leyenda que ya
+aparece en capturas de la tesis** (Recibido): hay que actualizarlas al cerrar
+el rediseño.
+
+**Severidad** (`IndicadorSeveridad`): tres barras crecientes en tinta, siempre
+con el texto («Severidad alta»), **sin rojo**: no compite con el color del
+estado ni alarma, y es una apreciación del vecino. Sin severidad no dibuja un
+nivel inventado.
+
+**Lo que no cambia** (decisiones de este README): la barra del índice y la
+comparación usan **un solo color** (ahora `barra`, la tinta), la capa de calor
+conserva su **rampa violeta** (ningún estado ni la marca usan violeta) y
+`null` sigue siendo «Sin datos»; en la tabla del índice, además, la pista de un
+«Sin datos» es punteada y la de un «0 %» llena.
+
+**Mapa.** Las teselas de OpenStreetMap se desaturan con un filtro CSS sobre
+`.leaflet-tile-pane` (en oscuro se invierten; en alto contraste, escala de
+grises), para que los únicos colores con significado sean los de los
+marcadores y el calor. Es CSS: **no hay orígenes nuevos en la CSP**. Los
+controles, la atribución y los popups de Leaflet toman los tokens. El punto de
+«Ubicación del daño» y el de la ubicación elegida al reportar pasan de rojo y
+celeste al color del texto: un punto rojo se leería como «Pendiente».
+
+### Marco común y navegación por rol (DIS-1)
+
+Cada pantalla armaba su propia cabecera con su propio «Cerrar sesión», que
+competía con las acciones (en `/reportar` era el único botón). Ahora hay un
+marco común, `features/auth/components/MarcoDeLaApp.tsx`, en el layout raíz:
+
+| Rol | Móvil (barra inferior) | Escritorio (cabecera) |
+|---|---|---|
+| Visitante | Mapa · Desempeño · Reportar · Entrar | Mapa · Desempeño · Iniciar sesión · Crear cuenta |
+| Ciudadano | Mapa · Mis reportes · **Reportar** · Desempeño · Cuenta | lo mismo y el menú de cuenta |
+| Funcionario | Bandeja · Panel · Categorías · Cuenta | «Municipalidad de X» · Bandeja · Panel del distrito · Categorías · Soporte · menú |
+| Admin | Soporte · Cuenta | Tickets de soporte · menú |
+
+- **Qué ve cada rol** está en un solo lugar, `features/auth/model/navegacion.ts`
+  (con tests). Como `GuardiaDeRol`, es UX: la autoridad sigue en el backend.
+- **Quién mira** lo da `useUsuarioDelMarco`, que **nunca lleva al login**: el
+  marco está también en las pantallas públicas, y un token vencido en `/mapa`
+  no debe sacar de ahí a quien solo miraba (lo borra y queda como visitante,
+  con `usuarioActualSinRedirigir`). Pregunta `/me` una vez por sesión (el marco
+  no se desmonta al navegar) y otra al iniciar o cerrar sesión. Sin red, con
+  sesión, queda «sin identificar»: se ofrece lo público y el menú de cuenta
+  (para poder salir), y vuelve a preguntar al volver la conexión. La sesión
+  llega a la cabecera y a la barra por props (`ARCHITECTURE.md` §5).
+- **Menú de cuenta**: nombre, rol o municipalidad, enlaces de la cuenta,
+  Apariencia y «Cerrar sesión». Es un desplegable (`aria-expanded`), no un
+  `role="menu"`: adentro hay enlaces y radios que se recorren con Tab. Escape
+  lo cierra y devuelve el foco; se cierra al tocar fuera y al navegar. «Cerrar
+  sesión» usa el mismo `useCerrarSesion`: siguen las preguntas de
+  `antesDeCerrarSesion` (reportes en cola), la baja de push y el tope de espera.
+- La barra inferior es fija, respeta `env(safe-area-inset-bottom)` y fija
+  `--cv-alto-nav`; la cabecera, `--cv-alto-encabezado`. `/mapa` ocupa el alto
+  que dejan las dos (el panel provisional de QA-1 I-4 sigue igual) y los avisos
+  de la cola flotan por encima de la barra. Hay un enlace «Saltar al contenido».
+- Las pantallas de acceso (login, registro, recuperación) no llevan el marco:
+  tienen el suyo, centrado, con el logo. La aceptación de términos lleva solo
+  el logo (mientras no acepte, el resto de la app daría 403).
+- «Dashboard del distrito» pasa a «Panel del distrito», como en la navegación.
+
+### Apariencia: claro, oscuro, alto contraste o sistema (US-23)
+
+- **Selector** «Apariencia: Sistema · Claro · Oscuro · Alto contraste» en el
+  perfil (con la descripción de cada opción) y en el menú de cuenta (para
+  todos los roles). Es un grupo de radios nativos con su `<legend>`; aplica en
+  el acto.
+- **Preferencia del dispositivo**, no de la cuenta: va en `localStorage`
+  (`viasegura.apariencia`), siempre con try/catch (sin almacenamiento, vale en
+  memoria mientras dure la pestaña), y se sincroniza entre pestañas por el
+  evento `storage`. No viaja al backend: no hay nada que guardar ahí.
+- **Antes de pintar**: `public/tema.js`, un script síncrono del mismo origen
+  en el `<head>` del layout raíz, fija `data-theme` en `<html>` mientras el
+  navegador lee el HTML, así que no hay un cuadro en claro antes del oscuro.
+  Síncrono a propósito: un `next/script` `beforeInteractive` se descarga antes
+  pero no bloquea el pintado (por eso la regla `no-sync-scripts` se desactiva
+  en esa línea, con el motivo). **No lee cookies**: leerlas en el layout raíz
+  lo volvería dinámico. **CSP sin cambios**: `script-src 'self'` ya permite un
+  archivo propio y no hace falta otro `'unsafe-inline'`. `<html>` lleva
+  `suppressHydrationWarning` porque el servidor no puede saber el tema.
+- **«Sistema»** respeta primero `prefers-contrast: more` (es una necesidad, no
+  un gusto) y después `prefers-color-scheme`, y sigue los cambios del sistema
+  mientras la app está abierta. Con `forced-colors` manda el sistema operativo.
+- `tema.js` repite las reglas de `features/auth/model/apariencia.ts` en
+  JavaScript plano (corre antes que el bundle). `apariencia.test.ts` lo
+  ejecuta tal cual se sirve con cada combinación de preferencia guardada y
+  sistema, y exige el mismo tema que el modelo.
+- **Alto contraste**: negro sobre blanco (21:1), secundario `#262626`, enlace
+  `#00308F`, bordes de 2 px y chips de estado con contorno negro (el estado lo
+  cargan el icono y el nombre).
 
 ### Cliente HTTP: `fetch` nativo con wrapper
 
