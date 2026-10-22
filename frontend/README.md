@@ -63,7 +63,11 @@ la ignoraba: en un clon limpio el `cp` de arriba fallaba.
   origen HTTPS del API, sin barra final. Se **hornea en el build**: va al
   bundle del cliente y a la CSP (`connect-src` e `img-src`) que arma
   `next.config.ts`. Cambiar la URL del API exige volver a construir (un
-  *Redeploy*); editarla en el panel no cambia un despliegue ya hecho. Ver
+  *Redeploy*); editarla en el panel no cambia un despliegue ya hecho. Si
+  falta o está vacía, **el build de Vercel falla** con un mensaje que lo dice
+  (`next.config.ts` lo comprueba cuando existe `VERCEL`, que Vercel define en
+  el build): sin ella la PWA quedaría apuntando a `localhost:8080`, rota y sin
+  ningún aviso. En local y en la CI no se exige y vale ese respaldo. Ver
   `.env.example`.
 - **CORS**: el backend debe aceptar el dominio de Vercel
   (`app.cors.allowed-origins`). Las *Preview* tienen una URL por despliegue,
@@ -179,7 +183,7 @@ borra esa caché, por si la llenó una versión anterior del SW
 
 Son **provisionales** hasta la identidad visual definitiva: un pin de mapa
 sobre una calle, en el color de tema `#0369a1`. Lo que sí es definitivo es la
-estructura, para que el cambio sea reemplazar dos SVG y correr
+estructura, para que el cambio sea reemplazar los SVG de `public/icons/` y correr
 `node scripts/generar-iconos.mjs`:
 
 - **`any` y `maskable` por separado** (`src/app/manifest.ts`). Un mismo PNG no
@@ -191,6 +195,15 @@ estructura, para que el cambio sea reemplazar dos SVG y correr
   `src/app/`, que emite el `<link rel="apple-touch-icon">`): iOS rellena de
   negro la transparencia y redondea las esquinas por su cuenta.
 - **`favicon.ico` con PNG de 16, 32 y 48 px** dentro del ICO.
+- **Avisos push con icono e insignia** (`src/pwa/avisosPush.ts`): el icono es
+  `icon-192.png`; la insignia, `badge-96.png`, que sale de
+  `public/icons/icono-badge.svg` (la silueta del pin en blanco sobre
+  transparente), porque Android solo usa el canal alfa de la insignia para la
+  barra de estado y un icono a color se vería como un cuadrado lleno.
+- Dos tests evitan que vuelva a pasar lo que motivó DEP-06 (el manifest
+  declaraba iconos que no existían y nada fallaba): `src/app/manifest.test.ts`
+  y `src/pwa/avisosPush.test.ts` comprueban que cada icono declarado está en
+  `public/`.
 - Los PNG se versionan en vez de generarse en cada build: el script usa
   `sharp`, que Next instala como dependencia opcional, y un build de Vercel no
   debería depender de ella. No se agregó ninguna dependencia.

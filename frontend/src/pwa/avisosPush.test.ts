@@ -1,5 +1,19 @@
+import { existsSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { AVISO_GENERICO, elegirVentana, leerAvisoPush, rutaInterna } from './avisosPush';
+import {
+  AVISO_GENERICO,
+  elegirVentana,
+  ICONO_AVISO,
+  INSIGNIA_AVISO,
+  leerAvisoPush,
+  opcionesDeNotificacion,
+  rutaInterna,
+} from './avisosPush';
+
+/** `public/` del frontend, relativo a este archivo (ver terminos.test.ts sobre `new URL`). */
+const PUBLIC = resolve(dirname(fileURLToPath(import.meta.url)), '../../public');
 
 describe('leerAvisoPush', () => {
   it('traduce el payload del backend (handoff 2026-10-19-push-real)', () => {
@@ -77,5 +91,27 @@ describe('elegirVentana', () => {
   it('sin ventanas de la app abre una nueva', () => {
     expect(elegirVentana([{ url: 'https://otro.pe/mis-reportes/42' }], destino)).toEqual({ tipo: 'abrir' });
     expect(elegirVentana([], destino)).toEqual({ tipo: 'abrir' });
+  });
+});
+
+describe('opcionesDeNotificacion', () => {
+  it('lleva el cuerpo, el tag, la ruta a abrir, el icono de la app y la insignia', () => {
+    const aviso = leerAvisoPush({ titulo: 'T', cuerpo: 'Su reporte #42 fue resuelto.', url: '/mis-reportes/42', reporteId: 42 });
+    expect(opcionesDeNotificacion(aviso)).toEqual({
+      body: 'Su reporte #42 fue resuelto.',
+      tag: 'reporte-42',
+      icon: '/icons/icon-192.png',
+      badge: '/icons/badge-96.png',
+      data: { url: '/mis-reportes/42' },
+    });
+  });
+
+  it('el aviso genérico también lleva icono e insignia', () => {
+    expect(opcionesDeNotificacion(AVISO_GENERICO)).toMatchObject({ icon: ICONO_AVISO, badge: INSIGNIA_AVISO });
+  });
+
+  it.each([ICONO_AVISO, INSIGNIA_AVISO])('%s existe en public/ (si no, el aviso sale sin imagen)', (ruta) => {
+    const archivo = resolve(PUBLIC, `.${ruta}`);
+    expect(existsSync(archivo), `no se encontro ${archivo}`).toBe(true);
   });
 });

@@ -6,9 +6,11 @@
  *                                       y src/app/favicon.ico (16, 32 y 48 px)
  *   public/icons/icono-maskable.svg  -> icon-maskable-192.png, icon-maskable-512.png
  *                                       (purpose `maskable`) y src/app/apple-icon.png
+ *   public/icons/icono-badge.svg     -> badge-96.png (insignia monocroma de los
+ *                                       avisos push, ver src/pwa/avisosPush.ts)
  *
  * Los iconos actuales son PROVISIONALES: cuando llegue la identidad visual
- * definitiva basta con reemplazar los dos SVG y correr `node scripts/generar-iconos.mjs`.
+ * definitiva basta con reemplazar los SVG y correr `node scripts/generar-iconos.mjs`.
  * Los PNG y el ICO resultantes se versionan; no se generan en el build.
  *
  * Usa `sharp`, que ya instala Next como dependencia opcional (lo usa para
@@ -24,6 +26,7 @@ const APP = join(RAIZ, 'src', 'app');
 
 const svgAny = readFileSync(join(ICONOS, 'icono.svg'));
 const svgMaskable = readFileSync(join(ICONOS, 'icono-maskable.svg'));
+const svgBadge = readFileSync(join(ICONOS, 'icono-badge.svg'));
 
 /**
  * Rasteriza a 1024 px (densidad 144 sobre un lienzo de 512) y reduce: los
@@ -70,6 +73,8 @@ const pngs = [
   // iOS rellena de negro la transparencia y redondea las esquinas por su
   // cuenta: el apple-touch-icon va opaco y a sangre, como la variante maskable.
   [svgMaskable, 180, join(APP, 'apple-icon.png')],
+  // 96 px = 24 dp a densidad 4x, el tamano que Android pinta en la barra de estado.
+  [svgBadge, 96, join(ICONOS, 'badge-96.png')],
 ];
 for (const [svg, lado, destino] of pngs) {
   escribir(destino, await png(svg, lado), `${lado}x${lado}`);

@@ -1,6 +1,23 @@
 import type { NextConfig } from 'next';
 
 const esDesarrollo = process.env.NODE_ENV === 'development';
+
+/*
+ * En Vercel (que define `VERCEL=1` en el build) la URL del API es obligatoria.
+ * Se hornea en el bundle y en la CSP: sin ella el build caeria en
+ * `localhost:8080` y la PWA desplegada quedaria rota sin ningun aviso (una
+ * pagina HTTPS ni siquiera puede llamar a un `http://`). Vacia cuenta como
+ * ausente: tampoco activaria el respaldo de abajo. En local y en la CI no
+ * aplica: alli sigue valiendo el respaldo (DEP-06).
+ */
+if (process.env.VERCEL && !process.env.NEXT_PUBLIC_API_BASE_URL?.trim()) {
+  throw new Error(
+    'Falta NEXT_PUBLIC_API_BASE_URL: defínela en Vercel (Project Settings > Environment Variables, ' +
+      'para Production y Preview) con el origen HTTPS del API, sin barra final, y vuelve a desplegar. ' +
+      'Ver frontend/.env.example.',
+  );
+}
+
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
 
 /** Servidores de tiles del mapa (Leaflet + OpenStreetMap). */
