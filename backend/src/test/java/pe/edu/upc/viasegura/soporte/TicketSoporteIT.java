@@ -10,6 +10,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.icegreen.greenmail.util.GreenMailUtil;
+import jakarta.mail.internet.MimeMessage;
 import java.util.UUID;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -156,6 +158,47 @@ class TicketSoporteIT extends AbstractPostgisMailIT {
         Assertions.assertThat(greenMail.waitForIncomingEmail(3000, 1)).isTrue();
         Assertions.assertThat(greenMail.getReceivedMessages()[0].getAllRecipients()[0].toString())
                 .isEqualTo(ciu.getEmail());
+    }
+
+    @Test
+    void adminResponde_conElCorreoCaido_laRespuestaQuedaGuardada_200() throws Exception {
+        // DEP-08: el correo sale despues del commit. Antes, un SMTP caido
+        // revertia la respuesta del ADMIN y el API daba 500.
+        Usuario ciu = ciudadano();
+        TicketSoporte ticket = ticket(ciu, "Consulta", EstadoTicket.ABIERTO);
+        greenMail.stop();
+
+        mockMvc.perform(patch("/api/soporte/tickets/{id}/responder", ticket.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"respuesta\":\"Ya quedo resuelto\",\"estado\":\"CERRADO\"}")
+                        .header("Authorization", "Bearer " + token(admin())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.respuesta", is("Ya quedo resuelto")));
+
+        mockMvc.perform(get("/api/soporte/tickets/mis-tickets")
+                        .header("Authorization", "Bearer " + token(ciu)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].estado", is("CERRADO")))
+                .andExpect(jsonPath("$[0].respuesta", is("Ya quedo resuelto")));
+    }
+
+    @Test
+    void elCorreoDeRespuesta_llevaElAsuntoYLaRespuestaVigente() throws Exception {
+        Usuario ciu = ciudadano();
+        TicketSoporte ticket = ticket(ciu, "No carga el mapa", EstadoTicket.ABIERTO);
+
+        mockMvc.perform(patch("/api/soporte/tickets/{id}/responder", ticket.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"respuesta\":\"Actualiza la app\",\"estado\":\"EN_PROCESO\"}")
+                        .header("Authorization", "Bearer " + token(admin())))
+                .andExpect(status().isOk());
+
+        Assertions.assertThat(greenMail.waitForIncomingEmail(3000, 1)).isTrue();
+        MimeMessage recibido = greenMail.getReceivedMessages()[0];
+        Assertions.assertThat(recibido.getSubject())
+                .isEqualTo("Ciudad Viva: respuesta a tu consulta \"No carga el mapa\"");
+        Assertions.assertThat(GreenMailUtil.getBody(recibido))
+                .contains("Actualiza la app");
     }
 
     @Test

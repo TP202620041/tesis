@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.icegreen.greenmail.util.GreenMailUtil;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
@@ -14,6 +15,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import pe.edu.upc.viasegura.auth.domain.PasswordResetToken;
@@ -21,9 +24,18 @@ import pe.edu.upc.viasegura.auth.domain.Rol;
 import pe.edu.upc.viasegura.auth.domain.Usuario;
 import pe.edu.upc.viasegura.auth.repository.PasswordResetTokenRepository;
 import pe.edu.upc.viasegura.auth.repository.UsuarioRepository;
+import pe.edu.upc.viasegura.auth.service.PasswordResetService;
 import pe.edu.upc.viasegura.support.AbstractPostgisMailIT;
 
-/** Recuperacion de contrasena por token con expiracion (US-03). */
+/**
+ * Recuperacion de contrasena por token con expiracion (US-03).
+ *
+ * <p>Desde DEP-08 el correo sale despues del commit, en el executor asincrono
+ * ({@code RecuperacionSolicitadaListener}). En los IT ese executor espera a
+ * la tarea ({@code EjecutorSincronoTestConfig}), asi que al volver el
+ * {@code POST} el correo ya llego a GreenMail; igual se espera con
+ * {@code waitForIncomingEmail}, acotado, para no depender de eso.</p>
+ */
 class PasswordResetIT extends AbstractPostgisMailIT {
 
     @Autowired
@@ -33,7 +45,11 @@ class PasswordResetIT extends AbstractPostgisMailIT {
     @Autowired
     PasswordResetTokenRepository tokenRepository;
     @Autowired
+    PasswordResetService passwordResetService;
+    @Autowired
     PasswordEncoder passwordEncoder;
+    @Autowired
+    JdbcTemplate jdbcTemplate;
 
     @BeforeEach
     void limpiarTokens() {
@@ -156,6 +172,106 @@ class PasswordResetIT extends AbstractPostgisMailIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(cuerpoRestablecer(token.getToken(), "otraClave123")))
                 .andExpect(status().isConflict());
+    }
+
+    // ---- DEP-08: el correo fuera de la peticion ----
+
+    private MockHttpServletResponse solicitar(String email) throws Exception {
+        return mockMvc.perform(post("/api/auth/recuperar-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(cuerpoRecuperar(email)))
+                .andReturn().getResponse();
+    }
+
+    @Test
+    void solicitarRecuperacion_respondeIgualExistaONoLaCuenta() throws Exception {
+        MockHttpServletResponse conCuenta = solicitar(ciudadano().getEmail());
+        MockHttpServletResponse sinCuenta = solicitar("nadie-" + UUID.randomUUID() + "@lima.pe");
+
+        assertThat(conCuenta.getStatus()).isEqualTo(202);
+        assertThat(sinCuenta.getStatus()).isEqualTo(conCuenta.getStatus());
+        assertThat(sinCuenta.getContentAsString()).isEqualTo(conCuenta.getContentAsString()).isEmpty();
+        assertThat(sinCuenta.getHeaderNames()).containsExactlyInAnyOrderElementsOf(conCuenta.getHeaderNames());
+    }
+
+    @Test
+    void solicitarRecuperacion_conElCorreoCaido_responde202YElTokenQuedaGuardado() throws Exception {
+        // Antes de DEP-08 esto era un 500, y solo para cuentas existentes.
+        Usuario usuario = ciudadano();
+        greenMail.stop();
+
+        mockMvc.perform(post("/api/auth/recuperar-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(cuerpoRecuperar(usuario.getEmail())))
+                .andExpect(status().isAccepted());
+
+        assertThat(tokenRepository.findAll()).hasSize(1);
+        assertThat(passwordResetService.mensajeDeRecuperacion(tokenRepository.findAll().get(0).getId()))
+                .hasValueSatisfying(m -> assertThat(m.para()).isEqualTo(usuario.getEmail()));
+    }
+
+    @Test
+    void topePorCuenta_elCuartoPedidoDeLaHoraResponde202SinTokenNiCorreo() throws Exception {
+        Usuario usuario = ciudadano();
+
+        for (int i = 0; i < 4; i++) {
+            mockMvc.perform(post("/api/auth/recuperar-password")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(cuerpoRecuperar(usuario.getEmail())))
+                    .andExpect(status().isAccepted());
+        }
+
+        assertThat(tokenRepository.findAll()).hasSize(3);
+        assertThat(greenMail.waitForIncomingEmail(3000, 3)).isTrue();
+        assertThat(greenMail.waitForIncomingEmail(1000, 4)).isFalse();
+        assertThat(greenMail.getReceivedMessages()).hasSize(3);
+    }
+
+    @Test
+    void topePorCuenta_losTokensDeHaceMasDeUnaHoraNoCuentan() throws Exception {
+        Usuario usuario = ciudadano();
+        for (int i = 0; i < 3; i++) {
+            tokenRepository.save(PasswordResetToken.builder()
+                    .usuario(usuario)
+                    .token(UUID.randomUUID().toString())
+                    .expiresAt(Instant.now().plus(30, ChronoUnit.MINUTES))
+                    .build());
+        }
+        // El auditing fija created_at al guardar: se lleva al pasado por SQL.
+        jdbcTemplate.update("UPDATE password_reset_token SET created_at = ? WHERE usuario_id = ?",
+                Timestamp.from(Instant.now().minus(2, ChronoUnit.HOURS)), usuario.getId());
+
+        mockMvc.perform(post("/api/auth/recuperar-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(cuerpoRecuperar(usuario.getEmail())))
+                .andExpect(status().isAccepted());
+
+        assertThat(tokenRepository.findAll()).hasSize(4);
+        assertThat(greenMail.waitForIncomingEmail(3000, 1)).isTrue();
+    }
+
+    @Test
+    void mensajeDeRecuperacion_soloParaUnTokenVigente() {
+        Usuario usuario = ciudadano();
+        PasswordResetToken vigente = tokenRepository.save(PasswordResetToken.builder()
+                .usuario(usuario).token(UUID.randomUUID().toString())
+                .expiresAt(Instant.now().plus(30, ChronoUnit.MINUTES)).build());
+        PasswordResetToken usado = tokenRepository.save(PasswordResetToken.builder()
+                .usuario(usuario).token(UUID.randomUUID().toString())
+                .expiresAt(Instant.now().plus(30, ChronoUnit.MINUTES))
+                .usedAt(Instant.now()).build());
+        PasswordResetToken vencido = tokenRepository.save(PasswordResetToken.builder()
+                .usuario(usuario).token(UUID.randomUUID().toString())
+                .expiresAt(Instant.now().minus(1, ChronoUnit.MINUTES)).build());
+
+        assertThat(passwordResetService.mensajeDeRecuperacion(vigente.getId())).hasValueSatisfying(m -> {
+            assertThat(m.para()).isEqualTo(usuario.getEmail());
+            assertThat(m.texto()).contains(vigente.getToken());
+            assertThat(m.etiqueta()).isEqualTo("recuperacion");
+        });
+        assertThat(passwordResetService.mensajeDeRecuperacion(usado.getId())).isEmpty();
+        assertThat(passwordResetService.mensajeDeRecuperacion(vencido.getId())).isEmpty();
+        assertThat(passwordResetService.mensajeDeRecuperacion(-1L)).isEmpty();
     }
 
     @Test

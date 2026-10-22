@@ -1,24 +1,26 @@
 package pe.edu.upc.viasegura.soporte.service;
 
 import java.util.List;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 import pe.edu.upc.viasegura.auth.domain.Usuario;
 import pe.edu.upc.viasegura.auth.service.UsuarioConsultaService;
 import pe.edu.upc.viasegura.common.exception.ResourceNotFoundException;
+import pe.edu.upc.viasegura.common.port.MensajeCorreo;
 import pe.edu.upc.viasegura.soporte.domain.EstadoTicket;
 import pe.edu.upc.viasegura.soporte.domain.TicketSoporte;
 import pe.edu.upc.viasegura.soporte.dto.CrearTicketRequest;
 import pe.edu.upc.viasegura.soporte.dto.ResponderTicketRequest;
 import pe.edu.upc.viasegura.soporte.dto.TicketAdminResponse;
 import pe.edu.upc.viasegura.soporte.dto.TicketSoporteResponse;
+import pe.edu.upc.viasegura.soporte.event.TicketRespondidoEvent;
 import pe.edu.upc.viasegura.soporte.repository.TicketSoporteRepository;
 
 /**
@@ -28,12 +30,17 @@ import pe.edu.upc.viasegura.soporte.repository.TicketSoporteRepository;
  * AUTENTICADO (el ticket de visitante anonimo que ya admite el esquema
  * -- {@code usuario} nullable -- no se expone en esta fase porque no fue
  * pedido). La respuesta del equipo de soporte (Esc.2 del backlog: "responde
- * por correo") reutiliza el mismo bean {@code JavaMailSender} que US-03
- * (recuperacion de password), con el mismo criterio: es un correo puntual
- * fuera del dominio de notificaciones de reportes, no pasa por
+ * por correo") sale por el puerto {@code CorreoSaliente}, como la
+ * recuperacion de contrasena (US-03) y con el mismo criterio: es un correo
+ * puntual fuera del dominio de notificaciones de reportes, no pasa por
  * {@code NotificacionService}. A diferencia de US-03, aqui la respuesta SI
  * se persiste (no solo se envia): el ciudadano debe poder verla via
  * {@code GET /mis-tickets}, no solo en su bandeja de email.</p>
+ *
+ * <p><b>El correo sale despues del commit</b> (DEP-08, patron de D-13):
+ * {@link #responder} guarda y publica {@link TicketRespondidoEvent}, y
+ * {@code TicketRespondidoListener} envia {@link #mensajeDeRespuesta} fuera de
+ * la peticion. Un proveedor caido ya no revierte la respuesta ni da 500.</p>
  */
 @Service
 @RequiredArgsConstructor
@@ -41,13 +48,12 @@ public class TicketSoporteService {
 
     private final TicketSoporteRepository ticketRepository;
     private final UsuarioConsultaService usuarioConsultaService;
-    private final JavaMailSender mailSender;
+    private final ApplicationEventPublisher eventPublisher;
 
     /** Tope del {@code size} del listado del ADMIN (US-25). */
     static final int TAMANO_MAXIMO_PAGINA = 100;
 
-    @Value("${app.notificaciones.email-remitente:Ciudad Viva <no-reply@viasegura.pe>}")
-    private String remitente;
+    static final String ETIQUETA = "soporte";
 
     @Transactional
     public TicketSoporteResponse crear(String email, CrearTicketRequest req) {
@@ -93,7 +99,10 @@ public class TicketSoporteService {
         return tickets.map(TicketAdminResponse::from);
     }
 
-    /** ADMIN responde el ticket: se persiste la respuesta y se avisa por correo. */
+    /**
+     * ADMIN responde el ticket: se persiste la respuesta y, despues del
+     * commit, se avisa por correo ({@link TicketRespondidoEvent}).
+     */
     @Transactional
     public TicketSoporteResponse responder(Long ticketId, ResponderTicketRequest req) {
         TicketSoporte ticket = ticketRepository.findById(ticketId)
@@ -103,17 +112,24 @@ public class TicketSoporteService {
         ticket.setEstado(req.estado());
         TicketSoporte guardado = ticketRepository.save(ticket);
 
-        enviarRespuestaPorCorreo(guardado);
+        eventPublisher.publishEvent(new TicketRespondidoEvent(guardado.getId()));
 
         return TicketSoporteResponse.from(guardado);
     }
 
-    private void enviarRespuestaPorCorreo(TicketSoporte ticket) {
-        SimpleMailMessage correo = new SimpleMailMessage();
-        correo.setFrom(remitente);
-        correo.setTo(ticket.getEmailContacto());
-        correo.setSubject("Ciudad Viva: respuesta a tu consulta \"%s\"".formatted(ticket.getAsunto()));
-        correo.setText(ticket.getRespuesta());
-        mailSender.send(correo);
+    /**
+     * El correo con la respuesta del ticket, listo para enviar, o vacio si no
+     * hay nada que avisar (el ticket no existe, no tiene respuesta o no tiene
+     * correo de contacto). Solo lectura y corto: lo llama
+     * {@code TicketRespondidoListener} antes de enviar, fuera de esta
+     * transaccion. Se lee la respuesta vigente al enviar, no la del evento.
+     */
+    @Transactional(readOnly = true)
+    public Optional<MensajeCorreo> mensajeDeRespuesta(Long ticketId) {
+        return ticketRepository.findById(ticketId)
+                .filter(t -> StringUtils.hasText(t.getEmailContacto()) && StringUtils.hasText(t.getRespuesta()))
+                .map(t -> new MensajeCorreo(t.getEmailContacto(),
+                        "Ciudad Viva: respuesta a tu consulta \"%s\"".formatted(t.getAsunto()),
+                        t.getRespuesta(), ETIQUETA));
     }
 }
