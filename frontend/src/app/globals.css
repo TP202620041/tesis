@@ -336,10 +336,12 @@
   box-shadow: 0 0 0 5px var(--cv-foco-contorno);
 }
 
-/* Destinos de foco programático (`tabindex="-1"`: el contenido al que lleva
-   «Saltar al contenido»): reciben el foco para que el lector siga desde ahí,
-   pero no son controles, así que no se enmarcan. */
-[tabindex='-1']:focus-visible {
+/* El contenido al que lleva «Saltar al contenido» (`#contenido`, con
+   `tabindex="-1"`, en `MarcoDeLaApp`): recibe el foco para que el lector siga
+   desde ahí, pero no es un control, así que no se enmarca. Acotado a ese id:
+   un selector por `tabindex` le quitaría el foco visible a cualquier control
+   con tabindex itinerante (-1 mientras no es el activo de su grupo). */
+#contenido:focus-visible {
   outline: none;
   box-shadow: none;
 }
