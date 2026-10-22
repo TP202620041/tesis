@@ -1,0 +1,15 @@
+{"PWA actual (v0.6.0)": [
+ ["chip Pendiente: blanco sobre red-600", "#ffffff", "#dc2626", 4.5],
+ ["chip Recibido: blanco sobre orange-600", "#ffffff", "#ea580c", 4.5],
+ ["chip En proceso: blanco sobre #ca8a04", "#ffffff", "#ca8a04", 4.5],
+ ["chip Resuelto: blanco sobre green-600", "#ffffff", "#16a34a", 4.5],
+ ["chip Rechazado: blanco sobre slate-500", "#ffffff", "#64748b", 4.5],
+ ["botón primario: blanco sobre sky-600", "#ffffff", "#0284c7", 4.5],
+ ["enlace sky-700 sobre blanco", "#0369a1", "#ffffff", 4.5],
+ ["texto meta slate-500 sobre blanco", "#64748b", "#ffffff", 4.5],
+ ["borde de input slate-300 sobre blanco (UI 3:1)", "#cbd5e1", "#ffffff", 3],
+ ["marcador Pendiente vs Recibido (distinguibles)", "#dc2626", "#ea580c", 1.0],
+ ["marcador Recibido vs En proceso", "#ea580c", "#ca8a04", 1.0],
+ ["marcador En proceso sobre tile OSM claro #f2efe9 (UI 3:1)", "#ca8a04", "#f2efe9", 3],
+ ["marcador Resuelto sobre tile OSM claro (UI 3:1)", "#16a34a", "#f2efe9", 3]
+]}

@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Portada</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&amp;display=swap">
+<style>
+body{margin:0;background:#F5F6F8}
+a{color:#1D4F91}a:hover{color:#142F57}
+a:focus-visible,button:focus-visible{outline:3px solid #FFD43B;outline-offset:0;box-shadow:0 0 0 5px #141B24}
+</style>
+</helmet>
+<div style="font-family: 'Public Sans', system-ui, sans-serif; color: #141B24; background: #F5F6F8">
+
+  <header style="background: #FFFFFF; border-bottom: 1px solid #D6DBE1">
+    <div style="max-width: 1200px; margin: 0 auto; padding: 10px 24px; box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 24px">
+      <a href="#inicio" style="display: inline-flex; align-items: center; gap: 10px; text-decoration: none; color: #141B24; min-height: 44px">
+        <svg width="30" height="30" viewBox="0 0 40 40" aria-hidden="true"><defs><clipPath id="pinPortada"><path d="M20 3C12.8 3 7 8.7 7 15.8 7 25 20 37 20 37s13-12 13-21.2C33 8.7 27.2 3 20 3Z"></path></clipPath></defs><path d="M20 3C12.8 3 7 8.7 7 15.8 7 25 20 37 20 37s13-12 13-21.2C33 8.7 27.2 3 20 3Z" fill="#1F3350"></path><g clip-path="url(#pinPortada)"><path d="M2 27 38 7" stroke="#FFFFFF" stroke-width="6"></path><path d="M2 27 38 7" stroke="#FFD43B" stroke-width="1.6" stroke-dasharray="3 2.6"></path></g></svg>
+        <span style="font-size: 20px; font-weight: 700; letter-spacing: -0.01em">Ciudad Viva</span>
+      </a>
+      <nav aria-label="Principal" style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px 4px">
+        <a href="Mapa-movil.dc.html" style="min-height: 44px; padding: 0 12px; display: inline-flex; align-items: center; white-space: nowrap; flex: none; color: #141B24; text-decoration: none; font-weight: 600; font-size: 15px">Mapa</a>
+        <a href="Desempeno-escritorio.dc.html" style="min-height: 44px; padding: 0 12px; display: inline-flex; align-items: center; white-space: nowrap; flex: none; color: #141B24; text-decoration: none; font-weight: 600; font-size: 15px">Desempeño</a>
+        <a href="#guia" style="min-height: 44px; padding: 0 12px; display: inline-flex; align-items: center; white-space: nowrap; flex: none; color: #141B24; text-decoration: none; font-weight: 600; font-size: 15px">Cómo funciona</a>
+        <a href="#login" style="min-height: 44px; padding: 0 12px; margin-left: 12px; display: inline-flex; align-items: center; font-weight: 600; font-size: 15px">Iniciar sesión</a>
+        <a href="#registro" style="min-height: 44px; padding: 0 16px; display: inline-flex; align-items: center; border: 1px solid #7B8594; border-radius: 8px; color: #141B24; text-decoration: none; font-weight: 600; font-size: 15px; background: #FFFFFF">Crear cuenta</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section style="max-width: 1200px; margin: 0 auto; padding: 56px 24px 48px; box-sizing: border-box; display: flex; flex-wrap: wrap; gap: 48px; align-items: center">
+      <div style="flex: 1 1 420px; min-width: 0; display: flex; flex-direction: column; gap: 20px">
+        <p style="margin: 0; font-size: 15px; font-weight: 600; color: #4D5866">Lima Metropolitana · 43 distritos</p>
+        <h1 style="margin: 0; font-size: clamp(34px, 5vw, 54px); line-height: 1.06; font-weight: 800; letter-spacing: -0.025em; text-wrap: balance">Reporta un daño en tu calle y sigue su arreglo.</h1>
+        <p style="margin: 0; font-size: 19px; line-height: 1.55; color: #3A4452; max-width: 560px">Con una foto y tu ubicación, el reporte llega a la municipalidad del distrito donde ocurre. Cualquiera puede ver en qué va y cómo responde cada municipalidad.</p>
+        <div style="display: flex; flex-wrap: wrap; gap: 12px">
+          <a href="Reportar-movil.dc.html" style="min-height: 52px; padding: 0 22px; border-radius: 8px; background: #1F3350; color: #FFFFFF; text-decoration: none; font-weight: 700; font-size: 17px; display: inline-flex; align-items: center; gap: 8px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>Reportar un daño</a>
+          <a href="Mapa-movil.dc.html" style="min-height: 52px; padding: 0 20px; border-radius: 8px; border: 1px solid #7B8594; background: #FFFFFF; color: #141B24; text-decoration: none; font-weight: 700; font-size: 17px; display: inline-flex; align-items: center">Ver el mapa de reportes</a>
+        </div>
+        <p style="margin: 0; font-size: 14px; color: #4D5866">Ver el mapa y el índice no requiere cuenta. Para reportar, sí.</p>
+      </div>
+
+      <div aria-hidden="true" style="flex: 1 1 420px; min-width: 0; position: relative; height: 420px">
+        <div style="position: absolute; inset: 0 0 40px 40px; border-radius: 16px; overflow: hidden; border: 1px solid #C5CCD5; background: #F7F8F9">
+          <svg width="100%" height="100%" viewBox="0 0 520 380" preserveAspectRatio="xMidYMid slice">
+            <defs><pattern id="manzanasPortada" width="40" height="32" patternUnits="userSpaceOnUse" patternTransform="rotate(-14)"><rect width="32" height="24" rx="2" fill="#E4E7EB"></rect></pattern></defs>
+            <rect width="520" height="380" fill="#F7F8F9"></rect><rect width="520" height="380" fill="url(#manzanasPortada)"></rect>
+            <path d="M0 250 C 70 290, 130 330, 170 380 L0 380 Z" fill="#C9DCE9"></path>
+            <g fill="none" stroke-linecap="round"><path d="M240 -10 L262 390" stroke="#CDD3DA" stroke-width="15"></path><path d="M240 -10 L262 390" stroke="#FFFFFF" stroke-width="11"></path><path d="M-10 120 L530 50" stroke="#CDD3DA" stroke-width="13"></path><path d="M-10 120 L530 50" stroke="#FFFFFF" stroke-width="9"></path><path d="M-10 250 L530 180" stroke="#CDD3DA" stroke-width="11"></path><path d="M-10 250 L530 180" stroke="#FFFFFF" stroke-width="7"></path></g>
+            <g transform="translate(150 70)"><path d="M16 1.5C8.3 1.5 2 7.6 2 15.2 2 25.4 16 38.5 16 38.5S30 25.4 30 15.2C30 7.6 23.7 1.5 16 1.5Z" fill="#C8231B" stroke="#FFFFFF" stroke-width="2"></path><svg x="8" y="7" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><polyline points="12 7 12 12 15.5 14"></polyline></svg></g>
+            <g transform="translate(330 120)"><path d="M16 1.5C8.3 1.5 2 7.6 2 15.2 2 25.4 16 38.5 16 38.5S30 25.4 30 15.2C30 7.6 23.7 1.5 16 1.5Z" fill="#F0A800" stroke="#1A1A1A" stroke-width="2"></path><svg x="8" y="7" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1A1A1A" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg></g>
+            <g transform="translate(410 220)"><path d="M16 1.5C8.3 1.5 2 7.6 2 15.2 2 25.4 16 38.5 16 38.5S30 25.4 30 15.2C30 7.6 23.7 1.5 16 1.5Z" fill="#126B3F" stroke="#FFFFFF" stroke-width="2"></path><svg x="8" y="7" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg></g>
+            <g transform="translate(250 200)"><path d="M16 1.5C8.3 1.5 2 7.6 2 15.2 2 25.4 16 38.5 16 38.5S30 25.4 30 15.2C30 7.6 23.7 1.5 16 1.5Z" fill="#2E6BE6" stroke="#FFFFFF" stroke-width="2"></path><svg x="8" y="7" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"></polyline><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg></g>
+          </svg>
+        </div>
+        <div style="position: absolute; left: 0; bottom: 0; width: 300px; background: #FFFFFF; border: 1px solid #D6DBE1; border-radius: 14px; padding: 16px; box-shadow: 0 8px 24px rgba(20, 27, 36, 0.14); display: flex; flex-direction: column; gap: 10px">
+          <span style="align-self: flex-start; display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px 4px 7px; border-radius: 6px; background: #D9F5E3; color: #0B5A33; font-size: 13px; font-weight: 700"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>Resuelto</span>
+          <p style="margin: 0; font-size: 16px; font-weight: 700">Semáforo sin funcionar en cruce</p>
+          <ol style="list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px">
+            <li style="height: 6px; border-radius: 3px; background: #1F3350"></li><li style="height: 6px; border-radius: 3px; background: #1F3350"></li><li style="height: 6px; border-radius: 3px; background: #1F3350"></li><li style="height: 6px; border-radius: 3px; background: #1F3350"></li>
+          </ol>
+          <p style="margin: 0; font-size: 13px; color: #4D5866">Reportado el 09/10 · resuelto en 10 días</p>
+        </div>
+      </div>
+    </section>
+
+    <section aria-labelledby="como" style="background: #FFFFFF; border-top: 1px solid #D6DBE1; border-bottom: 1px solid #D6DBE1">
+      <div style="max-width: 1200px; margin: 0 auto; padding: 48px 24px; box-sizing: border-box; display: flex; flex-direction: column; gap: 28px">
+        <h2 id="como" style="margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -0.015em">Cómo funciona</h2>
+        <ol style="list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 24px">
+          <li style="display: flex; flex-direction: column; gap: 10px">
+            <span style="width: 44px; height: 44px; border-radius: 10px; background: #EDF0F3; color: #1F3350; display: flex; align-items: center; justify-content: center"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path><circle cx="12" cy="13" r="3"></circle></svg></span>
+            <h3 style="margin: 0; font-size: 19px; font-weight: 700">1. Ubica y describe el daño</h3>
+            <p style="margin: 0; font-size: 16px; line-height: 1.55; color: #3A4452">Marca el punto en el mapa, elige el tipo de daño y, si puedes, toma una foto. Funciona aunque te quedes sin señal.</p>
+          </li>
+          <li style="display: flex; flex-direction: column; gap: 10px">
+            <span style="width: 44px; height: 44px; border-radius: 10px; background: #EDF0F3; color: #1F3350; display: flex; align-items: center; justify-content: center"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"></path><circle cx="12" cy="10" r="3"></circle></svg></span>
+            <h3 style="margin: 0; font-size: 19px; font-weight: 700">2. Llega a tu municipalidad</h3>
+            <p style="margin: 0; font-size: 16px; line-height: 1.55; color: #3A4452">La ubicación decide el distrito: no tienes que saber a quién le toca. Si alguien ya lo reportó, tu envío lo respalda.</p>
+          </li>
+          <li style="display: flex; flex-direction: column; gap: 10px">
+            <span style="width: 44px; height: 44px; border-radius: 10px; background: #EDF0F3; color: #1F3350; display: flex; align-items: center; justify-content: center"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v16a2 2 0 0 0 2 2h16"></path><path d="M18 17V9"></path><path d="M13 17V5"></path><path d="M8 17v-3"></path></svg></span>
+            <h3 style="margin: 0; font-size: 19px; font-weight: 700">3. Sigue cada cambio</h3>
+            <p style="margin: 0; font-size: 16px; line-height: 1.55; color: #3A4452">Te avisamos cuando cambia de estado. Al resolverse, calificas la atención y eso suma al índice público.</p>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <section style="max-width: 1200px; margin: 0 auto; padding: 48px 24px 56px; box-sizing: border-box; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(440px, 100%), 1fr)); gap: 40px">
+      <div style="display: flex; flex-direction: column; gap: 16px">
+        <h2 style="margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.01em">Qué significa cada estado</h2>
+        <dl style="margin: 0; display: flex; flex-direction: column; gap: 12px">
+          <div style="display: grid; grid-template-columns: 128px minmax(0, 1fr); gap: 12px; align-items: center"><dt><span style="display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px 4px 7px; border-radius: 6px; background: #FDE3E1; color: #9B1C14; font-size: 14px; font-weight: 600"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>Pendiente</span></dt><dd style="margin: 0; font-size: 15px; color: #3A4452">Reportado; la municipalidad aún no lo recibe.</dd></div>
+          <div style="display: grid; grid-template-columns: 128px minmax(0, 1fr); gap: 12px; align-items: center"><dt><span style="display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px 4px 7px; border-radius: 6px; background: #DDE8FC; color: #1A3F8F; font-size: 14px; font-weight: 600"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"></polyline><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg>Recibido</span></dt><dd style="margin: 0; font-size: 15px; color: #3A4452">La municipalidad lo registró.</dd></div>
+          <div style="display: grid; grid-template-columns: 128px minmax(0, 1fr); gap: 12px; align-items: center"><dt><span style="display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px 4px 7px; border-radius: 6px; background: #FDEFC3; color: #6E4100; font-size: 14px; font-weight: 600"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>En proceso</span></dt><dd style="margin: 0; font-size: 15px; color: #3A4452">Hay trabajo en curso.</dd></div>
+          <div style="display: grid; grid-template-columns: 128px minmax(0, 1fr); gap: 12px; align-items: center"><dt><span style="display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px 4px 7px; border-radius: 6px; background: #D9F5E3; color: #0B5A33; font-size: 14px; font-weight: 600"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>Resuelto</span></dt><dd style="margin: 0; font-size: 15px; color: #3A4452">El daño fue reparado.</dd></div>
+          <div style="display: grid; grid-template-columns: 128px minmax(0, 1fr); gap: 12px; align-items: center"><dt><span style="display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px 4px 7px; border-radius: 6px; background: #E7EAEE; color: #3A4452; font-size: 14px; font-weight: 600"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>Rechazado</span></dt><dd style="margin: 0; font-size: 15px; color: #3A4452">La municipalidad lo desestimó y explicó por qué.</dd></div>
+        </dl>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 16px">
+        <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap">
+          <h2 style="margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.01em">Así responde cada municipalidad</h2>
+          <a href="Desempeno-escritorio.dc.html" style="font-weight: 600; font-size: 15px; text-underline-offset: 3px">Ver el índice completo</a>
+        </div>
+        <p style="margin: 0; font-size: 15px; color: #3A4452">Tasa de resolución: reportes resueltos sobre el total del distrito.</p>
+        <ol style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px">
+          <li style="display: grid; grid-template-columns: 24px minmax(0, 150px) minmax(0, 1fr) 64px; gap: 12px; align-items: center; font-size: 15px"><span style="color: #4D5866; font-variant-numeric: tabular-nums">1</span><span style="font-weight: 600">Miraflores</span><span style="height: 8px; border-radius: 4px; background: #DDE2E8; overflow: hidden"><span style="display: block; height: 100%; width: 65%; background: #1F3350"></span></span><span style="text-align: right; font-weight: 600; font-variant-numeric: tabular-nums">65.0 %</span></li>
+          <li style="display: grid; grid-template-columns: 24px minmax(0, 150px) minmax(0, 1fr) 64px; gap: 12px; align-items: center; font-size: 15px"><span style="color: #4D5866; font-variant-numeric: tabular-nums">2</span><span style="font-weight: 600">Santiago de Surco</span><span style="height: 8px; border-radius: 4px; background: #DDE2E8; overflow: hidden"><span style="display: block; height: 100%; width: 54.6%; background: #1F3350"></span></span><span style="text-align: right; font-weight: 600; font-variant-numeric: tabular-nums">54.6 %</span></li>
+          <li style="display: grid; grid-template-columns: 24px minmax(0, 150px) minmax(0, 1fr) 64px; gap: 12px; align-items: center; font-size: 15px"><span style="color: #4D5866; font-variant-numeric: tabular-nums">3</span><span style="font-weight: 600">Barranco</span><span style="height: 8px; border-radius: 4px; background: #DDE2E8; overflow: hidden"><span style="display: block; height: 100%; width: 50%; background: #1F3350"></span></span><span style="text-align: right; font-weight: 600; font-variant-numeric: tabular-nums">50.0 %</span></li>
+          <li style="display: grid; grid-template-columns: 24px minmax(0, 150px) minmax(0, 1fr) 64px; gap: 12px; align-items: center; font-size: 15px"><span style="color: #4D5866; font-variant-numeric: tabular-nums">4</span><span style="font-weight: 600">San Isidro</span><span style="height: 8px; border-radius: 4px; background: #DDE2E8; overflow: hidden"><span style="display: block; height: 100%; width: 46.2%; background: #1F3350"></span></span><span style="text-align: right; font-weight: 600; font-variant-numeric: tabular-nums">46.2 %</span></li>
+          <li style="display: grid; grid-template-columns: 24px minmax(0, 150px) minmax(0, 1fr) 64px; gap: 12px; align-items: center; font-size: 15px"><span style="color: #4D5866; font-variant-numeric: tabular-nums">5</span><span style="font-weight: 600">Lima</span><span style="height: 8px; border-radius: 4px; background: #DDE2E8; overflow: hidden"><span style="display: block; height: 100%; width: 32%; background: #1F3350"></span></span><span style="text-align: right; font-weight: 600; font-variant-numeric: tabular-nums">32.0 %</span></li>
+        </ol>
+        <p style="margin: 0; font-size: 13px; color: #4D5866">Datos de ejemplo del entorno de desarrollo.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer style="background: #141B24; color: #E9EDF2">
+    <div style="max-width: 1200px; margin: 0 auto; padding: 28px 24px; box-sizing: border-box; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px 32px; align-items: center">
+      <p style="margin: 0; font-size: 14px; color: #A5B0BD">Ciudad Viva · Trabajo de investigación, UPC</p>
+      <nav aria-label="Pie de página" style="display: flex; flex-wrap: wrap; gap: 4px 20px">
+        <a href="#privacidad" style="color: #E9EDF2; font-size: 14px; min-height: 44px; display: inline-flex; align-items: center">Privacidad</a>
+        <a href="#guia" style="color: #E9EDF2; font-size: 14px; min-height: 44px; display: inline-flex; align-items: center">Guía de uso</a>
+        <a href="#soporte" style="color: #E9EDF2; font-size: 14px; min-height: 44px; display: inline-flex; align-items: center">Soporte</a>
+      </nav>
+    </div>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1380}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

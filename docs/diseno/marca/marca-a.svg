@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="40" height="40" role="img" aria-label="Ciudad Viva">
+  <defs><clipPath id="pin"><path d="M20 3C12.8 3 7 8.7 7 15.8 7 25 20 37 20 37s13-12 13-21.2C33 8.7 27.2 3 20 3Z"/></clipPath></defs>
+  <path d="M20 3C12.8 3 7 8.7 7 15.8 7 25 20 37 20 37s13-12 13-21.2C33 8.7 27.2 3 20 3Z" fill="#1F3350"/>
+  <g clip-path="url(#pin)"><path d="M2 27 38 7" stroke="#FFFFFF" stroke-width="6"/><path d="M2 27 38 7" stroke="#FFD43B" stroke-width="1.6" stroke-dasharray="3 2.6"/></g>
+</svg>
