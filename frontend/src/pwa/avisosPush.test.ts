@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -14,6 +14,14 @@ import {
 
 /** `public/` del frontend, relativo a este archivo (ver terminos.test.ts sobre `new URL`). */
 const PUBLIC = resolve(dirname(fileURLToPath(import.meta.url)), '../../public');
+
+/** `AnchoxAlto` de un PNG, leido del encabezado IHDR (bytes 16-23, big-endian). */
+function medidasPng(archivo: string): string {
+  const bytes = readFileSync(archivo);
+  expect([...bytes.subarray(0, 8)], `${archivo} no es un PNG`).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  expect(bytes.toString('latin1', 12, 16)).toBe('IHDR');
+  return `${bytes.readUInt32BE(16)}x${bytes.readUInt32BE(20)}`;
+}
 
 describe('leerAvisoPush', () => {
   it('traduce el payload del backend (handoff 2026-10-19-push-real)', () => {
@@ -110,8 +118,13 @@ describe('opcionesDeNotificacion', () => {
     expect(opcionesDeNotificacion(AVISO_GENERICO)).toMatchObject({ icon: ICONO_AVISO, badge: INSIGNIA_AVISO });
   });
 
-  it.each([ICONO_AVISO, INSIGNIA_AVISO])('%s existe en public/ (si no, el aviso sale sin imagen)', (ruta) => {
+  // 96 px = 24 dp a densidad 4x, lo que Android pinta en la barra de estado.
+  it.each([
+    [ICONO_AVISO, '192x192'],
+    [INSIGNIA_AVISO, '96x96'],
+  ])('%s existe en public/ y es un PNG de %s (si no, el aviso sale sin imagen)', (ruta, medidas) => {
     const archivo = resolve(PUBLIC, `.${ruta}`);
     expect(existsSync(archivo), `no se encontro ${archivo}`).toBe(true);
+    expect(medidasPng(archivo)).toBe(medidas);
   });
 });

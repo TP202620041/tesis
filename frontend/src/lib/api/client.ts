@@ -14,7 +14,9 @@ import { borrarTokenSi, generacionDeSesion, leerToken } from '@/lib/auth/token-s
  * errores del backend a {@link ApiError} y manejo centralizado del 401.
  */
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
+// Mismo valor que usa la CSP de `next.config.ts`: sin espacios, y vacia
+// cuenta como ausente (si no, las llamadas irian al origen de la PWA).
+const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL?.trim() || 'http://localhost:8080';
 
 /** Ruta a la que se envia al usuario cuando su sesion deja de ser valida. */
 const RUTA_LOGIN = '/login';

@@ -29,7 +29,8 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: '#0369a1',
     lang: 'es-PE',
     dir: 'ltr',
-    orientation: 'portrait',
+    // Sin `orientation` a proposito: fijar `portrait` bloquea la rotacion de
+    // la PWA instalada e incumple WCAG 2.1, criterio 1.3.4 (README, DEP-06).
     icons: [
       {
         src: '/icons/icon-192.png',

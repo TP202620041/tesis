@@ -2,23 +2,37 @@ import type { NextConfig } from 'next';
 
 const esDesarrollo = process.env.NODE_ENV === 'development';
 
-/*
- * En Vercel (que define `VERCEL=1` en el build) la URL del API es obligatoria.
- * Se hornea en el bundle y en la CSP: sin ella el build caeria en
- * `localhost:8080` y la PWA desplegada quedaria rota sin ningun aviso (una
- * pagina HTTPS ni siquiera puede llamar a un `http://`). Vacia cuenta como
- * ausente: tampoco activaria el respaldo de abajo. En local y en la CI no
- * aplica: alli sigue valiendo el respaldo (DEP-06).
+/**
+ * URL del API tal como llega del entorno, sin espacios. Vacia cuenta como
+ * ausente, igual que en `src/lib/api/client.ts`: los dos usan el mismo valor.
  */
-if (process.env.VERCEL && !process.env.NEXT_PUBLIC_API_BASE_URL?.trim()) {
-  throw new Error(
-    'Falta NEXT_PUBLIC_API_BASE_URL: defínela en Vercel (Project Settings > Environment Variables, ' +
-      'para Production y Preview) con el origen HTTPS del API, sin barra final, y vuelve a desplegar. ' +
-      'Ver frontend/.env.example.',
-  );
+const apiBaseUrlDelEntorno = process.env.NEXT_PUBLIC_API_BASE_URL?.trim() || undefined;
+
+/*
+ * En un despliegue de Vercel (Production o Preview) la URL del API es
+ * obligatoria y HTTPS. Se hornea en el bundle y en la CSP: sin ella el build
+ * caeria en `localhost:8080` y la PWA desplegada quedaria rota sin ningun
+ * aviso, y una pagina HTTPS no puede llamar a un `http://` (contenido mixto).
+ *
+ * Se mira `VERCEL_ENV` y no `VERCEL`: `vercel env pull` deja `VERCEL=1` y
+ * `VERCEL_ENV=development` en `.env.local`, y con `VERCEL` la guarda romperia
+ * el desarrollo local. En local y en la CI no aplica: alli vale el respaldo
+ * de abajo (DEP-06).
+ */
+const esDespliegueDeVercel = process.env.VERCEL_ENV === 'production' || process.env.VERCEL_ENV === 'preview';
+if (esDespliegueDeVercel) {
+  const comoDefinirla =
+    'Defínela en Vercel (Project Settings > Environment Variables, para Production y Preview) con el ' +
+    'origen HTTPS del API, sin barra final, y vuelve a desplegar. Ver frontend/.env.example.';
+  if (!apiBaseUrlDelEntorno) {
+    throw new Error(`Falta NEXT_PUBLIC_API_BASE_URL. ${comoDefinirla}`);
+  }
+  if (!apiBaseUrlDelEntorno.startsWith('https://')) {
+    throw new Error(`NEXT_PUBLIC_API_BASE_URL debe empezar por https:// (vale «${apiBaseUrlDelEntorno}»). ${comoDefinirla}`);
+  }
 }
 
-const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
+const apiBaseUrl = apiBaseUrlDelEntorno ?? 'http://localhost:8080';
 
 /** Servidores de tiles del mapa (Leaflet + OpenStreetMap). */
 const TILE_HOSTS = 'https://tile.openstreetmap.org';

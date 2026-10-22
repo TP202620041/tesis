@@ -64,11 +64,14 @@ la ignoraba: en un clon limpio el `cp` de arriba fallaba.
   bundle del cliente y a la CSP (`connect-src` e `img-src`) que arma
   `next.config.ts`. Cambiar la URL del API exige volver a construir (un
   *Redeploy*); editarla en el panel no cambia un despliegue ya hecho. Si
-  falta o está vacía, **el build de Vercel falla** con un mensaje que lo dice
-  (`next.config.ts` lo comprueba cuando existe `VERCEL`, que Vercel define en
-  el build): sin ella la PWA quedaría apuntando a `localhost:8080`, rota y sin
-  ningún aviso. En local y en la CI no se exige y vale ese respaldo. Ver
-  `.env.example`.
+  falta, está vacía o no empieza por `https://`, **el build de Vercel falla**
+  con un mensaje que lo dice: sin ella la PWA quedaría apuntando a
+  `localhost:8080`, rota y sin ningún aviso, y una página HTTPS no puede
+  llamar a un `http://`. `next.config.ts` lo comprueba solo si `VERCEL_ENV` es
+  `production` o `preview`, no con `VERCEL` a secas: `vercel env pull` deja
+  `VERCEL=1` (con `VERCEL_ENV=development`) en `.env.local` y la guarda
+  rompería el desarrollo local. En local y en la CI no se exige y vale el
+  respaldo `http://localhost:8080`. Ver `.env.example`.
 - **CORS**: el backend debe aceptar el dominio de Vercel
   (`app.cors.allowed-origins`). Las *Preview* tienen una URL por despliegue,
   así que contra el API de producción solo funcionan si se agrega su origen.
@@ -203,7 +206,13 @@ estructura, para que el cambio sea reemplazar los SVG de `public/icons/` y corre
 - Dos tests evitan que vuelva a pasar lo que motivó DEP-06 (el manifest
   declaraba iconos que no existían y nada fallaba): `src/app/manifest.test.ts`
   y `src/pwa/avisosPush.test.ts` comprueban que cada icono declarado está en
-  `public/`.
+  `public/` y que el PNG mide lo que dice `sizes`, leyendo ancho y alto del
+  encabezado `IHDR`, sin dependencias.
+- **Sin `orientation` en el manifest.** El scaffold fijaba `portrait`, que
+  bloquea la rotación de la PWA instalada: quien tiene el teléfono montado en
+  horizontal (en una silla de ruedas, por ejemplo) no podría usarla, y eso
+  incumple WCAG 2.1, criterio 1.3.4 (Orientación). Sin el campo, la app sigue
+  la orientación del dispositivo.
 - Los PNG se versionan en vez de generarse en cada build: el script usa
   `sharp`, que Next instala como dependencia opcional, y un build de Vercel no
   debería depender de ella. No se agregó ninguna dependencia.
@@ -215,6 +224,18 @@ Tailwind, así que ganaba siempre y la app se veía en Arial; se quitó esa lín
 Por la misma razón, el `background` y el `color` de ese `body` también ganan a
 las clases `bg-slate-50`/`dark:bg-slate-900` de `layout.tsx`; no se tocan
 aquí porque cambiarían el aspecto de todas las pantallas: queda para el diseño.
+
+Se mantiene **`next/font/google`** (`src/app/layout.tsx`) en vez de
+`next/font/local` con los archivos de la fuente en el repo: no agrega ninguna
+dependencia ni binarios que mantener, y la tipografía es provisional. El
+costo es que **el build necesita red** para descargar Geist de Google Fonts
+(en Vercel y en la CI la hay; un build sin conexión falla con «Failed to
+fetch `Geist` from Google Fonts», mientras que `next dev` solo avisa y usa la
+fuente de respaldo). En ejecución, en
+cambio, el navegador no llama a Google: `next/font` empaqueta la fuente en los
+estáticos de la app y la sirve desde el propio origen, así que a la CSP le
+basta `font-src 'self'`. Si la identidad definitiva trae su propia fuente,
+lo natural es pasar a `next/font/local`.
 
 ### Seguridad: dónde vive el JWT
 
