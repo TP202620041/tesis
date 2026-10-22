@@ -9,8 +9,8 @@
  *   public/icons/icono-badge.svg     -> badge-96.png (insignia monocroma de los
  *                                       avisos push, ver src/pwa/avisosPush.ts)
  *
- * Los iconos actuales son PROVISIONALES: cuando llegue la identidad visual
- * definitiva basta con reemplazar los SVG y correr `node scripts/generar-iconos.mjs`.
+ * Iconos de la identidad «Cívica» (DIS-1, docs/diseno/marca/). Para cambiarla
+ * basta con reemplazar los SVG y correr `node scripts/generar-iconos.mjs`.
  * Los PNG y el ICO resultantes se versionan; no se generan en el build.
  *
  * Usa `sharp`, que ya instala Next como dependencia opcional (lo usa para

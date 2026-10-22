@@ -1,19 +1,22 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
+import { Logo } from '@/components/ui/Logo';
 
-/** Marco comun de las pantallas de acceso (login, registro, recuperacion). */
+/**
+ * Marco comun de las pantallas de acceso (login, registro, recuperacion).
+ * Sin la navegacion de la app (DIS-1): quien entra aqui viene a una sola
+ * cosa, y el logo lleva a la portada.
+ */
 export default function AuthLayout({ children }: { children: ReactNode }) {
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center gap-6 px-4 py-10">
-      <header className="text-center">
-        <Link href="/" className="text-2xl font-bold text-sky-700 dark:text-sky-400">
-          Ciudad Viva
+      <header className="flex flex-col items-center gap-2 text-center">
+        <Link href="/" className="inline-flex min-h-objetivo items-center rounded-control px-2">
+          <Logo conNombre tamano={36} />
         </Link>
-        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-          Reporte ciudadano de daños viales en Lima Metropolitana
-        </p>
+        <p className="text-sm text-texto-2">Reporte ciudadano de daños viales en Lima Metropolitana</p>
       </header>
-      {children}
+      <div className="rounded-tarjeta border border-linea bg-superficie p-6 shadow-tarjeta">{children}</div>
     </main>
   );
 }

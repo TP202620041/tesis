@@ -95,6 +95,11 @@
   --cv-barra: #1f3350;
   --cv-pista: #dde2e8;
 
+  /* Logo (components/ui/Logo.tsx): el pin y la calle que lo cruza. La línea
+     discontinua es siempre el amarillo del foco. */
+  --cv-marca: #1f3350;
+  --cv-marca-calle: #ffffff;
+
   /* Velo de los diálogos */
   --cv-velo: rgb(20 27 36 / 0.6);
   --cv-sombra: rgb(20 27 36 / 0.12);
@@ -153,6 +158,10 @@
 
   --cv-barra: #9dbdf0;
   --cv-pista: #2a3542;
+
+  /* docs/diseno/marca/marca-a-oscuro.svg */
+  --cv-marca: #e9edf2;
+  --cv-marca-calle: #0f141a;
 
   --cv-velo: rgb(0 0 0 / 0.7);
   --cv-sombra: rgb(0 0 0 / 0.4);
@@ -216,6 +225,9 @@
 
   --cv-barra: #000000;
   --cv-pista: #ffffff;
+
+  --cv-marca: #000000;
+  --cv-marca-calle: #ffffff;
 
   --cv-velo: rgb(0 0 0 / 0.75);
   --cv-sombra: transparent;

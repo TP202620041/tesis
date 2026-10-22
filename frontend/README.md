@@ -197,12 +197,23 @@ del dispositivo podría recibirlas offline. Al cerrar sesión (US-04) además se
 borra esa caché, por si la llenó una versión anterior del SW
 (`src/pwa/cachesDeSesion.ts`).
 
-### Iconos y tipografía (provisionales, DEP-06)
+### Marca, iconos de la PWA y tipografía
 
-Son **provisionales** hasta la identidad visual definitiva: un pin de mapa
-sobre una calle, en el color de tema `#0369a1`. Lo que sí es definitivo es la
-estructura, para que el cambio sea reemplazar los SVG de `public/icons/` y correr
-`node scripts/generar-iconos.mjs`:
+**Marca «Cívica» (DIS-1).** Un pin cruzado por una calle con su línea
+amarilla discontinua, en tinta `#1F3350` (`docs/diseno/marca/`). Los iconos
+provisionales de DEP-06 (un pin celeste) se reemplazaron por
+`icono-pwa-a.svg` e `icono-pwa-a-maskable.svg`, copiados a `public/icons/` con
+su comentario de origen, y los PNG y el ICO se regeneraron con
+`node scripts/generar-iconos.mjs`; la insignia de push es la silueta del pin
+con la calle calada. El manifest pasa a `theme_color #1F3350` y
+`background_color #F5F6F8` (el fondo claro de la app). En la interfaz, el logo
+es `components/ui/Logo.tsx`: **un solo componente para los tres temas**, porque
+toma el pin y la calle de `--cv-marca` y `--cv-marca-calle` (tinta sobre
+claro, claro sobre oscuro como `marca-a-oscuro.svg`, negro en alto
+contraste); cada instancia recorta la calle con su propio `clipPath` (`useId`).
+
+La estructura viene de DEP-06 y no cambió: reemplazar la identidad es
+reemplazar los SVG de `public/icons/` y correr `node scripts/generar-iconos.mjs`:
 
 - **`any` y `maskable` por separado** (`src/app/manifest.ts`). Un mismo PNG no
   sirve para ambos: el `maskable` necesita fondo a sangre y el dibujo dentro de
