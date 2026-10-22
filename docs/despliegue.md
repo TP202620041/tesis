@@ -1,6 +1,6 @@
 # Despliegue de Ciudad Viva (runbook)
 
-> Procedimiento para desplegar el MVP en **Railway** (API + PostGIS + respaldo), **Vercel** (PWA), **Cloudflare R2** (fotos y respaldos) y un **proveedor de correo HTTP**. Diseño, opciones y fuentes: `project-context/decisions/propuestas/2026-10-21-despliegue-mvp.md` (estado: **abierta**). Diagrama: `docs/arquitectura/c4-despliegue.md`.
+> Procedimiento para desplegar el MVP en **Railway** (API + PostGIS + respaldo), **Vercel** (PWA), **Cloudflare R2** (fotos y respaldos) y **Resend** (correo por HTTP). Diseño, opciones y fuentes: `project-context/decisions/propuestas/2026-10-21-despliegue-mvp.md` (aceptada el 21/10). Diagrama: `docs/arquitectura/c4-despliegue.md`.
 >
 > Versión 0.1 · 2026-10-21 · Redactado antes del primer despliegue real: lo marcado **(verificar)** se confirma en esa primera ejecución (DEP-09) y se corrige aquí.
 
@@ -172,7 +172,7 @@ railway connect postgis               # abre psql por túnel SSH (requiere psql 
 
 ```bash
 railway logs --service backend
-#  - Flyway: "Successfully applied N migrations" en la primera corrida (todas las V*.sql; 17 en v0.6.0)
+#  - Flyway: "Successfully applied N migrations" en la primera corrida (todas las V*.sql; 18 en v0.7.0)
 #  - DistritoSeeder: 43 distritos; MunicipalidadSeeder: 43 municipalidades
 #  - "Started ViaSeguraApplication"; ninguna línea con "show-sql" ni DEBUG
 curl -s $API/actuator/health                       # {"status":"UP"} y nada más
