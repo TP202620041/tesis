@@ -4,8 +4,15 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.unit.DataSize;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -24,6 +31,14 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    /** Tope por archivo de {@code spring.servlet.multipart} (10 MB en application.yml). */
+    private final DataSize tamanoMaximoArchivo;
+
+    public GlobalExceptionHandler(
+            @Value("${spring.servlet.multipart.max-file-size:1MB}") DataSize tamanoMaximoArchivo) {
+        this.tamanoMaximoArchivo = tamanoMaximoArchivo;
+    }
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ApiError> handleNotFound(ResourceNotFoundException ex, HttpServletRequest req) {
@@ -122,6 +137,61 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<ApiError> handleNoResource(NoResourceFoundException ex, HttpServletRequest req) {
         return build(HttpStatus.NOT_FOUND, "No se encontro el recurso solicitado", req, List.of());
+    }
+
+    /**
+     * Archivo o peticion multipart por encima de {@code spring.servlet.multipart}
+     * (DEP-11): la foto del reporte (US-05) o la de perfil (US-30).
+     *
+     * <p>Antes caia en el {@code Exception.class} de abajo y respondia
+     * <b>500</b>, cuando el error es del cliente. 413 es el codigo de "cuerpo
+     * demasiado grande"; el mensaje da el limite, con el mismo texto con que
+     * la PWA lo valida antes de subir ({@code CampoFoto.tsx}), asi que esto lo
+     * ven sobre todo los clientes directos del API. Si la peticion entera
+     * supera {@code max-request-size}, Tomcat la rechaza sin leer el cuerpo y,
+     * como solo descarta 2 MB, corta la conexion: ese cliente no llega a leer
+     * el 413 (ver README, DEP-11).</p>
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiError> handleMaxUploadSize(MaxUploadSizeExceededException ex, HttpServletRequest req) {
+        return build(HttpStatus.PAYLOAD_TOO_LARGE,
+                "La foto supera %d MB".formatted(tamanoMaximoArchivo.toMegabytes()), req, List.of());
+    }
+
+    /**
+     * Metodo HTTP que la ruta no admite ({@code GET /api/auth/login}) (DEP-11).
+     *
+     * <p>Antes respondia <b>500</b>. 405 con la cabecera {@code Allow}, que el
+     * RFC 9110 exige en esta respuesta, para que el cliente sepa que metodos
+     * si valen.</p>
+     */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ApiError> handleMethodNotSupported(
+            HttpRequestMethodNotSupportedException ex, HttpServletRequest req) {
+        ApiError body = ApiError.of(HttpStatus.METHOD_NOT_ALLOWED.value(),
+                HttpStatus.METHOD_NOT_ALLOWED.getReasonPhrase(),
+                "El metodo %s no esta permitido en esta ruta".formatted(ex.getMethod()),
+                req.getRequestURI(), List.of());
+        Set<HttpMethod> permitidos = ex.getSupportedHttpMethods();
+        ResponseEntity.BodyBuilder respuesta = ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED);
+        if (permitidos != null && !permitidos.isEmpty()) {
+            respuesta.allow(permitidos.toArray(HttpMethod[]::new));
+        }
+        return respuesta.body(body);
+    }
+
+    /**
+     * Falta un parametro obligatorio de query o de formulario
+     * ({@code GET /api/distritos/por-coordenadas} sin {@code lon}) (DEP-11).
+     *
+     * <p>Antes respondia <b>500</b>. Es un error de validacion de la entrada:
+     * 400, nombrando el parametro que falta.</p>
+     */
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ApiError> handleMissingParameter(
+            MissingServletRequestParameterException ex, HttpServletRequest req) {
+        return build(HttpStatus.BAD_REQUEST,
+                "Falta el parametro obligatorio '%s'".formatted(ex.getParameterName()), req, List.of());
     }
 
     @ExceptionHandler(Exception.class)
