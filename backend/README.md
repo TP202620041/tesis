@@ -657,6 +657,43 @@ se prueban con un controlador que solo existe en ese IT; el 500 verifica,
 con un *appender* de Logback, que el evento se registra en `ERROR` con
 método y ruta y sin el cuerpo de la petición.
 
+## Textos para el usuario (QA-1)
+
+El recorrido QA-1 (`docs/qa/2026-10-21-mvp-v0.6.0.md`, hallazgo M-1) encontró
+textos sin tildes ni eñes en todo lo que el backend le muestra a una persona.
+La PWA los muestra tal como llegan, así que se corrigen en el origen.
+
+### Categorías estándar con tildes (V18)
+
+V3 sembró «Vereda danada», «Semaforo averiado» y «Senalizacion faltante» (y
+dos descripciones con el mismo problema). V3 ya está aplicada en todas las
+bases y no se edita, así que la corrección es una migración nueva,
+`V18__categorias_estandar_con_tildes.sql` (propuesta aceptada el 22/10,
+opción A). Cada `UPDATE` filtra por `es_estandar` y por el texto viejo. Los
+reportes guardan `categoria_id`, así que ninguna referencia cambia.
+
+**Se detiene ante un choque.** `CategoriaDanoService` impide que un distrito
+cree una categoría con el nombre de una estándar sin distinguir mayúsculas,
+pero sí tildes: mientras la estándar se llamaba «Vereda danada», un distrito
+pudo crear «Vereda dañada». Después del `UPDATE` su selector mostraría dos
+opciones iguales. Por eso V18 empieza con un bloque `DO` que busca categorías
+de distrito con alguno de los nombres corregidos (comparando con `lower()`,
+como la consulta del servicio) y, si encuentra alguna, lanza `RAISE
+EXCEPTION` con su nombre, id y distrito. El arranque falla y Flyway no
+registra V18: se renombra esa categoría a mano y se vuelve a arrancar. En
+producción no puede pasar, porque arranca sin categorías de distrito; en las
+bases locales y en `viasegura_test` se comprobó antes de migrar.
+
+«Hueco en calzada» no se toca aquí: su desactivación (decisión de ML del
+21/10) va con la migración de NC-04. La categoría de distrito «Malecon
+erosionado» que cita QA-1 es un dato de una base local y se corrige desde la
+interfaz.
+
+`CategoriasEstandarConTildesIT` lee las seis estándar (en la base y en
+`GET /api/categorias`) y vuelve a ejecutar el script de V18 dentro de una
+transacción que siempre se revierte: sobre los textos de V3, los corrige, y
+con una categoría de distrito «vereda DAÑADA», se detiene con el mensaje.
+
 ## Catálogos de referencia (descubribilidad)
 
 Dos endpoints **públicos** de solo lectura que existen para que un cliente
