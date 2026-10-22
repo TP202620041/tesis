@@ -65,7 +65,10 @@ afterEach(() => {
 });
 
 describe('FormularioRegistro (NC-07b)', () => {
-  function conRegistro(enviar = vi.fn().mockResolvedValue({ usuario: USUARIO })) {
+  // Recien registrado: los terminos se aceptaron al crear la cuenta.
+  const REGISTRADO = { ...USUARIO, debeAceptarTerminos: false };
+
+  function conRegistro(enviar = vi.fn().mockResolvedValue({ usuario: REGISTRADO })) {
     vi.mocked(useRegistro).mockReturnValue({
       enviando: false,
       error: null,
@@ -113,7 +116,33 @@ describe('FormularioRegistro (NC-07b)', () => {
       email: 'ana@lima.pe',
       password: 'secreta123',
     });
-    expect(push).toHaveBeenCalledWith('/sesion');
+    // QA-1 I-2: a «Mis reportes», como el login; nunca a la pantalla de
+    // depuración `/sesion`, que ya no existe.
+    expect(push).toHaveBeenCalledWith('/mis-reportes');
+  });
+
+  it('vuelve al ?redirect= interno con que se llegó (p. ej. desde /reportar)', async () => {
+    parametros.valor = new URLSearchParams('redirect=/reportar');
+    conRegistro();
+    render(<FormularioRegistro textoLegal={TEXTO_LEGAL} />);
+    const usuario = await llenar();
+
+    await usuario.click(screen.getByRole('checkbox'));
+    await usuario.click(screen.getByRole('button', { name: 'Crear cuenta' }));
+
+    expect(push).toHaveBeenCalledWith('/reportar');
+  });
+
+  it('un ?redirect= a otro sitio se ignora', async () => {
+    parametros.valor = new URLSearchParams('redirect=https://otro.example');
+    conRegistro();
+    render(<FormularioRegistro textoLegal={TEXTO_LEGAL} />);
+    const usuario = await llenar();
+
+    await usuario.click(screen.getByRole('checkbox'));
+    await usuario.click(screen.getByRole('button', { name: 'Crear cuenta' }));
+
+    expect(push).toHaveBeenCalledWith('/mis-reportes');
   });
 
   it('muestra los términos en un diálogo sin salir del formulario ni perder lo escrito', async () => {

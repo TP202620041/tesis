@@ -795,9 +795,18 @@ Un reporte recién creado puede tardar hasta 60 s en aparecer en la capa.
 
 Verificado end-to-end contra el backend real:
 
-- **US-01** registro (`/registro`) · **US-02** login (`/login`).
-- `/sesion` — verificación de `GET /api/auth/me`. Andamiaje: desaparece
-  cuando existan las landings por rol.
+- **US-01** registro (`/registro`) · **US-02** login (`/login`). Los dos
+  terminan en el mismo lugar (`destinoTrasAcceso`, QA-1 I-2): el
+  `?redirect=` si es una ruta interna (validado con `destinoInterno`), si no
+  la puerta de entrada del rol (el ciudadano, «Mis reportes»), y antes la
+  aceptación de términos si está pendiente. Los enlaces «Regístrate» e
+  «Inicia sesión» conservan el `?redirect=`: quien llegó al login desde
+  `/reportar` y crea una cuenta vuelve a `/reportar`.
+- `/sesion` (verificación de `GET /api/auth/me`, andamiaje del primer slice)
+  **se eliminó** en QA-1 I-2: el registro llevaba ahí y el ciudadano caía en
+  una pantalla de depuración con el rol y la preferencia en crudo y sin
+  navegación. Ya existían las landings por rol que la reemplazaban, nada más
+  la enlazaba y el perfil (`/perfil`) muestra esos datos de verdad.
 - **US-05** crear reporte (`/reportar`): GPS con fallback a marcar en el mapa
   (escenario 2), captura de foto, selector de categoría que incorpora las
   personalizadas del distrito (US-29), envío multipart con `Idempotency-Key`

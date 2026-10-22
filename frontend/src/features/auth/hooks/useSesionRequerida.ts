@@ -17,7 +17,8 @@ import { useSesion } from './useSesion';
  * aceptacion no redirige (seria un bucle).
  *
  * Saca de las paginas el `useEffect` de redireccion que repetian `/reportar`
- * y `/sesion` (FE-05). Las areas por rol usan `GuardiaDeRol`.
+ * y `/sesion` (FE-05; `/sesion` se retiro en QA-1 I-2). Las areas por rol
+ * usan `GuardiaDeRol`.
  */
 export function useSesionRequerida(destino: string) {
   const router = useRouter();

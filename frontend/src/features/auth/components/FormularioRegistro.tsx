@@ -1,12 +1,12 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, type ReactNode } from 'react';
 import { EnlaceConDialogo } from '@/components/ui/dialogo';
 import { AlertaError, Boton, Campo } from '@/components/ui/form';
 import { useRegistro } from '../hooks/useRegistro';
 import { PASSWORD_MAX, PASSWORD_MIN } from '../model/password';
-import { RUTA_PRIVACIDAD } from '../model/rutas';
+import { destinoTrasAcceso, RUTA_PRIVACIDAD } from '../model/rutas';
 import { TITULO_TERMINOS } from '../model/terminos';
 
 /**
@@ -27,6 +27,7 @@ import { TITULO_TERMINOS } from '../model/terminos';
  */
 export function FormularioRegistro({ textoLegal }: { textoLegal: ReactNode }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { enviando, error, terminosDesactualizados, enviar } = useRegistro();
   const [campos, setCampos] = useState({ nombre: '', apellido: '', email: '', password: '' });
   const [acepta, setAcepta] = useState(false);
@@ -45,7 +46,10 @@ export function FormularioRegistro({ textoLegal }: { textoLegal: ReactNode }) {
     }
     const sesion = await enviar(campos);
     if (sesion) {
-      router.push('/sesion');
+      // QA-1 I-2: al mismo lugar que el login (antes iba a `/sesion`, una
+      // pantalla de depuracion): al `?redirect=` si es interno, si no a
+      // «Mis reportes».
+      router.push(destinoTrasAcceso(sesion.usuario, searchParams.get('redirect')));
       router.refresh();
     } else {
       // Si el texto quedo viejo, la aceptacion ya no vale: debe releerlo.

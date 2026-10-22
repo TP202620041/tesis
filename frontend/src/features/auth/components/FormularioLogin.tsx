@@ -4,7 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { AlertaError, Boton, Campo } from '@/components/ui/form';
 import { useIniciarSesion } from '../hooks/useIniciarSesion';
-import { destinoInterno, rutaAceptarTerminos, rutaInicialDe } from '../model/rutas';
+import { destinoTrasAcceso } from '../model/rutas';
 
 /** US-02: inicio de sesion para ciudadano y funcionario municipal. */
 export function FormularioLogin() {
@@ -20,11 +20,10 @@ export function FormularioLogin() {
     if (!sesion) return;
     // Si llego aqui por un 401 o por la guardia de rol, se le devuelve a
     // donde estaba; si no, a la puerta de entrada de su rol (el funcionario
-    // a su bandeja, el ciudadano a sus reportes).
-    const destino = destinoInterno(searchParams.get('redirect'), rutaInicialDe(sesion.usuario.rol));
-    // NC-07b (D-12): con los terminos vigentes sin aceptar, antes de nada la
-    // pantalla de aceptacion; al terminar sigue a ese mismo destino.
-    router.push(sesion.usuario.debeAceptarTerminos ? rutaAceptarTerminos(destino) : destino);
+    // a su bandeja, el ciudadano a sus reportes). Con los terminos vigentes
+    // sin aceptar (NC-07b), antes la pantalla de aceptacion. La misma regla
+    // usa el registro.
+    router.push(destinoTrasAcceso(sesion.usuario, searchParams.get('redirect')));
     router.refresh();
   }
 
