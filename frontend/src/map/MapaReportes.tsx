@@ -10,6 +10,7 @@ import {
   Popup,
   TileLayer,
   Tooltip,
+  useMap,
   useMapEvents,
 } from 'react-leaflet';
 import { FotoDeReporte } from '@/components/FotoDeReporte';
@@ -92,6 +93,25 @@ function ObservarArea({ onAreaCambiada }: { onAreaCambiada: (b: BoundingBox) => 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  return null;
+}
+
+/**
+ * Avisa a Leaflet cuando cambia el tamaño de su contenedor sin que cambie la
+ * ventana. QA-1 I-4: en el movil, plegar o desplegar el panel de filtros
+ * cambia el alto del mapa; Leaflet solo escucha el `resize` de la ventana, y
+ * sin `invalidateSize` el area nueva quedaria gris hasta el siguiente gesto.
+ * `invalidateSize` emite `moveend`, asi que el area visible que informa
+ * `ObservarArea` tambien se actualiza (con el debounce y el umbral de siempre).
+ */
+function AjustarAlContenedor() {
+  const mapa = useMap();
+  useEffect(() => {
+    if (typeof ResizeObserver === 'undefined') return;
+    const observador = new ResizeObserver(() => mapa.invalidateSize());
+    observador.observe(mapa.getContainer());
+    return () => observador.disconnect();
+  }, [mapa]);
   return null;
 }
 
@@ -188,6 +208,7 @@ export default function MapaReportes({
         maxZoom={19}
       />
       <ObservarArea onAreaCambiada={onAreaCambiada} />
+      <AjustarAlContenedor />
 
       <CapaCalor celdas={celdasCalor} />
 

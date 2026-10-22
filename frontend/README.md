@@ -719,6 +719,20 @@ pantalla las lee) y el enlace «Abrir en OpenStreetMap» en otra pestaña.
 - Sin coordenadas válidas dice «Sin ubicación registrada», nunca un punto en
   (0, 0).
 
+**`/mapa` en el móvil (QA-1 I-4, provisional).** Antes, en pantallas
+angostas, filtros, capas y leyenda iban encima del mapa y lo dejaban debajo
+del pliegue (empezaba en y = 922 px con un viewport de 844). Ahora el mapa
+ocupa la primera pantalla: el panel queda plegado en una franja con el conteo
+(siempre visible y en `aria-live`) y un botón «Filtros, capas y leyenda»
+(`aria-expanded`/`aria-controls`, con el número de filtros aplicados) que lo
+despliega encima del mapa, con un alto máximo de ~55 % de la pantalla y su
+propio desplazamiento. En escritorio (`md`) no cambia nada. Es una solución
+provisional compatible con el rediseño, que pondrá una hoja inferior: solo
+cambia el contenedor del panel, no su contenido. Como plegar el panel cambia
+el alto del mapa sin cambiar la ventana, `MapaReportes` observa su contenedor
+(`ResizeObserver` → `invalidateSize`, que emite `moveend` y pasa por el mismo
+debounce y umbral de siempre); sin eso el área nueva quedaba gris.
+
 ### Mapa de calor (US-11): círculos de Leaflet, sin plugin
 
 La capa de calor de `/mapa` dibuja la grilla de `GET /api/reportes/densidad`

@@ -3,6 +3,7 @@ import { finDelDiaLocal, inicioDelDiaLocal } from '@/lib/types/fechas';
 import {
   construirQuery,
   esBboxValido,
+  cantidadDeFiltrosActivos,
   hayFiltrosActivos,
   requiereNuevaConsulta,
   validarFiltrosMapa,
@@ -160,5 +161,23 @@ describe('hayFiltrosActivos', () => {
     expect(hayFiltrosActivos({ ...FILTROS_VACIOS, fechaHasta: '2026-10-01' })).toBe(true);
     expect(hayFiltrosActivos({ ...FILTROS_VACIOS, estado: 'PENDIENTE' })).toBe(true);
     expect(hayFiltrosActivos({ ...FILTROS_VACIOS, distritoId: 0 })).toBe(true);
+  });
+});
+
+describe('cantidadDeFiltrosActivos (QA-1 I-4)', () => {
+  it('cero sin filtros', () => {
+    expect(cantidadDeFiltrosActivos(FILTROS_VACIOS)).toBe(0);
+  });
+
+  it('cuenta cada filtro aplicado, cada fecha aparte', () => {
+    expect(
+      cantidadDeFiltrosActivos({
+        distritoId: 21,
+        categoriaId: null,
+        estado: 'RESUELTO',
+        fechaDesde: '2026-10-01',
+        fechaHasta: '2026-10-05',
+      }),
+    ).toBe(4);
   });
 });

@@ -52,12 +52,14 @@ export default function MapaPage() {
 
   return (
     <div className="flex h-dvh flex-col">
-      <header className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-800">
+      {/* QA-1 I-4: en el movil la cabecera se compacta (sin subtitulo, los
+          enlaces pasan abajo si no caben) para dejarle la pantalla al mapa. */}
+      <header className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b border-slate-200 bg-white px-4 py-2 md:py-3 dark:border-slate-700 dark:bg-slate-800">
         <div>
-          <h1 className="text-lg font-bold text-sky-700 dark:text-sky-400">
+          <h1 className="text-base font-bold text-sky-700 md:text-lg dark:text-sky-400">
             <Link href="/">Ciudad Viva</Link> · Mapa de reportes
           </h1>
-          <p className="text-xs text-slate-600 dark:text-slate-400">
+          <p className="hidden text-xs text-slate-600 sm:block dark:text-slate-400">
             Daños viales reportados por vecinos de Lima Metropolitana
           </p>
         </div>
@@ -105,7 +107,10 @@ export default function MapaPage() {
         <div className="flex min-h-0 flex-1 flex-col">
           <SelectorDeVista vista={vista} onElegir={setVista} />
 
-          <div className="relative min-h-96 flex-1">
+          {/* En el movil el mapa toma lo que deja la cabecera (QA-1 I-4): el
+              alto minimo es menor para que, con el panel desplegado, el mapa
+              siga a la vista debajo de el. */}
+          <div className="relative min-h-48 flex-1 md:min-h-96">
             <div inert={vista !== 'mapa'} className="absolute inset-0 z-0">
               <MapaReportes
                 reportes={busqueda.reportes}

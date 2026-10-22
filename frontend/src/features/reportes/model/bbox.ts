@@ -93,9 +93,18 @@ export const FILTROS_VACIOS: FiltrosMapa = {
 
 /** `true` si algun filtro difiere de {@link FILTROS_VACIOS}. */
 export function hayFiltrosActivos(filtros: FiltrosMapa): boolean {
-  return (Object.keys(FILTROS_VACIOS) as (keyof FiltrosMapa)[]).some(
+  return cantidadDeFiltrosActivos(filtros) > 0;
+}
+
+/**
+ * Cuantos filtros difieren de {@link FILTROS_VACIOS} (cada fecha cuenta
+ * aparte). QA-1 I-4: en el movil el panel se pliega, y el boton que lo abre
+ * dice cuantos hay aplicados para que no filtren sin que se vea.
+ */
+export function cantidadDeFiltrosActivos(filtros: FiltrosMapa): number {
+  return (Object.keys(FILTROS_VACIOS) as (keyof FiltrosMapa)[]).filter(
     (clave) => filtros[clave] !== FILTROS_VACIOS[clave],
-  );
+  ).length;
 }
 
 export const MENSAJE_RANGO_INVERTIDO =
