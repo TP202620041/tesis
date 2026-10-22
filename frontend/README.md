@@ -489,7 +489,13 @@ canal. Dónde aparece:
 
 - **Registro (US-01):** casilla obligatoria «Acepto los términos de uso y la
   política de privacidad» con enlace a `/privacidad`. Sin marcarla no se envía.
-  Viajan `aceptaTerminos: true` y `versionTerminos`.
+  Viajan `aceptaTerminos: true` y `versionTerminos`. La casilla **solo** se
+  desmarca si el 409 es por términos desactualizados (QA-1 M-2): un correo ya
+  registrado, un error de validación o de red no cambian el texto aceptado, y
+  obligar a marcarla de nuevo solo estorbaba. El campo de contraseña dice
+  «Mínimo 8 caracteres.» antes de enviar (`aria-describedby`) y el largo se
+  valida en el cliente: el 400 del backend llegaba como «password: el tamaño
+  debe estar entre 8 y 72», con el nombre del campo en inglés.
 - **`/privacidad`** (pública): el texto del borrador
   `project-context/legal/terminos-y-privacidad-v1.md` copiado en
   `features/legal/components/TextoTerminosYPrivacidad.tsx`, con el aviso

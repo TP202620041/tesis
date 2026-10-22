@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { PASSWORD_MAX, PASSWORD_MIN, erroresDePasswordNueva, normalizarToken } from './password';
+import {
+  AYUDA_PASSWORD,
+  PASSWORD_MAX,
+  PASSWORD_MIN,
+  errorDeLargoDePassword,
+  erroresDePasswordNueva,
+  normalizarToken,
+} from './password';
 
 describe('erroresDePasswordNueva', () => {
   it('acepta una contraseña en el rango que coincide con su confirmación', () => {
@@ -31,6 +38,24 @@ describe('erroresDePasswordNueva', () => {
       'La contraseña debe tener al menos 8 caracteres.',
       'Las contraseñas no coinciden.',
     ]);
+  });
+});
+
+describe('errorDeLargoDePassword (QA-1 M-2: el registro valida antes de enviar)', () => {
+  it('nada que decir dentro de los límites', () => {
+    expect(errorDeLargoDePassword('a'.repeat(PASSWORD_MIN))).toBeNull();
+    expect(errorDeLargoDePassword('a'.repeat(PASSWORD_MAX))).toBeNull();
+  });
+
+  it('explica el mínimo y el máximo en castellano', () => {
+    expect(errorDeLargoDePassword('abc')).toBe('La contraseña debe tener al menos 8 caracteres.');
+    expect(errorDeLargoDePassword('a'.repeat(PASSWORD_MAX + 1))).toBe(
+      'La contraseña no puede tener más de 72 caracteres.',
+    );
+  });
+
+  it('la ayuda previa dice el mínimo', () => {
+    expect(AYUDA_PASSWORD).toBe('Mínimo 8 caracteres.');
   });
 });
 
