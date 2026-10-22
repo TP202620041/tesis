@@ -117,7 +117,7 @@ public class Reporte extends BaseAuditableEntity {
         int largo = limpio.codePointCount(0, limpio.length());
         if (largo < TITULO_MIN || largo > TITULO_MAX) {
             throw new IllegalArgumentException(
-                    "El titulo debe tener entre " + TITULO_MIN + " y " + TITULO_MAX + " caracteres");
+                    "El título debe tener entre " + TITULO_MIN + " y " + TITULO_MAX + " caracteres");
         }
         return limpio;
     }

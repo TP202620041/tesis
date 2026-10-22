@@ -164,7 +164,7 @@ class ExportarReportesIT extends AbstractPostgisIT {
                         .header("Authorization", "Bearer " + token(func)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message")
-                        .value(org.hamcrest.Matchers.containsString("fechaDesde no puede ser posterior")));
+                        .value(org.hamcrest.Matchers.containsString("La fecha de inicio no puede ser posterior")));
     }
 
     @Test

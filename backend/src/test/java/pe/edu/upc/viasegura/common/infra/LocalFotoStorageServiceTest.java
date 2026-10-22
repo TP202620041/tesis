@@ -73,10 +73,10 @@ class LocalFotoStorageServiceTest {
     void contenidoVacio_esBusinessException() {
         assertThatThrownBy(() -> storage.almacenarFotoReporte(new ArchivoSubido(new byte[0], "image/png", "a.png")))
                 .isInstanceOf(BusinessException.class)
-                .hasMessage("La foto esta vacia");
+                .hasMessage("La foto está vacía");
         assertThatThrownBy(() -> storage.almacenarFotoPerfil(null))
                 .isInstanceOf(BusinessException.class)
-                .hasMessage("La foto esta vacia");
+                .hasMessage("La foto está vacía");
     }
 
     @Test

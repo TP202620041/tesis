@@ -354,7 +354,7 @@ class GestionCategoriasIT extends AbstractPostgisIT {
 
         editar(func, est.getId(), unico("Hackeada"), "x")
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.message", is("Las categorias estandar no se pueden editar ni desactivar")));
+                .andExpect(jsonPath("$.message", is("Las categorías estándar no se pueden editar ni desactivar")));
         cambiarActiva(func, est.getId(), false)
                 .andExpect(status().isForbidden());
     }
@@ -366,7 +366,7 @@ class GestionCategoriasIT extends AbstractPostgisIT {
 
         editar(func, ajena.getId(), unico("Intento"), "x")
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.message", is("Solo puede gestionar las categorias personalizadas de Miraflores")));
+                .andExpect(jsonPath("$.message", is("Solo puedes gestionar las categorías personalizadas de Miraflores")));
         cambiarActiva(func, ajena.getId(), false)
                 .andExpect(status().isForbidden());
     }

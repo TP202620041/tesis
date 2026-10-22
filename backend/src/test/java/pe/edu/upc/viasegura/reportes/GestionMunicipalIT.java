@@ -152,7 +152,9 @@ class GestionMunicipalIT extends AbstractPostgisMailIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(cuerpo(EstadoReporte.RECIBIDO, "reabrir"))
                         .header("Authorization", "Bearer " + token(func)))
-                .andExpect(status().isConflict());
+                .andExpect(status().isConflict())
+                // QA-1 M-1: los estados con su etiqueta, no con el valor del enum.
+                .andExpect(jsonPath("$.message", is("Transición de estado inválida: de Resuelto a Recibido")));
     }
 
     @Test
@@ -358,7 +360,9 @@ class GestionMunicipalIT extends AbstractPostgisMailIT {
         mockMvc.perform(post("/api/reportes/{id}/responsable", pendiente.getId())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(cuerpoResponsable("Cuadrilla X", null)).header("Authorization", auth))
-                .andExpect(status().isConflict());
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message",
+                        is("No se puede asignar un responsable a un reporte en estado Pendiente")));
         mockMvc.perform(post("/api/reportes/{id}/responsable", resuelto.getId())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(cuerpoResponsable("Cuadrilla X", null)).header("Authorization", auth))

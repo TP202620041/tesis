@@ -30,7 +30,7 @@ public class SeguimientoReporteService {
 
     /** Texto que ve el ciudadano en lugar del nombre interno de la cuadrilla. */
     private static final String ASIGNACION_REDACTADA =
-            "Se asigno un responsable para la atencion del reporte.";
+            "Se asignó un responsable para la atención del reporte.";
 
     private final ReporteRepository reporteRepository;
     private final UsuarioConsultaService usuarioConsultaService;

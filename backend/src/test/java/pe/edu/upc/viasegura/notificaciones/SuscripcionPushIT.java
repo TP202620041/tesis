@@ -293,7 +293,7 @@ class SuscripcionPushIT extends AbstractPostgisIT {
             mockMvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON)
                             .content(cuerpo(endpoint, "p256", "auth")).header("Authorization", auth))
                     .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.message", containsString("no esta permitido")));
+                    .andExpect(jsonPath("$.message", containsString("no está permitido")));
         }
         assertThat(suscripcionRepository.count()).isZero();
     }

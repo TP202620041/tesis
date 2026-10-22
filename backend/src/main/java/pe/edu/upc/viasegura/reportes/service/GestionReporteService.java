@@ -87,13 +87,13 @@ public class GestionReporteService {
         // desde V7) sin el escrutinio que exige un RECHAZADO.
         if (nuevo == EstadoReporte.CANCELADO) {
             throw new OperacionNoPermitidaException(
-                    "Solo el ciudadano que creo el reporte puede cancelarlo. "
-                            + "Para descartarlo, usa RECHAZADO indicando el motivo.");
+                    "Solo el ciudadano que creó el reporte puede cancelarlo. "
+                            + "Para descartarlo, cámbialo a Rechazado indicando el motivo.");
         }
 
         if (!anterior.gestionMunicipalPuedeTransicionarA(nuevo)) {
             throw new BusinessException(
-                    "Transicion de estado invalida: %s -> %s".formatted(anterior, nuevo));
+                    "Transición de estado inválida: de %s a %s".formatted(anterior.etiqueta(), nuevo.etiqueta()));
         }
         if (nuevo == EstadoReporte.RECHAZADO && !StringUtils.hasText(req.comentario())) {
             throw new IllegalArgumentException("El rechazo requiere un comentario que lo justifique");
@@ -148,7 +148,7 @@ public class GestionReporteService {
 
         if (!ESTADOS_ASIGNABLES.contains(reporte.getEstado())) {
             throw new BusinessException(
-                    "No se puede asignar responsable a un reporte en estado " + reporte.getEstado());
+                    "No se puede asignar un responsable a un reporte en estado " + reporte.getEstado().etiqueta());
         }
 
         Optional<AsignacionResponsable> vigente = asignacionRepository.findByReporteIdAndActivoTrue(reporteId);
@@ -196,7 +196,7 @@ public class GestionReporteService {
     private Distrito distritoDeGestion(String emailFuncionario) {
         Usuario funcionario = usuarioConsultaService.usuarioPorEmail(emailFuncionario);
         if (funcionario.getDistrito() == null) {
-            throw new AccessDeniedException("El funcionario no tiene un distrito de gestion asignado");
+            throw new AccessDeniedException("El funcionario no tiene un distrito de gestión asignado");
         }
         return funcionario.getDistrito();
     }

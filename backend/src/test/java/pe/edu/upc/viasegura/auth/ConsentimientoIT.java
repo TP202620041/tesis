@@ -274,7 +274,7 @@ class ConsentimientoIT extends AbstractPostgisIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(suscripcion(endpoint)))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.message", containsString("NOTIFICACIONES_PUSH")));
+                .andExpect(jsonPath("$.message", containsString("notificaciones push")));
 
         mockMvc.perform(post(RUTA).header("Authorization", token(u))
                         .contentType(MediaType.APPLICATION_JSON)

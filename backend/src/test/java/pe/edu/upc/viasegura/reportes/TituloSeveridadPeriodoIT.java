@@ -119,7 +119,7 @@ class TituloSeveridadPeriodoIT extends AbstractPostgisIT {
     void crear_sinTitulo_400ConMensajeDeCampo() throws Exception {
         crear(tokenCiudadano(), null, "MEDIA")
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message", containsString("titulo")));
+                .andExpect(jsonPath("$.message", containsString("título")));
     }
 
     @ParameterizedTest(name = "titulo «{0}» -> 400")
@@ -127,7 +127,7 @@ class TituloSeveridadPeriodoIT extends AbstractPostgisIT {
     void crear_tituloDeMenosDe5TrasTrim_400(String titulo) throws Exception {
         crear(tokenCiudadano(), titulo, "MEDIA")
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message", containsString("titulo")));
+                .andExpect(jsonPath("$.message", containsString("título")));
     }
 
     @Test

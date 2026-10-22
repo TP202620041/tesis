@@ -617,9 +617,9 @@ normal. Ahora responden con el mismo `ApiError` que el resto:
 | Excepción | Código | Ejemplo | Mensaje |
 |---|---|---|---|
 | `MaxUploadSizeExceededException` | **413** | Foto de más de 10 MB en `POST /api/reportes` o `PATCH /api/auth/me` | `La foto supera el tamaño máximo de 10 MB` (el límite sale de `spring.servlet.multipart.max-file-size`) |
-| `HttpRequestMethodNotSupportedException` | **405** | `GET /api/auth/login` | `El metodo GET no esta permitido en esta ruta`, con la cabecera `Allow` que exige el RFC 9110 |
+| `HttpRequestMethodNotSupportedException` | **405** | `GET /api/auth/login` | `El método GET no está permitido en esta ruta`, con la cabecera `Allow` que exige el RFC 9110 |
 | `HttpMediaTypeNotSupportedException` | **415** | JSON a `POST /api/reportes` o a `PATCH /api/auth/me`, que son multipart | `Tipo de contenido no admitido en esta ruta: se espera multipart/form-data`, con `Accept` (y `Accept-Patch` en un PATCH) |
-| `MissingServletRequestParameterException` | **400** | `GET /api/distritos/por-coordenadas` sin `lon` | `Falta el parametro obligatorio 'lon'` |
+| `MissingServletRequestParameterException` | **400** | `GET /api/distritos/por-coordenadas` sin `lon` | `Falta el parámetro obligatorio 'lon'` |
 | `MissingServletRequestPartException` | **400** | Un formulario multipart sin una parte obligatoria (hoy ningún endpoint la tiene: las fotos son opcionales; el manejador es preventivo) | `Falta la parte obligatoria '<parte>' del formulario` |
 
 **Los 500 que quedan se registran.** El manejador genérico sigue
@@ -693,6 +693,46 @@ interfaz.
 `GET /api/categorias`) y vuelve a ejecutar el script de V18 dentro de una
 transacción que siempre se revierte: sobre los textos de V3, los corrige, y
 con una categoría de distrito «vereda DAÑADA», se detiene con el mensaje.
+
+### Mensajes del API y correos
+
+- **Mensajes con tildes y bien escritos** en todo lo que llega al `message`
+  del `ApiError`: `GlobalExceptionHandler` («Credenciales inválidas», «Error
+  de validación», «El método GET no está permitido…»), los manejadores de
+  seguridad («Autenticación requerida», el 403 de términos pendientes), los
+  servicios («El correo ya está registrado», «Ya reportaste este daño», «La
+  categoría seleccionada no está activa»…) y el saneado de fotos. Los
+  mensajes que nombran un estado usan su **etiqueta** («Transición de estado
+  inválida: de Resuelto a Recibido», «No se puede asignar un responsable a
+  un reporte en estado Pendiente»). Los de `AccessDeniedException` también
+  se corrigieron, aunque el cliente siempre recibe el «Acceso denegado» fijo.
+- **La PWA no compara textos.** Antes de cambiar un mensaje se buscó en
+  `frontend/src` si algún código lo comparaba: solo
+  `features/auth/model/terminos.ts` reconoce el 409 de términos desactualizados
+  por su mensaje, con `/t[eé]rminos/i`, que acepta el texto nuevo («La
+  versión de los términos aceptada no es la vigente…»). El resto decide por
+  el `status` (y el 403 de términos por `codigo`).
+- **Línea de tiempo del ciudadano:** la asignación redactada dice «Se asignó
+  un responsable para la atención del reporte.»
+  (`SeguimientoReporteService.ASIGNACION_REDACTADA`).
+- **Etiquetas en vez de enums.** `EstadoReporte.etiqueta()` devuelve el nombre
+  que muestra la PWA («En proceso», `frontend/src/lib/types/estados.ts`). Es
+  una regla pura del dominio, así que la usan los correos, los mensajes de
+  error y la exportación sin depender de la presentación. El JSON del API
+  sigue enviando el valor del enum (`"estado": "EN_PROCESO"`): la PWA lo
+  traduce y los filtros lo necesitan.
+- **Correos con trato de tú**, como la PWA. Aviso de estado: asunto
+  «Ciudad Viva: tu reporte está en proceso» y cuerpo «Hola, Ana: tu reporte
+  en el distrito de Miraflores pasó de Recibido a En proceso. Comentario de
+  la municipalidad: …» (antes «paso de RECIBIDO a EN_PROCESO», de usted). El
+  push usa el mismo asunto como título y «Tu reporte #42 está en proceso.»
+  como cuerpo. Recuperación: «Ciudad Viva: recuperación de contraseña», con el
+  cuerpo corregido. El correo de soporte ya trataba de tú; su cuerpo es la
+  respuesta que escribe el ADMIN.
+- Los asuntos con tildes viajan bien: el adaptador SMTP usa la codificación
+  UTF-8 de `spring.mail` (RFC 2047 en el asunto) y Resend recibe JSON en
+  UTF-8. `NotificacionIT` y `PasswordResetIT` leen el asunto y el cuerpo
+  decodificados que llegan a GreenMail.
 
 ## Catálogos de referencia (descubribilidad)
 
@@ -1442,8 +1482,8 @@ tiene el permiso `NOTIFICACIONES_PUSH` y su preferencia incluye PUSH. El
 payload es JSON:
 
 ```json
-{"titulo": "Ciudad Viva: su reporte esta en proceso",
- "cuerpo": "Su reporte #42 esta en proceso.",
+{"titulo": "Ciudad Viva: tu reporte está en proceso",
+ "cuerpo": "Tu reporte #42 está en proceso.",
  "url": "/mis-reportes/42", "reporteId": 42, "estado": "EN_PROCESO"}
 ```
 

@@ -116,7 +116,7 @@ class PerfilProdIT extends AbstractPostgisIT {
         registrar(email)
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.status").value(409))
-                .andExpect(jsonPath("$.message").value("El correo ya esta registrado"))
+                .andExpect(jsonPath("$.message").value("El correo ya está registrado"))
                 .andExpect(jsonPath("$.path").value("/api/auth/registro"));
     }
 

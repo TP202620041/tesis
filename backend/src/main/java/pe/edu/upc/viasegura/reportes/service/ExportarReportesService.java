@@ -67,7 +67,7 @@ public class ExportarReportesService {
         Usuario funcionario = usuarioConsultaService.usuarioPorEmail(emailFuncionario);
         Distrito distrito = funcionario.getDistrito();
         if (distrito == null) {
-            throw new AccessDeniedException("El funcionario no tiene un distrito de gestion asignado");
+            throw new AccessDeniedException("El funcionario no tiene un distrito de gestión asignado");
         }
 
         List<Reporte> reportes = reporteRepository.buscarParaExportar(

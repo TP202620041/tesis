@@ -64,6 +64,6 @@ public class DistritoController {
         return distritoService.porCoordenadas(lat, lon)
                 .map(ResponseEntity::ok)
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "La ubicacion esta fuera de la cobertura de Lima Metropolitana"));
+                        "La ubicación está fuera de la cobertura de Lima Metropolitana"));
     }
 }

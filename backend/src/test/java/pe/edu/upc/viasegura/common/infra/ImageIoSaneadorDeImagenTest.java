@@ -25,7 +25,7 @@ import pe.edu.upc.viasegura.support.ImagenesDePrueba;
  */
 class ImageIoSaneadorDeImagenTest {
 
-    private static final String MENSAJE_16_MP = "La foto supera el maximo de 16 megapixeles";
+    private static final String MENSAJE_16_MP = "La foto supera el máximo de 16 megapíxeles";
 
     private final ImageIoSaneadorDeImagen saneador = new ImageIoSaneadorDeImagen(2, Duration.ofSeconds(10));
 
@@ -177,7 +177,7 @@ class ImageIoSaneadorDeImagenTest {
         // si se intentara decodificar, el error seria el de formato.
         assertThatThrownBy(() -> sanear(ImagenesDePrueba.pngConDimensiones(8000, 5001), "enorme.png"))
                 .isInstanceOf(BusinessException.class)
-                .hasMessage("La foto supera el maximo de 40 megapixeles");
+                .hasMessage("La foto supera el máximo de 40 megapíxeles");
     }
 
     @Test
@@ -273,10 +273,10 @@ class ImageIoSaneadorDeImagenTest {
     void vaciaONula_esBusinessException() {
         assertThatThrownBy(() -> sanear(new byte[0], "a.png"))
                 .isInstanceOf(BusinessException.class)
-                .hasMessage("La foto esta vacia");
+                .hasMessage("La foto está vacía");
         assertThatThrownBy(() -> saneador.sanear(null))
                 .isInstanceOf(BusinessException.class)
-                .hasMessage("La foto esta vacia");
+                .hasMessage("La foto está vacía");
     }
 
     @Test

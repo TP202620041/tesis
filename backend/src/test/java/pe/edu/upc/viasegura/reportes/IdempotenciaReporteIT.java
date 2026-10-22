@@ -171,7 +171,7 @@ class IdempotenciaReporteIT extends AbstractPostgisIT {
 
         crearReporte(token, clave, categoria, false)
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message", containsString("titulo")));
+                .andExpect(jsonPath("$.message", containsString("título")));
 
         assertThat(reporteRepository.count()).isZero();
         assertThat(jdbcTemplate.queryForObject(

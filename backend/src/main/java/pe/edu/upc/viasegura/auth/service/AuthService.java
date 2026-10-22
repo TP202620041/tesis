@@ -49,7 +49,7 @@ public class AuthService {
     public AuthResponse registrar(RegistroRequest request) {
         consentimientoService.exigirVersionVigenteDeTerminos(request.versionTerminos());
         if (usuarioRepository.existsByEmail(request.email())) {
-            throw new BusinessException("El correo ya esta registrado");
+            throw new BusinessException("El correo ya está registrado");
         }
 
         Usuario usuario = Usuario.builder()
@@ -119,13 +119,13 @@ public class AuthService {
 
         if (nombre != null) {
             if (!StringUtils.hasText(nombre)) {
-                throw new IllegalArgumentException("El nombre no puede quedar vacio");
+                throw new IllegalArgumentException("El nombre no puede quedar vacío");
             }
             usuario.setNombre(nombre);
         }
         if (apellido != null) {
             if (!StringUtils.hasText(apellido)) {
-                throw new IllegalArgumentException("El apellido no puede quedar vacio");
+                throw new IllegalArgumentException("El apellido no puede quedar vacío");
             }
             usuario.setApellido(apellido);
         }

@@ -72,7 +72,7 @@ public class GlobalExceptionHandler {
         List<String> details = ex.getBindingResult().getFieldErrors().stream()
                 .map(this::formatFieldError)
                 .toList();
-        return build(HttpStatus.BAD_REQUEST, "Error de validacion", req, details);
+        return build(HttpStatus.BAD_REQUEST, "Error de validación", req, details);
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
@@ -82,7 +82,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ApiError> handleNotReadable(HttpMessageNotReadableException ex, HttpServletRequest req) {
-        return build(HttpStatus.BAD_REQUEST, "Cuerpo de la peticion invalido o mal formado", req, List.of());
+        return build(HttpStatus.BAD_REQUEST, "Cuerpo de la petición inválido o mal formado", req, List.of());
     }
 
     /**
@@ -98,7 +98,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiError> handleTypeMismatch(
             MethodArgumentTypeMismatchException ex, HttpServletRequest req) {
         return build(HttpStatus.BAD_REQUEST,
-                "Valor invalido para el parametro '%s'%s".formatted(ex.getName(), formatoEsperado(ex.getRequiredType())),
+                "Valor inválido para el parámetro '%s'%s".formatted(ex.getName(), formatoEsperado(ex.getRequiredType())),
                 req, List.of());
     }
 
@@ -113,14 +113,14 @@ public class GlobalExceptionHandler {
             return ": se espera una fecha ISO-8601 en UTC, p. ej. 2026-01-31T05:00:00Z";
         }
         if (Number.class.isAssignableFrom(tipo)) {
-            return ": se espera un numero";
+            return ": se espera un número";
         }
         return "";
     }
 
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<ApiError> handleBadCredentials(BadCredentialsException ex, HttpServletRequest req) {
-        return build(HttpStatus.UNAUTHORIZED, "Credenciales invalidas", req, List.of());
+        return build(HttpStatus.UNAUTHORIZED, "Credenciales inválidas", req, List.of());
     }
 
     @ExceptionHandler(AccessDeniedException.class)
@@ -153,7 +153,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<ApiError> handleNoResource(NoResourceFoundException ex, HttpServletRequest req) {
-        return build(HttpStatus.NOT_FOUND, "No se encontro el recurso solicitado", req, List.of());
+        return build(HttpStatus.NOT_FOUND, "No se encontró el recurso solicitado", req, List.of());
     }
 
     /**
@@ -187,7 +187,7 @@ public class GlobalExceptionHandler {
             HttpRequestMethodNotSupportedException ex, HttpServletRequest req) {
         ApiError body = ApiError.of(HttpStatus.METHOD_NOT_ALLOWED.value(),
                 HttpStatus.METHOD_NOT_ALLOWED.getReasonPhrase(),
-                "El metodo %s no esta permitido en esta ruta".formatted(ex.getMethod()),
+                "El método %s no está permitido en esta ruta".formatted(ex.getMethod()),
                 req.getRequestURI(), List.of());
         Set<HttpMethod> permitidos = ex.getSupportedHttpMethods();
         ResponseEntity.BodyBuilder respuesta = ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED);
@@ -208,7 +208,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiError> handleMissingParameter(
             MissingServletRequestParameterException ex, HttpServletRequest req) {
         return build(HttpStatus.BAD_REQUEST,
-                "Falta el parametro obligatorio '%s'".formatted(ex.getParameterName()), req, List.of());
+                "Falta el parámetro obligatorio '%s'".formatted(ex.getParameterName()), req, List.of());
     }
 
     /**

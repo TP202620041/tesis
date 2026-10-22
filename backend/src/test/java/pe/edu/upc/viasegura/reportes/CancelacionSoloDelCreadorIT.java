@@ -145,7 +145,7 @@ class CancelacionSoloDelCreadorIT extends AbstractPostgisIT {
                 // el funcionario SI puede gestionar este reporte, solo que
                 // no por esa via.
                 .andExpect(jsonPath("$.message").value(
-                        org.hamcrest.Matchers.containsString("RECHAZADO")));
+                        org.hamcrest.Matchers.containsString("cámbialo a Rechazado")));
     }
 
     @Test
