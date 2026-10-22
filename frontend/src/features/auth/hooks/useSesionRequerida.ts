@@ -16,9 +16,12 @@ import { useSesion } from './useSesion';
  * mientras tanto la pantalla ve `cargando`. En la propia pantalla de
  * aceptacion no redirige (seria un bucle).
  *
- * Saca de las paginas el `useEffect` de redireccion que repetian `/reportar`
- * y `/sesion` (FE-05; `/sesion` se retiro en QA-1 I-2). Las areas por rol
- * usan `GuardiaDeRol`.
+ * Saco de las paginas el `useEffect` de redireccion que repetian `/reportar`
+ * y `/sesion` (FE-05). Desde QA-1 `/sesion` ya no existe (I-2) y `/reportar`
+ * usa `GuardiaDeRol` (M-10); su unico uso es `/aceptar-terminos`, y ahi se
+ * queda a proposito: esa pantalla es para cualquier rol y no puede usar
+ * `GuardiaDeRol`, que justamente redirige a ella cuando hay terminos
+ * pendientes (seria un bucle). Las areas por rol usan `GuardiaDeRol`.
  */
 export function useSesionRequerida(destino: string) {
   const router = useRouter();
