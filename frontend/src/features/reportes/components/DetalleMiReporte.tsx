@@ -8,7 +8,12 @@ import { UbicacionDelReporte } from '@/components/UbicacionDelReporte';
 import { estiloDeEstado } from '@/lib/types/estados';
 import { textoDeSeveridad, tituloVisible } from '@/lib/types/tituloYSeveridad';
 import { useMiReporte } from '../hooks/useMiReporte';
-import { explicacionDeEstado, puedeCalificar, puedeEditar } from '../model/acciones';
+import {
+  explicacionDeEstado,
+  puedeCalificar,
+  puedeEditar,
+  tieneVistaPublica,
+} from '../model/acciones';
 import { Calificar } from './Calificar';
 import { Comentarios } from './Comentarios';
 import { EditarReporte } from './EditarReporte';
@@ -167,12 +172,15 @@ function DetalleCargado({
         </section>
       )}
 
-      <Link
-        href={`/reportes/${reporteId}`}
-        className="text-sm text-sky-700 hover:underline dark:text-sky-400"
-      >
-        Ver cómo lo ven los demás (vista pública)
-      </Link>
+      {/* QA-1 M-13: un reporte retirado no tiene vista publica (404). */}
+      {tieneVistaPublica(estado) && (
+        <Link
+          href={`/reportes/${reporteId}`}
+          className="text-sm text-sky-700 hover:underline dark:text-sky-400"
+        >
+          Ver cómo lo ven los demás (vista pública)
+        </Link>
+      )}
     </main>
   );
 }
