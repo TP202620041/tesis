@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Maskable: fondo a sangre; el pin cabe en el círculo seguro (80 % central). -->
+  <rect width="512" height="512" fill="#1F3350"/>
+  <defs><clipPath id="pin"><path d="M256 112c-66.3 0-120 52.6-120 117.9C136 314.7 256 424 256 424s120-109.3 120-194.1C376 164.6 322.3 112 256 112Z"/></clipPath></defs>
+  <path d="M256 112c-66.3 0-120 52.6-120 117.9C136 314.7 256 424 256 424s120-109.3 120-194.1C376 164.6 322.3 112 256 112Z" fill="#FFFFFF"/>
+  <g clip-path="url(#pin)"><path d="M96 330 416 150" stroke="#1F3350" stroke-width="56"/><path d="M96 330 416 150" stroke="#FFD43B" stroke-width="14" stroke-dasharray="30 24"/></g>
+</svg>

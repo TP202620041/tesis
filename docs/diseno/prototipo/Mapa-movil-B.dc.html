@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Mapa móvil, dirección B</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&amp;family=Barlow+Semi+Condensed:wght@600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#17191B}a:hover{color:#000000}
+button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid #17191B;outline-offset:2px;box-shadow:0 0 0 2px #FFC20E}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; position: relative; overflow: hidden; font-family: 'Barlow', system-ui, sans-serif; color: #141B24; background: #F7F8F9">
+
+  <!-- Mapa estilizado (en la PWA: tiles de OpenStreetMap con filtro de desaturación) -->
+  <svg width="390" height="716" viewBox="0 0 390 716" style="position: absolute; left: 0; top: 56px" role="img" aria-label="Mapa de Miraflores y alrededores con los reportes como marcadores">
+    <defs>
+      <pattern id="manzanasMapa" width="38" height="30" patternUnits="userSpaceOnUse" patternTransform="rotate(-14)"><rect x="0" y="0" width="31" height="23" rx="2" fill="#E4E7EB"></rect></pattern>
+    </defs>
+    <rect width="390" height="716" fill="#F7F8F9"></rect>
+    <rect width="390" height="716" fill="url(#manzanasMapa)"></rect>
+    <rect x="150" y="364" width="46" height="32" rx="4" fill="#CFE3CB" transform="rotate(-14 173 380)"></rect>
+    <rect x="296" y="78" width="62" height="40" rx="4" fill="#CFE3CB" transform="rotate(-14 327 98)"></rect>
+    <path d="M0 404 C 64 456, 126 540, 176 716 L0 716 Z" fill="#C9DCE9"></path>
+    <g fill="none" stroke-linecap="round">
+      <path d="M0 398 C 64 450, 128 534, 180 716" stroke="#CDD3DA" stroke-width="12"></path>
+      <path d="M0 398 C 64 450, 128 534, 180 716" stroke="#FFFFFF" stroke-width="8"></path>
+      <path d="M-10 120 L400 66" stroke="#CDD3DA" stroke-width="14"></path>
+      <path d="M-10 120 L400 66" stroke="#FFFFFF" stroke-width="10"></path>
+      <path d="M-10 300 L400 246" stroke="#CDD3DA" stroke-width="13"></path>
+      <path d="M-10 300 L400 246" stroke="#FFFFFF" stroke-width="9"></path>
+      <path d="M190 -10 L210 420" stroke="#CDD3DA" stroke-width="14"></path>
+      <path d="M190 -10 L210 420" stroke="#FFFFFF" stroke-width="10"></path>
+      <path d="M40 420 L210 382" stroke="#CDD3DA" stroke-width="11"></path>
+      <path d="M40 420 L210 382" stroke="#FFFFFF" stroke-width="7"></path>
+      <path d="M296 -10 L326 716" stroke="#C3CAD2" stroke-width="22"></path>
+      <path d="M296 -10 L326 716" stroke="#DDE1E6" stroke-width="16"></path>
+      <path d="M296 -10 L326 716" stroke="#FFFFFF" stroke-width="2" stroke-dasharray="10 8"></path>
+    </g>
+    <g font-family="Public Sans, sans-serif" font-size="11" font-weight="600" fill="#4D5866" stroke="#F7F8F9" stroke-width="3" paint-order="stroke">
+      <text x="20" y="106" transform="rotate(-7.5 20 106)">Av. Angamos</text>
+      <text x="22" y="286" transform="rotate(-7.5 22 286)">Av. Benavides</text>
+      <text x="214" y="200" transform="rotate(87 214 200)">Av. Arequipa</text>
+      <text x="52" y="414" transform="rotate(-12.5 52 414)">Av. José Pardo</text>
+      <text x="338" y="560" transform="rotate(87.5 338 560)">Vía Expresa</text>
+      <text x="40" y="560" transform="rotate(58 40 560)" fill="#2F5E7E">Océano Pacífico</text>
+    </g>
+    <g font-family="Public Sans, sans-serif" font-size="12" font-weight="700" letter-spacing="2" fill="#6A7483" stroke="#F7F8F9" stroke-width="3" paint-order="stroke">
+      <text x="40" y="40">SAN ISIDRO</text>
+      <text x="70" y="210">MIRAFLORES</text>
+      <text x="236" y="176">SURQUILLO</text>
+      <text x="236" y="500">BARRANCO</text>
+    </g>
+  </svg>
+
+  <!-- Capa de calor -->
+  <sc-if value="{{ calor }}" hint-placeholder-val="{{ false }}">
+    <svg width="390" height="716" viewBox="0 0 390 716" style="position: absolute; left: 0; top: 56px; pointer-events: none" aria-hidden="true">
+      <g opacity="0.78">
+        <circle cx="205" cy="374" r="12" fill="#3b0764"></circle><circle cx="190" cy="390" r="10" fill="#6d28d9"></circle><circle cx="220" cy="388" r="10" fill="#6d28d9"></circle><circle cx="176" cy="414" r="8" fill="#8b5cf6"></circle><circle cx="232" cy="364" r="8" fill="#8b5cf6"></circle>
+        <circle cx="120" cy="244" r="10" fill="#6d28d9"></circle><circle cx="104" cy="256" r="8" fill="#8b5cf6"></circle><circle cx="136" cy="232" r="6" fill="#c4b5fd"></circle>
+        <circle cx="300" cy="324" r="8" fill="#8b5cf6"></circle><circle cx="314" cy="338" r="6" fill="#c4b5fd"></circle>
+        <circle cx="215" cy="194" r="8" fill="#8b5cf6"></circle><circle cx="80" cy="114" r="6" fill="#c4b5fd"></circle><circle cx="330" cy="464" r="6" fill="#c4b5fd"></circle>
+      </g>
+    </svg>
+  </sc-if>
+
+  <sc-if value="{{ leyendaVisible }}" hint-placeholder-val="{{ false }}">
+    <div role="status" style="position: absolute; left: 12px; bottom: {{ leyendaAbajo }}px; z-index: 6; width: 236px; box-sizing: border-box; padding: 10px 12px; background: #FFFFFF; border: 2px solid #1D1F21; border-radius: 4px; box-shadow: 0 1px 3px rgba(20, 27, 36, 0.16); display: flex; flex-direction: column; gap: 6px">
+      <p style="margin: 0; font-size: 13px; font-weight: 700">Densidad de reportes</p>
+      <div style="display: flex; align-items: flex-end; gap: 10px">
+        <span style="display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 11px"><span style="width: 10px; height: 10px; border-radius: 50%; background: #c4b5fd"></span>Baja</span>
+        <span style="display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 11px"><span style="width: 13px; height: 13px; border-radius: 50%; background: #8b5cf6"></span>Media</span>
+        <span style="display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 11px"><span style="width: 16px; height: 16px; border-radius: 50%; background: #6d28d9"></span>Alta</span>
+        <span style="display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 11px; white-space: nowrap"><span style="width: 19px; height: 19px; border-radius: 50%; background: #3b0764; box-shadow: 0 0 0 1.5px #FFFFFF"></span>Muy alta</span>
+      </div>
+      <p style="margin: 0; font-size: 12px; color: #4D5866">Relativa a la vista, con un mínimo de 4</p>
+    </div>
+  </sc-if>
+
+  <!-- Marcadores: cada uno es un botón de 44 px con la punta del pin en el punto -->
+  <sc-if value="{{ marcadores }}" hint-placeholder-val="{{ true }}">
+    <sc-for list="{{ visibles }}" as="m" hint-placeholder-count="10">
+      <button type="button" onClick="{{ m.pick }}" aria-label="{{ m.etiqueta }}" aria-pressed="{{ m.selTxt }}" style="position: absolute; left: {{ m.bx }}px; top: {{ m.by }}px; width: 44px; height: 44px; padding: 0; border: 0; background: transparent; display: flex; align-items: flex-end; justify-content: center; cursor: pointer; transform: scale({{ m.escala }}); transform-origin: 50% 100%; z-index: {{ m.z }}">
+        <sc-if value="{{ m.sel }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="position: absolute; left: 13px; bottom: -5px; width: 18px; height: 7px; border-radius: 50%; border: 3px solid #141B24; background: transparent"></span></sc-if>
+        <sc-if value="{{ m.esPendiente }}" hint-placeholder-val="{{ false }}"><svg width="30" height="38" viewBox="0 0 32 40" aria-hidden="true"><path d="M16 1.5C8.3 1.5 2 7.6 2 15.2 2 25.4 16 38.5 16 38.5S30 25.4 30 15.2C30 7.6 23.7 1.5 16 1.5Z" fill="#C8231B" stroke="#1A1A1A" stroke-opacity="0.55" stroke-width="4"></path><path d="M16 1.5C8.3 1.5 2 7.6 2 15.2 2 25.4 16 38.5 16 38.5S30 25.4 30 15.2C30 7.6 23.7 1.5 16 1.5Z" fill="#C8231B" stroke="#FFFFFF" stroke-width="2"></path><svg x="8" y="7" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><polyline points="12 7 12 12 15.5 14"></polyline></svg></svg></sc-if>
+        <sc-if value="{{ m.esRecibido }}" hint-placeholder-val="{{ false }}"><svg width="30" height="38" viewBox="0 0 32 40" aria-hidden="true"><path d="M16 1.5C8.3 1.5 2 7.6 2 15.2 2 25.4 16 38.5 16 38.5S30 25.4 30 15.2C30 7.6 23.7 1.5 16 1.5Z" fill="#2E6BE6" stroke="#1A1A1A" stroke-opacity="0.55" stroke-width="4"></path><path d="M16 1.5C8.3 1.5 2 7.6 2 15.2 2 25.4 16 38.5 16 38.5S30 25.4 30 15.2C30 7.6 23.7 1.5 16 1.5Z" fill="#2E6BE6" stroke="#FFFFFF" stroke-width="2"></path><svg x="8" y="7" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"></polyline><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg></svg></sc-if>
+        <sc-if value="{{ m.esEnProceso }}" hint-placeholder-val="{{ false }}"><svg width="30" height="38" viewBox="0 0 32 40" aria-hidden="true"><path d="M16 1.5C8.3 1.5 2 7.6 2 15.2 2 25.4 16 38.5 16 38.5S30 25.4 30 15.2C30 7.6 23.7 1.5 16 1.5Z" fill="#F0A800" stroke="#1A1A1A" stroke-opacity="1" stroke-width="4"></path><path d="M16 1.5C8.3 1.5 2 7.6 2 15.2 2 25.4 16 38.5 16 38.5S30 25.4 30 15.2C30 7.6 23.7 1.5 16 1.5Z" fill="#F0A800" stroke="#FFFFFF" stroke-width="2"></path><svg x="8" y="7" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1A1A1A" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg></svg></sc-if>
+        <sc-if value="{{ m.esResuelto }}" hint-placeholder-val="{{ false }}"><svg width="30" height="38" viewBox="0 0 32 40" aria-hidden="true"><path d="M16 1.5C8.3 1.5 2 7.6 2 15.2 2 25.4 16 38.5 16 38.5S30 25.4 30 15.2C30 7.6 23.7 1.5 16 1.5Z" fill="#126B3F" stroke="#1A1A1A" stroke-opacity="0.55" stroke-width="4"></path><path d="M16 1.5C8.3 1.5 2 7.6 2 15.2 2 25.4 16 38.5 16 38.5S30 25.4 30 15.2C30 7.6 23.7 1.5 16 1.5Z" fill="#126B3F" stroke="#FFFFFF" stroke-width="2"></path><svg x="8" y="7" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg></svg></sc-if>
+        <sc-if value="{{ m.esRechazado }}" hint-placeholder-val="{{ false }}"><svg width="30" height="38" viewBox="0 0 32 40" aria-hidden="true"><path d="M16 1.5C8.3 1.5 2 7.6 2 15.2 2 25.4 16 38.5 16 38.5S30 25.4 30 15.2C30 7.6 23.7 1.5 16 1.5Z" fill="#4B5563" stroke="#1A1A1A" stroke-opacity="0.55" stroke-width="4"></path><path d="M16 1.5C8.3 1.5 2 7.6 2 15.2 2 25.4 16 38.5 16 38.5S30 25.4 30 15.2C30 7.6 23.7 1.5 16 1.5Z" fill="#4B5563" stroke="#FFFFFF" stroke-width="2"></path><svg x="8" y="7" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></svg></sc-if>
+      </button>
+    </sc-for>
+  </sc-if>
+
+  <!-- Barra superior -->
+  <header style="position: absolute; left: 0; right: 0; top: 0; height: 56px; box-sizing: border-box; padding: 0 8px 0 16px; background: #1D1F21; border-bottom: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px">
+    <div style="display: flex; align-items: center; gap: 10px; min-width: 0">
+      <svg width="28" height="28" viewBox="0 0 40 40" aria-hidden="true"><rect x="7" y="7" width="26" height="26" rx="3.5" transform="rotate(45 20 20)" fill="#FFC20E"></rect><path d="M20 11.5c-3.3 0-6 2.6-6 5.8 0 4.3 6 10.2 6 10.2s6-5.9 6-10.2c0-3.2-2.7-5.8-6-5.8Z" fill="#17191B"></path><circle cx="20" cy="17.3" r="2.1" fill="#FFC20E"></circle></svg>
+      <h1 style="margin: 0; font-family: 'Barlow Semi Condensed', 'Barlow', sans-serif; font-size: 20px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; white-space: nowrap; color: #F3F2EE">Mapa de reportes</h1>
+    </div>
+    <a href="#guia" aria-label="Guía de uso" style="width: 44px; height: 44px; border-radius: 3px; display: flex; align-items: center; justify-content: center; color: #F3F2EE"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><path d="M12 17h.01"></path></svg></a>
+  </header>
+
+  <!-- Controles del mapa -->
+  <div style="position: absolute; right: 12px; top: 72px; display: flex; flex-direction: column; gap: 8px">
+    <div style="display: flex; flex-direction: column; background: #FFFFFF; border: 2px solid #1D1F21; border-radius: 4px; overflow: hidden; box-shadow: 0 1px 3px rgba(20, 27, 36, 0.16)">
+      <button type="button" aria-label="Acercar" style="width: 44px; height: 44px; border: 0; background: #FFFFFF; color: #141B24; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg></button>
+      <span style="height: 1px; background: #D6DBE1"></span>
+      <button type="button" aria-label="Alejar" style="width: 44px; height: 44px; border: 0; background: #FFFFFF; color: #141B24; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"></path></svg></button>
+    </div>
+    <button type="button" onClick="{{ toggleCalor }}" aria-pressed="{{ calorTxt }}" aria-label="Mapa de calor" style="width: 44px; height: 44px; border-radius: 4px; border: 2px solid #1D1F21; background: {{ calorBg }}; color: {{ calorFg }}; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 3px rgba(20, 27, 36, 0.16)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"></path><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"></path><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"></path></svg></button>
+  </div>
+
+  <!-- Hoja inferior -->
+  <section aria-label="Resultados y filtros" style="position: absolute; left: 0; right: 0; bottom: 72px; height: {{ hojaAlto }}px; box-sizing: border-box; background: #FFFFFF; border-radius: 2px 6px 0 0; box-shadow: 0 -2px 12px rgba(20, 27, 36, 0.14); display: flex; flex-direction: column; overflow: hidden">
+    <button type="button" onClick="{{ toggleHoja }}" aria-expanded="{{ hojaTxt }}" aria-label="{{ hojaEtiqueta }}" style="height: 24px; flex: none; border: 0; background: transparent; display: flex; align-items: center; justify-content: center; cursor: pointer"><span style="width: 40px; height: 5px; border-radius: 3px; background: #9AA3AE"></span></button>
+
+    <sc-if value="{{ haySel }}" hint-placeholder-val="{{ false }}">
+      <div style="padding: 0 16px 16px; display: flex; flex-direction: column; gap: 12px">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px">
+          <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0">
+            <span style="align-self: flex-start; display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px 4px 7px; border-radius: 2px; background: {{ sel.chipBg }}; color: {{ sel.chipFg }}; font-size: 13px; font-weight: 600"><sc-if value="{{ sel.esPendiente }}" hint-placeholder-val="{{ false }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg></sc-if><sc-if value="{{ sel.esRecibido }}" hint-placeholder-val="{{ false }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"></polyline><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg></sc-if><sc-if value="{{ sel.esEnProceso }}" hint-placeholder-val="{{ false }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg></sc-if><sc-if value="{{ sel.esResuelto }}" hint-placeholder-val="{{ false }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></sc-if><sc-if value="{{ sel.esRechazado }}" hint-placeholder-val="{{ false }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></sc-if>{{ sel.estadoTxt }}</span>
+            <h2 style="margin: 0; font-size: 18px; font-weight: 700; line-height: 1.25">{{ sel.titulo }}</h2>
+          </div>
+          <button type="button" onClick="{{ cerrarSel }}" aria-label="Cerrar el resumen" style="width: 44px; height: 44px; flex: none; border: 1px solid #D6DBE1; border-radius: 4px; background: #FFFFFF; color: #141B24; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></button>
+        </div>
+        <div style="display: flex; gap: 12px; align-items: flex-start">
+          <span aria-hidden="true" style="width: 88px; height: 72px; flex: none; border-radius: 3px; background: repeating-linear-gradient(135deg, #E3E7EC 0 6px, #EDF0F3 6px 12px)"></span>
+          <p style="margin: 0; font-size: 14px; line-height: 1.5; color: #3A4452">{{ sel.categoria }} · Severidad {{ sel.sevMin }}<br>{{ sel.distrito }} · {{ sel.fecha }}<br>{{ sel.vecinos }} vecinos lo respaldan</p>
+        </div>
+        <a href="#detalle" style="min-height: 48px; border-radius: 3px; background: #FFC20E; border: 2px solid #17191B; color: #17191B; text-decoration: none; font-weight: 700; font-size: 16px; display: flex; align-items: center; justify-content: center; gap: 6px">Ver el reporte<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></a>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ sinSel }}" hint-placeholder-val="{{ true }}">
+      <div style="padding: 0 16px; display: flex; flex-direction: column; gap: 12px; flex: none">
+        <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px">
+          <p role="status" style="margin: 0; font-size: 17px; font-weight: 700">{{ total }} reportes en esta zona</p>
+          <button type="button" onClick="{{ toggleHoja }}" style="min-height: 44px; padding: 0 4px; border: 0; background: transparent; color: #17191B; font: 600 16px 'Barlow', sans-serif; text-decoration: underline; text-underline-offset: 3px">{{ verTxt }}</button>
+        </div>
+        <div role="group" aria-label="Filtrar por estado" style="display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding-bottom: 4px; margin: 0 -16px; padding-left: 16px; padding-right: 16px">
+          <sc-for list="{{ chips }}" as="c" hint-placeholder-count="6">
+            <button type="button" onClick="{{ c.pick }}" aria-pressed="{{ c.pressed }}" style="flex: none; min-height: 40px; padding: 0 12px; border-radius: 3px; border: {{ c.borde }}; background: {{ c.bg }}; color: {{ c.fg }}; font: 600 15px 'Barlow', sans-serif; display: inline-flex; align-items: center; gap: 7px; white-space: nowrap"><span aria-hidden="true" style="width: 10px; height: 10px; border-radius: 50%; background: {{ c.punto }}; box-shadow: 0 0 0 1.5px #FFFFFF, 0 0 0 2.5px {{ c.puntoBorde }}"></span>{{ c.nombre }}</button>
+          </sc-for>
+        </div>
+      </div>
+      <sc-if value="{{ abierta }}" hint-placeholder-val="{{ false }}">
+        <div role="tablist" aria-label="Vista" style="margin: 8px 16px 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); background: #EDF0F3; border-radius: 4px; padding: 3px; flex: none">
+          <button type="button" role="tab" aria-selected="{{ tabListaTxt }}" onClick="{{ verLista }}" style="min-height: 40px; border: 0; border-radius: 3px; background: {{ tabListaBg }}; color: #141B24; font: 600 15px 'Barlow', sans-serif; box-shadow: {{ tabListaSombra }}">Lista</button>
+          <button type="button" role="tab" aria-selected="{{ tabFiltrosTxt }}" onClick="{{ verFiltros }}" style="min-height: 40px; border: 0; border-radius: 3px; background: {{ tabFiltrosBg }}; color: #141B24; font: 600 15px 'Barlow', sans-serif; box-shadow: {{ tabFiltrosSombra }}">Más filtros</button>
+        </div>
+        <sc-if value="{{ tabLista }}" hint-placeholder-val="{{ true }}">
+          <ul style="list-style: none; margin: 8px 0 0; padding: 0 16px 16px; overflow: auto; display: flex; flex-direction: column">
+            <sc-for list="{{ visiblesLista }}" as="r" hint-placeholder-count="4">
+              <li style="border-bottom: 1px solid #E3E7EC">
+                <button type="button" onClick="{{ r.pick }}" style="width: 100%; min-height: 64px; padding: 10px 0; border: 0; background: transparent; text-align: left; display: flex; align-items: center; gap: 12px; font-family: 'Barlow', sans-serif; color: #141B24">
+                  <span aria-hidden="true" style="width: 12px; height: 12px; border-radius: 50%; flex: none; background: {{ r.fill }}; box-shadow: 0 0 0 1.5px #FFFFFF, 0 0 0 2.5px #5B6472"></span>
+                  <span style="display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1">
+                    <span style="font-size: 15px; font-weight: 600">{{ r.titulo }}</span>
+                    <span style="font-size: 13px; color: #4D5866">{{ r.estadoTxt }} · {{ r.categoria }} · {{ r.fecha }}</span>
+                  </span>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4D5866" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg>
+                </button>
+              </li>
+            </sc-for>
+          </ul>
+        </sc-if>
+        <sc-if value="{{ tabFiltros }}" hint-placeholder-val="{{ false }}">
+          <form style="padding: 12px 16px 16px; display: flex; flex-direction: column; gap: 14px; overflow: auto">
+            <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+              <label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 600">Distrito<select style="min-height: 44px; border: 2px solid #1D1F21; border-radius: 3px; padding: 0 10px; background: #FFFFFF; font: 400 16px 'Barlow', sans-serif; color: #141B24"><option>Todos</option><option>Miraflores</option></select></label>
+              <label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 600">Tipo de daño<select style="min-height: 44px; border: 2px solid #1D1F21; border-radius: 3px; padding: 0 10px; background: #FFFFFF; font: 400 16px 'Barlow', sans-serif; color: #141B24"><option>Todos</option><option>Bache</option></select></label>
+              <label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 600">Desde<input type="date" style="min-height: 44px; border: 2px solid #1D1F21; border-radius: 3px; padding: 0 8px; font: 400 16px 'Barlow', sans-serif; color: #141B24"></label>
+              <label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 600">Hasta<input type="date" style="min-height: 44px; border: 2px solid #1D1F21; border-radius: 3px; padding: 0 8px; font: 400 16px 'Barlow', sans-serif; color: #141B24"></label>
+            </div>
+            <fieldset style="margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 4px">
+              <legend style="font-size: 14px; font-weight: 600; margin-bottom: 4px">Capas del mapa</legend>
+              <label style="min-height: 44px; display: flex; align-items: center; gap: 10px; font-size: 15px"><input type="checkbox" checked="{{ marcadores }}" onChange="{{ toggleMarcadores }}" style="width: 20px; height: 20px; accent-color: #17191B">Marcadores de reportes</label>
+              <label style="min-height: 44px; display: flex; align-items: center; gap: 10px; font-size: 15px"><input type="checkbox" checked="{{ calor }}" onChange="{{ toggleCalor }}" style="width: 20px; height: 20px; accent-color: #17191B">Mapa de calor</label>
+            </fieldset>
+            <button type="button" style="align-self: flex-start; min-height: 44px; padding: 0 14px; border: 2px solid #1D1F21; border-radius: 3px; background: #FFFFFF; color: #141B24; font: 600 16px 'Barlow', sans-serif">Limpiar filtros</button>
+          </form>
+        </sc-if>
+      </sc-if>
+    </sc-if>
+  </section>
+
+  <!-- Navegación inferior (ciudadano con sesión) -->
+  <nav aria-label="Principal" style="position: absolute; left: 0; right: 0; bottom: 0; height: 72px; box-sizing: border-box; background: #FFFFFF; border-top: 1px solid #D6DBE1; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); align-items: stretch">
+    <a href="#mapa" aria-current="page" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; text-decoration: none; color: #141B24; font-size: 12px; font-weight: 700; box-shadow: inset 0 3px 0 #17191B"><svg width="22" height="32" viewBox="0 -4 24 32" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z"></path><path d="M15 5.764v15"></path><path d="M9 3.236v15"></path></svg>Mapa</a>
+    <a href="Mis-reportes-movil.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; text-decoration: none; color: #4D5866; font-size: 12px; font-weight: 600"><svg width="22" height="32" viewBox="0 -4 24 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="8" height="4" x="8" y="2" rx="1"></rect><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><path d="M12 11h4"></path><path d="M12 16h4"></path><path d="M8 11h.01"></path><path d="M8 16h.01"></path></svg>Mis reportes</a>
+    <a href="Reportar-movil.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; text-decoration: none; color: #141B24; font-size: 12px; font-weight: 700"><span style="width: 40px; height: 32px; border-radius: 3px; background: #FFC20E; border: 2px solid #17191B; box-sizing: border-box; color: #17191B; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg></span>Reportar</a>
+    <a href="Desempeno-escritorio.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; text-decoration: none; color: #4D5866; font-size: 12px; font-weight: 600"><svg width="22" height="32" viewBox="0 -4 24 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v16a2 2 0 0 0 2 2h16"></path><path d="M18 17V9"></path><path d="M13 17V5"></path><path d="M8 17v-3"></path></svg>Desempeño</a>
+    <a href="#cuenta" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; text-decoration: none; color: #4D5866; font-size: 12px; font-weight: 600"><svg width="22" height="32" viewBox="0 -4 24 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>Cuenta</a>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { hoja: 'baja', pestana: 'lista', sel: null, calor: false, marcadores: true, estado: 'TODOS' };
+  }
+  renderVals() {
+    const s = this.state;
+    const ESTILO = {
+      PENDIENTE: { nombre: 'Pendiente', fill: '#C8231B', bg: '#FDE3E1', fg: '#9B1C14', halo: '0.55' },
+      RECIBIDO: { nombre: 'Recibido', fill: '#2E6BE6', bg: '#DDE8FC', fg: '#1A3F8F', halo: '0.55' },
+      EN_PROCESO: { nombre: 'En proceso', fill: '#F0A800', bg: '#FDEFC3', fg: '#6E4100', halo: '1' },
+      RESUELTO: { nombre: 'Resuelto', fill: '#126B3F', bg: '#D9F5E3', fg: '#0B5A33', halo: '0.55' },
+      RECHAZADO: { nombre: 'Rechazado', fill: '#4B5563', bg: '#E7EAEE', fg: '#3A4452', halo: '0.55' }
+    };
+    const R = [
+      { id: 1, titulo: 'Bache profundo en la vía', estado: 'PENDIENTE', categoria: 'Bache', severidad: 'Alta', distrito: 'Miraflores', fecha: '14/10/2026', vecinos: 3, x: 206, y: 428 },
+      { id: 2, titulo: 'Asfalto deteriorado en todo el tramo', estado: 'RECIBIDO', categoria: 'Pista deteriorada', severidad: 'Baja', distrito: 'Miraflores', fecha: '02/10/2026', vecinos: 3, x: 118, y: 300 },
+      { id: 3, titulo: 'Semáforo sin funcionar en cruce', estado: 'EN_PROCESO', categoria: 'Semáforo averiado', severidad: 'Media', distrito: 'Miraflores', fecha: '09/10/2026', vecinos: 2, x: 214, y: 252 },
+      { id: 4, titulo: 'Bache frente al parque Kennedy', estado: 'RESUELTO', categoria: 'Bache', severidad: 'Media', distrito: 'Miraflores', fecha: '21/07/2026', vecinos: 2, x: 168, y: 470 },
+      { id: 5, titulo: 'Vereda rota frente a paradero', estado: 'RESUELTO', categoria: 'Vereda dañada', severidad: 'Baja', distrito: 'Surquillo', fecha: '03/08/2026', vecinos: 2, x: 290, y: 372 },
+      { id: 6, titulo: 'Falta señal de pare', estado: 'PENDIENTE', categoria: 'Señalización faltante', severidad: 'Media', distrito: 'San Isidro', fecha: '11/10/2026', vecinos: 1, x: 80, y: 168 },
+      { id: 7, titulo: 'Hueco peligroso para motos', estado: 'EN_PROCESO', categoria: 'Hueco en calzada', severidad: 'Alta', distrito: 'Barranco', fecha: '05/10/2026', vecinos: 4, x: 330, y: 522 },
+      { id: 8, titulo: 'Vereda rota frente a paradero', estado: 'RECHAZADO', categoria: 'Vereda dañada', severidad: 'Media', distrito: 'Surquillo', fecha: '10/09/2026', vecinos: 1, x: 262, y: 178 },
+      { id: 9, titulo: 'Hueco peligroso para motos', estado: 'RESUELTO', categoria: 'Hueco en calzada', severidad: 'Baja', distrito: 'Miraflores', fecha: '15/09/2026', vecinos: 3, x: 64, y: 410 },
+      { id: 10, titulo: 'Bache profundo en la vía', estado: 'RECIBIDO', categoria: 'Bache', severidad: 'Media', distrito: 'Barranco', fecha: '18/10/2026', vecinos: 1, x: 250, y: 566 }
+    ];
+    const filtrados = R.filter((r) => s.estado === 'TODOS' || r.estado === s.estado);
+    const decorar = (r) => {
+      const e = ESTILO[r.estado];
+      return Object.assign({}, r, {
+        fill: e.fill, halo: e.halo, estadoTxt: e.nombre, chipBg: e.bg, chipFg: e.fg,
+        bx: r.x - 22, by: r.y - 42, sel: s.sel === r.id, selTxt: s.sel === r.id ? 'true' : 'false', escala: s.sel === r.id ? '1.3' : '1', z: s.sel === r.id ? '5' : '1', sevMin: r.severidad.toLowerCase(),
+        etiqueta: e.nombre + ': ' + r.titulo,
+        esPendiente: r.estado === 'PENDIENTE', esRecibido: r.estado === 'RECIBIDO', esEnProceso: r.estado === 'EN_PROCESO',
+        esResuelto: r.estado === 'RESUELTO', esRechazado: r.estado === 'RECHAZADO',
+        pick: () => this.setState({ sel: r.id, hoja: 'alta' })
+      });
+    };
+    const visibles = filtrados.map(decorar);
+    const opciones = [{ k: 'TODOS', nombre: 'Todos', punto: '#FFFFFF', puntoBorde: '#5B6472' }].concat(
+      Object.keys(ESTILO).map((k) => ({ k, nombre: ESTILO[k].nombre, punto: ESTILO[k].fill, puntoBorde: '#5B6472' }))
+    );
+    const chips = opciones.map((o) => {
+      const on = s.estado === o.k;
+      return Object.assign({}, o, {
+        pressed: on ? 'true' : 'false',
+        bg: on ? '#17191B' : '#FFFFFF', fg: on ? '#FFC20E' : '#17191B',
+        borde: on ? '2px solid #17191B' : '2px solid #1D1F21',
+        pick: () => this.setState({ estado: o.k, sel: null })
+      });
+    });
+    const selR = s.sel ? visibles.find((r) => r.id === s.sel) : null;
+    const abierta = s.hoja === 'alta';
+    const alto = selR ? 262 : (abierta ? 470 : 150);
+    return {
+      visibles, visiblesLista: visibles, chips, total: filtrados.length,
+      marcadores: s.marcadores, calor: s.calor,
+      calorTxt: s.calor ? 'true' : 'false', calorBg: s.calor ? '#17191B' : '#FFFFFF', calorFg: s.calor ? '#FFC20E' : '#17191B',
+      haySel: !!selR, sinSel: !selR, sel: selR || {},
+      abierta, hojaAlto: alto, leyendaAbajo: alto + 72 + 12, leyendaVisible: s.calor && !selR,
+      hojaTxt: abierta || selR ? 'true' : 'false',
+      hojaEtiqueta: abierta ? 'Contraer la hoja de resultados' : 'Expandir la hoja de resultados',
+      verTxt: abierta ? 'Ocultar' : 'Ver lista',
+      tabLista: s.pestana === 'lista', tabFiltros: s.pestana === 'filtros',
+      tabListaTxt: s.pestana === 'lista' ? 'true' : 'false', tabFiltrosTxt: s.pestana === 'filtros' ? 'true' : 'false',
+      tabListaBg: s.pestana === 'lista' ? '#FFFFFF' : 'transparent', tabFiltrosBg: s.pestana === 'filtros' ? '#FFFFFF' : 'transparent',
+      tabListaSombra: s.pestana === 'lista' ? '0 1px 2px rgba(20,27,36,0.2)' : 'none', tabFiltrosSombra: s.pestana === 'filtros' ? '0 1px 2px rgba(20,27,36,0.2)' : 'none',
+      toggleHoja: () => this.setState({ hoja: abierta || selR ? 'baja' : 'alta', sel: null }),
+      verLista: () => this.setState({ pestana: 'lista' }),
+      verFiltros: () => this.setState({ pestana: 'filtros' }),
+      cerrarSel: () => this.setState({ sel: null, hoja: 'baja' }),
+      toggleCalor: () => this.setState({ calor: !s.calor }),
+      toggleMarcadores: () => this.setState({ marcadores: !s.marcadores })
+    };
+  }
+}
+</script>
+</body>
+</html>
