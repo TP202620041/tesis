@@ -151,7 +151,10 @@ docker run -p 8080:8080 -e JWT_SECRET=… -e DB_URL=… -e DB_USERNAME=… \
 - **Variables de la imagen:** `SPRING_PROFILES_ACTIVE=prod` (sin ella `local`
   llegaría por defecto; ver SEC-03), `FOTOS_DIR=/data/fotos` y
   `JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75 -Djava.awt.headless=true"`
-  (heap al 75 % de la memoria del contenedor; POI usa AWT sin pantalla).
+  (heap al 75 % de la memoria del contenedor; POI usa AWT sin pantalla). Si
+  la plataforma define su propio `JAVA_TOOL_OPTIONS` (el runbook fija el heap
+  con `-Xmx`), reemplaza este entero; por eso `-Djava.awt.headless=true` va
+  también en el `ENTRYPOINT`.
 - `.dockerignore` deja fuera `target/`, `uploads/`, los logs, los archivos del
   IDE y `.env`, para que un archivo con secretos nunca llegue al contexto de
   build.

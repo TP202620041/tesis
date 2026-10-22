@@ -46,4 +46,6 @@ ENV SPRING_PROFILES_ACTIVE=prod \
 
 USER viasegura
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "application.jar"]
+# headless tambien aqui: si la plataforma define su propio JAVA_TOOL_OPTIONS
+# (el runbook fija el heap asi), reemplaza el de arriba entero.
+ENTRYPOINT ["java", "-Djava.awt.headless=true", "-jar", "application.jar"]
