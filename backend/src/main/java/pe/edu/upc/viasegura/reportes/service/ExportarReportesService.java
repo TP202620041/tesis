@@ -19,6 +19,7 @@ import pe.edu.upc.viasegura.reportes.domain.RangoFechas;
 import pe.edu.upc.viasegura.reportes.domain.Reporte;
 import pe.edu.upc.viasegura.reportes.dto.FormatoExportacion;
 import pe.edu.upc.viasegura.reportes.port.ExportadorReportes;
+import pe.edu.upc.viasegura.reportes.port.TextoLibre;
 import pe.edu.upc.viasegura.reportes.repository.AsignacionResponsableRepository;
 import pe.edu.upc.viasegura.reportes.repository.ReporteRepository;
 
@@ -111,10 +112,12 @@ public class ExportarReportesService {
         String responsable = asignacionRepository.findByReporteIdAndActivoTrue(r.getId())
                 .map(a -> a.getResponsable())
                 .orElse("");
+        // SEC-04: lo que escribio una persona va como TextoLibre, para que el
+        // CSV lo neutralice si empieza como formula; lo que arma el sistema, no.
         return List.of(
                 r.getId(),
-                r.getTitulo(),
-                r.getCategoria().getNombre(),
+                new TextoLibre(r.getTitulo()),
+                new TextoLibre(r.getCategoria().getNombre()),
                 r.getEstado().etiqueta(),
                 r.getSeveridad() != null ? r.getSeveridad().etiqueta() : "",
                 r.getTotalAdhesiones(),
@@ -122,6 +125,6 @@ public class ExportarReportesService {
                 String.format(Locale.ROOT, "%.6f, %.6f", r.getUbicacion().getY(), r.getUbicacion().getX()),
                 FORMATO_FECHA.format(r.getCreatedAt()),
                 r.getResolvedAt() != null ? FORMATO_FECHA.format(r.getResolvedAt()) : "",
-                responsable);
+                new TextoLibre(responsable));
     }
 }

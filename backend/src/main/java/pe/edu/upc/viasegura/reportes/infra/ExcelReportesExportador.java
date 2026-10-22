@@ -10,6 +10,7 @@ import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Component;
 import pe.edu.upc.viasegura.reportes.port.ExportadorReportes;
+import pe.edu.upc.viasegura.reportes.port.TextoLibre;
 
 /**
  * Exportacion a XLSX con Apache POI (US-28).
@@ -45,10 +46,16 @@ public class ExcelReportesExportador implements ExportadorReportes {
                     Cell celda = filaExcel.createCell(i);
                     // QA-1 M-5: los numeros como celdas numericas (ordenar y
                     // sumar el ID o las adhesiones); el resto, como texto.
-                    if (valores.get(i) instanceof Number numero) {
+                    // SEC-04: setCellValue(String) crea una celda de TEXTO, que
+                    // Excel nunca evalua aunque empiece por "=": el texto libre
+                    // va tal cual, sin el apostrofo que necesita el CSV.
+                    Object valor = valores.get(i);
+                    if (valor instanceof Number numero) {
                         celda.setCellValue(numero.doubleValue());
+                    } else if (valor instanceof TextoLibre libre) {
+                        celda.setCellValue(libre.valor());
                     } else {
-                        celda.setCellValue(String.valueOf(valores.get(i)));
+                        celda.setCellValue(String.valueOf(valor));
                     }
                 }
             }

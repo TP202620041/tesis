@@ -30,10 +30,12 @@ import pe.edu.upc.viasegura.common.geo.GeometryUtils;
 import pe.edu.upc.viasegura.common.security.JwtService;
 import pe.edu.upc.viasegura.distritos.domain.Distrito;
 import pe.edu.upc.viasegura.distritos.repository.DistritoRepository;
+import pe.edu.upc.viasegura.reportes.domain.AsignacionResponsable;
 import pe.edu.upc.viasegura.reportes.domain.CategoriaDano;
 import pe.edu.upc.viasegura.reportes.domain.EstadoReporte;
 import pe.edu.upc.viasegura.reportes.domain.Reporte;
 import pe.edu.upc.viasegura.reportes.domain.Severidad;
+import pe.edu.upc.viasegura.reportes.repository.AsignacionResponsableRepository;
 import pe.edu.upc.viasegura.reportes.repository.CategoriaDanoRepository;
 import pe.edu.upc.viasegura.reportes.repository.ReporteRepository;
 import pe.edu.upc.viasegura.support.AbstractPostgisIT;
@@ -57,6 +59,8 @@ class ExportarReportesIT extends AbstractPostgisIT {
     ReporteRepository reporteRepository;
     @Autowired
     JdbcTemplate jdbcTemplate;
+    @Autowired
+    AsignacionResponsableRepository asignacionRepository;
 
     /** Encabezados en el orden del archivo (QA-1 M-5). */
     private static final List<String> COLUMNAS = List.of(
@@ -126,6 +130,10 @@ class ExportarReportesIT extends AbstractPostgisIT {
         return mockMvc.perform(peticion)
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsByteArray();
+    }
+
+    private static List<String> filaDe(List<List<String>> filas, Reporte r) {
+        return filas.stream().filter(f -> f.get(0).equals(r.getId().toString())).findFirst().orElseThrow();
     }
 
     /** CSV sin el BOM, en filas: comillas dobles con escape RFC 4180 (los valores pueden tener comas). */
@@ -212,6 +220,46 @@ class ExportarReportesIT extends AbstractPostgisIT {
                 "2026-10-21 20:28",
                 "2026-10-21 22:05",
                 "");
+    }
+
+    @Test
+    void csv_textoLibreQueEmpiezaComoFormula_llevaApostrofo_yLaUbicacionNo() throws Exception {
+        // SEC-04 (CWE-1236): el título lo escribe el ciudadano y el responsable,
+        // el funcionario; abiertos en Excel, «=…», «-…» o «@…» se evaluarían
+        // como fórmula. La ubicación también empieza por «-», pero la arma el
+        // sistema: sin apostrofo.
+        Distrito miraflores = distrito("Miraflores");
+        Usuario func = funcionario(miraflores);
+        CategoriaDano categoria = categoria();
+        Reporte igual = reporteCompleto(miraflores, categoria, "=HYPERLINK(\"http://malo.example\",\"Ver\")",
+                EstadoReporte.EN_PROCESO, Severidad.MEDIA, 1, null);
+        Reporte menos = reporteCompleto(miraflores, categoria, "-2+3 bache en la esquina",
+                EstadoReporte.RECIBIDO, Severidad.MEDIA, 1, null);
+        asignacionRepository.save(AsignacionResponsable.builder()
+                .reporte(menos).responsable("@cuadrilla norte").asignadoPor(func).activo(true).build());
+
+        List<List<String>> filas = leerCsv(exportar(func, "CSV", null));
+
+        List<String> filaIgual = filaDe(filas, igual);
+        assertThat(filaIgual.get(1)).isEqualTo("'=HYPERLINK(\"http://malo.example\",\"Ver\")");
+        assertThat(filaIgual.get(6)).isEqualTo("-12.121500, -77.029700");
+        List<String> filaMenos = filaDe(filas, menos);
+        assertThat(filaMenos.get(1)).isEqualTo("'-2+3 bache en la esquina");
+        assertThat(filaMenos.get(9)).isEqualTo("'@cuadrilla norte");
+    }
+
+    @Test
+    void xlsx_textoLibreQueEmpiezaComoFormula_esCeldaDeTextoTalCual() throws Exception {
+        // En el XLSX una celda de texto nunca se evalúa: va sin apostrofo.
+        Distrito miraflores = distrito("Miraflores");
+        Usuario func = funcionario(miraflores);
+        reporteCompleto(miraflores, categoria(), "=1+1 bache grande", EstadoReporte.EN_PROCESO, Severidad.MEDIA, 1, null);
+
+        try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(exportar(func, "XLSX", null)))) {
+            XSSFRow fila = workbook.getSheetAt(0).getRow(1);
+            assertThat(fila.getCell(1).getCellType()).isEqualTo(CellType.STRING);
+            assertThat(fila.getCell(1).getStringCellValue()).isEqualTo("=1+1 bache grande");
+        }
     }
 
     @Test

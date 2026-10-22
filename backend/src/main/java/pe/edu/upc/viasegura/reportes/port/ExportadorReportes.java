@@ -24,10 +24,13 @@ public interface ExportadorReportes {
      *
      * @param columnas encabezados, en orden
      * @param filas valores de cada fila, en el mismo orden que {@code columnas}:
-     *              {@link String} o {@link Number} (QA-1 M-5: el XLSX escribe
-     *              los numeros como celdas numericas, para que el ID y las
-     *              adhesiones se ordenen y sumen como numeros); nunca
-     *              {@code null}, una celda vacia es {@code ""}
+     *              {@link String} (texto que arma el sistema),
+     *              {@link TextoLibre} (texto que escribio una persona: cada
+     *              formato lo neutraliza a su manera, SEC-04) o
+     *              {@link Number} (QA-1 M-5: el XLSX escribe los numeros como
+     *              celdas numericas, para que el ID y las adhesiones se
+     *              ordenen y sumen como numeros); nunca {@code null}, una
+     *              celda vacia es {@code ""}
      */
     byte[] escribir(List<String> columnas, List<List<Object>> filas);
 }

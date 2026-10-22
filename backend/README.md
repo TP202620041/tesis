@@ -684,6 +684,17 @@ registra V18: se renombra esa categoría a mano y se vuelve a arrancar. En
 producción no puede pasar, porque arranca sin categorías de distrito; en las
 bases locales y en `viasegura_test` se comprobó antes de migrar.
 
+**Límite de la comprobación: `lower()` depende del `LC_CTYPE` de la base.**
+Con un `LC_CTYPE` UTF-8 (`en_US.utf8` en el contenedor `postgis/postgis`,
+comprobado en `viasegura_test`) `lower('SEMÁFORO')` es `semáforo` y la
+comprobación detecta también «SEMÁFORO AVERIADO». Con el locale `C`, `lower()`
+solo baja las letras ASCII: «SEMÁFORO AVERIADO» pasaría sin detectarse,
+aunque «Semáforo averiado» o «semáforo averiado» sí se detectan. Es el mismo
+criterio que ya aplica el servicio (la consulta derivada usa `upper()` en
+SQL), así que V18 no es más permisiva que la validación de cada día. No se
+documenta en el SQL de V18 porque cambiar un comentario cambia su checksum y
+la migración ya está aplicada.
+
 «Hueco en calzada» no se toca aquí: su desactivación (decisión de ML del
 21/10) va con la migración de NC-04. La categoría de distrito «Malecon
 erosionado» que cita QA-1 es un dato de una base local y se corrige desde la
@@ -753,8 +764,10 @@ lista de textos, ahora sin el prefijo `campo: `.
   restricción se lee donde se declara la regla.
 - **Guarda de completitud.** `MensajesDeValidacionTest` (Surefire) recorre las
   clases de todos los paquetes `dto` y falla si alguna restricción de
-  `jakarta.validation.constraints` conserva su mensaje por defecto (y si no
-  encuentra ninguna, para no pasar en vacío). Si aun así llegara una,
+  `jakarta.validation.constraints` o de `org.hibernate.validator.constraints`
+  conserva su mensaje por defecto (plantillas `{jakarta.validation.…}` y
+  `{org.hibernate.validator.…}`; y si no encuentra ninguna, para no pasar en
+  vacío). Si aun así llegara una,
   `GlobalExceptionHandler` le antepone el campo, como antes.
 - **Las rutas multipart no pasan por `@Valid`.** La creación del reporte y la
   edición del perfil validan en el servicio; ahí faltaban dos topes que
@@ -826,9 +839,13 @@ funcionario necesita para despachar o rendir cuentas. Las columnas son ahora:
   «Ubicación (lat, lon)» partía el encabezado en dos columnas y quedaba una
   columna más que en los datos. Ahora todo valor va entre comillas (RFC 4180).
 - **Números como números en el XLSX.** El puerto `ExportadorReportes` recibe
-  las celdas como `String` o `Number`; Apache POI escribe los `Number` como
-  celdas numéricas, para que el ID y las adhesiones se ordenen y sumen como
-  números y no como texto («10» antes que «2»).
+  las celdas como `String`, `TextoLibre` o `Number`; Apache POI escribe los
+  `Number` como celdas numéricas, para que el ID y las adhesiones se ordenen
+  y sumen como números y no como texto («10» antes que «2»).
+- **Sin inyección de fórmulas en el CSV** (SEC-04): el título, la categoría y
+  el responsable, que escribe una persona, llevan un apóstrofo delante si
+  empiezan por `=`, `+`, `-`, `@`, tabulador o retorno de carro. Ver
+  [SEC-04](#sec-04--el-csv-exportado-podía-ejecutar-fórmulas-en-excel).
 
 `ExportarReportesIT` lee el CSV con un analizador RFC 4180 (un título con
 comillas y coma), comprueba el BOM, las diez columnas en cada fila, una fila
@@ -1198,6 +1215,50 @@ defecto con la bandera en `true` y que, aun así, no arranca (con solo la
 bandera, la misma prueba llegaba hasta la conexión a la base). `PerfilProdIT`
 arranca el perfil `prod` con un secreto propio, comprueba que ahí la bandera
 queda en `false` y que un token forjado con el secreto publicado recibe 401.
+
+### SEC-04 — El CSV exportado podía ejecutar fórmulas en Excel
+
+**Detectado:** 2026-10-22, en la revisión de la tarea QA-1 (PR #100), antes
+de llegar a `develop`.
+**Estado:** corregido y cubierto por tests.
+
+**El problema (CWE-1236, *CSV injection*).** La exportación municipal (US-28)
+escribe en el CSV el título del reporte, que escribe cualquier ciudadano, el
+nombre de la categoría (las de distrito las nombra el funcionario) y el
+responsable (texto libre del funcionario). Excel evalúa como fórmula una
+celda de CSV que empieza por `=`, `+`, `-`, `@`, tabulador o retorno de carro,
+aunque vaya entre comillas. Con QA-1 M-5 el CSV lleva BOM UTF-8 precisamente
+para que el funcionario lo abra con doble clic en Excel.
+
+**Por qué importaba.** Un ciudadano podía crear un reporte titulado
+`=HYPERLINK("http://…";"Ver")` (o con funciones de llamada a otros
+programas en versiones de Excel que las permiten) y la fórmula se ejecutaba en
+el equipo del funcionario que exportaba la bandeja de su distrito: un enlace a
+un sitio malicioso con apariencia de dato municipal, o la filtración del
+contenido de otras celdas.
+
+**La corrección.**
+
+- El servicio marca como `reportes/port/TextoLibre` cada celda que escribió
+  una persona (título, categoría y responsable). Lo que arma el sistema
+  (estado, severidad, fechas y ubicación) va como `String` y los números como
+  `Number`.
+- `CsvReportesExportador` antepone un apóstrofo (`'`) a las celdas
+  `TextoLibre` que empiezan por uno de esos caracteres, la neutralización que
+  recomienda OWASP, y después escapa las comillas (RFC 4180). La ubicación de
+  Lima empieza por `-` pero la arma el sistema, así que no se toca.
+- `ExcelReportesExportador` no necesita el apóstrofo: `setCellValue(String)`
+  crea una celda de **texto**, que Excel nunca evalúa, y el texto va tal cual.
+- Se marca por celda y no se neutraliza en el servicio porque la regla es del
+  formato: un apóstrofo en el XLSX se vería como un carácter más del título.
+
+**Regresión:** `ExportadoresSinInyeccionDeFormulasTest` (Surefire) recorre los
+seis caracteres, el escape de comillas después del apóstrofo, que no se toca
+el texto normal, la ubicación ni los números, y que en el XLSX una celda
+`=1+1` es de tipo texto. `ExportarReportesIT` lo comprueba de punta a punta:
+un título `=HYPERLINK(…)` y otro `-2+3 …` y un responsable `@cuadrilla` salen
+con apóstrofo en el CSV, la ubicación sin él, y en el XLSX el título `=1+1 …`
+es una celda de texto sin apóstrofo.
 
 ## Frescura del índice de desempeño
 

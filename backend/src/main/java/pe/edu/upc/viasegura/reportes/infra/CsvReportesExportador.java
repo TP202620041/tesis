@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import org.springframework.stereotype.Component;
 import pe.edu.upc.viasegura.reportes.port.ExportadorReportes;
+import pe.edu.upc.viasegura.reportes.port.TextoLibre;
 
 /**
  * Exportacion a CSV (US-28).
@@ -19,11 +20,23 @@ import pe.edu.upc.viasegura.reportes.port.ExportadorReportes;
  * {@code EF BB BF} al inicio lo lee como UTF-8. Los lectores de CSV que
  * siguen el estandar (LibreOffice, pandas con {@code utf-8-sig}) lo
  * ignoran.</p>
+ *
+ * <p><b>Sin inyeccion de formulas</b> (SEC-04, CWE-1236). Excel evalua como
+ * formula una celda de CSV que empieza por {@code =}, {@code +}, {@code -},
+ * {@code @}, tabulador o retorno de carro, aunque vaya entre comillas. Un
+ * titulo como {@code =HYPERLINK("http://…";"Ver")} se convertiria en un
+ * enlace en la hoja del funcionario. A las celdas {@link TextoLibre} que
+ * empiezan asi se les antepone un apostrofo, la neutralizacion que recomienda
+ * OWASP. Solo a esas: la ubicacion de Lima empieza por {@code -} y la arma el
+ * sistema, igual que los numeros.</p>
  */
 @Component
 public class CsvReportesExportador implements ExportadorReportes {
 
     static final byte[] BOM_UTF8 = {(byte) 0xEF, (byte) 0xBB, (byte) 0xBF};
+
+    /** Primeros caracteres con los que una hoja de calculo interpreta una formula (OWASP, CSV Injection). */
+    static final String INICIOS_DE_FORMULA = "=+-@\t\r";
 
     @Override
     public String extension() {
@@ -48,12 +61,27 @@ public class CsvReportesExportador implements ExportadorReportes {
         return salida.toByteArray();
     }
 
+    /** Texto de la celda antes del escape de comillas: el texto libre, neutralizado. */
+    static String texto(Object valor) {
+        if (valor instanceof TextoLibre libre) {
+            return neutralizarFormula(libre.valor());
+        }
+        return String.valueOf(valor);
+    }
+
+    static String neutralizarFormula(String texto) {
+        if (!texto.isEmpty() && INICIOS_DE_FORMULA.indexOf(texto.charAt(0)) >= 0) {
+            return "'" + texto;
+        }
+        return texto;
+    }
+
     private static void linea(StringBuilder sb, List<?> valores) {
         for (int i = 0; i < valores.size(); i++) {
             if (i > 0) {
                 sb.append(',');
             }
-            sb.append('"').append(String.valueOf(valores.get(i)).replace("\"", "\"\"")).append('"');
+            sb.append('"').append(texto(valores.get(i)).replace("\"", "\"\"")).append('"');
         }
         sb.append('\n');
     }
