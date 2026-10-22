@@ -7,7 +7,7 @@ import { Icono } from '@/components/ui/Icono';
 import type { Usuario } from '@/lib/types/domain';
 import { descripcionDeCuenta, iniciales, type ItemNavegacion } from '../model/navegacion';
 import { BotonCerrarSesion } from './BotonCerrarSesion';
-import { ICONOS_DE_NAVEGACION } from './iconosDeNavegacion';
+import { ETIQUETA_INFERIOR, ICONOS_DE_NAVEGACION } from './iconosDeNavegacion';
 
 interface MenuCuentaProps {
   /** `null`: hay sesión pero no se pudo saber de quién (sin red). */
@@ -79,7 +79,7 @@ export function MenuCuenta({ usuario, items, variante, ruta, children }: MenuCue
         className={
           enCabecera
             ? 'inline-flex min-h-objetivo items-center gap-2 rounded-full border border-linea bg-superficie py-1 pr-3 pl-1 font-semibold text-texto hover:bg-superficie-2'
-            : `flex h-full w-full flex-col items-center justify-center gap-0.5 border-t-[3px] text-xs leading-tight ${
+            : `flex h-full w-full flex-col items-center justify-center gap-0.5 border-t-[3px] leading-tight ${ETIQUETA_INFERIOR} ${
                 abierto ? 'border-t-primario font-bold text-texto' : 'border-t-transparent font-semibold text-texto-2'
               }`
         }

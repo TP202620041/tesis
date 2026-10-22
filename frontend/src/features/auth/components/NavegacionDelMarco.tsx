@@ -8,7 +8,7 @@ import { Logo } from '@/components/ui/Logo';
 import type { Usuario } from '@/lib/types/domain';
 import { esRutaActual, navegacionDe, type ItemNavegacion } from '../model/navegacion';
 import type { UsuarioDelMarco } from '../hooks/useUsuarioDelMarco';
-import { ICONOS_DE_NAVEGACION } from './iconosDeNavegacion';
+import { ETIQUETA_INFERIOR, ICONOS_DE_NAVEGACION } from './iconosDeNavegacion';
 import { MenuCuenta } from './MenuCuenta';
 
 /** Rol para la navegación; `undefined` mientras se averigua quién mira. */
@@ -166,7 +166,8 @@ export function BarraInferiorDeLaApp({ usuario, ruta, extrasDeCuenta }: BarraInf
                 href={item.href}
                 aria-current={actual ? 'page' : undefined}
                 className={[
-                  'flex h-full flex-col items-center justify-center gap-0.5 border-t-[3px] text-center text-xs leading-tight whitespace-nowrap',
+                  'flex h-full flex-col items-center justify-center gap-0.5 border-t-[3px] text-center leading-tight',
+                  ETIQUETA_INFERIOR,
                   actual
                     ? 'border-t-primario font-bold text-texto'
                     : 'border-t-transparent font-semibold text-texto-2',
