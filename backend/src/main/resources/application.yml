@@ -87,10 +87,12 @@ app:
   # Primer ADMIN de un entorno (DEP-04, AdministradorInicialSeeder). Sin
   # valores por defecto: sin ADMIN_INICIAL_EMAIL no hace nada, y con algun
   # ADMIN en la base tampoco. En una base sin ADMIN crea la cuenta con
-  # ADMIN_INICIAL_PASSWORD (12 caracteres o mas) y ADMIN_INICIAL_NOMBRE
-  # (nombre completo, opcional); si el correo ya tiene cuenta, la app no
-  # arranca (nunca la promueve). Las variables se borran despues del primer
-  # arranque (README, "Operacion en produccion").
+  # ADMIN_INICIAL_PASSWORD (12 caracteres o mas y 72 bytes como maximo) y
+  # ADMIN_INICIAL_NOMBRE (nombre completo, opcional); si el correo ya tiene
+  # cuenta, la app no arranca (nunca la promueve). Despues del primer
+  # arranque se borra ADMIN_INICIAL_PASSWORD; las otras dos pueden quedar,
+  # porque con un ADMIN creado el seeder no hace nada (README, "Operacion en
+  # produccion").
   admin-inicial:
     email: ${ADMIN_INICIAL_EMAIL:}
     password: ${ADMIN_INICIAL_PASSWORD:}

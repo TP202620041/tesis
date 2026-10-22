@@ -2,7 +2,10 @@ package pe.edu.upc.viasegura.auth.infra;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
-import java.util.regex.Pattern;
+import jakarta.validation.Validator;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
@@ -69,10 +72,18 @@ public class AdministradorInicialSeeder implements ApplicationRunner {
 
     private static final int LONGITUD_MAXIMA_EMAIL = 150;
     private static final int LONGITUD_MAXIMA_NOMBRE = 100;
-    private static final Pattern FORMA_DE_CORREO = Pattern.compile("[^@\\s]+@[^@\\s]+");
+
+    /**
+     * Las mismas restricciones que el correo del registro publico
+     * ({@code RegistroRequest.email}): un correo que el registro rechazaria
+     * tampoco sirve para el ADMIN. Se repiten aqui porque un adaptador no
+     * depende de los contratos HTTP ({@code dto}, regla {@code capas}).
+     */
+    private record CorreoInicial(@NotBlank @Email @Size(max = LONGITUD_MAXIMA_EMAIL) String email) {}
 
     private final UsuarioRepository usuarioRepository;
     private final PasswordEncoder passwordEncoder;
+    private final Validator validator;
     private final String email;
     private final String password;
     private final String nombreCompleto;
@@ -80,11 +91,13 @@ public class AdministradorInicialSeeder implements ApplicationRunner {
     public AdministradorInicialSeeder(
             UsuarioRepository usuarioRepository,
             PasswordEncoder passwordEncoder,
+            Validator validator,
             @Value("${app.admin-inicial.email:}") String email,
             @Value("${app.admin-inicial.password:}") String password,
             @Value("${app.admin-inicial.nombre:}") String nombre) {
         this.usuarioRepository = usuarioRepository;
         this.passwordEncoder = passwordEncoder;
+        this.validator = validator;
         this.email = email == null ? "" : email.strip();
         // La contrasena no se recorta: los espacios son parte de ella, igual que en el registro.
         this.password = password == null ? "" : password;
@@ -106,10 +119,11 @@ public class AdministradorInicialSeeder implements ApplicationRunner {
             }
             return;
         }
-        if (email.length() > LONGITUD_MAXIMA_EMAIL || !FORMA_DE_CORREO.matcher(email).matches()) {
+        if (!validator.validateValue(CorreoInicial.class, "email", email).isEmpty()) {
             // Sin repetir el valor, por la misma razon.
-            throw new IllegalStateException("ADMIN_INICIAL_EMAIL no es un correo valido (forma usuario@dominio, "
-                    + LONGITUD_MAXIMA_EMAIL + " caracteres como maximo).");
+            throw new IllegalStateException("ADMIN_INICIAL_EMAIL no es un correo valido: debe cumplir las mismas"
+                    + " reglas que el registro (forma usuario@dominio, " + LONGITUD_MAXIMA_EMAIL
+                    + " caracteres como maximo).");
         }
 
         Optional<Usuario> existente = usuarioRepository.findByEmail(email);

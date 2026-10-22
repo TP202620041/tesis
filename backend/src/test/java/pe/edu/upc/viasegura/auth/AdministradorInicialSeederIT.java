@@ -9,11 +9,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.validation.Validator;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -72,10 +74,12 @@ class AdministradorInicialSeederIT extends AbstractPostgisIT {
     @Autowired
     PasswordEncoder passwordEncoder;
     @Autowired
+    Validator validator;
+    @Autowired
     JdbcTemplate jdbcTemplate;
 
     private AdministradorInicialSeeder seeder(String email, String password, String nombre) {
-        return new AdministradorInicialSeeder(usuarioRepository, passwordEncoder, email, password, nombre);
+        return new AdministradorInicialSeeder(usuarioRepository, passwordEncoder, validator, email, password, nombre);
     }
 
     private static String correo() {
@@ -284,8 +288,8 @@ class AdministradorInicialSeederIT extends AbstractPostgisIT {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"sin-arroba.admin-inicial.test", "dos@@admin-inicial.test", "con espacio" + DOMINIO})
-    void sinAdmin_correoMalFormado_fallaElArranqueSinRepetirElValor(String email) {
+    @MethodSource("pe.edu.upc.viasegura.auth.AdministradorInicialSeederTest#correosQueElRegistroRechaza")
+    void sinAdmin_correoQueElRegistroRechazaria_fallaElArranqueSinRepetirElValor(String email) {
         sinNingunAdmin();
         long antes = usuarioRepository.count();
 

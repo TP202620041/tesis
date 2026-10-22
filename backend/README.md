@@ -83,7 +83,7 @@ preferible que no arranque y que el log diga qué falta.
 | `FOTOS_DIR` | sí | Directorio de las fotos. La imagen ya trae `FOTOS_DIR=/data/fotos`. |
 | `PORT` | no (8080) | Lo inyecta la plataforma. |
 | `SPRINGDOC_HABILITADO` | no (`false`) | `true` publica `/v3/api-docs` y Swagger UI. |
-| `ADMIN_INICIAL_EMAIL`, `ADMIN_INICIAL_PASSWORD`, `ADMIN_INICIAL_NOMBRE` | solo en el primer arranque | Crean el primer ADMIN y se borran después (ver «Operación en producción»). |
+| `ADMIN_INICIAL_EMAIL`, `ADMIN_INICIAL_PASSWORD`, `ADMIN_INICIAL_NOMBRE` | solo en el primer arranque | Crean el primer ADMIN en una base sin ninguno. Después se borra `ADMIN_INICIAL_PASSWORD`; las otras dos pueden quedar (ver «Operación en producción»). |
 | `JWT_EXPIRATION_MINUTES`, `VAPID_*`, `PUSH_*`, `MAIL_*`, `NOTIF_FROM`, `LEGAL_VERSION_TERMINOS`, `ASYNC_*` | no | Las mismas de `application.yml`, con sus valores por defecto. |
 
 ### Qué cambia respecto de `local`
@@ -222,22 +222,24 @@ Los ADMIN siguientes se gestionan aparte (decisión del usuario, 22/10).
 
 1. En Railway › `backend` › Variables:
    - `ADMIN_INICIAL_EMAIL`: el correo de la persona, **sin cuenta** en la
-     plataforma.
-   - `ADMIN_INICIAL_PASSWORD`: 12 caracteres o más y como máximo 72 bytes
-     (el límite de BCrypt; menos caracteres si lleva tildes o eñes). Mejor
-     generada por un gestor de contraseñas.
+     plataforma. Debe cumplir las mismas reglas que el registro.
+   - `ADMIN_INICIAL_PASSWORD`, marcada como secreta: 12 caracteres o más y
+     72 bytes como máximo (el límite de BCrypt; menos caracteres si lleva
+     tildes o eñes). Mejor generada por un gestor de contraseñas.
    - `ADMIN_INICIAL_NOMBRE` (opcional): nombre completo. La primera palabra
      va a `nombre` y el resto a `apellido`; sin ella, «Administrador».
 2. Railway redespliega. En el log: `Administrador inicial creado: <correo>`.
    Es lo único que se registra: la contraseña nunca llega al log.
-3. **Borrar las tres variables** y dejar que Railway redespliegue. Si
-   quedan, cada arranque registra que ya existe un ADMIN y que las variables
-   se ignoran, más un aviso de que `ADMIN_INICIAL_PASSWORD` sigue definida;
-   nunca la vuelve a usar.
+3. **Borrar `ADMIN_INICIAL_PASSWORD`** (obligatorio) y dejar que Railway
+   redespliegue. `ADMIN_INICIAL_EMAIL` y `ADMIN_INICIAL_NOMBRE` pueden quedar
+   o borrarse: con un ADMIN ya creado, el seeder no hace nada. Si la
+   contraseña quedara, cada arranque avisaría en el log que sigue definida,
+   pero nunca la vuelve a usar.
 4. La persona inicia sesión en la PWA con esa contraseña y acepta los
    términos (la pantalla aparece sola: el seeder no registra consentimiento,
-   D-12). Cuando el correo saliente funcione (DEP-08), conviene que la
-   cambie con «¿Olvidaste tu contraseña?», para que solo ella la conozca.
+   D-12). No hay una pantalla para cambiar la contraseña: cuando el correo
+   saliente funcione (DEP-08), la cambia con «¿Olvidaste tu contraseña?»,
+   para que solo ella la conozca.
 
 | Situación al arrancar | Qué hace |
 |---|---|
@@ -245,7 +247,7 @@ Los ADMIN siguientes se gestionan aparte (decisión del usuario, 22/10).
 | Ya hay algún `ADMIN` (sea o no la cuenta de la variable) | Nada (log `INFO`, sin repetir el correo ni la contraseña). No valida las variables, no crea un segundo ADMIN aunque el correo sea nuevo y **nunca** cambia la contraseña ni el nombre de un ADMIN. |
 | Sin ADMIN y sin cuenta con ese correo | La crea: `ADMIN`, activa, sin distrito, con la contraseña hasheada por el `PasswordEncoder` de la aplicación. |
 | Sin ADMIN y el correo ya tiene cuenta (con otro rol, por fuerza) | **No arranca** («…nunca se promueve…»). |
-| Sin ADMIN, y falta la contraseña, tiene menos de 12 caracteres o más de 72 bytes, o el correo no tiene forma `usuario@dominio` | **No arranca**, sin crear nada y sin repetir el valor en el mensaje. |
+| Sin ADMIN, y falta la contraseña, tiene menos de 12 caracteres o más de 72 bytes, o el correo no cumple las reglas del registro (`@Email`, 150 caracteres como máximo) | **No arranca**, sin crear nada y sin repetir el valor en el mensaje. |
 
 Decisiones:
 
@@ -272,6 +274,23 @@ Decisiones:
   Tomcat ya escucha, así que `/actuator/health` puede responder un instante
   antes de que el proceso termine: el despliegue aparece caído y el motivo
   está en el log (`Application run failed`).
+- **La contraseña viaja por una variable**, la única vía que no la deja
+  escrita en el repositorio ni en el historial de la terminal. Por eso se
+  borra después del primer arranque. No es una migración Flyway: el hash
+  quedaría versionado y sería el mismo en todos los entornos.
+- **El correo, con las reglas del registro** (`@Email` y 150 caracteres): un
+  correo que el registro rechazaría (`ana@muni..pe`) tampoco sirve para el
+  ADMIN. Las restricciones se repiten en un `record` privado del seeder y se
+  validan con el `Validator` de Bean Validation, porque un adaptador de
+  `infra` no puede depender de `RegistroRequest` (`dto`, regla `capas`).
+- **Sin `@ConditionalOnProperty`.** Una variable definida pero vacía cuenta
+  como presente para esa anotación; el seeder siempre existe y decide con el
+  valor. Los tests fijan las tres propiedades en vacío
+  (`application-test.yml`), así que una variable en el entorno de quien los
+  corre no crea cuentas en la base de test.
+- Capas: el seeder está en `auth/infra` y solo usa el repositorio y el
+  dominio de su módulo, el `PasswordEncoder` y el `Validator`; no pasa por
+  `AuthService` (la capa de aplicación solo la usa la presentación, §4).
 
 **Verificación con el jar (2026-10-22)**, contra una base temporal vacía
 (Flyway V1–V17 y los seeders desde cero), borrada al final:
@@ -285,23 +304,15 @@ Decisiones:
    normal, con el `INFO` de que las variables se ignoran y el aviso de
    borrar la contraseña; ninguna cuenta nueva.
 
-En ninguno de los tres logs aparece la contraseña.
-- **La contraseña viaja por una variable**, la única vía que no la deja
-  escrita en el repositorio ni en el historial de la terminal. Por eso se
-  borra después del primer arranque. No es una migración Flyway: el hash
-  quedaría versionado y sería el mismo en todos los entornos.
-- **Sin `@ConditionalOnProperty`.** Una variable definida pero vacía cuenta
-  como presente para esa anotación; el seeder siempre existe y decide con el
-  valor. Los tests fijan las tres propiedades en vacío
-  (`application-test.yml`), así que una variable en el entorno de quien los
-  corre no crea cuentas en la base de test.
-- Capas: el seeder está en `auth/infra` y solo usa el repositorio y el
-  dominio de su módulo y el `PasswordEncoder`; no pasa por `AuthService`
-  (la capa de aplicación solo la usa la presentación, §4).
+En ninguno de los tres logs aparece la contraseña. (Medido antes de alinear
+la validación del correo con la del registro; esa regla la cubren los tests.)
 
-Lo prueba `AdministradorInicialSeederIT`: instancia el seeder con los
-valores de cada caso y llama a `run` (la excepción es la que recibiría
-`SpringApplication`), sin levantar un contexto por caso. La base de test es
+Tests. `AdministradorInicialSeederTest` (unitario, con el repositorio
+simulado) prueba que los correos que el registro rechazaría hacen fallar el
+arranque antes de buscar la cuenta. `AdministradorInicialSeederIT`, contra
+la base, instancia el seeder con los valores de cada caso y llama a `run`
+(la excepción es la que recibiría `SpringApplication`), sin levantar un
+contexto por caso. La base de test es
 compartida y otros IT dejan cuentas ADMIN, así que cada test corre en una
 transacción que se revierte: dentro de ella, los casos «sin ADMIN» pasan los
 ADMIN existentes a CIUDADANO, y al terminar todo vuelve a como estaba. Cubre
