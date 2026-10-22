@@ -143,8 +143,17 @@ railway connect postgis               # abre psql por túnel SSH (requiere psql 
    | `JAVA_TOOL_OPTIONS` | `-Xms256m -Xmx512m -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError` |
    | `SPRINGDOC_HABILITADO` | sin definir (Swagger apagado); `true` solo para una demo y después se quita |
 
-   **Mientras DEP-12 (fotos en R2) no esté en `main`**, las fotos van a disco. En ese caso:
-   - no se definen las variables `FOTOS_ALMACEN` ni `FOTOS_S3_*`;
+   **`FOTOS_ALMACEN` es obligatoria en el perfil `prod`** (DEP-12): sin ella la app no arranca, para que un despliegue nunca guarde fotos en un disco que se borra. Con R2, `s3` y las variables `FOTOS_S3_*` de la tabla. Opcional: `FOTOS_SANEADO_MAX_CONCURRENTES` (2 por defecto).
+
+   **Antes del primer despliegue con R2**, correr una vez `S3FotoStorageServiceIT` contra un **bucket R2 de prueba** (no los de producción). En la CI ese IT corre contra S3Mock, y esta es la única prueba contra R2 real de la codificación de envío (*chunked encoding*) y de los *checksums*:
+
+   ```bash
+   cd backend
+   FOTOS_S3_TEST_ENDPOINT=<endpoint R2> FOTOS_S3_TEST_ACCESS_KEY_ID=<clave de prueba> FOTOS_S3_TEST_SECRET_ACCESS_KEY=<secreto de prueba>      mvn verify -Dit.test=S3FotoStorageServiceIT   # ver backend/README.md, sección de fotos, para los nombres exactos
+   ```
+
+   **Si se despliega sin R2** (fotos en disco):
+   - `FOTOS_ALMACEN=local` y no se definen las variables `FOTOS_S3_*`;
    - se monta un *volume* en `/data` y se define `FOTOS_DIR=/data/fotos`;
    - se agrega `RAILWAY_RUN_UID=0`, porque el volumen se monta como root y la imagen corre sin privilegios (uid 10001). Esto hace correr el contenedor **como root**. Es temporal: se quita junto con el volumen cuando DEP-12 llega a producción (`backend/README.md`, «Configuración de producción»).
 

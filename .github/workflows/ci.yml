@@ -90,8 +90,16 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
+      # S3 de prueba para S3FotoStorageServiceIT (DEP-12): Adobe S3Mock
+      # (Apache-2.0; MinIO quedó archivado). El IT crea los buckets que falten
+      # y se omite si no existe FOTOS_S3_TEST_ENDPOINT.
+      s3mock:
+        image: adobe/s3mock:5.2.3
+        ports:
+          - 9090:9090
     env:
       TEST_DB_URL: jdbc:postgresql://localhost:5432/viasegura_test
+      FOTOS_S3_TEST_ENDPOINT: http://localhost:9090
       TEST_DB_USER: viasegura
       TEST_DB_PASSWORD: viasegura
       # Mínimos de tests ejecutados (sin contar los omitidos) que exige
