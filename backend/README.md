@@ -328,7 +328,15 @@ ADMIN.
 1. La persona se registra en la PWA como cualquier ciudadano: así su
    contraseña queda con el hash de la aplicación y su aceptación de los
    términos, registrada (D-12).
-2. Un operador con acceso a la base corre `backend/scripts/asignar-funcionario.sql`
+2. **Antes de asignar, la persona confirma que el registro le funcionó a
+   ella** (entra con su contraseña). El registro no verifica la propiedad
+   del correo: si al registrarse vio «El correo ya está registrado», alguien
+   pudo registrarse antes con su correo, y asignar le daría el rol a esa
+   cuenta. En ese caso no se asigna hasta que recupere la cuenta con
+   «¿Olvidaste tu contraseña?» (cuando funcione DEP-08) o se revise con ella.
+   El script muestra la fecha de registro de la cuenta (`created_at`, hora
+   de Lima) para compararla con lo que la persona recuerda.
+3. Un operador con acceso a la base corre `backend/scripts/asignar-funcionario.sql`
    con variables de `psql`, desde la raíz del repositorio:
 
    ```bash
@@ -347,8 +355,9 @@ ADMIN.
      -v email=persona@ejemplo.com -v distrito=Miraflores < backend/scripts/asignar-funcionario.sql
    ```
 
-   Si todo va bien, muestra la fila resultante (correo, rol, distrito).
-3. La persona recarga la PWA: no hace falta que vuelva a iniciar sesión
+   Si todo va bien, muestra la fila resultante (correo, rol, distrito, fecha
+   de registro).
+4. La persona recarga la PWA: no hace falta que vuelva a iniciar sesión
    (ver abajo).
 
 | Caso | `asignar` (por defecto) | `accion=revocar` |
@@ -378,11 +387,17 @@ Decisiones:
 - **Solo de `CIUDADANO` a funcionario.** Cambiar de distrito a un
   funcionario mueve su bandeja: se pide revocar y volver a asignar, para
   que no ocurra por un error de tipeo. Un ADMIN nunca se toca.
-- **Atómico.** Todas las comprobaciones y el `UPDATE` van en un solo bloque
-  `DO`: si algo falla, no cambia nada. El script activa `ON_ERROR_STOP`, así
-  que `psql` termina con código 3. Las variables de `psql` se borran al
-  leerlas, para que en una sesión abierta no queden para la persona
-  siguiente.
+- **Atómico y sin restos en la sesión.** Todas las comprobaciones y el
+  `UPDATE` van en un bloque `DO` dentro de `BEGIN … COMMIT`, y los datos
+  pasan de `psql` a la base con `SET LOCAL`, que desaparece al terminar la
+  transacción. Si el `DO` falla, el script hace `ROLLBACK` antes de cortarse
+  (con `ON_ERROR_STOP` encendido desde el principio, una sesión abierta
+  quedaría con la transacción abortada). Con `-f` o por la entrada estándar,
+  `psql` termina con código 3; con `\i` en una sesión abierta, la sesión
+  sigue sin transacción ni valores del script. Las variables de `psql` se
+  borran al leerlas, así que tampoco quedan para la persona siguiente;
+  solo si el script se corta antes de leerlas (por ejemplo, falta `email`)
+  quedan las que se habían definido.
 - **Nombre del distrito sin mayúsculas ni tildes** (`rimac` encuentra
   «Rímac»). El archivo es ASCII (las vocales con tilde van como escapes
   Unicode), así que no depende de la codificación del cliente. En Windows
@@ -393,8 +408,10 @@ Decisiones:
   `municipalidad_id`, el script cambia con esa tarea.
 
 **Verificación (2026-10-21)** contra `viasegura_test`, con cuentas propias
-que se borraron al final, con el `psql` 18 de Windows (`-f`) y con el del
-contenedor (entrada estándar): asignación con aviso de la residencia
+que se borraron al final. Es una desviación del criterio de DEP-05, que
+pedía probarlo en la base local con los usuarios de `seed-datos-prueba.sql`:
+esa base estaba en uso por el coordinador. Con el `psql` 18 de Windows
+(`-f`) y con el del contenedor (entrada estándar): asignación con aviso de la residencia
 reemplazada; repetición sin cambios (mismo `updated_at`); `rimac`, `Brena` y
 `jesus maria` encuentran su distrito, y `Breña` desde un cliente UTF-8;
 revocación y su repetición; `\set` + `\i` deja las variables sin definir; y
@@ -402,6 +419,15 @@ código 3, sin cambios en la base, para el correo inexistente (y con otras
 mayúsculas), la cuenta ADMIN (al asignar y al revocar), el funcionario de
 otro distrito, el distrito inexistente (`Miraflore`), la falta de `email` o
 `distrito` y una `accion` desconocida.
+
+**Verificación de la transacción (2026-10-22)**, en una base temporal con
+un esquema mínimo (`usuario` y `distrito`), borrada al final, porque
+`viasegura_test` estaba ocupada por otra suite de IT: los mismos casos de
+éxito y de fallo (código 3, `ROLLBACK` antes del error final y la base sin
+cambios), el aviso con la fecha de registro, el archivo con CRLF y, en una
+misma sesión, un `\i` que falla (la cuenta ADMIN) seguido de otro que
+funciona: tras el fallo no queda transacción abierta, ni el `SET LOCAL`, ni
+las variables, y la persona siguiente se asigna sin arrastrar nada.
 
 ## Endpoints implementados (vertical slice inicial)
 

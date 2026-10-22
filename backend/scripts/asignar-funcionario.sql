@@ -8,6 +8,15 @@
 -- municipalidad_id, este script cambia con esa tarea). Con accion=revocar la
 -- devuelve a CIUDADANO.
 --
+-- ANTES DE ASIGNAR
+--   El registro no verifica la propiedad del correo: cualquiera pudo
+--   registrarse antes con el correo de la persona. Asigne solo si la persona
+--   confirma que el registro le funciono a ella (entra con su contrasena). Si
+--   al registrarse vio "El correo ya esta registrado", NO asigne: primero que
+--   recupere la cuenta con "Olvidaste tu contrasena" (cuando funcione DEP-08)
+--   o revise la cuenta con ella. El script muestra la fecha de registro de la
+--   cuenta (created_at) para compararla con lo que la persona recuerda.
+--
 -- USO (desde la raiz del repo)
 --   Asignar:
 --     psql "$DATABASE_URL" -v email=persona@ejemplo.com -v distrito='San Isidro' \
@@ -35,11 +44,17 @@
 --   - revocar: solo un FUNCIONARIO_MUNICIPAL, que queda CIUDADANO y sin
 --     distrito (lo vuelve a elegir en su perfil). Si ya es CIUDADANO no cambia
 --     nada.
---   - Todo ocurre en una sola sentencia (un bloque DO, una transaccion): si
---     algo falla no cambia nada. El script activa ON_ERROR_STOP, asi que psql
---     termina con codigo 3 y no muestra la fila.
---   - Las variables de psql se borran al leerlas: en una sesion abierta no
---     quedan para la siguiente persona.
+--   - Todo ocurre en una transaccion (BEGIN ... COMMIT): si algo falla, el
+--     script hace ROLLBACK, no cambia nada, no muestra la fila y se corta
+--     (activa ON_ERROR_STOP). Con -f o por la entrada estandar, psql termina
+--     con codigo 3; con \i en una sesion abierta, la sesion sigue y queda
+--     limpia: sin transaccion abierta ni valores del script.
+--   - Los datos viajan del psql a la base con SET LOCAL, que desaparece al
+--     terminar la transaccion (COMMIT o ROLLBACK), y las variables de psql
+--     (email, distrito, accion) se borran al leerlas: en una sesion abierta
+--     no quedan para la siguiente persona, tampoco despues de un error. Solo
+--     si el script se corta antes de leerlas (por ejemplo, porque falta
+--     email) quedan las que se definieron: vuelva a definirlas todas.
 --
 -- CUANDO RIGE EL CAMBIO
 --   El JWT lleva el rol (claim "rol"), pero nada lo lee para autorizar:
@@ -65,13 +80,17 @@
   \set distrito ''
 \endif
 
-SET asignar_funcionario.email = :'email';
-SET asignar_funcionario.distrito = :'distrito';
-SET asignar_funcionario.accion = :'accion';
+BEGIN;
+SET LOCAL asignar_funcionario.email = :'email';
+SET LOCAL asignar_funcionario.distrito = :'distrito';
+SET LOCAL asignar_funcionario.accion = :'accion';
 \unset email
 \unset distrito
 \unset accion
 
+-- Un error dentro del DO no debe cortar el script con la transaccion abierta
+-- (en una sesion interactiva quedaria "abortada"): se atrapa abajo con :ERROR.
+\set ON_ERROR_STOP off
 DO $$
 DECLARE
     v_email       text := btrim(current_setting('asignar_funcionario.email'));
@@ -103,6 +122,10 @@ BEGIN
             USING HINT = coalesce('Solo difieren en mayusculas: ' || v_similares || '. Use el correo exacto.',
                                   'La persona debe registrarse primero en la PWA.');
     END IF;
+
+    -- Para comparar con lo que recuerda la persona (ver "ANTES DE ASIGNAR").
+    RAISE NOTICE 'Cuenta % (rol %), registrada el % (hora de Lima).', v_email, v_usuario.rol,
+        to_char(v_usuario.created_at AT TIME ZONE 'America/Lima', 'YYYY-MM-DD HH24:MI');
 
     SELECT nombre INTO v_actual FROM distrito WHERE id = v_usuario.distrito_id;
 
@@ -163,12 +186,26 @@ BEGIN
 END
 $$;
 
--- La fila resultante (solo si no hubo error).
-SELECT u.id, u.email, u.rol, d.nombre AS distrito, u.updated_at
+-- Si el DO fallo: deshacer y salir de la transaccion antes de cortar el script.
+\if :ERROR
+  ROLLBACK;
+\endif
+\set ON_ERROR_STOP on
+
+-- Despues del ROLLBACK, los SET LOCAL ya no existen: este bloque convierte el
+-- fallo en un error (codigo 3) fuera de toda transaccion. Sin fallo, no hace nada.
+DO $$
+BEGIN
+    IF coalesce(current_setting('asignar_funcionario.email', true), '') = '' THEN
+        RAISE EXCEPTION 'No se cambio nada (ver el error anterior).';
+    END IF;
+END
+$$;
+
+-- La fila resultante.
+SELECT u.id, u.email, u.rol, d.nombre AS distrito, u.created_at, u.updated_at
   FROM usuario u
   LEFT JOIN distrito d ON d.id = u.distrito_id
  WHERE u.email = btrim(current_setting('asignar_funcionario.email'));
 
-RESET asignar_funcionario.email;
-RESET asignar_funcionario.distrito;
-RESET asignar_funcionario.accion;
+COMMIT;
