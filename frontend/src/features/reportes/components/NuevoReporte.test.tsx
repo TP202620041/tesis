@@ -61,6 +61,7 @@ describe('NuevoReporte: confirmación con título y severidad (NC-02)', () => {
     expect(await screen.findByText('Reporte enviado')).toBeInTheDocument();
     expect(screen.getByText('Bache profundo')).toBeInTheDocument();
     expect(screen.getByText('Alta')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Ver mis reportes' })).toHaveAttribute('href', '/mis-reportes');
   });
 
   it('adhesión (US-09): muestra los del reporte EXISTENTE, no los que escribió', async () => {
@@ -78,6 +79,12 @@ describe('NuevoReporte: confirmación con título y severidad (NC-02)', () => {
     expect(screen.getByText('Media')).toBeInTheDocument();
     expect(screen.queryByText('Bache profundo')).not.toBeInTheDocument();
     expect(screen.queryByText('Alta')).not.toBeInTheDocument();
+    // QA-1 M-6: no lo creó, así que no está entre los suyos sino entre los que apoya.
+    expect(screen.getByRole('link', { name: 'Ver los reportes que apoyas' })).toHaveAttribute(
+      'href',
+      '/mis-reportes#reportes-que-apoyas',
+    );
+    expect(screen.queryByRole('link', { name: 'Ver mis reportes' })).not.toBeInTheDocument();
   });
 
   it('respuesta idempotente anterior a NC-02 (sin título): «Sin título», sin romper', async () => {

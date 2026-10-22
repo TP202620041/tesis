@@ -1,16 +1,17 @@
 'use client';
 
 import Link from 'next/link';
-import { FotoDeReporte } from '@/components/FotoDeReporte';
-import { ChipEstado } from '@/components/ui/ChipEstado';
-import { textoDeSeveridad, tituloVisible } from '@/lib/types/tituloYSeveridad';
 import { useReportesEnCola } from '../hooks/useColaOffline';
 import { useMisReportes } from '../hooks/useMisReportes';
 import { PendientesDeEnvio } from './PendientesDeEnvio';
+import { ReportesQueApoyas } from './ReportesQueApoyas';
+import { CLASES_FILA_DE_REPORTE_ENLACE, ResumenDeReporteEnFila } from './ResumenDeReporteEnFila';
 import { clasesDeBoton } from '@/components/ui/Boton';
 
 /**
- * US-07: los reportes que el ciudadano envio, con su estado actual.
+ * US-07: los reportes que el ciudadano envio, con su estado actual, y (QA-1
+ * M-6) los de otros vecinos que apoya, en una seccion aparte y de solo
+ * lectura.
  *
  * La navegacion (perfil, mapa, reportar, soporte) y «Cerrar sesión» son del
  * marco comun de la app (DIS-1), no de esta pantalla.
@@ -28,7 +29,7 @@ export function ListaMisReportes({ usuarioId }: { usuarioId: number }) {
       <header>
         <h1 className="text-2xl font-bold text-texto">Mis reportes</h1>
         <p className="text-sm text-texto-2">
-          Los daños que enviaste y en qué va cada uno.
+          Los daños que enviaste, los que apoyas y en qué va cada uno.
         </p>
       </header>
 
@@ -72,58 +73,17 @@ export function ListaMisReportes({ usuarioId }: { usuarioId: number }) {
 
       {!cargando && reportes.length > 0 && (
         <ul className="flex flex-col gap-2">
-          {reportes.map((reporte) => {
-            const severidad = textoDeSeveridad(reporte.severidad);
-            // `api.ts` ya devuelve la URL absoluta de la foto.
-            const foto = reporte.fotoUrl;
-            return (
-              <li key={reporte.id}>
-                <Link
-                  href={`/mis-reportes/${reporte.id}`}
-                  className="flex items-start gap-3 rounded-control border border-linea bg-superficie p-3
-                             transition hover:border-primario"
-                >
-                  {foto ? (
-                    // Foto de reporte: pública, sirve directo en <img src>.
-                    // Decorativa: el título de la fila ya nombra el reporte.
-                    <FotoDeReporte
-                      src={foto}
-                      alt=""
-                      className="size-14 shrink-0 rounded object-cover"
-                    />
-                  ) : (
-                    <span
-                      aria-hidden="true"
-                      className="size-14 shrink-0 rounded bg-superficie-2"
-                    />
-                  )}
-                  <span className="min-w-0 flex-1">
-                    <span className="flex flex-wrap items-center gap-2">
-                      <strong className="text-texto">
-                        {tituloVisible(reporte.titulo)}
-                      </strong>
-                      <ChipEstado estado={reporte.estado ?? ''} />
-                    </span>
-                    <span className="mt-0.5 block text-sm text-texto-2">
-                      {reporte.categoriaNombre}
-                      {severidad ? ` · ${severidad}` : ''}
-                    </span>
-                    <span className="mt-0.5 block text-sm text-texto-2">
-                      {reporte.distritoNombre}
-                      {reporte.createdAt
-                        ? ` · ${new Date(reporte.createdAt).toLocaleDateString('es-PE')}`
-                        : ''}
-                      {(reporte.totalAdhesiones ?? 1) > 1
-                        ? ` · ${reporte.totalAdhesiones} vecinos`
-                        : ''}
-                    </span>
-                  </span>
-                </Link>
-              </li>
-            );
-          })}
+          {reportes.map((reporte) => (
+            <li key={reporte.id}>
+              <Link href={`/mis-reportes/${reporte.id}`} className={CLASES_FILA_DE_REPORTE_ENLACE}>
+                <ResumenDeReporteEnFila reporte={reporte} />
+              </Link>
+            </li>
+          ))}
         </ul>
       )}
+
+      <ReportesQueApoyas arribaYaCargo={!cargando} />
     </main>
   );
 }

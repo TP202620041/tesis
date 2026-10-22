@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { FotoDeReporte } from '@/components/FotoDeReporte';
 import { etiquetaDeSeveridad, tituloVisible } from '@/lib/types/tituloYSeveridad';
+import { RUTA_REPORTES_QUE_APOYAS } from '../model/apoyos';
 import type { ReporteCreado } from '../model/tipos';
 import { FormularioReporte } from './FormularioReporte';
 import { clasesDeBoton } from '@/components/ui/Boton';
@@ -90,6 +91,9 @@ function ConfirmacionSinConexion({ onOtro }: { onOtro: () => void }) {
  * ciudadano: en una adhesion el backend descarta los enviados y devuelve los
  * del reporte existente. Mostrar los escritos presentaria como propio un
  * titulo que no quedo registrado.
+ *
+ * QA-1 M-6: tras una adhesion, el enlace lleva a «Reportes que apoyas» (el
+ * reporte no aparece entre los propios: no lo creo el ciudadano).
  */
 function Confirmacion({ reporte, onOtro }: { reporte: ReporteCreado; onOtro: () => void }) {
   // `api.ts` ya devuelve la URL absoluta de la foto.
@@ -158,12 +162,15 @@ function Confirmacion({ reporte, onOtro }: { reporte: ReporteCreado; onOtro: () 
         >
           Reportar otro daño
         </button>
-        <Link
-          href="/mis-reportes"
-          className={clasesDeBoton('secundario')}
-        >
-          Ver mis reportes
-        </Link>
+        {reporte.esAdhesion ? (
+          <Link href={RUTA_REPORTES_QUE_APOYAS} className={clasesDeBoton('secundario')}>
+            Ver los reportes que apoyas
+          </Link>
+        ) : (
+          <Link href="/mis-reportes" className={clasesDeBoton('secundario')}>
+            Ver mis reportes
+          </Link>
+        )}
       </div>
     </section>
   );

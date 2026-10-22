@@ -1143,6 +1143,46 @@ Verificado end-to-end contra el backend real:
   usa `notFound()`: el detalle ya tiene su propio «no disponible», que es lo
   mismo que se muestra para un id que no existe o un reporte retirado.
 
+### Reportes que apoyas (QA-1 M-6)
+
+Quien se suma a un reporte ajeno (adhesión, US-09) no lo veía en ninguna
+parte: `mis-reportes` solo trae lo que el ciudadano creó. El backend agregó
+`GET /api/reportes/mis-adhesiones` (handoff del 22/10) y `/mis-reportes` lo
+muestra en una **sección aparte, «Reportes que apoyas»**, debajo de los
+propios:
+
+- **Solo lectura.** Sin editar, retirar ni calificar: son del creador (el
+  backend respondería 403; calificar es solo del creador, US-26). Por eso cada
+  fila lleva al **detalle público** `/reportes/[id]` y nunca a
+  `/mis-reportes/[id]`, que se arma desde `mis-reportes` y ofrece esas
+  acciones (`model/apoyos.ts`, `enlaceDeReporteApoyado`).
+- **Un CANCELADO no enlaza**: su detalle público da 404 (lo retiró su creador,
+  `tieneVistaPublica`). La fila muestra el chip «Cancelado» y dice «El vecino
+  que lo creó lo retiró…» en vez de llevar a «Reporte no disponible».
+- **Carga aparte** (`hooks/useReportesQueApoyas`): si falla (p. ej. contra un
+  backend anterior a QA-1, sin la ruta), la lista propia se ve igual y solo la
+  sección muestra el error con «Reintentar». Se recarga cuando cambia la cola
+  offline: un reporte «Pendiente de envío» puede resultar, al enviarse, una
+  adhesión, y entonces aparece aquí y no entre los propios.
+- **Misma fila que los propios** (`components/ResumenDeReporteEnFila`): foto,
+  título, `ChipEstado`, tipo, severidad, distrito, fecha y vecinos. Estado
+  vacío con `EstadoVacio` que explica cómo se llega a apoyar un reporte.
+- **Tras una adhesión**, la confirmación de `/reportar` ofrece «Ver los
+  reportes que apoyas» (`/mis-reportes#reportes-que-apoyas`) en vez de «Ver
+  mis reportes». El ancla no existe hasta que la sección carga, así que Next
+  no puede desplazarse a ella: la sección lleva el foco a su título (y con él
+  la vista) cuando ella y la lista de arriba ya cargaron.
+- **Los avisos no cambian**: push y correo siguen yendo solo al creador, y la
+  sección lo dice. Avisar también a quien apoya sería una decisión aparte.
+
+Verificado el 22/10 en Chrome (modo visible) contra el backend de `develop`:
+un ciudadano de prueba reportó con GPS un bache a metros de uno ajeno, la
+confirmación dijo «Ya existía un reporte de este daño» y «Ver los reportes que
+apoyas» llevó a la sección con el foco en su título y el reporte primero,
+enlazado a `/reportes/185`; un reporte apoyado que su creador retiró se ve
+«Cancelado», sin enlace y con la explicación. En la bandeja, un reporte sin
+responsable pidió `/responsable` (204) y mostró «Sin responsable asignado».
+
 ### Responsable sin asignar: 204 (QA-1 M-4)
 
 `GET /api/reportes/{id}/responsable` responde **204 sin cuerpo** cuando el
