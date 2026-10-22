@@ -1,10 +1,10 @@
 # Handoff de contrato: responsable sin asignar responde 204 (QA-1 M-4)
 
-- **Estado:** pendiente <!-- pendiente | atendido -->
+- **Estado:** atendido <!-- pendiente | atendido -->
 - **Fecha:** 2026-10-22
 - **Origen:** backend, rama `bugfix/qa1-backend`, commit `b13f891` (PR por abrir; lo abre el coordinador)
 - **Historia o tarea:** QA-1 M-4 (US-15)
-- **Atendido por:** _(frontend, rama y fecha)_
+- **Atendido por:** frontend, rama `feature/qa1-mis-adhesiones`, 2026-10-22. `responsableActivo` (`features/gestion/api.ts`) normaliza el `undefined` del 204 a `null` y mantiene el `catch` del 404 durante la transición; `gestion/api.test.ts` cubre 200, 204, 404 y 403. Ver `frontend/README.md`, «Responsable sin asignar: 204 (QA-1 M-4)».
 
 ## Endpoints afectados
 | Método | Ruta | Cambio |

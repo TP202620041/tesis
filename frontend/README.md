@@ -1143,6 +1143,18 @@ Verificado end-to-end contra el backend real:
   usa `notFound()`: el detalle ya tiene su propio «no disponible», que es lo
   mismo que se muestra para un id que no existe o un reporte retirado.
 
+### Responsable sin asignar: 204 (QA-1 M-4)
+
+`GET /api/reportes/{id}/responsable` responde **204 sin cuerpo** cuando el
+reporte no tiene responsable (antes, 404). `apiFetch` devuelve `undefined` en
+un 204 y `gestion/api.ts` (`responsableActivo`) lo normaliza a `null`, que es
+lo que `useResponsable` muestra como «sin responsable». El `catch` que
+traduce el 404 a `null` **se mantiene durante la transición** (la PWA nueva
+contra un backend anterior a QA-1); con el backend nuevo un 404 significa que
+el reporte no existe, y cuando ambos estén desplegados ese `catch` se puede
+quitar. Lo cubre `gestion/api.test.ts` sobre el cliente real con `fetch`
+falso (200, 204, 404 y 403).
+
 ### `null` no es cero
 
 Las métricas de desempeño llegan en `null` cuando no hay datos: un distrito
