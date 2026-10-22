@@ -216,16 +216,16 @@ Diseño decidido por el usuario el 22/10: el seeder **crea** el ADMIN desde vari
 
 1. **Antes del primer despliegue** del backend, en Railway › `backend` › Variables:
    - `ADMIN_INICIAL_EMAIL`: el correo real de la persona del equipo;
-   - `ADMIN_INICIAL_PASSWORD`: una contraseña de 12 a 72 caracteres, generada para la ocasión y marcada como secreta;
+   - `ADMIN_INICIAL_PASSWORD`: una contraseña de 12 caracteres o más y 72 bytes como máximo, generada para la ocasión y marcada como secreta;
    - `ADMIN_INICIAL_NOMBRE`: opcional.
 2. Desplegar. **Verificar:** en los logs aparece «Administrador inicial creado» y solo el correo, nunca la contraseña. Iniciar sesión en `$PWA` con esa cuenta: pide aceptar los términos (D-12) y después muestra el área de ADMIN.
-3. **Borrar `ADMIN_INICIAL_PASSWORD`** de Railway y cambiar la contraseña desde la PWA. Las otras dos variables pueden quedar: con un ADMIN ya creado el seeder no hace nada (avisa en el log si la contraseña sigue definida).
+3. **Borrar `ADMIN_INICIAL_PASSWORD`** de Railway (obligatorio). Las otras dos variables pueden quedar: con un ADMIN ya creado el seeder no hace nada (avisa en el log si la contraseña sigue definida). No hay pantalla para cambiar la contraseña: se cambia con «¿Olvidaste tu contraseña?» cuando el correo (DEP-08) funcione.
 
 Si el correo ya tiene una cuenta con otro rol, o la contraseña no cumple el largo, el arranque **falla** y no se crea ni se promueve nada. Así nadie puede adelantarse registrando ese correo.
 
 ### 7.2 Funcionarios (DEP-05)
 
-1. La persona se registra en `$PWA`.
+1. La persona se registra en `$PWA` y **confirma que el registro le funcionó a ella**. Si al registrarse vio «El correo ya está registrado», no se asigna: primero recupera la cuenta con «¿Olvidaste tu contraseña?» (cuando DEP-08 funcione) o se revisa la cuenta con ella. El registro no verifica la propiedad del correo. El script muestra la fecha de registro de la cuenta antes de cambiarla.
 2. Desde la raíz del repo:
 
    ```bash
