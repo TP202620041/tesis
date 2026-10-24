@@ -2,82 +2,100 @@
 
 import { useEffect, useState, type RefObject } from 'react';
 
-export interface TituloAlDesplazar {
-  /** Texto del `<h1>` de la pantalla; `null` si no tiene. */
-  texto: string | null;
-  /** El `<h1>` ya pasó por debajo de la barra: su texto va en ella. */
-  compacto: boolean;
-}
+/** Variable CSS de la barra: 0 con el título en la página, 1 cuando ya pasó a la barra. */
+export const AVANCE_DEL_TITULO = '--cv-avance-titulo';
 
-const SIN_TITULO: TituloAlDesplazar = { texto: null, compacto: false };
+/** Cuánto se mete el `<h1>` bajo la barra antes de que empiece el cambio (px). */
+const MARGEN = 10;
+/** Recorrido extra, además del alto del `<h1>`, para completar el cambio (px). */
+const RECORRIDO = 22;
+
+const limitar = (valor: number) => Math.min(1, Math.max(0, valor));
 
 /**
- * Título compacto de la barra superior del móvil (DIS-1, «el scroll de
- * WhatsApp», prueba en iPhone del 23/10): cuando el `<h1>` de la pantalla
- * pasa por debajo de la barra, su texto aparece centrado en ella; al volver
- * arriba, se va. Las pantallas no cambian: el título grande sigue siendo su
- * `<h1>`.
+ * Título de la barra superior del móvil (DIS-1, «el scroll de WhatsApp»,
+ * efecto A elegido por el usuario el 23/10): a medida que el `<h1>` de la
+ * pantalla pasa por debajo de la barra, su texto entra centrado en ella y el
+ * logo se va. El cambio va **ligado al dedo**, no a un fundido con tiempo:
+ * si se baja despacio, el título entra despacio, y se puede quedar a medias.
+ * Las pantallas no cambian: el título grande sigue siendo su `<h1>`.
  *
- * Observa el primer `<h1>` de `#contenido` con un IntersectionObserver
- * recortado por el alto de la barra (sin escuchar el scroll), y un
- * MutationObserver lo vuelve a buscar cuando la pantalla lo cambia: las que
- * cargan datos lo pintan después, y el de un detalle es el título del
- * reporte. Sin IntersectionObserver (navegadores viejos, jsdom) no hace nada.
+ * El avance (0 a 1) se escribe como variable CSS en la barra
+ * ({@link AVANCE_DEL_TITULO}) y como `data-compacto` (avance casi completo,
+ * para sacar del foco el logo invisible), una vez por cuadro y sin pasar por
+ * React: un render por cuadro de desplazamiento sería trabajo de más. React
+ * solo se entera cuando cambia el texto (el detalle que terminó de cargar).
+ * Un MutationObserver vuelve a buscar el `<h1>` cuando la pantalla lo cambia.
  */
-export function useTituloAlDesplazar(ruta: string, barra: RefObject<HTMLElement | null>): TituloAlDesplazar {
-  const [titulo, setTitulo] = useState(SIN_TITULO);
+export function useTituloAlDesplazar(ruta: string, barra: RefObject<HTMLElement | null>): string | null {
+  const [texto, setTexto] = useState<string | null>(null);
   // Al navegar vuelve a empezar. Se ajusta durante el render (como el menú de
   // cuenta), no con un efecto: la pantalla nueva no pinta el título anterior.
   const [rutaDelTitulo, setRutaDelTitulo] = useState(ruta);
   if (rutaDelTitulo !== ruta) {
     setRutaDelTitulo(ruta);
-    setTitulo(SIN_TITULO);
+    setTexto(null);
   }
 
   useEffect(() => {
     const contenido = document.getElementById('contenido');
-    if (!contenido || typeof IntersectionObserver !== 'function') return;
+    const elemento = barra.current;
+    if (!contenido || !elemento) return;
 
-    const textoDe = (h1: Element) => h1.textContent?.trim() || null;
-    const alto = barra.current?.offsetHeight ?? 0;
-    const observador = new IntersectionObserver(
-      (entradas) => {
-        const entrada = entradas.at(-1);
-        if (!entrada) return;
-        // Compacto solo si salió por ARRIBA (no si todavía no llega desde abajo).
-        const arriba = entrada.rootBounds !== null && entrada.boundingClientRect.bottom <= entrada.rootBounds.top;
-        setTitulo({ texto: textoDe(entrada.target), compacto: !entrada.isIntersecting && arriba });
-      },
-      { rootMargin: `-${alto}px 0px 0px 0px` },
-    );
+    const enCuadro =
+      typeof requestAnimationFrame === 'function'
+        ? requestAnimationFrame
+        : (medir: FrameRequestCallback) => {
+            medir(0);
+            return 0;
+          };
+    let h1: HTMLElement | null = contenido.querySelector('h1');
+    let ultimoTexto: string | null = null;
+    // Bandera aparte del id: si el cuadro corre en el acto (sin
+    // requestAnimationFrame), `medir` la baja antes de que vuelva el id.
+    let pendiente = false;
+    let cuadro = 0;
 
-    let observado: Element | null = null;
-    const buscar = () => {
-      const h1 = contenido.querySelector('h1');
-      if (h1 === observado) {
-        // El mismo `<h1>` con otro texto (el detalle que terminó de cargar).
-        if (h1) setTitulo((t) => (t.texto === textoDe(h1) ? t : { ...t, texto: textoDe(h1) }));
-        return;
+    const medir = () => {
+      pendiente = false;
+      let avance = 0;
+      if (h1) {
+        const caja = h1.getBoundingClientRect();
+        const borde = elemento.getBoundingClientRect().bottom;
+        avance = limitar((borde - caja.top - MARGEN) / (caja.height + RECORRIDO));
       }
-      if (observado) observador.unobserve(observado);
-      observado = h1;
-      // Observarlo dispara la primera lectura, que fija el texto.
-      if (h1) observador.observe(h1);
-      else setTitulo(SIN_TITULO);
+      elemento.style.setProperty(AVANCE_DEL_TITULO, avance.toFixed(3));
+      elemento.dataset.compacto = String(avance > 0.95);
+      const actual = h1?.textContent?.trim() || null;
+      if (actual !== ultimoTexto) {
+        ultimoTexto = actual;
+        setTexto(actual);
+      }
     };
-    const mutaciones = new MutationObserver(buscar);
+    const pedir = () => {
+      if (pendiente) return;
+      pendiente = true;
+      cuadro = enCuadro(medir);
+    };
+    const mutaciones = new MutationObserver(() => {
+      h1 = contenido.querySelector('h1');
+      pedir();
+    });
+
     mutaciones.observe(contenido, { childList: true, subtree: true, characterData: true });
-    const h1 = contenido.querySelector('h1');
-    if (h1) {
-      observado = h1;
-      observador.observe(h1);
-    }
+    window.addEventListener('scroll', pedir, { passive: true });
+    window.addEventListener('resize', pedir);
+    pedir();
 
     return () => {
       mutaciones.disconnect();
-      observador.disconnect();
+      window.removeEventListener('scroll', pedir);
+      window.removeEventListener('resize', pedir);
+      if (pendiente && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(cuadro);
+      elemento.style.removeProperty(AVANCE_DEL_TITULO);
+      delete elemento.dataset.compacto;
     };
   }, [ruta, barra]);
 
-  return titulo;
+  return texto;
 }

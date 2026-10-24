@@ -170,27 +170,12 @@ describe('MarcoDeLaApp (DIS-1)', () => {
     }
   });
 
-  it('móvil: cuando el <h1> pasa bajo la barra, su texto aparece en ella; sigue sus cambios', async () => {
-    // jsdom no tiene IntersectionObserver: uno falso al que se le dicta qué ve.
-    const observadores: ObservadorFalso[] = [];
-    class ObservadorFalso {
-      observados = new Set<Element>();
-      alCambiar: IntersectionObserverCallback;
-      constructor(alCambiar: IntersectionObserverCallback) {
-        this.alCambiar = alCambiar;
-        observadores.push(this);
-      }
-      observe(elemento: Element) {
-        this.observados.add(elemento);
-      }
-      unobserve(elemento: Element) {
-        this.observados.delete(elemento);
-      }
-      disconnect() {
-        this.observados.clear();
-      }
-    }
-    vi.stubGlobal('IntersectionObserver', ObservadorFalso);
+  it('móvil: el título pasa a la barra siguiendo el desplazamiento, y sigue sus cambios', async () => {
+    // Cada cuadro se mide en el acto; jsdom no mide cajas: se las dicta el test.
+    vi.stubGlobal('requestAnimationFrame', (medir: FrameRequestCallback) => {
+      medir(0);
+      return 1;
+    });
     try {
       ruta.actual = '/mis-reportes';
       vi.mocked(useUsuarioDelMarco).mockReturnValue({ estado: 'identificado', usuario: ANA });
@@ -199,55 +184,57 @@ describe('MarcoDeLaApp (DIS-1)', () => {
           <h1>Mis reportes</h1>
         </MarcoDeLaApp>,
       );
-      const observador = observadores.at(-1)!;
+      const barra = screen.getByRole('banner');
       const h1 = screen.getByRole('heading', { level: 1, name: 'Mis reportes' });
-      expect([...observador.observados]).toEqual([h1]);
-      /** El <h1> visible, por debajo de la barra (abajo) o ya por encima de ella. */
-      const ver = (donde: 'visible' | 'abajo' | 'arriba') =>
-        act(() =>
-          observador.alCambiar(
-            [
-              {
-                target: h1,
-                isIntersecting: donde === 'visible',
-                boundingClientRect: { bottom: donde === 'arriba' ? -10 : 900 },
-                rootBounds: { top: 56 },
-              } as unknown as IntersectionObserverEntry,
-            ],
-            observador as unknown as IntersectionObserver,
-          ),
-        );
-      const compacto = () => screen.getByRole('banner').querySelector('p[data-visible]')!;
+      vi.spyOn(barra, 'getBoundingClientRect').mockReturnValue({ bottom: 110 } as DOMRect);
+      let arribaDelH1 = 150;
+      vi.spyOn(h1, 'getBoundingClientRect').mockImplementation(() => ({ top: arribaDelH1, height: 32 }) as DOMRect);
+      /** El <h1> queda con su borde superior en `arriba` (px desde el borde de la pantalla). */
+      const desplazar = (arriba: number) => {
+        arribaDelH1 = arriba;
+        act(() => {
+          window.dispatchEvent(new Event('scroll'));
+        });
+      };
+      const avance = () => Number(barra.style.getPropertyValue('--cv-avance-titulo'));
+      const compacto = () => barra.querySelector('[data-titulo-compacto]')!;
 
-      ver('visible');
+      // En la página, por debajo de la barra: nada cambia, pero el texto ya está listo.
+      desplazar(150);
+      expect(avance()).toBe(0);
       expect(compacto()).toHaveTextContent('Mis reportes');
-      expect(compacto()).toHaveAttribute('data-visible', 'false');
-      ver('arriba');
-      expect(compacto()).toHaveAttribute('data-visible', 'true');
       expect(compacto()).toHaveAttribute('aria-hidden', 'true');
-      // Fuera de la vista pero por debajo (todavía no llega): no es compacto.
-      ver('abajo');
-      expect(compacto()).toHaveAttribute('data-visible', 'false');
+      expect(barra).toHaveAttribute('data-compacto', 'false');
+      // A medio camino bajo la barra, a medio cambio: va con el dedo, no por pasos.
+      desplazar(73);
+      expect(avance()).toBeCloseTo(0.5, 3);
+      expect(barra).toHaveAttribute('data-compacto', 'false');
+      // Ya por encima: el título está en la barra y el logo sale del foco.
+      desplazar(-20);
+      expect(avance()).toBe(1);
+      expect(barra).toHaveAttribute('data-compacto', 'true');
+      // De vuelta arriba, se deshace.
+      desplazar(150);
+      expect(avance()).toBe(0);
 
       // El detalle que termina de cargar cambia el texto del mismo <h1>.
-      ver('arriba');
       rerender(
         <MarcoDeLaApp>
           <h1>Bache en Av. Larco</h1>
         </MarcoDeLaApp>,
       );
       await waitFor(() => expect(compacto()).toHaveTextContent('Bache en Av. Larco'));
-      expect(compacto()).toHaveAttribute('data-visible', 'true');
     } finally {
       vi.unstubAllGlobals();
+      vi.restoreAllMocks();
     }
   });
 
   it('sin <h1> en la pantalla, la barra no muestra título compacto', () => {
     como({ estado: 'identificado', usuario: ANA });
-    const compacto = screen.getByRole('banner').querySelector('p[data-visible]')!;
-    expect(compacto).toHaveAttribute('data-visible', 'false');
-    expect(compacto).toBeEmptyDOMElement();
+    const barra = screen.getByRole('banner');
+    expect(barra.querySelector('[data-titulo-compacto]')).toBeEmptyDOMElement();
+    expect(Number(barra.style.getPropertyValue('--cv-avance-titulo'))).toBe(0);
   });
 
   it('escritorio: el menú de la cabecera no deja inerte la página', async () => {

@@ -50,10 +50,11 @@ interface CabeceraProps {
  *
  * Queda fija arriba y empieza bajo la hora y la batería
  * (`env(safe-area-inset-top)`, PWA instalada en iPhone). En el móvil es la
- * barra tinta translúcida de iOS: la página se desplaza por debajo,
- * difuminada, y cuando el `<h1>` de la pantalla pasa bajo la barra su texto
- * reemplaza al logo, centrado (`useTituloAlDesplazar`). En escritorio sigue
- * siendo clara; solo la franja de la hora (si la hay, en iPad) va en tinta.
+ * barra tinta translúcida de iOS (el efecto A que eligió el usuario): la
+ * página se desplaza por debajo, difuminada, y a medida que el `<h1>` de la
+ * pantalla pasa bajo la barra su texto entra centrado y el logo se va,
+ * ligado al dedo (`useTituloAlDesplazar`). En escritorio sigue siendo clara;
+ * solo la franja de la hora (si la hay, en iPad) va en tinta.
  */
 export function CabeceraDeLaApp({ usuario, ruta, conNavegacion, extrasDeCuenta }: CabeceraProps) {
   const rol = rolDelMarco(usuario);
@@ -65,13 +66,13 @@ export function CabeceraDeLaApp({ usuario, ruta, conNavegacion, extrasDeCuenta }
       : null;
   const barra = useRef<HTMLElement>(null);
   const titulo = useTituloAlDesplazar(ruta, barra);
-  const compacto = titulo.compacto && titulo.texto !== null;
 
   return (
     <header
       ref={barra}
       className={[
-        'sticky top-0 z-[1040] h-[var(--cv-alto-encabezado)] shrink-0 pt-[env(safe-area-inset-top)]',
+        // `--cv-avance-titulo` (0 a 1) y `data-compacto` los escribe `useTituloAlDesplazar`.
+        'group sticky top-0 z-[1040] h-[var(--cv-alto-encabezado)] shrink-0 pt-[env(safe-area-inset-top)]',
         'md:border-b md:border-linea md:bg-superficie',
         // En la barra tinta, el logo y el texto en claro (los tokens del logo
         // y del texto se redefinen solo aquí).
@@ -80,13 +81,20 @@ export function CabeceraDeLaApp({ usuario, ruta, conNavegacion, extrasDeCuenta }
       ].join(' ')}
     >
       <div aria-hidden="true" className="cv-translucida absolute inset-0 -z-10 md:hidden" />
+      {/* La línea fina de iOS aparece cuando el contenido ya pasa por debajo. */}
+      <div
+        aria-hidden="true"
+        className="absolute inset-x-0 bottom-0 h-px bg-sobre-barra-superior/20 opacity-[var(--cv-avance-titulo,0)] md:hidden"
+      />
       <div aria-hidden="true" className="absolute inset-x-0 top-0 hidden h-[env(safe-area-inset-top)] bg-barra-superior md:block" />
       <div className="relative mx-auto flex h-full max-w-7xl items-center gap-3 px-4 lg:gap-5 lg:px-6">
+        {/* Con el título ya en la barra, el logo sale del foco (`data-compacto`). */}
         <Link
           href="/"
           className={[
-            'inline-flex min-h-objetivo shrink-0 items-center rounded-control transition-[opacity,visibility] duration-200',
-            compacto ? 'max-md:invisible max-md:opacity-0' : '',
+            'inline-flex min-h-objetivo shrink-0 items-center rounded-control',
+            'max-md:translate-y-[calc(var(--cv-avance-titulo,0)_*_-6px)] max-md:opacity-[calc(1_-_var(--cv-avance-titulo,0))]',
+            'max-md:group-data-[compacto=true]:invisible motion-reduce:translate-y-0',
           ].join(' ')}
         >
           <Logo conNombre />
@@ -94,13 +102,14 @@ export function CabeceraDeLaApp({ usuario, ruta, conNavegacion, extrasDeCuenta }
         {/* Copia visual del <h1>, que sigue en la página: el lector no la oye dos veces. */}
         <p
           aria-hidden="true"
-          data-visible={compacto}
+          data-titulo-compacto=""
           className={[
-            'pointer-events-none absolute inset-x-4 top-1/2 -translate-y-1/2 truncate text-center font-semibold text-texto transition-opacity duration-200 md:hidden',
-            compacto ? 'opacity-100' : 'opacity-0',
+            'pointer-events-none absolute inset-x-4 top-1/2 truncate text-center font-semibold text-texto md:hidden',
+            'translate-y-[calc(-50%_+_(1_-_var(--cv-avance-titulo,0))_*_8px)] opacity-[var(--cv-avance-titulo,0)]',
+            'motion-reduce:-translate-y-1/2',
           ].join(' ')}
         >
-          {titulo.texto}
+          {titulo}
         </p>
         {municipalidad && (
           <span className="hidden shrink-0 rounded-control bg-superficie-2 px-2.5 py-1 text-sm font-semibold text-texto-2 xl:inline">

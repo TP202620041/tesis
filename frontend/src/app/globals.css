@@ -344,16 +344,17 @@
 }
 
 /*
- * Barra translúcida (DIS-1, prueba en iPhone del 23/10): la tinta de
- * `--cv-barra-superior` al 85 % con un difuminado, como las barras de iOS. Lo
- * que se desplaza por debajo se adivina sin competir con el título, y la hora
+ * Barra translúcida (DIS-1, prueba en iPhone del 23/10; el usuario eligió el
+ * efecto A, «barra de cristal», con la tinta al 70 %): la tinta de
+ * `--cv-barra-superior` con un difuminado, como las barras de iOS. Lo que se
+ * desplaza por debajo se ve difuminado (al 85 % casi no se notaba), y la hora
  * y la batería, que iOS pinta en blanco sobre la PWA instalada, se leen
- * siempre: blanco sobre tinta al 85 % encima de contenido blanco da 7,96:1
- * (`scripts/contraste-civica.json`).
+ * siempre: blanco sobre tinta al 70 % encima de contenido blanco da 5,03:1
+ * (`scripts/contraste-civica.json`); más tinta lo sube, menos lo baja de AA.
  * En alto contraste, y si el sistema pide menos transparencias, es opaca.
  */
 .cv-translucida {
-  background-color: color-mix(in srgb, var(--cv-barra-superior) 85%, transparent);
+  background-color: color-mix(in srgb, var(--cv-barra-superior) 70%, transparent);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
   backdrop-filter: saturate(180%) blur(20px);
 }
