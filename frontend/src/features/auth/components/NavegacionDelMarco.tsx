@@ -108,7 +108,7 @@ export function CabeceraDeLaApp({ usuario, ruta, conNavegacion, extrasDeCuenta, 
           className={[
             'inline-flex min-h-objetivo shrink-0 items-center rounded-control',
             'max-md:opacity-[calc(1_-_var(--cv-avance-titulo,0))] max-md:motion-safe:translate-y-[calc(var(--cv-avance-titulo,0)_*_-6px)]',
-            'max-md:focus-visible:translate-y-0 max-md:focus-visible:opacity-100',
+            'max-md:motion-safe:focus-visible:translate-y-0 max-md:focus-visible:opacity-100',
             'max-md:group-data-[compacto=true]:not-focus-visible:invisible',
           ].join(' ')}
         >
