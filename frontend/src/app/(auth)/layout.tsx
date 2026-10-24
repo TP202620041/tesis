@@ -9,7 +9,9 @@ import { Logo } from '@/components/ui/Logo';
  */
 export default function AuthLayout({ children }: { children: ReactNode }) {
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center gap-6 px-4 py-10">
+    // Los márgenes suman las zonas seguras: con `viewport-fit=cover` (layout
+    // raíz) la página llega bajo la hora y la barra de inicio del iPhone.
+    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center gap-6 px-4 pt-[calc(2.5rem+env(safe-area-inset-top))] pb-[calc(2.5rem+env(safe-area-inset-bottom))]">
       <header className="flex flex-col items-center gap-2 text-center">
         <Link href="/" className="inline-flex min-h-objetivo items-center rounded-control px-2">
           <Logo conNombre tamano={36} />

@@ -280,6 +280,44 @@ marco común, `features/auth/components/MarcoDeLaApp.tsx`, en el layout raíz:
   el logo (mientras no acepte, el resto de la app daría 403).
 - «Dashboard del distrito» pasa a «Panel del distrito», como en la navegación.
 
+#### Ajustes tras la prueba en iPhone (23/10)
+
+- **Barra superior al estilo iOS.** El usuario pidió «el scroll de WhatsApp»:
+  al bajar, el título de la pantalla se centra en la barra y lo que pasa por
+  debajo se ve difuminado, sin tapar la hora ni la batería. Comparó cuatro
+  efectos en un prototipo (barra de cristal, borde difuminado, título que
+  viaja, barra que se esconde) y eligió la **barra de cristal**. La cabecera
+  es fija y, en el móvil, translúcida (`.cv-translucida`: tinta al 70 % y
+  `backdrop-filter`; al 85 %, la primera versión, el difuminado casi no se
+  notaba). A medida que el `<h1>` de la pantalla pasa bajo la barra, su texto
+  entra centrado, el logo se va y aparece la línea fina inferior, **ligado al
+  dedo** y no con un fundido de tiempo fijo (`useTituloAlDesplazar` escribe el
+  avance como `--cv-avance-titulo`, sin un render de React por cuadro). Las
+  pantallas no cambian. La copia es `aria-hidden`: el lector ya tiene el `<h1>`.
+- **Por qué tinta y no clara.** Para que la página siga bajo la hora y la
+  batería, la PWA declara `viewport-fit=cover` y `black-translucent`, e iOS
+  pinta esos íconos **siempre en blanco**. Una barra clara los borraría; el
+  usuario eligió la barra tinta entera (también en el tema claro) sobre una
+  franja tinta con cabecera clara. Blanco sobre tinta al 70 % encima de
+  contenido blanco da 5,03:1 (`scripts/contraste-civica.json`). En alto
+  contraste la barra es opaca; también donde el navegador informa
+  `prefers-reduced-transparency` (sin verificar en Safari, que podría no
+  exponerlo). En escritorio
+  la cabecera sigue clara y solo la franja de la hora (iPad) va en tinta.
+- **Zonas seguras.** Con `viewport-fit=cover` la página llega a los bordes:
+  `--cv-alto-encabezado` y `--cv-alto-nav` incluyen `env(safe-area-inset-*)`,
+  el marco reserva los laterales (el teléfono girado) y las pantallas de
+  acceso, que no tienen cabecera, llevan una franja tinta bajo la hora.
+- **Sin verificar:** iOS 26.1 tuvo una regresión que dejaba la barra de
+  estado opaca en las PWA ([WebKit 301994](https://bugs.webkit.org/show_bug.cgi?id=301994)).
+  Si pasa, el título compacto y el difuminado siguen funcionando; solo la
+  página no llega bajo la hora.
+- **«Cuenta» a pantalla completa.** En el móvil la hoja crecía con su contenido
+  y dejaba media pantalla de la anterior a la vista. Ahora el panel cubre la
+  pantalla sobre la barra inferior, como una pestaña, con la misma barra tinta
+  («Cuenta» centrado y «Cerrar»). Lo de debajo queda `inert`, y si el teléfono
+  se gira a escritorio con el panel abierto, se cierra.
+
 ### Apariencia: claro, oscuro, alto contraste o sistema (US-23)
 
 - **Selector** «Apariencia: Sistema · Claro · Oscuro · Alto contraste» en el

@@ -1,12 +1,16 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { Usuario } from '@/lib/types/domain';
 import { useUsuarioDelMarco, type UsuarioDelMarco } from '../hooks/useUsuarioDelMarco';
 import { MarcoDeLaApp } from './MarcoDeLaApp';
 
-const { ruta } = vi.hoisted(() => ({ ruta: { actual: '/mapa' } }));
+const { ruta, cierre } = vi.hoisted(() => ({
+  ruta: { actual: '/mapa' },
+  // Lo que además dispara el toque en «Cerrar sesión» (la pregunta de la cola).
+  cierre: { alPulsar: null as null | (() => void) },
+}));
 vi.mock('next/navigation', () => ({ usePathname: () => ruta.actual }));
 vi.mock('next/link', () => ({
   default: ({ href, children, ...props }: { href: string; children: ReactNode }) => (
@@ -19,11 +23,45 @@ vi.mock('../hooks/useUsuarioDelMarco', () => ({ useUsuarioDelMarco: vi.fn() }));
 // El cierre real (preguntas de la cola, push, navegación) lo cubre BotonCerrarSesion.test.
 vi.mock('./BotonCerrarSesion', () => ({
   BotonCerrarSesion: ({ alActivar }: { alActivar?: () => void }) => (
-    <button type="button" onClick={alActivar}>
+    <button
+      type="button"
+      onClick={() => {
+        alActivar?.();
+        cierre.alPulsar?.();
+      }}
+    >
       Cerrar sesión
     </button>
   ),
 }));
+
+/**
+ * Como `DialogoCierreConPendientes`: el mismo toque en «Cerrar sesión» la
+ * monta (está en el contenido de la página) y, al montarse, toma el foco.
+ */
+function PreguntaDelCierre({ alMontar }: { alMontar: (inerte: boolean) => void }) {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    cierre.alPulsar = () => setVisible(true);
+    return () => {
+      cierre.alPulsar = null;
+    };
+  }, []);
+  return visible ? <Conservar alMontar={alMontar} /> : null;
+}
+
+function Conservar({ alMontar }: { alMontar: (inerte: boolean) => void }) {
+  const boton = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    alMontar(boton.current!.closest('[inert]') !== null);
+    boton.current!.focus();
+  }, [alMontar]);
+  return (
+    <button ref={boton} type="button">
+      Conservar
+    </button>
+  );
+}
 
 const ANA = {
   id: 7,
@@ -115,14 +153,166 @@ describe('MarcoDeLaApp (DIS-1)', () => {
     expect(boton).toHaveFocus();
   });
 
-  it('el menú se cierra al tocar fuera', async () => {
+  it('el menú se cierra al tocar fuera de él', async () => {
     como({ estado: 'identificado', usuario: ANA });
     const usuario = userEvent.setup();
+    // Escritorio: la página sigue a la vista y se puede tocar.
+    const desplegable = screen.getByRole('button', { name: 'Menú de cuenta de Ana Vecina' });
+    await usuario.click(desplegable);
+    expect(desplegable).toHaveAttribute('aria-expanded', 'true');
+    await usuario.click(screen.getByText('Contenido de la página'));
+    expect(desplegable).toHaveAttribute('aria-expanded', 'false');
+    // Móvil: el panel tapa la página; lo que queda a mano es la barra.
     const boton = within(barraInferior()).getByRole('button', { name: 'Cuenta' });
     await usuario.click(boton);
     expect(boton).toHaveAttribute('aria-expanded', 'true');
-    await usuario.click(screen.getByText('Contenido de la página'));
+    await usuario.click(barraInferior());
     expect(boton).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('móvil: lo que abre «Cerrar sesión» (la pregunta de la cola) nace sin inert y toma el foco', async () => {
+    // Si la página se destapara recién en la limpieza del efecto, la pregunta
+    // se montaría inerte y su foco no llegaría (el de la prueba en iPhone).
+    const alMontar = vi.fn();
+    ruta.actual = '/mapa';
+    vi.mocked(useUsuarioDelMarco).mockReturnValue({ estado: 'identificado', usuario: ANA });
+    render(
+      <MarcoDeLaApp>
+        <PreguntaDelCierre alMontar={alMontar} />
+      </MarcoDeLaApp>,
+    );
+    const usuario = userEvent.setup();
+    const boton = within(barraInferior()).getByRole('button', { name: 'Cuenta' });
+    await usuario.click(boton);
+    const panel = document.getElementById(boton.getAttribute('aria-controls')!)!;
+    await usuario.click(within(panel).getByRole('button', { name: 'Cerrar sesión' }));
+    expect(alMontar).toHaveBeenCalledTimes(1);
+    expect(alMontar).toHaveBeenCalledWith(false);
+    expect(screen.getByRole('button', { name: 'Conservar' })).toHaveFocus();
+  });
+
+  it('móvil: el menú cubre la pantalla con su título, deja inerte lo de debajo y «Cerrar» lo cierra', async () => {
+    como({ estado: 'identificado', usuario: ANA });
+    const usuario = userEvent.setup();
+    const contenido = screen.getByText('Contenido de la página');
+    const boton = within(barraInferior()).getByRole('button', { name: 'Cuenta' });
+    await usuario.click(boton);
+    const panel = document.getElementById(boton.getAttribute('aria-controls')!)!;
+    expect(within(panel).getByRole('heading', { name: 'Cuenta' })).toBeInTheDocument();
+    // La cabecera y el contenido quedan inertes; la barra, no: se puede cambiar de destino.
+    expect(contenido.closest('[inert]')).not.toBeNull();
+    expect(screen.getByRole('link', { name: 'Ciudad Viva' }).closest('[inert]')).not.toBeNull();
+    expect(barraInferior().closest('[inert]')).toBeNull();
+
+    await usuario.click(within(panel).getByRole('button', { name: 'Cerrar' }));
+    expect(boton).toHaveAttribute('aria-expanded', 'false');
+    expect(boton).toHaveFocus();
+    expect(contenido.closest('[inert]')).toBeNull();
+  });
+
+  it('móvil: si la ventana pasa a escritorio con el menú abierto, se cierra y nada queda inerte', async () => {
+    // Con el teléfono girado la barra se oculta, y el panel con ella.
+    const oyentes = new Set<() => void>();
+    const escritorio = {
+      matches: false,
+      addEventListener: (_: string, oyente: () => void) => oyentes.add(oyente),
+      removeEventListener: (_: string, oyente: () => void) => oyentes.delete(oyente),
+    };
+    const otra = { matches: false, addEventListener: () => {}, removeEventListener: () => {} };
+    vi.stubGlobal('matchMedia', (consulta: string) => (consulta === '(min-width: 48rem)' ? escritorio : otra));
+    try {
+      como({ estado: 'identificado', usuario: ANA });
+      const boton = within(barraInferior()).getByRole('button', { name: 'Cuenta' });
+      await userEvent.setup().click(boton);
+      expect(screen.getByText('Contenido de la página').closest('[inert]')).not.toBeNull();
+
+      escritorio.matches = true;
+      act(() => oyentes.forEach((oyente) => oyente()));
+      expect(boton).toHaveAttribute('aria-expanded', 'false');
+      expect(screen.getByText('Contenido de la página').closest('[inert]')).toBeNull();
+      expect(oyentes.size).toBe(0);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('móvil: el título pasa a la barra siguiendo el desplazamiento, y sigue sus cambios', async () => {
+    // Cada cuadro se mide en el acto; jsdom no mide cajas: se las dicta el test.
+    vi.stubGlobal('requestAnimationFrame', (medir: FrameRequestCallback) => {
+      medir(0);
+      return 1;
+    });
+    try {
+      ruta.actual = '/mis-reportes';
+      vi.mocked(useUsuarioDelMarco).mockReturnValue({ estado: 'identificado', usuario: ANA });
+      const { rerender } = render(
+        <MarcoDeLaApp>
+          <h1>Mis reportes</h1>
+        </MarcoDeLaApp>,
+      );
+      const barra = screen.getByRole('banner');
+      const h1 = screen.getByRole('heading', { level: 1, name: 'Mis reportes' });
+      vi.spyOn(barra, 'getBoundingClientRect').mockReturnValue({ bottom: 110 } as DOMRect);
+      let arribaDelH1 = 150;
+      vi.spyOn(h1, 'getBoundingClientRect').mockImplementation(() => ({ top: arribaDelH1, height: 32 }) as DOMRect);
+      /** El <h1> queda con su borde superior en `arriba` (px desde el borde de la pantalla). */
+      const desplazar = (arriba: number) => {
+        arribaDelH1 = arriba;
+        act(() => {
+          window.dispatchEvent(new Event('scroll'));
+        });
+      };
+      const avance = () => Number(barra.style.getPropertyValue('--cv-avance-titulo'));
+      const compacto = () => barra.querySelector('[data-titulo-compacto]')!;
+
+      // En la página, por debajo de la barra: nada cambia, pero el texto ya está listo.
+      desplazar(150);
+      expect(avance()).toBe(0);
+      expect(compacto()).toHaveTextContent('Mis reportes');
+      expect(compacto()).toHaveAttribute('aria-hidden', 'true');
+      expect(barra).toHaveAttribute('data-compacto', 'false');
+      // Mientras pasa bajo la barra, el cambio queda a medias y crece con el
+      // dedo, sin saltos de 0 a 1 (los valores exactos dependen del ajuste).
+      const intermedios = [90, 75, 60].map((arriba) => {
+        desplazar(arriba);
+        return avance();
+      });
+      expect(intermedios.every((valor) => valor > 0 && valor < 1)).toBe(true);
+      expect(intermedios).toEqual([...intermedios].sort((a, b) => a - b));
+      expect(new Set(intermedios).size).toBe(intermedios.length);
+      expect(barra).toHaveAttribute('data-compacto', 'false');
+      // Ya por encima: el título está en la barra y el logo sale del foco.
+      desplazar(-20);
+      expect(avance()).toBe(1);
+      expect(barra).toHaveAttribute('data-compacto', 'true');
+      // De vuelta arriba, se deshace.
+      desplazar(150);
+      expect(avance()).toBe(0);
+
+      // El detalle que termina de cargar cambia el texto del mismo <h1>.
+      rerender(
+        <MarcoDeLaApp>
+          <h1>Bache en Av. Larco</h1>
+        </MarcoDeLaApp>,
+      );
+      await waitFor(() => expect(compacto()).toHaveTextContent('Bache en Av. Larco'));
+    } finally {
+      vi.unstubAllGlobals();
+      vi.restoreAllMocks();
+    }
+  });
+
+  it('sin <h1> en la pantalla, la barra no muestra título compacto', () => {
+    como({ estado: 'identificado', usuario: ANA });
+    const barra = screen.getByRole('banner');
+    expect(barra.querySelector('[data-titulo-compacto]')).toBeEmptyDOMElement();
+    expect(Number(barra.style.getPropertyValue('--cv-avance-titulo'))).toBe(0);
+  });
+
+  it('escritorio: el menú de la cabecera no deja inerte la página', async () => {
+    como({ estado: 'identificado', usuario: ANA });
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Menú de cuenta de Ana Vecina' }));
+    expect(screen.getByText('Contenido de la página').closest('[inert]')).toBeNull();
   });
 
   it('funcionario: su navegación y la insignia de su municipalidad', () => {

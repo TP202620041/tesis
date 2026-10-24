@@ -29,9 +29,17 @@ export const metadata: Metadata = {
     'municipal de infraestructura vial en Lima Metropolitana.',
   applicationName: 'Ciudad Viva',
   manifest: '/manifest.webmanifest',
+  // PWA instalada en iPhone: la página sigue por debajo de la hora y la
+  // batería, que iOS pinta siempre en blanco. Por eso la barra superior del
+  // móvil es tinta translúcida (`.cv-translucida`) y las pantallas sin
+  // cabecera llevan una franja en su lugar (`MarcoDeLaApp`).
+  appleWebApp: { capable: true, title: 'Ciudad Viva', statusBarStyle: 'black-translucent' },
 };
 
 export const viewport: Viewport = {
+  // La página ocupa toda la pantalla (también bajo la isla y la barra de
+  // inicio); el marco reserva `env(safe-area-inset-*)` donde hace falta.
+  viewportFit: 'cover',
   // La barra del navegador en tinta; con el sistema en oscuro, el fondo oscuro.
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: '#1F3350' },

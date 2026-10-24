@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { ChevronDown, CircleUser } from 'lucide-react';
 import { Icono } from '@/components/ui/Icono';
 import type { Usuario } from '@/lib/types/domain';
@@ -20,6 +20,11 @@ interface MenuCuentaProps {
   ruta: string;
   /** Contenido adicional antes de «Cerrar sesión» (el selector de apariencia). */
   children?: ReactNode;
+  /**
+   * Solo en la barra inferior: avisa cuando el panel cubre la pantalla, para
+   * que el marco deje inerte lo que queda debajo.
+   */
+  alCubrirLaPantalla?: (cubre: boolean) => void;
 }
 
 /**
@@ -32,8 +37,13 @@ interface MenuCuentaProps {
  * se recorren con Tab como en cualquier página. Se cierra con Escape (y el
  * foco vuelve al botón), al tocar fuera, al navegar y al pulsar «Cerrar
  * sesión».
+ *
+ * En el móvil el panel ocupa la pantalla sobre la barra inferior, como una
+ * pestaña más, con su título y «Cerrar»; la barra sigue a mano para cambiar
+ * de destino. Una hoja que crecía con su contenido dejaba media pantalla de
+ * la página anterior a la vista (prueba en iPhone del 23/10).
  */
-export function MenuCuenta({ usuario, items, variante, ruta, children }: MenuCuentaProps) {
+export function MenuCuenta({ usuario, items, variante, ruta, children, alCubrirLaPantalla }: MenuCuentaProps) {
   const [abierto, setAbierto] = useState(false);
   // Al navegar se cierra. Se ajusta durante el render (el patrón de React
   // para estado que depende de una prop), no con un efecto que pintaría un
@@ -46,16 +56,27 @@ export function MenuCuenta({ usuario, items, variante, ruta, children }: MenuCue
   const idPanel = useId();
   const contenedor = useRef<HTMLDivElement>(null);
   const boton = useRef<HTMLButtonElement>(null);
+  const nombre = usuario ? `${usuario.nombre} ${usuario.apellido}`.trim() : 'Tu cuenta';
+  const enCabecera = variante === 'cabecera';
+
+  // Cerrar destapa la página en el MISMO cambio que cierra el panel: lo que
+  // el mismo toque abra (la pregunta de «Cerrar sesión» con reportes en
+  // cola) nace sin `inert` y puede tomar el foco al montarse. Si se esperara
+  // a la limpieza del efecto, el foco caería en un botón todavía inerte.
+  const cerrar = useCallback(() => {
+    setAbierto(false);
+    if (!enCabecera) alCubrirLaPantalla?.(false);
+  }, [enCabecera, alCubrirLaPantalla]);
 
   useEffect(() => {
     if (!abierto) return;
     const alPulsar = (evento: KeyboardEvent) => {
       if (evento.key !== 'Escape') return;
-      setAbierto(false);
+      cerrar();
       boton.current?.focus();
     };
     const alTocar = (evento: PointerEvent) => {
-      if (!contenedor.current?.contains(evento.target as Node)) setAbierto(false);
+      if (!contenedor.current?.contains(evento.target as Node)) cerrar();
     };
     document.addEventListener('keydown', alPulsar);
     document.addEventListener('pointerdown', alTocar);
@@ -63,10 +84,26 @@ export function MenuCuenta({ usuario, items, variante, ruta, children }: MenuCue
       document.removeEventListener('keydown', alPulsar);
       document.removeEventListener('pointerdown', alTocar);
     };
-  }, [abierto]);
+  }, [abierto, cerrar]);
 
-  const nombre = usuario ? `${usuario.nombre} ${usuario.apellido}`.trim() : 'Tu cuenta';
-  const enCabecera = variante === 'cabecera';
+  // A pantalla completa, lo de debajo queda inerte (ni el foco ni el lector
+  // llegan a lo que no se ve). Si la ventana pasa a escritorio (el teléfono
+  // girado), la barra se oculta y el panel con ella: se cierra, para que la
+  // página no quede inerte sin nada encima. La limpieza también destapa: es
+  // la red para el cierre al navegar y el desmontaje.
+  useEffect(() => {
+    if (!abierto || enCabecera) return;
+    alCubrirLaPantalla?.(true);
+    const escritorio = typeof window.matchMedia === 'function' ? window.matchMedia('(min-width: 48rem)') : null;
+    const alCambiarElAncho = () => {
+      if (escritorio?.matches) cerrar();
+    };
+    escritorio?.addEventListener('change', alCambiarElAncho);
+    return () => {
+      escritorio?.removeEventListener('change', alCambiarElAncho);
+      alCubrirLaPantalla?.(false);
+    };
+  }, [abierto, enCabecera, alCubrirLaPantalla, cerrar]);
 
   return (
     <div ref={contenedor} className={enCabecera ? 'relative' : 'h-full'}>
@@ -75,7 +112,7 @@ export function MenuCuenta({ usuario, items, variante, ruta, children }: MenuCue
         type="button"
         aria-expanded={abierto}
         aria-controls={idPanel}
-        onClick={() => setAbierto(!abierto)}
+        onClick={() => (abierto ? cerrar() : setAbierto(true))}
         className={
           enCabecera
             ? 'inline-flex min-h-objetivo items-center gap-2 rounded-full border border-linea bg-superficie py-1 pr-3 pl-1 font-semibold text-texto hover:bg-superficie-2'
@@ -111,12 +148,31 @@ export function MenuCuenta({ usuario, items, variante, ruta, children }: MenuCue
         <div
           id={idPanel}
           className={[
-            'z-[1060] flex flex-col gap-1 overflow-y-auto border border-linea bg-superficie p-2 text-texto shadow-elevada',
+            // `overscroll-contain`: llegar al final del panel no desplaza la página de fondo.
+            'z-[1060] flex flex-col gap-1 overflow-y-auto overscroll-contain bg-superficie text-texto',
             enCabecera
-              ? 'absolute top-full right-0 mt-2 max-h-[calc(100dvh-5rem)] w-80 rounded-hoja'
-              : 'fixed inset-x-0 bottom-[var(--cv-alto-nav,4rem)] max-h-[70dvh] rounded-t-hoja border-b-0',
+              ? 'absolute top-full right-0 mt-2 max-h-[calc(100dvh-5rem)] w-80 rounded-hoja border border-linea p-2 shadow-elevada'
+              : 'fixed inset-x-0 top-0 bottom-[var(--cv-alto-nav,4rem)] px-2 pb-4',
           ].join(' ')}
         >
+          {!enCabecera && (
+            // La misma barra tinta de la cabecera, que el panel tapa: bajo la
+            // hora y la batería, con el título centrado como en iOS.
+            <div className="cv-translucida sticky top-0 z-10 -mx-2 mb-1 grid h-[var(--cv-alto-encabezado,3.5rem)] shrink-0 grid-cols-[1fr_auto_1fr] items-center px-2 pt-[env(safe-area-inset-top)] text-sobre-barra-superior">
+              <h2 className="col-start-2 font-semibold">Cuenta</h2>
+              <button
+                type="button"
+                onClick={() => {
+                  cerrar();
+                  boton.current?.focus();
+                }}
+                className="col-start-3 inline-flex min-h-objetivo items-center justify-self-end rounded-control px-2 font-semibold underline-offset-4 hover:underline"
+              >
+                Cerrar
+              </button>
+            </div>
+          )}
+
           <div className="border-b border-linea px-3 pt-2 pb-3">
             <p className="font-semibold">{nombre}</p>
             <p className="text-sm text-texto-2">
@@ -131,7 +187,7 @@ export function MenuCuenta({ usuario, items, variante, ruta, children }: MenuCue
                 <li key={item.href}>
                   <Link
                     href={item.href}
-                    onClick={() => setAbierto(false)}
+                    onClick={cerrar}
                     className="flex min-h-objetivo items-center gap-3 rounded-control px-3 font-semibold text-texto hover:bg-superficie-2"
                   >
                     <Icono icono={ICONOS_DE_NAVEGACION[item.icono]} tamano={18} />
@@ -153,7 +209,7 @@ export function MenuCuenta({ usuario, items, variante, ruta, children }: MenuCue
             <BotonCerrarSesion
               variante="menu"
               alActivar={() => {
-                setAbierto(false);
+                cerrar();
                 boton.current?.focus();
               }}
             />
