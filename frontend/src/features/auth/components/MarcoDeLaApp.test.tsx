@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, render, screen, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { Usuario } from '@/lib/types/domain';
 import { useUsuarioDelMarco, type UsuarioDelMarco } from '../hooks/useUsuarioDelMarco';
@@ -168,6 +168,86 @@ describe('MarcoDeLaApp (DIS-1)', () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  it('móvil: cuando el <h1> pasa bajo la barra, su texto aparece en ella; sigue sus cambios', async () => {
+    // jsdom no tiene IntersectionObserver: uno falso al que se le dicta qué ve.
+    const observadores: ObservadorFalso[] = [];
+    class ObservadorFalso {
+      observados = new Set<Element>();
+      alCambiar: IntersectionObserverCallback;
+      constructor(alCambiar: IntersectionObserverCallback) {
+        this.alCambiar = alCambiar;
+        observadores.push(this);
+      }
+      observe(elemento: Element) {
+        this.observados.add(elemento);
+      }
+      unobserve(elemento: Element) {
+        this.observados.delete(elemento);
+      }
+      disconnect() {
+        this.observados.clear();
+      }
+    }
+    vi.stubGlobal('IntersectionObserver', ObservadorFalso);
+    try {
+      ruta.actual = '/mis-reportes';
+      vi.mocked(useUsuarioDelMarco).mockReturnValue({ estado: 'identificado', usuario: ANA });
+      const { rerender } = render(
+        <MarcoDeLaApp>
+          <h1>Mis reportes</h1>
+        </MarcoDeLaApp>,
+      );
+      const observador = observadores.at(-1)!;
+      const h1 = screen.getByRole('heading', { level: 1, name: 'Mis reportes' });
+      expect([...observador.observados]).toEqual([h1]);
+      /** El <h1> visible, por debajo de la barra (abajo) o ya por encima de ella. */
+      const ver = (donde: 'visible' | 'abajo' | 'arriba') =>
+        act(() =>
+          observador.alCambiar(
+            [
+              {
+                target: h1,
+                isIntersecting: donde === 'visible',
+                boundingClientRect: { bottom: donde === 'arriba' ? -10 : 900 },
+                rootBounds: { top: 56 },
+              } as unknown as IntersectionObserverEntry,
+            ],
+            observador as unknown as IntersectionObserver,
+          ),
+        );
+      const compacto = () => screen.getByRole('banner').querySelector('p[data-visible]')!;
+
+      ver('visible');
+      expect(compacto()).toHaveTextContent('Mis reportes');
+      expect(compacto()).toHaveAttribute('data-visible', 'false');
+      ver('arriba');
+      expect(compacto()).toHaveAttribute('data-visible', 'true');
+      expect(compacto()).toHaveAttribute('aria-hidden', 'true');
+      // Fuera de la vista pero por debajo (todavía no llega): no es compacto.
+      ver('abajo');
+      expect(compacto()).toHaveAttribute('data-visible', 'false');
+
+      // El detalle que termina de cargar cambia el texto del mismo <h1>.
+      ver('arriba');
+      rerender(
+        <MarcoDeLaApp>
+          <h1>Bache en Av. Larco</h1>
+        </MarcoDeLaApp>,
+      );
+      await waitFor(() => expect(compacto()).toHaveTextContent('Bache en Av. Larco'));
+      expect(compacto()).toHaveAttribute('data-visible', 'true');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('sin <h1> en la pantalla, la barra no muestra título compacto', () => {
+    como({ estado: 'identificado', usuario: ANA });
+    const compacto = screen.getByRole('banner').querySelector('p[data-visible]')!;
+    expect(compacto).toHaveAttribute('data-visible', 'false');
+    expect(compacto).toBeEmptyDOMElement();
   });
 
   it('escritorio: el menú de la cabecera no deja inerte la página', async () => {

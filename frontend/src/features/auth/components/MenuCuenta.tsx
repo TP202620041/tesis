@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { ChevronDown, CircleUser } from 'lucide-react';
-import { clasesDeBoton } from '@/components/ui/Boton';
 import { Icono } from '@/components/ui/Icono';
 import type { Usuario } from '@/lib/types/domain';
 import { descripcionDeCuenta, iniciales, type ItemNavegacion } from '../model/navegacion';
@@ -144,19 +143,21 @@ export function MenuCuenta({ usuario, items, variante, ruta, children, alCubrirL
             'z-[1060] flex flex-col gap-1 overflow-y-auto overscroll-contain bg-superficie text-texto',
             enCabecera
               ? 'absolute top-full right-0 mt-2 max-h-[calc(100dvh-5rem)] w-80 rounded-hoja border border-linea p-2 shadow-elevada'
-              : 'fixed inset-x-0 top-0 bottom-[var(--cv-alto-nav,4rem)] px-2 pt-[env(safe-area-inset-top)] pb-4',
+              : 'fixed inset-x-0 top-0 bottom-[var(--cv-alto-nav,4rem)] px-2 pb-4',
           ].join(' ')}
         >
           {!enCabecera && (
-            <div className="flex h-[var(--cv-alto-encabezado,3.5rem)] shrink-0 items-center justify-between gap-3 border-b border-linea px-2">
-              <h2 className="text-lg font-bold">Cuenta</h2>
+            // La misma barra tinta de la cabecera, que el panel tapa: bajo la
+            // hora y la batería, con el título centrado como en iOS.
+            <div className="cv-translucida sticky top-0 z-10 -mx-2 mb-1 grid h-[var(--cv-alto-encabezado,3.5rem)] shrink-0 grid-cols-[1fr_auto_1fr] items-center px-2 pt-[env(safe-area-inset-top)] text-sobre-barra-superior">
+              <h2 className="col-start-2 font-semibold">Cuenta</h2>
               <button
                 type="button"
                 onClick={() => {
                   setAbierto(false);
                   boton.current?.focus();
                 }}
-                className={clasesDeBoton('secundario', 'compacto')}
+                className="col-start-3 inline-flex min-h-objetivo items-center justify-self-end rounded-control px-2 font-semibold underline-offset-4 hover:underline"
               >
                 Cerrar
               </button>

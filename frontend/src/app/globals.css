@@ -100,6 +100,12 @@
   --cv-marca: #1f3350;
   --cv-marca-calle: #ffffff;
 
+  /* Barra superior del móvil (`.cv-translucida`): en tinta en los tres temas,
+     porque la PWA instalada en iPhone pinta la hora y la batería en blanco
+     encima de ella (`black-translucent`, ver `layout.tsx`). */
+  --cv-barra-superior: #1f3350;
+  --cv-sobre-barra-superior: #ffffff;
+
   /* Velo de los diálogos */
   --cv-velo: rgb(20 27 36 / 0.6);
   --cv-sombra: rgb(20 27 36 / 0.12);
@@ -162,6 +168,9 @@
   /* docs/diseno/marca/marca-a-oscuro.svg */
   --cv-marca: #e9edf2;
   --cv-marca-calle: #0f141a;
+
+  --cv-barra-superior: #171e26;
+  --cv-sobre-barra-superior: #e9edf2;
 
   --cv-velo: rgb(0 0 0 / 0.7);
   --cv-sombra: rgb(0 0 0 / 0.4);
@@ -230,6 +239,9 @@
   --cv-marca: #000000;
   --cv-marca-calle: #ffffff;
 
+  --cv-barra-superior: #000000;
+  --cv-sobre-barra-superior: #ffffff;
+
   --cv-velo: rgb(0 0 0 / 0.75);
   --cv-sombra: transparent;
 }
@@ -292,6 +304,8 @@
   --color-severidad-pista: var(--cv-severidad-pista);
   --color-barra: var(--cv-barra);
   --color-pista: var(--cv-pista);
+  --color-barra-superior: var(--cv-barra-superior);
+  --color-sobre-barra-superior: var(--cv-sobre-barra-superior);
   --color-velo: var(--cv-velo);
 
   /* Public Sans, autoalojada por `next/font` (ver `layout.tsx`). */
@@ -320,6 +334,39 @@
   /* Cifras alineadas en tablas y métricas. */
   table {
     font-variant-numeric: tabular-nums;
+  }
+
+  /* La cabecera es fija arriba: lo que recibe el foco o un ancla no queda
+     tapado por ella (WCAG 2.4.11). */
+  html {
+    scroll-padding-top: calc(4rem + env(safe-area-inset-top));
+  }
+}
+
+/*
+ * Barra translúcida (DIS-1, prueba en iPhone del 23/10): la tinta de
+ * `--cv-barra-superior` al 85 % con un difuminado, como las barras de iOS. Lo
+ * que se desplaza por debajo se adivina sin competir con el título, y la hora
+ * y la batería, que iOS pinta en blanco sobre la PWA instalada, se leen
+ * siempre: blanco sobre tinta al 85 % encima de contenido blanco da 7,96:1
+ * (`scripts/contraste-civica.json`).
+ * En alto contraste, y si el sistema pide menos transparencias, es opaca.
+ */
+.cv-translucida {
+  background-color: color-mix(in srgb, var(--cv-barra-superior) 85%, transparent);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+}
+[data-theme='alto-contraste'] .cv-translucida {
+  background-color: var(--cv-barra-superior);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+@media (prefers-reduced-transparency: reduce) {
+  .cv-translucida {
+    background-color: var(--cv-barra-superior);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
   }
 }
 

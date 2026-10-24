@@ -30,7 +30,9 @@
  ["foco: anillo / contorno (UI)", "#ffd43b", "#141b24", 3, "foco", "foco-contorno"],
  ["foco: contorno / superficie (UI)", "#141b24", "#ffffff", 3, "foco-contorno", "superficie"],
  ["severidad / superficie (UI)", "#1f3350", "#ffffff", 3, "severidad", "superficie"],
- ["barra de desempeño / pista (UI)", "#1f3350", "#dde2e8", 3, "barra", "pista"]
+ ["barra de desempeño / pista (UI)", "#1f3350", "#dde2e8", 3, "barra", "pista"],
+ ["texto / barra superior", "#ffffff", "#1f3350", 4.5, "sobre-barra-superior", "barra-superior"],
+ ["texto / barra superior al 85 % sobre contenido blanco", "#ffffff", "#41526a", 4.5, "sobre-barra-superior", null]
 ],
 "Cívica · oscuro": [
  ["texto / fondo", "#e9edf2", "#0f141a", 4.5, "texto", "fondo"],
@@ -63,7 +65,9 @@
  ["foco: anillo / contorno (UI)", "#ffd43b", "#0f141a", 3, "foco", "foco-contorno"],
  ["foco: anillo / superficie (UI)", "#ffd43b", "#171e26", 3, "foco", "superficie"],
  ["severidad / superficie (UI)", "#c9d8f0", "#171e26", 3, "severidad", "superficie"],
- ["barra de desempeño / pista (UI)", "#9dbdf0", "#2a3542", 3, "barra", "pista"]
+ ["barra de desempeño / pista (UI)", "#9dbdf0", "#2a3542", 3, "barra", "pista"],
+ ["texto / barra superior", "#e9edf2", "#171e26", 4.5, "sobre-barra-superior", "barra-superior"],
+ ["texto / barra superior al 85 % sobre contenido blanco", "#e9edf2", "#3a4047", 4.5, "sobre-barra-superior", null]
 ],
 "Cívica · alto contraste (US-23)": [
  ["texto / fondo", "#000000", "#ffffff", 7, "texto", "fondo"],
@@ -91,7 +95,8 @@
  ["foco: anillo / contorno (UI)", "#ffd43b", "#000000", 3, "foco", "foco-contorno"],
  ["foco: contorno / superficie (UI)", "#000000", "#ffffff", 3, "foco-contorno", "superficie"],
  ["severidad / superficie (UI)", "#000000", "#ffffff", 3, "severidad", "superficie"],
- ["barra de desempeño / pista (UI)", "#000000", "#ffffff", 3, "barra", "pista"]
+ ["barra de desempeño / pista (UI)", "#000000", "#ffffff", 3, "barra", "pista"],
+ ["texto / barra superior (opaca en alto contraste)", "#ffffff", "#000000", 7, "sobre-barra-superior", "barra-superior"]
 ],
 "Marcadores del mapa (iguales en los tres temas)": [
  ["glifo blanco en marcador Pendiente", "#ffffff", "#c8231b", 4.5, null, "pendiente"],

@@ -33,17 +33,29 @@ export function MarcoDeLaApp({ children }: { children: ReactNode }) {
   const modo = modoDelMarco(ruta);
   const [cuentaCubre, setCuentaCubre] = useState(false);
 
-  if (modo === 'ninguno') return <>{children}</>;
+  if (modo === 'ninguno') {
+    // Sin cabecera, la hora y la batería (en blanco en la PWA instalada en
+    // iPhone) necesitan igual su franja tinta debajo.
+    return (
+      <>
+        <div aria-hidden="true" className="cv-translucida fixed inset-x-0 top-0 z-[1070] h-[env(safe-area-inset-top)]" />
+        {children}
+      </>
+    );
+  }
   const completo = modo === 'completo';
   const apariencia = <SelectorDeApariencia variante="menu" />;
 
   return (
     <div
       className={[
-        'flex min-h-dvh flex-col [--cv-alto-encabezado:3.5rem] md:[--cv-alto-encabezado:4rem]',
+        // Las medidas incluyen las zonas seguras (la isla arriba, la barra de
+        // inicio abajo): con `viewport-fit=cover` la página llega a los bordes.
+        'flex min-h-dvh flex-col pr-[env(safe-area-inset-right)] pl-[env(safe-area-inset-left)]',
+        '[--cv-alto-encabezado:calc(3.5rem+env(safe-area-inset-top))] md:[--cv-alto-encabezado:calc(4rem+env(safe-area-inset-top))]',
         completo
-          ? '[--cv-alto-nav:calc(4rem+env(safe-area-inset-bottom))] md:[--cv-alto-nav:0px]'
-          : '[--cv-alto-nav:0px]',
+          ? '[--cv-alto-nav:calc(4rem+env(safe-area-inset-bottom))] md:[--cv-alto-nav:env(safe-area-inset-bottom)]'
+          : '[--cv-alto-nav:env(safe-area-inset-bottom)]',
       ].join(' ')}
     >
       {/* `contents`: el envoltorio no cuenta para el layout en columna. */}

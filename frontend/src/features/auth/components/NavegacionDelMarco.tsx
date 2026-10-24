@@ -1,12 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import type { ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
 import { clasesDeBoton } from '@/components/ui/Boton';
 import { Icono } from '@/components/ui/Icono';
 import { Logo } from '@/components/ui/Logo';
 import type { Usuario } from '@/lib/types/domain';
 import { esRutaActual, navegacionDe, type ItemNavegacion } from '../model/navegacion';
+import { useTituloAlDesplazar } from '../hooks/useTituloAlDesplazar';
 import type { UsuarioDelMarco } from '../hooks/useUsuarioDelMarco';
 import { ETIQUETA_INFERIOR, ICONOS_DE_NAVEGACION } from './iconosDeNavegacion';
 import { MenuCuenta } from './MenuCuenta';
@@ -46,6 +47,13 @@ interface CabeceraProps {
  * navegación del rol, la insignia «Municipalidad de X» del funcionario y el
  * menú de cuenta (o «Iniciar sesión» y «Crear cuenta» para el visitante).
  * Mide `--cv-alto-encabezado`, que `/mapa` descuenta para ocupar el resto.
+ *
+ * Queda fija arriba y empieza bajo la hora y la batería
+ * (`env(safe-area-inset-top)`, PWA instalada en iPhone). En el móvil es la
+ * barra tinta translúcida de iOS: la página se desplaza por debajo,
+ * difuminada, y cuando el `<h1>` de la pantalla pasa bajo la barra su texto
+ * reemplaza al logo, centrado (`useTituloAlDesplazar`). En escritorio sigue
+ * siendo clara; solo la franja de la hora (si la hay, en iPad) va en tinta.
  */
 export function CabeceraDeLaApp({ usuario, ruta, conNavegacion, extrasDeCuenta }: CabeceraProps) {
   const rol = rolDelMarco(usuario);
@@ -55,13 +63,45 @@ export function CabeceraDeLaApp({ usuario, ruta, conNavegacion, extrasDeCuenta }
     persona?.rol === 'FUNCIONARIO_MUNICIPAL' && persona.distritoNombre
       ? `Municipalidad de ${persona.distritoNombre}`
       : null;
+  const barra = useRef<HTMLElement>(null);
+  const titulo = useTituloAlDesplazar(ruta, barra);
+  const compacto = titulo.compacto && titulo.texto !== null;
 
   return (
-    <header className="h-[var(--cv-alto-encabezado)] shrink-0 border-b border-linea bg-superficie">
-      <div className="mx-auto flex h-full max-w-7xl items-center gap-3 px-4 lg:gap-5 lg:px-6">
-        <Link href="/" className="inline-flex min-h-objetivo shrink-0 items-center rounded-control">
+    <header
+      ref={barra}
+      className={[
+        'sticky top-0 z-[1040] h-[var(--cv-alto-encabezado)] shrink-0 pt-[env(safe-area-inset-top)]',
+        'md:border-b md:border-linea md:bg-superficie',
+        // En la barra tinta, el logo y el texto en claro (los tokens del logo
+        // y del texto se redefinen solo aquí).
+        'max-md:[--cv-marca-calle:var(--cv-barra-superior)] max-md:[--cv-marca:var(--cv-sobre-barra-superior)]',
+        'max-md:[--cv-texto:var(--cv-sobre-barra-superior)]',
+      ].join(' ')}
+    >
+      <div aria-hidden="true" className="cv-translucida absolute inset-0 -z-10 md:hidden" />
+      <div aria-hidden="true" className="absolute inset-x-0 top-0 hidden h-[env(safe-area-inset-top)] bg-barra-superior md:block" />
+      <div className="relative mx-auto flex h-full max-w-7xl items-center gap-3 px-4 lg:gap-5 lg:px-6">
+        <Link
+          href="/"
+          className={[
+            'inline-flex min-h-objetivo shrink-0 items-center rounded-control transition-[opacity,visibility] duration-200',
+            compacto ? 'max-md:invisible max-md:opacity-0' : '',
+          ].join(' ')}
+        >
           <Logo conNombre />
         </Link>
+        {/* Copia visual del <h1>, que sigue en la página: el lector no la oye dos veces. */}
+        <p
+          aria-hidden="true"
+          data-visible={compacto}
+          className={[
+            'pointer-events-none absolute inset-x-4 top-1/2 -translate-y-1/2 truncate text-center font-semibold text-texto transition-opacity duration-200 md:hidden',
+            compacto ? 'opacity-100' : 'opacity-0',
+          ].join(' ')}
+        >
+          {titulo.texto}
+        </p>
         {municipalidad && (
           <span className="hidden shrink-0 rounded-control bg-superficie-2 px-2.5 py-1 text-sm font-semibold text-texto-2 xl:inline">
             {municipalidad}
