@@ -300,7 +300,9 @@ marco común, `features/auth/components/MarcoDeLaApp.tsx`, en el layout raíz:
   usuario eligió la barra tinta entera (también en el tema claro) sobre una
   franja tinta con cabecera clara. Blanco sobre tinta al 70 % encima de
   contenido blanco da 5,03:1 (`scripts/contraste-civica.json`). En alto
-  contraste, o con «Reducir transparencia», la barra es opaca. En escritorio
+  contraste la barra es opaca; también donde el navegador informa
+  `prefers-reduced-transparency` (sin verificar en Safari, que podría no
+  exponerlo). En escritorio
   la cabecera sigue clara y solo la franja de la hora (iPad) va en tinta.
 - **Zonas seguras.** Con `viewport-fit=cover` la página llega a los bordes:
   `--cv-alto-encabezado` y `--cv-alto-nav` incluyen `env(safe-area-inset-*)`,

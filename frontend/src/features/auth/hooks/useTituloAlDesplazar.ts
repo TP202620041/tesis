@@ -25,9 +25,14 @@ const limitar = (valor: number) => Math.min(1, Math.max(0, valor));
  * para sacar del foco el logo invisible), una vez por cuadro y sin pasar por
  * React: un render por cuadro de desplazamiento sería trabajo de más. React
  * solo se entera cuando cambia el texto (el detalle que terminó de cargar).
- * Un MutationObserver vuelve a buscar el `<h1>` cuando la pantalla lo cambia.
+ * Un MutationObserver vuelve a buscar el `<h1>` en `contenido` cuando la
+ * pantalla lo cambia.
  */
-export function useTituloAlDesplazar(ruta: string, barra: RefObject<HTMLElement | null>): string | null {
+export function useTituloAlDesplazar(
+  ruta: string,
+  barra: RefObject<HTMLElement | null>,
+  contenido: RefObject<HTMLElement | null>,
+): string | null {
   const [texto, setTexto] = useState<string | null>(null);
   // Al navegar vuelve a empezar. Se ajusta durante el render (como el menú de
   // cuenta), no con un efecto: la pantalla nueva no pinta el título anterior.
@@ -38,9 +43,9 @@ export function useTituloAlDesplazar(ruta: string, barra: RefObject<HTMLElement 
   }
 
   useEffect(() => {
-    const contenido = document.getElementById('contenido');
+    const pantalla = contenido.current;
     const elemento = barra.current;
-    if (!contenido || !elemento) return;
+    if (!pantalla || !elemento) return;
 
     const enCuadro =
       typeof requestAnimationFrame === 'function'
@@ -49,7 +54,7 @@ export function useTituloAlDesplazar(ruta: string, barra: RefObject<HTMLElement 
             medir(0);
             return 0;
           };
-    let h1: HTMLElement | null = contenido.querySelector('h1');
+    let h1: HTMLElement | null = pantalla.querySelector('h1');
     let ultimoTexto: string | null = null;
     // Bandera aparte del id: si el cuadro corre en el acto (sin
     // requestAnimationFrame), `medir` la baja antes de que vuelva el id.
@@ -78,11 +83,11 @@ export function useTituloAlDesplazar(ruta: string, barra: RefObject<HTMLElement 
       cuadro = enCuadro(medir);
     };
     const mutaciones = new MutationObserver(() => {
-      h1 = contenido.querySelector('h1');
+      h1 = pantalla.querySelector('h1');
       pedir();
     });
 
-    mutaciones.observe(contenido, { childList: true, subtree: true, characterData: true });
+    mutaciones.observe(pantalla, { childList: true, subtree: true, characterData: true });
     window.addEventListener('scroll', pedir, { passive: true });
     window.addEventListener('resize', pedir);
     pedir();
@@ -95,7 +100,7 @@ export function useTituloAlDesplazar(ruta: string, barra: RefObject<HTMLElement 
       elemento.style.removeProperty(AVANCE_DEL_TITULO);
       delete elemento.dataset.compacto;
     };
-  }, [ruta, barra]);
+  }, [ruta, barra, contenido]);
 
   return texto;
 }

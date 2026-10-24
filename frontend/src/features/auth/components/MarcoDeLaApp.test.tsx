@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -6,7 +6,11 @@ import type { Usuario } from '@/lib/types/domain';
 import { useUsuarioDelMarco, type UsuarioDelMarco } from '../hooks/useUsuarioDelMarco';
 import { MarcoDeLaApp } from './MarcoDeLaApp';
 
-const { ruta } = vi.hoisted(() => ({ ruta: { actual: '/mapa' } }));
+const { ruta, cierre } = vi.hoisted(() => ({
+  ruta: { actual: '/mapa' },
+  // Lo que además dispara el toque en «Cerrar sesión» (la pregunta de la cola).
+  cierre: { alPulsar: null as null | (() => void) },
+}));
 vi.mock('next/navigation', () => ({ usePathname: () => ruta.actual }));
 vi.mock('next/link', () => ({
   default: ({ href, children, ...props }: { href: string; children: ReactNode }) => (
@@ -19,11 +23,45 @@ vi.mock('../hooks/useUsuarioDelMarco', () => ({ useUsuarioDelMarco: vi.fn() }));
 // El cierre real (preguntas de la cola, push, navegación) lo cubre BotonCerrarSesion.test.
 vi.mock('./BotonCerrarSesion', () => ({
   BotonCerrarSesion: ({ alActivar }: { alActivar?: () => void }) => (
-    <button type="button" onClick={alActivar}>
+    <button
+      type="button"
+      onClick={() => {
+        alActivar?.();
+        cierre.alPulsar?.();
+      }}
+    >
       Cerrar sesión
     </button>
   ),
 }));
+
+/**
+ * Como `DialogoCierreConPendientes`: el mismo toque en «Cerrar sesión» la
+ * monta (está en el contenido de la página) y, al montarse, toma el foco.
+ */
+function PreguntaDelCierre({ alMontar }: { alMontar: (inerte: boolean) => void }) {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    cierre.alPulsar = () => setVisible(true);
+    return () => {
+      cierre.alPulsar = null;
+    };
+  }, []);
+  return visible ? <Conservar alMontar={alMontar} /> : null;
+}
+
+function Conservar({ alMontar }: { alMontar: (inerte: boolean) => void }) {
+  const boton = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    alMontar(boton.current!.closest('[inert]') !== null);
+    boton.current!.focus();
+  }, [alMontar]);
+  return (
+    <button ref={boton} type="button">
+      Conservar
+    </button>
+  );
+}
 
 const ANA = {
   id: 7,
@@ -115,14 +153,42 @@ describe('MarcoDeLaApp (DIS-1)', () => {
     expect(boton).toHaveFocus();
   });
 
-  it('el menú se cierra al tocar fuera', async () => {
+  it('el menú se cierra al tocar fuera de él', async () => {
     como({ estado: 'identificado', usuario: ANA });
     const usuario = userEvent.setup();
+    // Escritorio: la página sigue a la vista y se puede tocar.
+    const desplegable = screen.getByRole('button', { name: 'Menú de cuenta de Ana Vecina' });
+    await usuario.click(desplegable);
+    expect(desplegable).toHaveAttribute('aria-expanded', 'true');
+    await usuario.click(screen.getByText('Contenido de la página'));
+    expect(desplegable).toHaveAttribute('aria-expanded', 'false');
+    // Móvil: el panel tapa la página; lo que queda a mano es la barra.
     const boton = within(barraInferior()).getByRole('button', { name: 'Cuenta' });
     await usuario.click(boton);
     expect(boton).toHaveAttribute('aria-expanded', 'true');
-    await usuario.click(screen.getByText('Contenido de la página'));
+    await usuario.click(barraInferior());
     expect(boton).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('móvil: lo que abre «Cerrar sesión» (la pregunta de la cola) nace sin inert y toma el foco', async () => {
+    // Si la página se destapara recién en la limpieza del efecto, la pregunta
+    // se montaría inerte y su foco no llegaría (el de la prueba en iPhone).
+    const alMontar = vi.fn();
+    ruta.actual = '/mapa';
+    vi.mocked(useUsuarioDelMarco).mockReturnValue({ estado: 'identificado', usuario: ANA });
+    render(
+      <MarcoDeLaApp>
+        <PreguntaDelCierre alMontar={alMontar} />
+      </MarcoDeLaApp>,
+    );
+    const usuario = userEvent.setup();
+    const boton = within(barraInferior()).getByRole('button', { name: 'Cuenta' });
+    await usuario.click(boton);
+    const panel = document.getElementById(boton.getAttribute('aria-controls')!)!;
+    await usuario.click(within(panel).getByRole('button', { name: 'Cerrar sesión' }));
+    expect(alMontar).toHaveBeenCalledTimes(1);
+    expect(alMontar).toHaveBeenCalledWith(false);
+    expect(screen.getByRole('button', { name: 'Conservar' })).toHaveFocus();
   });
 
   it('móvil: el menú cubre la pantalla con su título, deja inerte lo de debajo y «Cerrar» lo cierra', async () => {
@@ -205,9 +271,15 @@ describe('MarcoDeLaApp (DIS-1)', () => {
       expect(compacto()).toHaveTextContent('Mis reportes');
       expect(compacto()).toHaveAttribute('aria-hidden', 'true');
       expect(barra).toHaveAttribute('data-compacto', 'false');
-      // A medio camino bajo la barra, a medio cambio: va con el dedo, no por pasos.
-      desplazar(73);
-      expect(avance()).toBeCloseTo(0.5, 3);
+      // Mientras pasa bajo la barra, el cambio queda a medias y crece con el
+      // dedo, sin saltos de 0 a 1 (los valores exactos dependen del ajuste).
+      const intermedios = [90, 75, 60].map((arriba) => {
+        desplazar(arriba);
+        return avance();
+      });
+      expect(intermedios.every((valor) => valor > 0 && valor < 1)).toBe(true);
+      expect(intermedios).toEqual([...intermedios].sort((a, b) => a - b));
+      expect(new Set(intermedios).size).toBe(intermedios.length);
       expect(barra).toHaveAttribute('data-compacto', 'false');
       // Ya por encima: el título está en la barra y el logo sale del foco.
       desplazar(-20);

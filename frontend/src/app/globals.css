@@ -351,7 +351,9 @@
  * y la batería, que iOS pinta en blanco sobre la PWA instalada, se leen
  * siempre: blanco sobre tinta al 70 % encima de contenido blanco da 5,03:1
  * (`scripts/contraste-civica.json`); más tinta lo sube, menos lo baja de AA.
- * En alto contraste, y si el sistema pide menos transparencias, es opaca.
+ * En alto contraste es opaca. También donde el navegador informa
+ * `prefers-reduced-transparency` (no verificado en Safari, que podría no
+ * exponerlo: ahí el ajuste del sistema no llegaría).
  */
 .cv-translucida {
   background-color: color-mix(in srgb, var(--cv-barra-superior) 70%, transparent);

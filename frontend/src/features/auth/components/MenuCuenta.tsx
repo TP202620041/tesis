@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { ChevronDown, CircleUser } from 'lucide-react';
 import { Icono } from '@/components/ui/Icono';
 import type { Usuario } from '@/lib/types/domain';
@@ -56,16 +56,27 @@ export function MenuCuenta({ usuario, items, variante, ruta, children, alCubrirL
   const idPanel = useId();
   const contenedor = useRef<HTMLDivElement>(null);
   const boton = useRef<HTMLButtonElement>(null);
+  const nombre = usuario ? `${usuario.nombre} ${usuario.apellido}`.trim() : 'Tu cuenta';
+  const enCabecera = variante === 'cabecera';
+
+  // Cerrar destapa la página en el MISMO cambio que cierra el panel: lo que
+  // el mismo toque abra (la pregunta de «Cerrar sesión» con reportes en
+  // cola) nace sin `inert` y puede tomar el foco al montarse. Si se esperara
+  // a la limpieza del efecto, el foco caería en un botón todavía inerte.
+  const cerrar = useCallback(() => {
+    setAbierto(false);
+    if (!enCabecera) alCubrirLaPantalla?.(false);
+  }, [enCabecera, alCubrirLaPantalla]);
 
   useEffect(() => {
     if (!abierto) return;
     const alPulsar = (evento: KeyboardEvent) => {
       if (evento.key !== 'Escape') return;
-      setAbierto(false);
+      cerrar();
       boton.current?.focus();
     };
     const alTocar = (evento: PointerEvent) => {
-      if (!contenedor.current?.contains(evento.target as Node)) setAbierto(false);
+      if (!contenedor.current?.contains(evento.target as Node)) cerrar();
     };
     document.addEventListener('keydown', alPulsar);
     document.addEventListener('pointerdown', alTocar);
@@ -73,28 +84,26 @@ export function MenuCuenta({ usuario, items, variante, ruta, children, alCubrirL
       document.removeEventListener('keydown', alPulsar);
       document.removeEventListener('pointerdown', alTocar);
     };
-  }, [abierto]);
-
-  const nombre = usuario ? `${usuario.nombre} ${usuario.apellido}`.trim() : 'Tu cuenta';
-  const enCabecera = variante === 'cabecera';
+  }, [abierto, cerrar]);
 
   // A pantalla completa, lo de debajo queda inerte (ni el foco ni el lector
   // llegan a lo que no se ve). Si la ventana pasa a escritorio (el teléfono
   // girado), la barra se oculta y el panel con ella: se cierra, para que la
-  // página no quede inerte sin nada encima.
+  // página no quede inerte sin nada encima. La limpieza también destapa: es
+  // la red para el cierre al navegar y el desmontaje.
   useEffect(() => {
     if (!abierto || enCabecera) return;
     alCubrirLaPantalla?.(true);
     const escritorio = typeof window.matchMedia === 'function' ? window.matchMedia('(min-width: 48rem)') : null;
     const alCambiarElAncho = () => {
-      if (escritorio?.matches) setAbierto(false);
+      if (escritorio?.matches) cerrar();
     };
     escritorio?.addEventListener('change', alCambiarElAncho);
     return () => {
       escritorio?.removeEventListener('change', alCambiarElAncho);
       alCubrirLaPantalla?.(false);
     };
-  }, [abierto, enCabecera, alCubrirLaPantalla]);
+  }, [abierto, enCabecera, alCubrirLaPantalla, cerrar]);
 
   return (
     <div ref={contenedor} className={enCabecera ? 'relative' : 'h-full'}>
@@ -103,7 +112,7 @@ export function MenuCuenta({ usuario, items, variante, ruta, children, alCubrirL
         type="button"
         aria-expanded={abierto}
         aria-controls={idPanel}
-        onClick={() => setAbierto(!abierto)}
+        onClick={() => (abierto ? cerrar() : setAbierto(true))}
         className={
           enCabecera
             ? 'inline-flex min-h-objetivo items-center gap-2 rounded-full border border-linea bg-superficie py-1 pr-3 pl-1 font-semibold text-texto hover:bg-superficie-2'
@@ -154,7 +163,7 @@ export function MenuCuenta({ usuario, items, variante, ruta, children, alCubrirL
               <button
                 type="button"
                 onClick={() => {
-                  setAbierto(false);
+                  cerrar();
                   boton.current?.focus();
                 }}
                 className="col-start-3 inline-flex min-h-objetivo items-center justify-self-end rounded-control px-2 font-semibold underline-offset-4 hover:underline"
@@ -178,7 +187,7 @@ export function MenuCuenta({ usuario, items, variante, ruta, children, alCubrirL
                 <li key={item.href}>
                   <Link
                     href={item.href}
-                    onClick={() => setAbierto(false)}
+                    onClick={cerrar}
                     className="flex min-h-objetivo items-center gap-3 rounded-control px-3 font-semibold text-texto hover:bg-superficie-2"
                   >
                     <Icono icono={ICONOS_DE_NAVEGACION[item.icono]} tamano={18} />
@@ -200,7 +209,7 @@ export function MenuCuenta({ usuario, items, variante, ruta, children, alCubrirL
             <BotonCerrarSesion
               variante="menu"
               alActivar={() => {
-                setAbierto(false);
+                cerrar();
                 boton.current?.focus();
               }}
             />

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useRef, type ReactNode } from 'react';
+import { useRef, type ReactNode, type RefObject } from 'react';
 import { clasesDeBoton } from '@/components/ui/Boton';
 import { Icono } from '@/components/ui/Icono';
 import { Logo } from '@/components/ui/Logo';
@@ -40,6 +40,8 @@ interface CabeceraProps {
   conNavegacion: boolean;
   /** Lo que va dentro del menú de cuenta antes de «Cerrar sesión» (apariencia). */
   extrasDeCuenta?: ReactNode;
+  /** El contenido de la pantalla, donde está su `<h1>` (`#contenido` del marco). */
+  contenido: RefObject<HTMLElement | null>;
 }
 
 /**
@@ -56,7 +58,7 @@ interface CabeceraProps {
  * ligado al dedo (`useTituloAlDesplazar`). En escritorio sigue siendo clara;
  * solo la franja de la hora (si la hay, en iPad) va en tinta.
  */
-export function CabeceraDeLaApp({ usuario, ruta, conNavegacion, extrasDeCuenta }: CabeceraProps) {
+export function CabeceraDeLaApp({ usuario, ruta, conNavegacion, extrasDeCuenta, contenido }: CabeceraProps) {
   const rol = rolDelMarco(usuario);
   const nav = conNavegacion && rol !== undefined ? navegacionDe(rol) : null;
   const persona = usuarioDe(usuario);
@@ -65,7 +67,7 @@ export function CabeceraDeLaApp({ usuario, ruta, conNavegacion, extrasDeCuenta }
       ? `Municipalidad de ${persona.distritoNombre}`
       : null;
   const barra = useRef<HTMLElement>(null);
-  const titulo = useTituloAlDesplazar(ruta, barra);
+  const titulo = useTituloAlDesplazar(ruta, barra, contenido);
 
   return (
     <header
@@ -73,7 +75,8 @@ export function CabeceraDeLaApp({ usuario, ruta, conNavegacion, extrasDeCuenta }
       className={[
         // `--cv-avance-titulo` (0 a 1) y `data-compacto` los escribe `useTituloAlDesplazar`.
         'group sticky top-0 z-[1040] h-[var(--cv-alto-encabezado)] shrink-0 pt-[env(safe-area-inset-top)]',
-        'md:border-b md:border-linea md:bg-superficie',
+        // `border-b` (no `md:border-b`): así lo engrosa la regla de alto contraste.
+        'border-b border-linea max-md:border-b-0 md:bg-superficie',
         // En la barra tinta, el logo y el texto en claro (los tokens del logo
         // y del texto se redefinen solo aquí).
         'max-md:[--cv-marca-calle:var(--cv-barra-superior)] max-md:[--cv-marca:var(--cv-sobre-barra-superior)]',
@@ -87,14 +90,26 @@ export function CabeceraDeLaApp({ usuario, ruta, conNavegacion, extrasDeCuenta }
         className="absolute inset-x-0 bottom-0 h-px bg-sobre-barra-superior/20 opacity-[var(--cv-avance-titulo,0)] md:hidden"
       />
       <div aria-hidden="true" className="absolute inset-x-0 top-0 hidden h-[env(safe-area-inset-top)] bg-barra-superior md:block" />
-      <div className="relative mx-auto flex h-full max-w-7xl items-center gap-3 px-4 lg:gap-5 lg:px-6">
-        {/* Con el título ya en la barra, el logo sale del foco (`data-compacto`). */}
+      {/* Los márgenes suman las zonas seguras de los lados (el teléfono girado):
+          el fondo de la cabecera sigue llegando a los bordes. */}
+      <div
+        className={[
+          'relative mx-auto flex h-full max-w-7xl items-center gap-3 lg:gap-5',
+          'pr-[max(1rem,env(safe-area-inset-right))] pl-[max(1rem,env(safe-area-inset-left))]',
+          'lg:pr-[max(1.5rem,env(safe-area-inset-right))] lg:pl-[max(1.5rem,env(safe-area-inset-left))]',
+        ].join(' ')}
+      >
+        {/* Se va a medida que entra el título. Con el foco encima se ve entero
+            (el anillo amarillo no se atenúa) y no se esconde hasta que lo
+            suelta; sin foco, con el título ya en la barra, sale del recorrido
+            (`data-compacto`). */}
         <Link
           href="/"
           className={[
             'inline-flex min-h-objetivo shrink-0 items-center rounded-control',
-            'max-md:translate-y-[calc(var(--cv-avance-titulo,0)_*_-6px)] max-md:opacity-[calc(1_-_var(--cv-avance-titulo,0))]',
-            'max-md:group-data-[compacto=true]:invisible motion-reduce:translate-y-0',
+            'max-md:opacity-[calc(1_-_var(--cv-avance-titulo,0))] max-md:motion-safe:translate-y-[calc(var(--cv-avance-titulo,0)_*_-6px)]',
+            'max-md:focus-visible:translate-y-0 max-md:focus-visible:opacity-100',
+            'max-md:group-data-[compacto=true]:not-focus-visible:invisible',
           ].join(' ')}
         >
           <Logo conNombre />
@@ -104,9 +119,8 @@ export function CabeceraDeLaApp({ usuario, ruta, conNavegacion, extrasDeCuenta }
           aria-hidden="true"
           data-titulo-compacto=""
           className={[
-            'pointer-events-none absolute inset-x-4 top-1/2 truncate text-center font-semibold text-texto md:hidden',
-            'translate-y-[calc(-50%_+_(1_-_var(--cv-avance-titulo,0))_*_8px)] opacity-[var(--cv-avance-titulo,0)]',
-            'motion-reduce:-translate-y-1/2',
+            'pointer-events-none absolute inset-x-4 top-1/2 -translate-y-1/2 truncate text-center font-semibold text-texto md:hidden',
+            'opacity-[var(--cv-avance-titulo,0)] motion-safe:translate-y-[calc(-50%_+_(1_-_var(--cv-avance-titulo,0))_*_8px)]',
           ].join(' ')}
         >
           {titulo}
@@ -187,6 +201,12 @@ interface BarraInferiorProps {
   extrasDeCuenta?: ReactNode;
   /** El menú de cuenta abierto cubre la pantalla (ver `MenuCuenta`). */
   alCubrirLaPantalla?: (cubre: boolean) => void;
+  /**
+   * El menú ya cubre la pantalla: la barra (y el panel, que vive en ella)
+   * sube sobre los avisos de la cola (1100), que quedaron inertes debajo y no
+   * deben llevarse un toque que es para el panel. Sigue bajo los diálogos (1200).
+   */
+  cubriendo?: boolean;
 }
 
 /**
@@ -196,10 +216,18 @@ interface BarraInferiorProps {
  * mide `--cv-alto-nav`, que el contenido reserva para no quedar tapado. Desde
  * `md` la reemplaza la cabecera.
  */
-export function BarraInferiorDeLaApp({ usuario, ruta, extrasDeCuenta, alCubrirLaPantalla }: BarraInferiorProps) {
+export function BarraInferiorDeLaApp({
+  usuario,
+  ruta,
+  extrasDeCuenta,
+  alCubrirLaPantalla,
+  cubriendo = false,
+}: BarraInferiorProps) {
   const rol = rolDelMarco(usuario);
-  const clases =
-    'fixed inset-x-0 bottom-0 z-[1050] border-t border-linea bg-superficie pb-[env(safe-area-inset-bottom)] md:hidden';
+  const clases = [
+    'fixed inset-x-0 bottom-0 border-t border-linea bg-superficie pb-[env(safe-area-inset-bottom)] md:hidden',
+    cubriendo ? 'z-[1150]' : 'z-[1050]',
+  ].join(' ');
   // Mientras se averigua quién mira, la barra ocupa su lugar vacía: así el
   // contenido no salta cuando llegan los ítems.
   if (rol === undefined) return <div aria-hidden="true" className={`${clases} h-[var(--cv-alto-nav)]`} />;
