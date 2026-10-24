@@ -136,6 +136,8 @@ interface BarraInferiorProps {
   usuario: UsuarioDelMarco;
   ruta: string;
   extrasDeCuenta?: ReactNode;
+  /** El menú de cuenta abierto cubre la pantalla (ver `MenuCuenta`). */
+  alCubrirLaPantalla?: (cubre: boolean) => void;
 }
 
 /**
@@ -145,7 +147,7 @@ interface BarraInferiorProps {
  * mide `--cv-alto-nav`, que el contenido reserva para no quedar tapado. Desde
  * `md` la reemplaza la cabecera.
  */
-export function BarraInferiorDeLaApp({ usuario, ruta, extrasDeCuenta }: BarraInferiorProps) {
+export function BarraInferiorDeLaApp({ usuario, ruta, extrasDeCuenta, alCubrirLaPantalla }: BarraInferiorProps) {
   const rol = rolDelMarco(usuario);
   const clases =
     'fixed inset-x-0 bottom-0 z-[1050] border-t border-linea bg-superficie pb-[env(safe-area-inset-bottom)] md:hidden';
@@ -187,7 +189,13 @@ export function BarraInferiorDeLaApp({ usuario, ruta, extrasDeCuenta }: BarraInf
         })}
         {conSesion(usuario) && (
           <li>
-            <MenuCuenta usuario={usuarioDe(usuario)} items={nav.cuenta} variante="inferior" ruta={ruta}>
+            <MenuCuenta
+              usuario={usuarioDe(usuario)}
+              items={nav.cuenta}
+              variante="inferior"
+              ruta={ruta}
+              alCubrirLaPantalla={alCubrirLaPantalla}
+            >
               {extrasDeCuenta}
             </MenuCuenta>
           </li>

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { Usuario } from '@/lib/types/domain';
 import { useUsuarioDelMarco, type UsuarioDelMarco } from '../hooks/useUsuarioDelMarco';
@@ -123,6 +123,57 @@ describe('MarcoDeLaApp (DIS-1)', () => {
     expect(boton).toHaveAttribute('aria-expanded', 'true');
     await usuario.click(screen.getByText('Contenido de la página'));
     expect(boton).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('móvil: el menú cubre la pantalla con su título, deja inerte lo de debajo y «Cerrar» lo cierra', async () => {
+    como({ estado: 'identificado', usuario: ANA });
+    const usuario = userEvent.setup();
+    const contenido = screen.getByText('Contenido de la página');
+    const boton = within(barraInferior()).getByRole('button', { name: 'Cuenta' });
+    await usuario.click(boton);
+    const panel = document.getElementById(boton.getAttribute('aria-controls')!)!;
+    expect(within(panel).getByRole('heading', { name: 'Cuenta' })).toBeInTheDocument();
+    // La cabecera y el contenido quedan inertes; la barra, no: se puede cambiar de destino.
+    expect(contenido.closest('[inert]')).not.toBeNull();
+    expect(screen.getByRole('link', { name: 'Ciudad Viva' }).closest('[inert]')).not.toBeNull();
+    expect(barraInferior().closest('[inert]')).toBeNull();
+
+    await usuario.click(within(panel).getByRole('button', { name: 'Cerrar' }));
+    expect(boton).toHaveAttribute('aria-expanded', 'false');
+    expect(boton).toHaveFocus();
+    expect(contenido.closest('[inert]')).toBeNull();
+  });
+
+  it('móvil: si la ventana pasa a escritorio con el menú abierto, se cierra y nada queda inerte', async () => {
+    // Con el teléfono girado la barra se oculta, y el panel con ella.
+    const oyentes = new Set<() => void>();
+    const escritorio = {
+      matches: false,
+      addEventListener: (_: string, oyente: () => void) => oyentes.add(oyente),
+      removeEventListener: (_: string, oyente: () => void) => oyentes.delete(oyente),
+    };
+    const otra = { matches: false, addEventListener: () => {}, removeEventListener: () => {} };
+    vi.stubGlobal('matchMedia', (consulta: string) => (consulta === '(min-width: 48rem)' ? escritorio : otra));
+    try {
+      como({ estado: 'identificado', usuario: ANA });
+      const boton = within(barraInferior()).getByRole('button', { name: 'Cuenta' });
+      await userEvent.setup().click(boton);
+      expect(screen.getByText('Contenido de la página').closest('[inert]')).not.toBeNull();
+
+      escritorio.matches = true;
+      act(() => oyentes.forEach((oyente) => oyente()));
+      expect(boton).toHaveAttribute('aria-expanded', 'false');
+      expect(screen.getByText('Contenido de la página').closest('[inert]')).toBeNull();
+      expect(oyentes.size).toBe(0);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('escritorio: el menú de la cabecera no deja inerte la página', async () => {
+    como({ estado: 'identificado', usuario: ANA });
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Menú de cuenta de Ana Vecina' }));
+    expect(screen.getByText('Contenido de la página').closest('[inert]')).toBeNull();
   });
 
   it('funcionario: su navegación y la insignia de su municipalidad', () => {

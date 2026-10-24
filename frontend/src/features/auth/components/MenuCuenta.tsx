@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { ChevronDown, CircleUser } from 'lucide-react';
+import { clasesDeBoton } from '@/components/ui/Boton';
 import { Icono } from '@/components/ui/Icono';
 import type { Usuario } from '@/lib/types/domain';
 import { descripcionDeCuenta, iniciales, type ItemNavegacion } from '../model/navegacion';
@@ -20,6 +21,11 @@ interface MenuCuentaProps {
   ruta: string;
   /** Contenido adicional antes de «Cerrar sesión» (el selector de apariencia). */
   children?: ReactNode;
+  /**
+   * Solo en la barra inferior: avisa cuando el panel cubre la pantalla, para
+   * que el marco deje inerte lo que queda debajo.
+   */
+  alCubrirLaPantalla?: (cubre: boolean) => void;
 }
 
 /**
@@ -32,8 +38,13 @@ interface MenuCuentaProps {
  * se recorren con Tab como en cualquier página. Se cierra con Escape (y el
  * foco vuelve al botón), al tocar fuera, al navegar y al pulsar «Cerrar
  * sesión».
+ *
+ * En el móvil el panel ocupa la pantalla sobre la barra inferior, como una
+ * pestaña más, con su título y «Cerrar»; la barra sigue a mano para cambiar
+ * de destino. Una hoja que crecía con su contenido dejaba media pantalla de
+ * la página anterior a la vista (prueba en iPhone del 23/10).
  */
-export function MenuCuenta({ usuario, items, variante, ruta, children }: MenuCuentaProps) {
+export function MenuCuenta({ usuario, items, variante, ruta, children, alCubrirLaPantalla }: MenuCuentaProps) {
   const [abierto, setAbierto] = useState(false);
   // Al navegar se cierra. Se ajusta durante el render (el patrón de React
   // para estado que depende de una prop), no con un efecto que pintaría un
@@ -67,6 +78,24 @@ export function MenuCuenta({ usuario, items, variante, ruta, children }: MenuCue
 
   const nombre = usuario ? `${usuario.nombre} ${usuario.apellido}`.trim() : 'Tu cuenta';
   const enCabecera = variante === 'cabecera';
+
+  // A pantalla completa, lo de debajo queda inerte (ni el foco ni el lector
+  // llegan a lo que no se ve). Si la ventana pasa a escritorio (el teléfono
+  // girado), la barra se oculta y el panel con ella: se cierra, para que la
+  // página no quede inerte sin nada encima.
+  useEffect(() => {
+    if (!abierto || enCabecera) return;
+    alCubrirLaPantalla?.(true);
+    const escritorio = typeof window.matchMedia === 'function' ? window.matchMedia('(min-width: 48rem)') : null;
+    const alCambiarElAncho = () => {
+      if (escritorio?.matches) setAbierto(false);
+    };
+    escritorio?.addEventListener('change', alCambiarElAncho);
+    return () => {
+      escritorio?.removeEventListener('change', alCambiarElAncho);
+      alCubrirLaPantalla?.(false);
+    };
+  }, [abierto, enCabecera, alCubrirLaPantalla]);
 
   return (
     <div ref={contenedor} className={enCabecera ? 'relative' : 'h-full'}>
@@ -111,12 +140,29 @@ export function MenuCuenta({ usuario, items, variante, ruta, children }: MenuCue
         <div
           id={idPanel}
           className={[
-            'z-[1060] flex flex-col gap-1 overflow-y-auto border border-linea bg-superficie p-2 text-texto shadow-elevada',
+            // `overscroll-contain`: llegar al final del panel no desplaza la página de fondo.
+            'z-[1060] flex flex-col gap-1 overflow-y-auto overscroll-contain bg-superficie text-texto',
             enCabecera
-              ? 'absolute top-full right-0 mt-2 max-h-[calc(100dvh-5rem)] w-80 rounded-hoja'
-              : 'fixed inset-x-0 bottom-[var(--cv-alto-nav,4rem)] max-h-[70dvh] rounded-t-hoja border-b-0',
+              ? 'absolute top-full right-0 mt-2 max-h-[calc(100dvh-5rem)] w-80 rounded-hoja border border-linea p-2 shadow-elevada'
+              : 'fixed inset-x-0 top-0 bottom-[var(--cv-alto-nav,4rem)] px-2 pt-[env(safe-area-inset-top)] pb-4',
           ].join(' ')}
         >
+          {!enCabecera && (
+            <div className="flex h-[var(--cv-alto-encabezado,3.5rem)] shrink-0 items-center justify-between gap-3 border-b border-linea px-2">
+              <h2 className="text-lg font-bold">Cuenta</h2>
+              <button
+                type="button"
+                onClick={() => {
+                  setAbierto(false);
+                  boton.current?.focus();
+                }}
+                className={clasesDeBoton('secundario', 'compacto')}
+              >
+                Cerrar
+              </button>
+            </div>
+          )}
+
           <div className="border-b border-linea px-3 pt-2 pb-3">
             <p className="font-semibold">{nombre}</p>
             <p className="text-sm text-texto-2">
