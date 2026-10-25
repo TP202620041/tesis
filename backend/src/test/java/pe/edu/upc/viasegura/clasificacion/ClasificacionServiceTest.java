@@ -86,10 +86,14 @@ class ClasificacionServiceTest {
 
     @Test
     void vistaPrevia_unaFotoQueNoEsImagen_recibeElErrorDelSaneado_sinClasificar() {
-        when(saneador.sanear(ORIGINAL)).thenThrow(new BusinessException("Formato no permitido"));
+        when(saneador.sanear(ORIGINAL)).thenThrow(new BusinessException("Formato no permitido")).thenReturn(SANEADA);
+        when(clasificador.detectar(SANEADA)).thenReturn(detecto(new Deteccion("bache", 0.87)));
+        when(categorias.activas()).thenReturn(List.of(BACHE));
 
         assertThatThrownBy(() -> servicio.vistaPrevia(ORIGINAL)).isInstanceOf(BusinessException.class);
         verify(clasificador, never()).detectar(any());
+        // El turno de la vista previa volvió aunque el saneado lanzó: la siguiente clasifica.
+        assertThat(servicio.vistaPrevia(ORIGINAL)).isEqualTo(new ClasificacionResponse(1L, "Bache"));
     }
 
     @Test
@@ -149,11 +153,18 @@ class ClasificacionServiceTest {
 
     @Test
     void sinTurnoDeSaneado_esSinSugerencia_noUn503() {
-        when(saneador.sanear(ORIGINAL)).thenThrow(new ServicioNoDisponibleException("Hay muchas fotos en proceso"));
+        when(saneador.sanear(ORIGINAL))
+                .thenThrow(new ServicioNoDisponibleException("Hay muchas fotos en proceso"))
+                .thenReturn(SANEADA);
 
         assertThat(servicio.vistaPrevia(ORIGINAL)).isEqualTo(ClasificacionResponse.sinSugerencia());
         verify(clasificador, never()).detectar(any());
         verifyNoInteractions(categorias);
+
+        // El turno de la vista previa volvió: con saneado disponible, la siguiente clasifica.
+        when(clasificador.detectar(SANEADA)).thenReturn(detecto(new Deteccion("bache", 0.87)));
+        when(categorias.activas()).thenReturn(List.of(BACHE));
+        assertThat(servicio.vistaPrevia(ORIGINAL)).isEqualTo(new ClasificacionResponse(1L, "Bache"));
     }
 
     @Test

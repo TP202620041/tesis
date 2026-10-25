@@ -86,7 +86,7 @@ preferible que no arranque y que el log diga qué falta.
 | `FOTOS_S3_BUCKET_REPORTES`, `FOTOS_S3_BUCKET_PERFILES` | con `s3` | Dos buckets privados y **distintos** (no arranca si coinciden). |
 | `FOTOS_S3_ACCESS_KEY_ID`, `FOTOS_S3_SECRET_ACCESS_KEY` | con `s3` | Token de R2 con *Object Read & Write* limitado a esos dos buckets. |
 | `FOTOS_DIR` | con `local` | Directorio de las fotos. La imagen ya trae `FOTOS_DIR=/data/fotos`. |
-| `FOTOS_SANEADO_MAX_CONCURRENTES` | no (2) | Saneados de fotos simultáneos; con `-Xmx512m`, 2. |
+| `FOTOS_SANEADO_MAX_CONCURRENTES` | no (2) | Saneados de fotos simultáneos; con `-Xmx512m`, 2. **No bajar de 2**: la vista previa de NC-04 toma como máximo un turno, y la garantía de que siempre quede otro para las creaciones depende de que haya al menos dos. |
 | `CORREO_TIPO` | sí | `resend` (el plan de Railway bloquea el SMTP saliente); `smtp` solo en local y en los tests. Sin ella no arranca (DEP-08, ver «Correo saliente»). Con otro valor tampoco: `common/config/ValidacionCorreoSaliente` lo rechaza antes de crear ningún bean, con un mensaje que nombra la variable y los valores admitidos. |
 | `NOTIF_FROM` | sí | Remitente de todos los correos: `Ciudad Viva <no-reply@<dominio verificado en Resend>>`. Sin ella no arranca. |
 | `CORREO_API_KEY` | con `CORREO_TIPO=resend` | Clave de la API de Resend (secreto). Sin ella el adaptador no arranca. |
@@ -2373,6 +2373,11 @@ deja crear dos reportes del mismo hueco. La gravedad la expresa la
   de 3 s, errores traducidos a `ClasificacionNoDisponibleException`), aceptar
   `http` en `ValidacionTipoClasificador` y volver obligatoria
   `CLASIFICACION_TIPO` en `prod`.
+  - **Acotar las llamadas a la inferencia** (con un pool o un *bulkhead* en el
+    adaptador, o reteniendo el turno de la vista previa durante `detectar`).
+    El turno de la vista previa se suelta antes de clasificar, así que hoy no
+    las acota. Con el falso no importa; con hasta 3 s por llamada, sí
+    (revisión del 25/10).
 - **Aviso de privacidad** (frontend y textos legales): decir que la foto se
   analiza automáticamente para sugerir una categoría y que la decisión es del
   ciudadano (DS 016-2024-JUS, art. 6.1).
