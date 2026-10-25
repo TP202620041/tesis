@@ -109,9 +109,9 @@ src/
 ├── app/                        # App Router: solo routing y composición
 │   ├── (public)/               # sin login — mapa, desempeño, guía
 │   ├── (auth)/                 # login, registro, recuperar-password
-│   ├── (ciudadano)/            # rol CIUDADANO — mis-reportes, reportar, perfil
+│   ├── (ciudadano)/            # rol CIUDADANO — mis-reportes, reportar
 │   ├── (municipal)/            # rol FUNCIONARIO_MUNICIPAL — bandeja, dashboard
-│   ├── (cuenta)/               # cualquier usuario con sesión — soporte
+│   ├── (cuenta)/               # cualquier usuario con sesión — perfil («Cuenta»), soporte
 │   └── (admin)/admin/          # rol ADMIN — soporte (bandeja de tickets)
 ├── features/                   # lógica por dominio, no por tipo de archivo
 │   ├── auth/  reportes/  desempeno/  gestion/  soporte/  legal/
