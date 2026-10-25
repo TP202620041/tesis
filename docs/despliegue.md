@@ -34,8 +34,8 @@ En los comandos, `$API` es la URL pública del API (`https://<algo>.up.railway.a
 | GitHub (`TP202620041/tesis`) | — | ya existe | El repo es público: Vercel Hobby puede desplegarlo. Si pasa a privado, Hobby ya no puede (fuente en la propuesta). |
 | Railway | **Hobby** (US$ 5/mes con US$ 5 de uso) | dueño del proyecto | El plan Free no alcanza (0,5 GB por servicio). |
 | Vercel | **Hobby** | dueño del proyecto, con login de GitHub | Uso no comercial. |
-| Cloudflare | Free, con **R2 activado** | dueño del proyecto | Activar R2 pide completar un *checkout* (verificar si pide tarjeta). |
-| Resend | Free | dueño del proyecto | 100 correos al día y 3.000 al mes. Exige un dominio propio verificado (§3). |
+| Cloudflare | Free, con **R2 activado** | dueño del proyecto | Activar R2 pide completar un *checkout* **con tarjeta** (confirmado el 25/10). El dominio `ciudadviva.app` también está aquí (§3). |
+| Resend | Free | dueño del proyecto | 100 correos al día y 3.000 al mes. Exige un dominio propio verificado: `ciudadviva.app` (§3). |
 
 ## 2. Cloudflare R2
 
@@ -43,12 +43,17 @@ En los comandos, `$API` es la URL pública del API (`https://<algo>.up.railway.a
    - `ciudadviva-fotos-reportes`
    - `ciudadviva-fotos-perfiles`
    - `ciudadviva-respaldos`
-2. **Ciclo de vida de los respaldos:** en `ciudadviva-respaldos` › Settings › Object Lifecycle Rules › Add rule: borrar objetos de más de **30 días**.
-3. **Tokens** (R2 › Manage API tokens › Create API token), con permiso **Object Read & Write** y limitados a buckets concretos:
-   - token **fotos**: solo `ciudadviva-fotos-reportes` y `ciudadviva-fotos-perfiles`;
-   - token **respaldos**: solo `ciudadviva-respaldos`.
 
-   Cada token muestra un *Access Key ID* y un *Secret Access Key* **una sola vez**: guardarlos en el gestor de contraseñas.
+   Fijar el *location hint* a mano en el panel. Creados por la API o el conector sin indicarlo, los buckets de prueba quedaron en ENAM (25/10), pero producción no debe depender de ese valor por defecto.
+2. **Ciclo de vida de los respaldos:** en `ciudadviva-respaldos` › Settings › Object Lifecycle Rules › Add rule: borrar objetos de más de **30 días**.
+3. **Tokens** desde la página de R2: R2 object storage › Overview › Account Details › API Tokens › Manage › **«Create Account API token»**.
+   - **Token de cuenta, no de usuario:** sobrevive a los cambios de miembros de la cuenta ([tokens de cuenta](https://developers.cloudflare.com/fundamentals/api/get-started/account-owned-tokens/)). Crearlo desde la página de R2, que muestra directamente el *Access Key ID* y el *Secret Access Key*; la página general de tokens de cuenta solo da el valor del token.
+   - **Permiso:** **Object Read & Write**, limitado a buckets concretos:
+     - token **fotos**: solo `ciudadviva-fotos-reportes` y `ciudadviva-fotos-perfiles`;
+     - token **respaldos**: solo `ciudadviva-respaldos`.
+   - **Sin fecha de expiración:** un vencimiento corta las subidas de fotos y los respaldos sin aviso. Se rotan a mano (§9).
+
+   Cada token muestra el *Access Key ID* y el *Secret Access Key* **una sola vez**: guardarlos en el gestor de contraseñas.
 4. Anotar el **endpoint S3**: `https://<ACCOUNT_ID>.r2.cloudflarestorage.com` (R2 › Overview).
 
 **Verificar:** los tres buckets aparecen como privados (sin `r2.dev` público ni dominio conectado).
@@ -57,10 +62,21 @@ En los comandos, `$API` es la URL pública del API (`https://<algo>.up.railway.a
 
 **Decisión del usuario (21/10): Resend** (`project-context/decisions/propuestas/2026-10-21-correo-saliente-http.md`). El backend envía por su API HTTP (`CORREO_TIPO=resend`, `ResendCorreoAdapter`), porque el plan Hobby de Railway bloquea el SMTP saliente. Detalle del adaptador: `backend/README.md`, «Correo saliente (DEP-08)».
 
-1. **Dominio** (Domains › Add Domain): agregar el dominio propio del proyecto y cargar en su DNS los registros que muestra Resend: **DKIM** (`TXT` en `resend._domainkey`) y **SPF** (`MX` y `TXT` en el subdominio `send`, que no chocan con el `MX` del dominio raíz). DMARC es recomendado (`TXT` en `_dmarc`). Esperar a que el dominio quede **Verified**.
+**Dominio del proyecto (25/10): `ciudadviva.app`**, en Cloudflare Registrar. Sus DNS están en la misma cuenta de Cloudflare que R2.
+- **Solo HTTPS:** por ser `.app`, los navegadores solo lo abren por HTTPS (HSTS precargado en todo el dominio). Vercel, Railway y los túneles con nombre emiten el certificado solos.
+- **Correo corporativo con Cloudflare Email Routing:** contacto@ y soporte@ se reenvían a la bandeja del equipo. Usa el `MX` y un SPF en el dominio **raíz**.
+- **Convivencia con Resend:** Resend usa el subdominio `send` y `resend._domainkey`, así que los dos conviven.
+- **DMARC:** hay **un solo** registro `_dmarc` para todo el dominio.
+
+1. **Dominio** (Domains › Add Domain): agregar `ciudadviva.app` y cargar en su DNS (Cloudflare) los registros que muestra Resend:
+   - **DKIM:** `TXT` en `resend._domainkey`;
+   - **SPF:** `MX` y `TXT` en el subdominio `send`, que no chocan con el `MX` de Email Routing en la raíz;
+   - **DMARC:** recomendado, el único `TXT` en `_dmarc` del punto anterior.
+
+   Esperar a que el dominio quede **Verified**.
    - **Sin dominio verificado**, Resend solo entrega al correo del dueño de la cuenta (desde `onboarding@resend.dev`) y responde 403 a cualquier otro destinatario. El despliegue puede salir así, con el correo limitado a esa dirección: cada envío rechazado queda como un `WARN` en el log del backend, y la recuperación de contraseña sigue respondiendo 202.
 2. **Clave** (API Keys › Create API Key): nombre `ciudadviva-backend`, permiso **Sending access** (solo envía) y, en *Domain*, **solo el dominio verificado**. Resend la muestra una sola vez: al gestor de contraseñas. Es `CORREO_API_KEY` (§5.2).
-3. **Remitente:** `NOTIF_FROM=Ciudad Viva <no-reply@<dominio verificado>>` (§5.2).
+3. **Remitente:** `NOTIF_FROM=Ciudad Viva <no-reply@ciudadviva.app>` (§5.2).
 
 **Verificar** (desde la máquina local, con la clave en una variable de la terminal y nunca escrita en un archivo):
 
@@ -69,7 +85,7 @@ curl -s -w "\n%{http_code}\n" https://api.resend.com/emails \
   -H "Authorization: Bearer $CORREO_API_KEY" \
   -H "Content-Type: application/json" \
   -H "User-Agent: CiudadViva-despliegue" \
-  -d '{"from":"Ciudad Viva <no-reply@<dominio verificado>>","to":["<tu correo>"],"subject":"Prueba Ciudad Viva","text":"Prueba de despliegue"}'
+  -d '{"from":"Ciudad Viva <no-reply@ciudadviva.app>","to":["<tu correo>"],"subject":"Prueba Ciudad Viva","text":"Prueba de despliegue"}'
 # 200 y {"id":"…"}, y el correo llega (revisar también la carpeta de spam).
 ```
 
@@ -132,7 +148,7 @@ railway connect postgis               # abre psql por túnel SSH (requiere psql 
    | `JWT_SECRET` | §4 |
    | `JWT_EXPIRATION_MINUTES` | `120` |
    | `CORS_ALLOWED_ORIGINS` | `$PWA` (se completa en §6; mientras tanto, `http://localhost:3000`) |
-   | `NOTIF_FROM` | `Ciudad Viva <no-reply@<dominio verificado en §3>>` (**obligatoria** en `prod` con cualquier tipo de correo) |
+   | `NOTIF_FROM` | `Ciudad Viva <no-reply@ciudadviva.app>` (**obligatoria** en `prod` con cualquier tipo de correo) |
    | `CORREO_TIPO` | `resend` (decisión del 21/10). **Obligatoria** en `prod`: sin ella, o con un valor distinto de `smtp` o `resend`, la app no arranca. |
    | `CORREO_API_KEY` | §3 |
    | `FOTOS_ALMACEN` | `s3` |
@@ -147,6 +163,8 @@ railway connect postgis               # abre psql por túnel SSH (requiere psql 
    | `SPRINGDOC_HABILITADO` | sin definir (Swagger apagado); `true` solo para una demo y después se quita |
 
    **`FOTOS_ALMACEN` es obligatoria en el perfil `prod`** (DEP-12): sin ella la app no arranca, para que un despliegue nunca guarde fotos en un disco que se borra. Con R2, `s3` y las variables `FOTOS_S3_*` de la tabla. Opcional: `FOTOS_SANEADO_MAX_CONCURRENTES` (2 por defecto).
+
+   **Hecho el 25/10:** 6 tests contra R2 real, sin errores ni fallos. Después se borraron los buckets `ciudadviva-it-*`; borrar también su token. Repetir si cambia el adaptador o la versión del SDK de AWS.
 
    **Antes del primer despliegue con R2**, correr una vez `S3FotoStorageServiceIT` contra **dos buckets R2 de prueba** (no los de producción). En la CI ese IT corre contra S3Mock, y esta es la única prueba contra R2 real de la codificación de envío (*chunked encoding*) y de los *checksums*. Requisitos:
    - crear en R2 dos buckets de prueba (por ejemplo `ciudadviva-it-reportes` y `ciudadviva-it-perfiles`) y un token limitado a ellos (el token de R2 no puede crear buckets);
