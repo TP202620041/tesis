@@ -25,7 +25,15 @@
 | Docker | Probar la restauración en el PostGIS local. |
 | `curl` | Verificar cada paso. |
 
-En los comandos, `$API` es la URL pública del API (`https://<algo>.up.railway.app`) y `$PWA` la de la PWA (`https://<algo>.vercel.app`). Pasarán a nombres bajo `ciudadviva.app` cuando el usuario decida cuáles (decisión 3b, §3), y conviene que eso ocurra antes del primer despliegue.
+En los comandos, `$API` es la URL pública del API y `$PWA` la de la PWA. Las fijó el usuario el 25/10 (decisión 3b):
+
+| Servicio | URL | Dónde | Nota |
+|---|---|---|---|
+| PWA | `$PWA` = `https://ciudadviva.app` | Vercel | Es el **único origen** de la PWA. `https://www.ciudadviva.app` redirige a la raíz. |
+| API | `$API` = `https://api.ciudadviva.app` | Railway (`backend`) | |
+| Fotos | `fotos.ciudadviva.app` | — | **Reservado** para un dominio propio de R2. Hoy no se crea nada. |
+
+El origen de la PWA no debe cambiar después de abrir a usuarios: push, la sesión y la cola offline son por origen. Las URLs que dan Vercel (`*.vercel.app`) y Railway (`*.up.railway.app`) siguen existiendo; sirven para depurar, no para los usuarios.
 
 ## 1. Cuentas
 
@@ -72,9 +80,8 @@ En los comandos, `$API` es la URL pública del API (`https://<algo>.up.railway.a
 - **Convivencia con Resend:** Resend usa el subdominio `send` y `resend._domainkey`. En la zona quedan dos DKIM, uno de Cloudflare y otro de Resend, y no chocan.
 - **DMARC:** hay **un solo** registro para todo el dominio: `TXT` en `_dmarc` con `v=DMARC1; p=none; rua=mailto:dmarc@ciudadviva.app` (creado el 25/10). Endurecer a `p=quarantine` cuando los informes muestren que todo lo legítimo pasa.
 - **DNSSEC:** activo desde el 25/10. Cloudflare publicó el `DS` en el registro de `.app` en unos 6 minutos, y la consulta a `1.1.1.1` devuelve `AD=true`.
-- **Pendiente:**
-  - la API key de envío (paso 2);
-  - qué nombre lleva cada servicio (decisión 3b, abierta), porque fija el origen de la PWA. Por ejemplo, la PWA en `ciudadviva.app` o `app.ciudadviva.app` y el API en `api.ciudadviva.app`. Hay que fijarlo antes del primer despliegue.
+- **Registros web:** el de la raíz (PWA, Vercel), el de `www` y el de `api` (Railway) **todavía no existen**. Se crean en el primer despliegue (§5.2 y §6) con el destino que indique cada plataforma. Conviven con el `MX` y el SPF de Email Routing en la raíz.
+- **Pendiente:** la API key de envío (paso 2).
 
 1. **Dominio** (Domains › Add Domain): **hecho el 25/10**; quedó «Verified» unos 6 minutos después de cargar los registros.
    - **Configuración:** región **`us-east-1`**, la misma que Railway. **No se puede cambiar después de crear el dominio.** Es de solo envío (recibir lo hace Email Routing), con TLS en modo *opportunistic*, el valor por defecto.
@@ -145,7 +152,9 @@ railway connect postgis               # abre psql por túnel SSH (requiere psql 
 2. **Settings › Source:** rama `main`; *Root Directory* `backend`. Railway detecta `backend/Dockerfile` y construye con él.
 3. **Settings › Build › Watch Paths:** `/backend/**` (las rutas parten de la raíz del repo aunque haya *Root Directory*), para que un cambio en `frontend/` o `docs/` no redespliegue el API.
 4. **Settings › Deploy:** *Healthcheck Path* `/actuator/health` (el tiempo de espera por defecto, 300 s, alcanza); *Restart Policy* `On Failure`. Railway solo consulta el health check al desplegar, para cambiar de versión sin corte; no lo vigila después.
-5. **Networking › Generate Domain:** anotar la URL → `$API`.
+5. **Networking:**
+   - **Generate Domain:** la URL `*.up.railway.app`, para depurar.
+   - **Custom Domain:** `api.ciudadviva.app` (`$API`). Railway muestra el destino del registro: crearlo en el DNS de Cloudflare. Verificar en ese momento si va **sin proxy** (nube gris); si Railway necesita el proxy de Cloudflare, revisar el modo SSL de la zona. Esperar a que Railway emita el certificado.
 6. **Variables** (con «Add Reference» para las de `postgis`):
 
    | Variable | Valor |
@@ -156,7 +165,7 @@ railway connect postgis               # abre psql por túnel SSH (requiere psql 
    | `DB_PASSWORD` | `${{postgis.POSTGRES_PASSWORD}}` |
    | `JWT_SECRET` | §4 |
    | `JWT_EXPIRATION_MINUTES` | `120` |
-   | `CORS_ALLOWED_ORIGINS` | `$PWA` (se completa en §6; mientras tanto, `http://localhost:3000`) |
+   | `CORS_ALLOWED_ORIGINS` | `https://ciudadviva.app`: solo la raíz, porque `www` redirige y no es un origen. Exacto, con `https://` y sin barra final. |
    | `NOTIF_FROM` | `Ciudad Viva <no-reply@ciudadviva.app>` (**obligatoria** en `prod` con cualquier tipo de correo) |
    | `CORREO_TIPO` | `resend` (decisión del 21/10). **Obligatoria** en `prod`: sin ella, o con un valor distinto de `smtp` o `resend`, la app no arranca. |
    | `CORREO_API_KEY` | §3 |
@@ -234,10 +243,18 @@ Si el plan de Railway incluye respaldos del volumen (en el servicio `postgis` �
 
 1. Add New › Project › importar `TP202620041/tesis`.
 2. **Root Directory:** `frontend`. Framework: Next.js (detectado). Build command: el de `package.json` (`npm run build`, que también compila el Service Worker). Node: lo fija `engines.node` (24.x).
-3. **Environment Variables › Production:** `NEXT_PUBLIC_API_BASE_URL` = `$API` (sin barra final). Se hornea en el build y en la CSP: cambiarla exige redesplegar.
-4. Deploy. Anotar la URL de producción → `$PWA`.
-5. **Settings › Git:** *Production Branch* `main`. *Ignored Build Step*: preset **«Only build production»** (sin previews: cada preview tendría otro origen, que el CORS del API rechaza, y usaría la base de producción).
-6. Volver a Railway › `backend` › Variables: `CORS_ALLOWED_ORIGINS` = `$PWA` (exacto, con `https://` y sin barra final). Railway redespliega.
+3. **Environment Variables › Production:** `NEXT_PUBLIC_API_BASE_URL` = `https://api.ciudadviva.app` (sin barra final).
+   - Se hornea en el build y en la CSP: `next.config.ts` la pone en `connect-src` y en `img-src`, así que las fotos que sirve el API también pasan.
+   - Cambiarla exige redesplegar.
+4. Deploy. La URL `*.vercel.app` queda para depurar.
+5. **Settings › Domains:**
+   - agregar `ciudadviva.app` como dominio de producción (`$PWA`);
+   - agregar `www.ciudadviva.app` con **redirección permanente a la raíz**;
+   - crear en el DNS de Cloudflare los registros que indique Vercel: uno para el *apex* y uno para `www`. Verificar en ese momento si van **sin proxy** (nube gris).
+
+   Esperar a que Vercel emita los certificados: `.app` solo funciona con HTTPS.
+6. **Settings › Git:** *Production Branch* `main`. *Ignored Build Step*: preset **«Only build production»** (sin previews: cada preview tendría otro origen, que el CORS del API rechaza, y usaría la base de producción).
+7. Confirmar en Railway › `backend` › Variables que `CORS_ALLOWED_ORIGINS` = `https://ciudadviva.app` (§5.2).
 
 **Verificar:**
 

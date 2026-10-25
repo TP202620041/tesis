@@ -29,7 +29,11 @@ Reúne **todo** lo que hoy espera una decisión del usuario, venga de esta ronda
 
 | # | Decisión | Qué se decidió | Dónde quedó registrada |
 |---|---|---|---|
-| 3 | Dominio propio | **`ciudadviva.app`**, comprado el 25/10 en Cloudflare Registrar (vence el 25/10/2027; renueva a precio de costo). El DNS está en Cloudflare, la misma cuenta de R2. Por ser `.app`, los navegadores solo lo abren por HTTPS. El correo corporativo (contacto@, soporte@ y dmarc@) va por Cloudflare Email Routing, y Resend usa el subdominio `send`; el dominio quedó verificado en Resend y con DNSSEC activo el mismo día. **Sigue abierto (3b):** el origen de la PWA y del API, por ejemplo `ciudadviva.app` o `app.ciudadviva.app` para la PWA y `api.ciudadviva.app` para el API. Hay que fijarlo **antes del primer despliegue (DEP-09)**: mudarse después obliga a reinstalar y pierde la cola offline (§3) | `docs/despliegue.md` §1 y §3 |
+| 3 | Dominio propio | **`ciudadviva.app`**, comprado el 25/10 en Cloudflare Registrar (vence el 25/10/2027; renueva a precio de costo). El DNS está en Cloudflare, la misma cuenta de R2. Por ser `.app`, los navegadores solo lo abren por HTTPS. El correo corporativo (contacto@, soporte@ y dmarc@) va por Cloudflare Email Routing, y Resend usa el subdominio `send`; el dominio quedó verificado en Resend y con DNSSEC activo el mismo día. **3b, decidida el mismo día:**
+- PWA en **`https://ciudadviva.app`** (Vercel), su único origen; `www` redirige a la raíz.
+- API en **`https://api.ciudadviva.app`** (Railway).
+- `fotos.ciudadviva.app` queda reservado para un dominio propio de R2, más adelante.
+- En producción, `CORS_ALLOWED_ORIGINS=https://ciudadviva.app` y `NEXT_PUBLIC_API_BASE_URL=https://api.ciudadviva.app`. | `docs/despliegue.md` §0, §3, §5.2 y §6 |
 | — | Orden de los sprints | El **S7 (ML) va antes que el S6**: el S6 está bloqueado por las decisiones 11, 12 y 13. El S7 sale como v0.8.0 y el S6 como v0.9.0. FE-09 se adelantó y quedó hecha | `plan-sprints.md` |
 
 ## Resumen
@@ -38,7 +42,7 @@ Reúne **todo** lo que hoy espera una decisión del usuario, venga de esta ronda
 |---|---|---|---|---|---|
 | 1 | Versionado: v0.7.0 = MVP desplegado (**decidida el 22/10**: v0.7.0 sale antes del primer despliegue) | Alta | Planificar el próximo sprint | Sí; S6..S8 pasan a v0.8.0, v0.9.0 y v1.0.0 (reordenado el 25/10: S7 = v0.8.0, S6 = v0.9.0) | §1 |
 | 2 | Proveedor de correo y remitente | Alta | DEP-08 → US-03, US-16 (correo), US-25 en producción | Brevo; remitente propio si hay dominio | §2 |
-| 3 | Dominio propio: sí o no, y cuándo (**decidida el 25/10**: `ciudadviva.app`; **3b abierta**: nombres de la PWA y del API, antes de DEP-09) | Alta | Invitar usuarios reales (push, sesión y cola offline dependen del origen) | Decidirlo antes de invitar a nadie; si se compra, DNS en Cloudflare | §3 |
+| 3 | Dominio propio: sí o no, y cuándo (**decidida el 25/10**: `ciudadviva.app`; 3b: PWA en la raíz y API en `api.`) | Alta | Invitar usuarios reales (push, sesión y cola offline dependen del origen) | Decidirlo antes de invitar a nadie; si se compra, DNS en Cloudflare | §3 |
 | 4 | Plan de Railway, respaldos y gasto aceptado | Alta | Crear el proyecto (runbook §1) | Hobby + cron `pg_dump` a R2; ~US$ 10/mes | §4 |
 | 5 | Primer ADMIN y funcionarios de la demo | Alta | DEP-04, DEP-05 | Una cuenta del equipo como ADMIN; funcionarios solo con permiso de su titular | §5 |
 | 6 | Datos de demostración en producción | Alta | Mostrar el sistema al jurado | No sembrar datos falsos en producción | §6 |
@@ -79,6 +83,8 @@ Reúne **todo** lo que hoy espera una decisión del usuario, venga de esta ronda
   - **API:** `api.ciudadviva.app`, con la CSP y el CORS correspondientes.
 
   Conviene fijarlo antes de DEP-09, para que el primer despliegue ya salga con el origen definitivo.
+
+  **Decidido el 25/10 (3b):** la PWA en `https://ciudadviva.app` (con `www` redirigiendo a la raíz) y el API en `https://api.ciudadviva.app`; `fotos.ciudadviva.app` reservado.
 
 ## 4. Railway: plan, respaldos y gasto
 
