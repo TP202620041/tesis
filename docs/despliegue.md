@@ -11,6 +11,10 @@
 **Reglas.**
 
 - **Ningún secreto se escribe en el repo, en un issue, en un PR ni en un chat.** Se generan en la máquina del responsable, se guardan en un gestor de contraseñas y se pegan directamente en el panel de Railway o Vercel.
+  - **Quién:** desde el 25/10 lo hace el usuario, siguiendo este runbook paso a paso. Las sesiones de Claude no crean ni ven secretos.
+  - **Sellar:** en Railway, los secretos se sellan (menú ⋮ › *Seal*). Railway los usa, pero no los vuelve a mostrar en el panel ni por la API, así que antes tienen que estar en el gestor de contraseñas.
+  - **Aplicar sin redesplegar:** hay que mantener *Alt* apretado al pulsar *Deploy* en el aviso de cambios pendientes ([staged changes](https://docs.railway.com/deployments/staged-changes)).
+- **Producción sin datos falsos** (decisión 6, 25/10): nunca se corre `backend/scripts/seed-datos-prueba.sql` contra producción. Inventa reportes en distritos reales y falsearía el índice público de desempeño. Los reportes de la demo los toma el equipo en calles reales.
 - Los nombres de servicio de este documento (`backend`, `postgis`, `respaldo-bd`) se usan en las variables de referencia de Railway (`${{postgis.…}}`): si se cambian, hay que cambiar también las referencias.
 - Railway deprecó `railway.toml` (*Config as Code*): **la configuración vive en el panel** y este documento es su fuente de verdad. Si se cambia algo en el panel, se cambia aquí en el mismo día.
 
@@ -201,6 +205,7 @@ railway connect postgis               # abre psql por túnel SSH (requiere psql 
    | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | §4 |
    | `VAPID_SUBJECT` | `mailto:contacto@ciudadviva.app` (activo en Email Routing, §3) |
    | `JAVA_TOOL_OPTIONS` | `-Xms256m -Xmx512m -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError` |
+   | `SPRING_DATASOURCE_HIKARI_MAXIMUMPOOLSIZE` | `20` (decisión 20, 25/10). Es temporal hasta BE-12, que hace asíncrono el refresco del índice: sin ella rige el valor por defecto, 10, y 16 reportes con foto en el mismo segundo agotan el pool (`propuestas/2026-10-22-refresco-indice-asincrono.md`). |
    | `SPRINGDOC_HABILITADO` | sin definir (Swagger apagado); `true` solo para una demo y después se quita |
 
    **`FOTOS_ALMACEN` es obligatoria en el perfil `prod`** (DEP-12): sin ella la app no arranca, para que un despliegue nunca guarde fotos en un disco que se borra. Con R2, `s3` y las variables `FOTOS_S3_*` de la tabla. Opcional: `FOTOS_SANEADO_MAX_CONCURRENTES` (2 por defecto).
@@ -308,8 +313,8 @@ curl -s -o /dev/null -w "%{http_code}\n" -X OPTIONS $API/api/reportes \
 Diseño decidido por el usuario el 22/10: el seeder **crea** el ADMIN desde variables y **solo si la base no tiene ningún ADMIN**. Nunca promueve una cuenta existente. Detalle en `backend/README.md`, «Operación en producción».
 
 1. **Antes del primer despliegue** del backend, en Railway › `backend` › Variables:
-   - `ADMIN_INICIAL_EMAIL`: el correo real de la persona del equipo;
-   - `ADMIN_INICIAL_PASSWORD`: una contraseña de 12 caracteres o más y 72 bytes como máximo, generada para la ocasión y marcada como secreta;
+   - `ADMIN_INICIAL_EMAIL`: el correo del usuario, dueño del proyecto (decisión 5, 25/10). No se escribe en el repo, que es público;
+   - `ADMIN_INICIAL_PASSWORD`: una contraseña de 12 caracteres o más y 72 bytes como máximo, sin tildes ni ñ (ocupan más de un byte). Se genera para la ocasión en el gestor de contraseñas, se guarda allí y se **sella** en Railway;
    - `ADMIN_INICIAL_NOMBRE`: opcional.
 2. Desplegar. **Verificar:** en los logs aparece «Administrador inicial creado» y solo el correo, nunca la contraseña. Iniciar sesión en `$PWA` con esa cuenta: pide aceptar los términos (D-12) y después muestra el área de ADMIN.
 3. **Borrar `ADMIN_INICIAL_PASSWORD`** de Railway (obligatorio). Las otras dos variables pueden quedar: con un ADMIN ya creado el seeder no hace nada (avisa en el log si la contraseña sigue definida). No hay pantalla para cambiar la contraseña: se cambia con «¿Olvidaste tu contraseña?» cuando el correo (DEP-08) funcione.
