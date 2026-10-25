@@ -262,8 +262,9 @@ marco común, `features/auth/components/MarcoDeLaApp.tsx`, en el layout raíz:
   no debe sacar de ahí a quien solo miraba (lo borra y queda como visitante,
   con `usuarioActualSinRedirigir`). Pregunta `/me` una vez por sesión (el marco
   no se desmonta al navegar) y otra al iniciar o cerrar sesión. Sin red, con
-  sesión, queda «sin identificar»: se ofrece lo público y el menú de cuenta
-  (para poder salir), y vuelve a preguntar al volver la conexión. La sesión
+  sesión, queda «sin identificar»: se ofrece lo público y la cuenta para poder
+  salir (en el móvil, «Cuenta» con el aviso y «Cerrar sesión»; en escritorio,
+  el menú), y vuelve a preguntar al volver la conexión. La sesión
   llega a la cabecera y a la barra por props (`ARCHITECTURE.md` §5).
 - **Menú de cuenta** (escritorio; en el móvil «Cuenta» es una pantalla, ver
   «Ajustes tras la prueba en iPhone»): nombre, rol o municipalidad, enlaces de
@@ -327,8 +328,12 @@ marco común, `features/auth/components/MarcoDeLaApp.tsx`, en el layout raíz:
     quiénes son, la apariencia, sus enlaces y «Cerrar sesión». La ruta pasó
     del grupo `(ciudadano)` a `(cuenta)`; la URL no cambia.
   - En escritorio sigue el desplegable de la cabecera.
-  - Sin red, `/perfil` lleva al login, como cualquier pantalla con sesión.
-    En escritorio el menú de la cabecera sigue ofreciendo «Cerrar sesión».
+  - Sin red, `/perfil` no lleva al login como las demás pantallas con
+    sesión, porque `GuardiaDeRol` tomaría el fallo de `/me` como «sin
+    sesión» y en el móvil no quedaría cómo salir. `PantallaDeCuenta`
+    pregunta primero como el marco: sin identificar, muestra el aviso, la
+    apariencia y «Cerrar sesión», que funciona sin red (revisión de
+    arquitectura).
 
 ### Apariencia: claro, oscuro, alto contraste o sistema (US-23)
 
