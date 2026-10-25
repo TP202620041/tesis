@@ -235,7 +235,7 @@ railway connect postgis               # abre psql por túnel SSH (requiere psql 
 
 ```bash
 railway logs --service backend
-#  - Flyway: "Successfully applied N migrations" en la primera corrida (todas las V*.sql; 18 en v0.7.0)
+#  - Flyway: "Successfully applied N migrations" en la primera corrida (todas las V*.sql; 18 en v0.7.0 y v0.7.1)
 #  - DistritoSeeder: 43 distritos; MunicipalidadSeeder: 43 municipalidades
 #  - "Started ViaSeguraApplication"; ninguna línea con "show-sql" ni DEBUG
 curl -s $API/actuator/health                       # {"status":"UP"} y nada más
