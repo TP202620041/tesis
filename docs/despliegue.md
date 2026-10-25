@@ -120,7 +120,21 @@ Si no es 200: `401`, la clave no es válida; `403`, el remitente no es del domin
 
 ## 5. Railway
 
-Crear un proyecto («Ciudad Viva», entorno `production`). **Hecho el 25/10**, a pedido del usuario: el proyecto existe en su workspace, en plan Hobby, todavía **sin servicios**. Los servicios se crean en DEP-09. Región de cada servicio: **US East (Virginia)** (Settings › Deploy › Regions); no hay región en Sudamérica.
+Crear un proyecto («Ciudad Viva», entorno `production`). **Hecho el 25/10**, a pedido del usuario, en su workspace y en plan Hobby. Región de cada servicio: **US East (Virginia)** (Settings › Deploy › Regions); no hay región en Sudamérica. **Fijarla siempre**: un servicio nuevo nace en `sfo` (oeste de EE. UU.).
+
+**Estado al 25/10** (lo hizo la sesión «dominio» a pedido del usuario):
+- **`postgis`:** desplegado y sano (§5.1). Región `us-east4`, volumen de 5 GB.
+- **`backend`:** configurado según §5.2 pero **sin el repo conectado** y sin despliegues.
+  - Las variables `DB_*` son referencias a `postgis`. `JWT_SECRET` y un par VAPID **nuevo** se generaron y cargaron por stdin.
+  - Faltan `CORREO_API_KEY` (la pega el usuario), `FOTOS_S3_ACCESS_KEY_ID` y `FOTOS_S3_SECRET_ACCESS_KEY` (falta R2 de producción) y `ADMIN_INICIAL_*`.
+  - El dominio propio `api.ciudadviva.app` está creado en Railway; sus dos registros DNS los crea el usuario (§5.2, paso 5).
+- **`respaldo-bd`:** todavía no; espera el bucket y el token de respaldos de R2.
+
+**Si se usa la CLI de Railway desde Git Bash en Windows:**
+- **Rutas:** las que empiezan con `/` se convierten en `C:/Program Files/Git/…` (pasó con `PGDATA`). Usar `MSYS_NO_PATHCONV=1` delante del comando, o el panel.
+- **`railway variable delete`:** no acepta `--skip-deploys`, así que siempre redespliega.
+- **Región:** `railway environment edit --service-config … deploy.multiRegionConfig '<json>'` no se aplicó; funcionó el parche JSON por stdin.
+- **Secretos:** se cargan con `railway variable set --stdin`, para que nunca aparezcan en la terminal ni en una transcripción.
 
 ### 5.1 Servicio `postgis`
 
@@ -157,7 +171,9 @@ railway connect postgis               # abre psql por túnel SSH (requiere psql 
    - **Generate Domain:** la URL `*.up.railway.app`, para depurar.
    - **Custom Domain** (Settings › Public Networking): `api.ciudadviva.app` (`$API`). Según [la documentación de Railway](https://docs.railway.com/networking/domains/working-with-domains), revisada por la sesión «dominio» el 25/10, se crean en Cloudflare **los dos registros** que muestra Railway:
      - el `CNAME` `api` → `<id>.up.railway.app`, **con proxy** (nube naranja);
-     - el `TXT` de verificación. Sin el `TXT`, el dominio responde 404 aunque el `CNAME` ya resuelva.
+     - el `TXT` de verificación, en `_railway-verify.api` con el valor que muestra Railway. Sin el `TXT`, el dominio responde 404 aunque el `CNAME` ya resuelva.
+
+     El dominio se creó en Railway el 25/10 con **puerto destino 8080** (por eso `PORT=8080`). Los dos registros los crea el usuario en Cloudflare: el modo automático de Claude Code bloquea los cambios de DNS.
 
      En Cloudflare, SSL/TLS de la zona en **Full, NO «Full (strict)»**, porque el modo estricto no funciona con Railway; Universal SSL activado. Ese modo es de toda la zona, pero solo afecta a los registros con proxy: la raíz y `www` (Vercel, sin proxy), el correo y el DMARC no cambian. Cuando está bien, Railway muestra «Cloudflare proxy detected». Cloudflare presenta el certificado al público y Railway emite el suyo hacia el origen; por el HSTS de `.app`, el API no responde hasta tener certificado, así que hay que contar unos minutos.
    - **Límites del proxy (plan Free):** 100 MB por petición y 100 s de espera. Alcanzan de sobra (la foto se corta en 10 MB). El backend no limita por IP (no lee `X-Forwarded-For`), así que el doble proxy Cloudflare → Railway no rompe nada.
@@ -171,6 +187,7 @@ railway connect postgis               # abre psql por túnel SSH (requiere psql 
    | `DB_PASSWORD` | `${{postgis.POSTGRES_PASSWORD}}` |
    | `JWT_SECRET` | §4 |
    | `JWT_EXPIRATION_MINUTES` | `120` |
+   | `PORT` | `8080` (ver la nota debajo de la tabla) |
    | `CORS_ALLOWED_ORIGINS` | `https://ciudadviva.app`: solo la raíz, porque `www` redirige y no es un origen. Exacto, con `https://` y sin barra final. |
    | `NOTIF_FROM` | `Ciudad Viva <no-reply@ciudadviva.app>` (**obligatoria** en `prod` con cualquier tipo de correo) |
    | `CORREO_TIPO` | `resend` (decisión del 21/10). **Obligatoria** en `prod`: sin ella, o con un valor distinto de `smtp` o `resend`, la app no arranca. |
@@ -208,7 +225,11 @@ railway connect postgis               # abre psql por túnel SSH (requiere psql 
    - se monta un *volume* en `/data` y se define `FOTOS_DIR=/data/fotos`;
    - se agrega `RAILWAY_RUN_UID=0`, porque el volumen se monta como root y la imagen corre sin privilegios (uid 10001). Esto hace correr el contenedor **como root**. Es temporal: se quita junto con el volumen cuando DEP-12 llega a producción (`backend/README.md`, «Configuración de producción»).
 
-   `PORT` lo inyecta Railway. El heap de 512 MB está medido para el saneado de fotos de DEP-12 (decodificación submuestreada y como máximo 2 saneados simultáneos); si los logs muestran `OutOfMemoryError`, subir a `-Xmx768m` y avisar para revisar el límite de saneados. Los nombres de `FOTOS_S3_*` son los de DEP-12 (`backend/README.md`); los de `CORREO_*` los fija DEP-08: si cambian, se actualiza esta tabla.
+   **`PORT=8080`, explícito.** El perfil `prod` escucha en `${PORT:8080}` (`application-prod.yml`) y el dominio propio de Railway apunta al puerto 8080. Definir la variable evita que un `PORT` inyectado por Railway los desincronice.
+
+   **Builder:** con *Root Directory* `backend`, Railway debería usar `backend/Dockerfile`. Al configurarlo por CLI, `build.builder=DOCKERFILE` no quedó guardado (25/10, siguió en RAILPACK). En el log del primer build, confirmar que construye con el Dockerfile.
+
+   El heap de 512 MB está medido para el saneado de fotos de DEP-12 (decodificación submuestreada y como máximo 2 saneados simultáneos); si los logs muestran `OutOfMemoryError`, subir a `-Xmx768m` y avisar para revisar el límite de saneados. Los nombres de `FOTOS_S3_*` son los de DEP-12 (`backend/README.md`); los de `CORREO_*` los fija DEP-08: si cambian, se actualiza esta tabla.
 
 **Verificar** (logs del primer despliegue y luego `curl`):
 
