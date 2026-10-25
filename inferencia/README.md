@@ -29,17 +29,18 @@ GET /salud                      200 { "estado": "ok", "version_modelo": "…" }
 - `version_modelo`: artefacto exacto que produjo las detecciones (≤ 40 caracteres, cabe en `version_modelo_sugerencia VARCHAR(40)`).
 - Documentación interactiva en `/docs` y esquema en `/openapi.json`.
 
-**Errores**, siempre con la forma `{"codigo": str, "mensaje": str}`:
+**Errores**, con la forma `{"codigo": str, "mensaje": str}` salvo el 503 de la cola, que lo responde uvicorn antes de llegar a la app:
 
 | Caso | Estado | `codigo` |
 |---|---|---|
-| Archivo vacío, que no es imagen, dañado o de formato no permitido (GIF, TIFF…) | 400 | `imagen_invalida` |
+| Archivo vacío, que no es imagen, dañado o de formato no permitido (GIF, TIFF…: Pillow ni siquiera prueba esos lectores) | 400 | `imagen_invalida` |
 | Falta el campo `imagen` o la solicitud no es multipart | 400 | `solicitud_invalida` |
 | Más de 10 MiB, más de 16 MP, o cuerpo por encima del límite | 413 | `imagen_demasiado_grande` |
 | Falla el motor de inferencia | 500 | `error_de_inferencia` |
-| Cualquier otro error | 500 | `error_interno` |
+| Cualquier otro error (incluido quedarse sin memoria al decodificar) | 500 | `error_interno` |
+| Cola llena: `INFERENCIA_MAX_CONCURRENCIA` conexiones o tareas abiertas | 503 | — (texto plano de uvicorn) |
 
-El backend trata cualquier respuesta que no sea 200 (o un timeout) como «sin sugerencia»: la IA nunca bloquea un reporte (§4.3).
+El backend trata cualquier respuesta que no sea 200 (o un timeout) como «sin sugerencia»: la IA nunca bloquea un reporte (§4.3). Handoff del contrato para NC-04b: `project-context/handoffs/2026-10-25-contrato-inferencia-v1.md`.
 
 ## Arquitectura en capas
 
@@ -107,13 +108,15 @@ Lo que **no** se resuelve aquí: si unos pesos entrenados con datos CC BY-SA son
 |---|---|
 | **RF-DETR Nano (Apache-2.0)** sobre RDD2022, sin reentrenar. | YOLOv8n de Ultralytics: un poco más liviano, pero AGPL-3.0 obliga a publicar todo el proyecto bajo AGPL para servirlo por red. Otros pesos RDD2022 públicos tienen licencia dudosa o mAP muy bajo (propuesta del 21/10). |
 | **ONNX + onnxruntime en producción**; PyTorch solo en el script de exportación. | Servir con PyTorch: la etapa de exportación, que tiene torch y rfdetr, pesa 2,86 GB frente a los 637 MB de la imagen final, y el arranque sería más lento, sin ganar precisión. ONNX deja un único archivo con hash, fácil de verificar. |
-| **Preprocesado idéntico a `RFDETR.predict()`**: bilineal **sin antialias** con centros de medio píxel, implementado en NumPy, y normalización ImageNet. | `PIL.Image.resize`: su bilineal aplica antialias al reducir y cambia las confianzas (lo advierte el propio rfdetr). Paridad medida con torchvision: diferencia máxima 5,4 × 10⁻⁷ (Windows) y 3,9 × 10⁻⁵ (Linux). |
+| **Preprocesado idéntico a `RFDETR.predict()`**: bilineal **sin antialias** con centros de medio píxel, implementado en NumPy, y normalización ImageNet. | `PIL.Image.resize`: su bilineal aplica antialias al reducir y cambia las confianzas (lo advierte el propio rfdetr). Paridad con PyTorch registrada en `modelo.json` (exportación en Windows): preprocesado 5,4 × 10⁻⁷, puntajes 4,3 × 10⁻⁶, cajas 3,9 × 10⁻⁵. En la exportación dentro del contenedor Linux (`--comprobar`, no se registra): 3,9 × 10⁻⁵, 3,0 × 10⁻⁶ y 3,4 × 10⁻⁵. |
 | La **validación** (bytes, formato, píxeles) es de la aplicación; decodificar y correr el modelo van por **puertos** del dominio con adaptadores en infraestructura. | Pillow o NumPy dentro de `application/`: se mezclaría una librería con la regla y los tests del caso de uso necesitarían imágenes reales. Así se prueban con dobles. |
 | El **mapeo** etiqueta del modelo → clase de la app vive en el adaptador (`infrastructure`). | Exponer las 4 clases de RDD2022 (opción B): `clase_modelo` del backend tendría que ser una lista. Cambiar de modelo no cambia el contrato. |
 | **Piso técnico de confianza 0,10** y máximo 100 detecciones; sin umbral de decisión. | Aplicar 0,50 aquí: el umbral se calibra con fotos de Lima (NC-03b) y es del backend. Devolver los 300 pares sin piso: respuestas grandes de puro ruido. |
 | **Una detección por consulta y clase** (si una caja puntúa como grieta longitudinal y transversal, queda la de mayor confianza). | Devolver ambas: duplica cajas idénticas sin cambiar el máximo por clase con el que decide el backend. |
 | **`intra_op_num_threads` = 2 fijo** (= vCPU), `inter_op` = 1, ejecución secuencial. | Hilos automáticos: el número de hilos cambia el orden de las sumas y con eso los decimales; con un número fijo, la misma foto da los mismos resultados (D-08). Medido en Docker con `--cpus=2`: 1 hilo 671 ms, **2 hilos 408 ms**, 3 hilos 572 ms, 4 hilos 617 ms (p50 del motor solo); apagar la espera activa no ayudó (479 ms). |
 | **Una inferencia a la vez** (candado en `OnnxModelo`) y a lo sumo **2 solicitudes** decodificando o infiriendo (límite en la API). Un solo worker de uvicorn. | Inferencias en paralelo: con 2 vCPU solo se reparten la CPU y suben la memoria. Más workers: duplican el modelo (108 MB más su arena) en memoria. Con 4 clientes a la vez el rendimiento sigue en ~3,3 imágenes/s y la memoria máxima medida fue 478 MiB. |
+| **Cola con tope**: uvicorn con `--limit-concurrency 10` (`INFERENCIA_MAX_CONCURRENCIA`) responde **503** cuando hay 10 conexiones o tareas abiertas. | Cola sin tope: cada solicitud en espera retiene su archivo, y las que esperan más de los 3 s del backend se procesan para nadie. 10 ≈ 2 en proceso más las que se alcanzan a atender en 3 s a ~0,3–0,5 s por imagen. Las conexiones en keep-alive cuentan: el pool del adaptador del backend tiene que quedar por debajo (en NC-04 hay a lo sumo una vista previa a la vez más el executor de 2–4 hilos). |
+| **Dependencias con lock y hashes** (`requirements.lock`, `requirements-dev.lock`): versión y sha256 de cada paquete, también de los transitivos. El Dockerfile y la CI instalan con `--require-hashes --no-deps`. | Solo `requirements.txt` con las directas fijas: una versión nueva de una transitiva (protobuf, pydantic-core, starlette…) entraría sin aviso en la siguiente construcción, y un paquete alterado en el índice también. Ver «Dependencias». |
 | **Falla rápido**: si falta `modelo.json` o el `.onnx`, o el hash no coincide, el proceso no arranca. `/salud` responde solo con el modelo cargado. | Arrancar «degradado»: un servicio verde que no puede detectar esconde el problema; en Railway, un despliegue rojo se ve. |
 | **Pesos fuera de git**; `modelos/modelo.json` (hash, fuente, versiones, paridad y huella) sí se versiona. El Dockerfile **exporta dentro de la imagen** y falla si el hash no es el registrado. | Subir el `.onnx` (108 MB) al repo, o alojarlo aparte: el primero infla el historial; el segundo agrega un servicio y otra credencial. La exportación es **reproducible byte a byte**: el mismo sha256 en Windows (Python 3.13.3) y en el contenedor Linux (3.13.17). |
 | **Telemetría de onnxruntime apagada** (`ORT_DISABLE_TELEMETRY=1` y `disable_telemetry_events()`). | Dejarla: el onnxruntime 1.31 de PyPI para Linux envía eventos 1DS a Microsoft (se vio en los registros del contenedor). Un servicio que procesa fotos de ciudadanos no debe hablar con terceros. |
@@ -143,14 +146,28 @@ python -m venv .venv-exportar
 
 El script verifica el sha256 de los pesos descargados, exporta (opset 17), mide la paridad ONNX/PyTorch (falla si el preprocesado difiere en más de 10⁻⁴ o los puntajes en más de 10⁻³) y escribe en `modelo.json` la **huella**: los 10 mejores pares de PyTorch en cada imagen sintética de `scripts/sinteticas.py`. Si el hash cambia respecto del registrado, lo avisa; `--comprobar` lo convierte en error. No necesita token de Hugging Face (el repo es público).
 
+## Dependencias
+
+| Archivo | Qué es | Quién lo usa |
+|---|---|---|
+| `requirements.txt` | Dependencias **directas** del servicio, con versión fija. Se edita a mano. | Entrada del lock. |
+| `requirements.lock` | Todo lo que instala el servicio (21 paquetes), con versión y **hashes**. Generado. | `Dockerfile` (`pip install --require-hashes --no-deps`). |
+| `requirements-dev.txt` | Lo anterior más pytest, httpx2, import-linter y onnx. Se edita a mano. | Entrada del lock de desarrollo. |
+| `requirements-dev.lock` | Todo lo de desarrollo (37 paquetes), con versión y hashes. Generado. | CI y desarrollo local. |
+| `requirements-exportar.txt` | Entorno de `scripts/exportar_onnx.py` (torch CPU, rfdetr…). | Etapa `exportador` del Dockerfile y el venv de exportación. |
+
+Los locks se generan con `uv pip compile --universal --generate-hashes` (el comando exacto está en la cabecera de cada uno). Se eligió `uv` y no `pip-compile` (pip-tools) porque `--universal` resuelve para **todas las plataformas** a la vez y deja los marcadores (`colorama ; sys_platform == 'win32'`): el mismo lock sirve en Windows (desarrollo), en el runner de Ubuntu y en el contenedor Linux. `pip-compile` resuelve solo para la plataforma donde corre, así que un lock generado en Windows podría no instalar en Linux con `--require-hashes`, o al revés. Para **instalar** basta `pip`; `uv` solo hace falta para regenerar (por ejemplo, en un venv aparte: `pip install uv==0.13.5`). Al cambiar una versión en `requirements*.txt`, se regeneran los dos locks en el mismo commit.
+
+El entorno de exportación **no** tiene lock: torch sale del índice de PyTorch con versiones `+cpu` por plataforma. Lo protege otra guarda: la etapa `exportador` falla si el `.onnx` no es byte a byte el registrado en `modelo.json`. La huella de `modelo.json` se generó en ese entorno, con **pillow 12.3.0 y numpy 2.5.2**; el servicio usa pillow 13.0.0 y numpy 2.5.4, y `tests/test_modelo_real.py` comprueba que con esas versiones se reproduce dentro de la tolerancia (10⁻³ en confianza, 0,5 px en las cajas).
+
 ## Cómo correrlo
 
 ```bash
 cd inferencia
 python -m venv .venv
-.venv/Scripts/python -m pip install -r requirements-dev.txt         # macOS/Linux: .venv/bin/python
+.venv/Scripts/python -m pip install --require-hashes --no-deps -r requirements-dev.lock   # macOS/Linux: .venv/bin/python
 .venv/Scripts/lint-imports                                           # guarda de capas
-.venv/Scripts/python -m pytest -rs                                   # sin pesos: 122 pasan y 5 se omiten
+.venv/Scripts/python -m pytest -rs                                   # sin pesos: 133 pasan y 5 se omiten
 .venv/Scripts/uvicorn app.main:crear_app --factory --port 8090       # con el modelo en modelos/
 ```
 
@@ -175,6 +192,8 @@ Ninguna variable es un secreto (el servicio no usa credenciales).
 | `INFERENCIA_MAX_MEGAPIXELES` | `16` | Máximo de la imagen. El backend envía fotos saneadas de ≤ 2048 px por lado (≤ 4,2 MP). |
 | `INFERENCIA_CONFIANZA_MINIMA` | `0.10` | Piso técnico (no es el umbral de sugerencia). |
 | `INFERENCIA_MAX_DETECCIONES` | `100` | Tope de detecciones por respuesta. |
+| `INFERENCIA_MAX_CONCURRENCIA` | `10` (Docker) | `--limit-concurrency` de uvicorn: con ese número de conexiones o tareas abiertas responde **503** (texto plano, no JSON). Las conexiones en keep-alive cuentan. |
+| `INFERENCIA_HOST` | `0.0.0.0` (Docker) | Dirección de escucha. `0.0.0.0` es solo IPv4. **Vacío** escucha IPv4 e IPv6 a la vez (probado en el contenedor: responden `127.0.0.1` y `[::1]`). `::` con uvicorn es **solo IPv6** (asyncio fija `IPV6_V6ONLY`) y deja sin respuesta el `HEALTHCHECK`, que usa `127.0.0.1`. Hay que verificar en NC-04b si la red privada de Railway es solo IPv6; si lo es, usar el valor vacío. |
 | `PORT` | `8000` | Puerto de uvicorn en Docker. |
 
 Un valor inválido impide arrancar con un mensaje que nombra la variable.
@@ -186,8 +205,8 @@ Medición con `scripts/medir_latencia.py` contra el contenedor con **`--cpus=2`*
 | Conjunto | Solicitudes | p50 | p95 | Máx. | Imágenes/s |
 |---|---|---|---|---|---|
 | Sintéticas en JPEG 0,85 (384 px a 2048 × 1536) | 30 × 3 corridas | 285–509 ms | 331–764 ms | 350–861 ms | 1,8–3,5 |
-| 30 fotos de RDD2022 (512 a 4040 px; fuera del repo) | 90 × 2 corridas | 282–465 ms | 428–640 ms | 455–783 ms | 2,1–3,3 |
-| Sintéticas, 4 clientes a la vez | 24 × 2 corridas | 1164–1918 ms | 1377–2221 ms | — | 2,0–3,3 |
+| 30 fotos de RDD2022 (512 a 4040 px; fuera del repo) | 90 × 2 y 60 × 1 corridas | 210–465 ms | 305–640 ms | 405–783 ms | 2,1–4,5 |
+| Sintéticas, 4 clientes a la vez | 24 × 2 y 18 × 1 corridas | 805–1918 ms | 845–2221 ms | — | 2,0–4,9 |
 
 | Memoria del contenedor | MiB |
 |---|---|
@@ -196,30 +215,30 @@ Medición con `scripts/medir_latencia.py` contra el contenedor con **`--cpus=2`*
 | Máximo con 4 clientes a la vez | 423–478 |
 
 - **Arranque** hasta que `/salud` responde: 3,3–4,4 s (incluye comprobar el sha256 de los 108 MB).
-- **Frente a la propuesta** (NO VERIFICADO entonces): latencia estimada 200–600 ms → medida p50 de 282 a 509 ms, dentro del rango; RAM estimada 400–800 MB → medida 200–480 MiB, por debajo. Lejos del límite de 1 s que obligaba a cambiar de modelo.
-- **La dispersión entre corridas** (hasta ×1,7) es de la máquina: un portátil con núcleos de distinto rendimiento y gestión de energía. El motor solo (`session.run`, 2 hilos) midió 408 ms de p50 en Docker y 540 ms en Windows nativo en otro momento; durante la exportación, el adaptador completo en Windows nativo tardó 194–311 ms por foto. En Railway hay que volver a medir (NC-04b) con `scripts/medir_latencia.py`.
+- **Frente a la propuesta** (NO VERIFICADO entonces): latencia estimada 200–600 ms → medida p50 de 210 a 509 ms, dentro del rango; RAM estimada 400–800 MB → medida 200–480 MiB, por debajo. Lejos del límite de 1 s que obligaba a cambiar de modelo.
+- **La dispersión entre corridas** (hasta ×2,4) es de la máquina: un portátil con núcleos de distinto rendimiento y gestión de energía. El motor solo (`session.run`, 2 hilos) midió 408 ms de p50 en Docker y 540 ms en Windows nativo en otro momento; durante la exportación, el adaptador completo en Windows nativo tardó 194–311 ms por foto. En Railway hay que volver a medir (NC-04b) con `scripts/medir_latencia.py`.
 - El timeout de 3 s de la vista previa (§4.3) alcanza con holgura con una solicitud a la vez; con cola (4 simultáneas) el p95 llegó a 2,2 s.
-- **Determinismo:** las tres corridas sobre las mismas imágenes devolvieron el mismo número de detecciones (115, 519, 92), y los tests comparan resultados repetidos.
+- **Determinismo:** las tres corridas sobre las mismas imágenes devolvieron el mismo número de detecciones (115 por corrida de sintéticas, 173 por pasada de las 30 fotos, 23 por pasada concurrente), y los tests comparan resultados repetidos.
 - Imagen final: 637 MB (Python slim, onnxruntime, NumPy, Pillow y el `.onnx` de 108 MB).
 
 ## Pruebas
 
-`python -m pytest -rs`: **127 tests**; sin los pesos, **122 pasan y 5 se omiten**.
+`python -m pytest -rs`: **138 tests**; sin los pesos, **133 pasan y 5 se omiten**.
 
 | Archivo | Qué prueba | Pesos |
 |---|---|---|
 | `test_dominio.py` | Vocabulario `bache`/`grieta`, invariantes de `Caja`, `Deteccion`, `VersionModelo` (≤ 40), orden de `Detecciones`, `ImagenRGB`, límites. | No |
 | `test_detectar.py` | Caso de uso con dobles: orden de las validaciones (bytes antes de cabecera, píxeles antes de decodificar), formatos, bordes exactos de los límites, fallo del modelo. | No |
-| `test_pillow_decodificador.py` | JPEG, PNG y WEBP sintéticos, transparencia sobre blanco, orientación EXIF, archivos dañados y truncados. | No |
-| `test_api.py` | Contrato JSON exacto, OpenAPI, todos los errores (400, 413 por bytes, píxeles, `Content-Length` y cuerpo por trozos, 500, 404, 405) y el límite de 2 procesos simultáneos. | No |
-| `test_onnx_modelo.py` | Redimensión frente a una fórmula escalar independiente, normalización, decodificación (fondo, piso, recorte, una detección por consulta y clase, máximo de 300 pares) y el adaptador completo con un **`.onnx` sintético** (hash, metadatos, forma, fallo del motor). | No |
+| `test_pillow_decodificador.py` | JPEG, PNG y WEBP sintéticos; GIF, TIFF y BMP rechazados sin probar sus lectores; transparencia sobre blanco, orientación EXIF, archivos dañados y truncados; `MemoryError` no se convierte en 400. | No |
+| `test_api.py` | Contrato JSON exacto, OpenAPI (con `maxLength` 40 de `version_modelo`), todos los errores (400, 413 por bytes, píxeles, `Content-Length` y cuerpo por trozos, 500 del modelo y por falta de memoria, 404, 405) y el límite de 2 procesos simultáneos. El 503 de la cola es de uvicorn y se probó contra el contenedor. | No |
+| `test_onnx_modelo.py` | Redimensión frente a una fórmula escalar independiente, normalización, decodificación (fondo, piso, recorte, una detección por consulta y clase, máximo de 300 pares) y el adaptador completo con un **`.onnx` sintético** (hash, metadatos, forma, ranura de fondo que no es la última columna, fallo del motor). | No |
 | `test_configuracion.py` | Valores por defecto y errores de cada variable. | No |
 | `test_main.py` | Raíz de composición con adaptadores reales y el `.onnx` sintético; sin modelo no arranca. | No |
 | `test_modelo_real.py` | Versión registrada, **reproduce la huella de PyTorch** de `modelo.json` (mismo preprocesado, modelo y decodificación), contrato y determinismo con el modelo real, servicio completo. | **Sí: se omite sin pesos** |
 
 Las imágenes de los tests son sintéticas (generadas con código). Las fotos de RDD2022 (CC BY-SA 4.0) solo se usaron fuera del repo para medir y comprobar el mapeo.
 
-**CI** (job `inferencia` de `.github/workflows/ci.yml`, `docs/ci.md`): instala `requirements-dev.txt`, corre `lint-imports`, `pytest` sin pesos y la guarda `scripts/verificar_tests.py`, que falla si algo falló, si un `tests/test_*.py` no tiene casos, si se omitió algo fuera de `test_modelo_real.py` o si los ejecutados bajan de `MIN_PYTEST_INFERENCIA` (122).
+**CI** (job `inferencia` de `.github/workflows/ci.yml`, `docs/ci.md`): instala `requirements-dev.lock` con hashes, corre `lint-imports`, `pytest` sin pesos y la guarda `scripts/verificar_tests.py`, que falla si algo falló, si un `tests/test_*.py` no tiene casos, si se omitió algo fuera de `test_modelo_real.py` o si los ejecutados bajan de `MIN_PYTEST_INFERENCIA` (133).
 
 ## Pendiente
 

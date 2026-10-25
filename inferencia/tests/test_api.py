@@ -80,13 +80,26 @@ class TestErrores:
         assert respuesta.json()["codigo"] == "imagen_invalida"
         assert modelo.recibidas == []
 
-    def test_un_formato_no_permitido_es_400(self):
-        respuesta = enviar(cliente(), imagen_sintetica(8, 8, "GIF", modo="P"), nombre="a.gif", tipo="image/gif")
+    @pytest.mark.parametrize("formato, modo", [("GIF", "P"), ("TIFF", "RGB"), ("BMP", "RGB")])
+    def test_un_formato_no_permitido_es_400_sin_llegar_al_modelo(self, formato, modo):
+        modelo = ModeloFalso()
+        respuesta = enviar(cliente(modelo), imagen_sintetica(8, 8, formato, modo=modo), nombre="a.img", tipo="image/gif")
         assert respuesta.status_code == 400
         assert respuesta.json() == {
             "codigo": "imagen_invalida",
-            "mensaje": "Formato de imagen no permitido: GIF. Se aceptan JPEG, PNG, WEBP.",
+            "mensaje": "El archivo no es una imagen JPEG, PNG o WEBP válida o está dañado.",
         }
+        assert modelo.recibidas == []
+
+    def test_sin_memoria_al_decodificar_es_500_y_no_un_error_del_cliente(self):
+        class SinMemoria(PillowDecodificador):
+            def decodificar(self, datos):
+                raise MemoryError
+
+        caso = DetectarDanos(SinMemoria(), ModeloFalso(), LIMITES)
+        respuesta = enviar(TestClient(construir_api(caso), raise_server_exceptions=False), imagen_sintetica())
+        assert respuesta.status_code == 500
+        assert respuesta.json()["codigo"] == "error_interno"
 
     def test_un_archivo_que_supera_el_maximo_de_bytes_es_413(self):
         limites = LimitesDeImagen(max_bytes=1_000, max_pixeles=1_000_000)
@@ -195,3 +208,6 @@ class TestSaludYDocumentacion:
         assert {"200", "400", "413", "500"} <= set(operacion["responses"])
         clases = esquema["components"]["schemas"]["ClaseDano"]["enum"]
         assert sorted(clases) == ["bache", "grieta"]
+        esquemas = esquema["components"]["schemas"]
+        assert esquemas["DeteccionesRespuesta"]["properties"]["version_modelo"]["maxLength"] == 40
+        assert esquemas["SaludRespuesta"]["properties"]["version_modelo"]["maxLength"] == 40

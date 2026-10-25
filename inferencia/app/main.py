@@ -33,7 +33,8 @@ def crear_app(configuracion: Configuracion | None = None) -> FastAPI:
         confianza_minima=configuracion.confianza_minima,
         max_detecciones=configuracion.max_detecciones,
     )
-    caso = DetectarDanos(PillowDecodificador(), modelo, configuracion.limites)
+    decodificador = PillowDecodificador(configuracion.limites.formatos)
+    caso = DetectarDanos(decodificador, modelo, configuracion.limites)
     logging.getLogger("inferencia").info(
         "Modelo %s cargado (hilos=%d, confianza_minima=%.2f, max_bytes=%d, max_pixeles=%d)",
         modelo.version,

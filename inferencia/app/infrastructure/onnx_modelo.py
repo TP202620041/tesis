@@ -84,6 +84,14 @@ class MetadatosModelo:
     etiquetas: tuple[str, ...]
     indice_fondo: int | None
 
+    def __post_init__(self) -> None:
+        # La columna i de los logits es etiquetas[i] y el fondo, si existe, va al final (como en
+        # rfdetr). Una exportación que lo mueva cruzaría bache y grieta en silencio: no arranca.
+        if self.indice_fondo is not None and self.indice_fondo != len(self.etiquetas):
+            raise ErrorDeCargaDelModelo(
+                f"indice_fondo debe ser la última columna ({len(self.etiquetas)}) o null, y es {self.indice_fondo}"
+            )
+
     @classmethod
     def desde_dict(cls, datos: Mapping[str, Any]) -> MetadatosModelo:
         try:

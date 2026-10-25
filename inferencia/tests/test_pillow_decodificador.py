@@ -20,8 +20,30 @@ def test_lee_formato_y_dimensiones_de_los_formatos_permitidos(formato):
     assert (cabecera.formato, cabecera.ancho, cabecera.alto) == (formato, 64, 48)
 
 
-def test_identifica_otros_formatos_para_que_la_aplicacion_los_rechace():
-    assert decodificador.leer_cabecera(imagen_sintetica(8, 8, "GIF", modo="P")).formato == "GIF"
+@pytest.mark.parametrize("formato, modo", [("GIF", "P"), ("TIFF", "RGB"), ("BMP", "RGB")])
+def test_solo_prueba_los_lectores_de_los_formatos_permitidos(formato, modo):
+    datos = imagen_sintetica(8, 8, formato, modo=modo)
+    with pytest.raises(ImagenInvalida, match="JPEG, PNG o WEBP"):
+        decodificador.leer_cabecera(datos)
+    with pytest.raises(ImagenInvalida):
+        decodificador.decodificar(datos)
+
+
+def test_los_formatos_permitidos_son_configurables():
+    solo_png = PillowDecodificador({"PNG"})
+    assert solo_png.leer_cabecera(imagen_sintetica(8, 8, "PNG")).formato == "PNG"
+    with pytest.raises(ImagenInvalida, match="imagen PNG válida"):
+        solo_png.leer_cabecera(imagen_sintetica(8, 8, "JPEG"))
+
+
+@pytest.mark.parametrize("metodo", ["leer_cabecera", "decodificar"])
+def test_memory_error_no_se_disfraza_de_imagen_invalida(monkeypatch, metodo):
+    def sin_memoria(*args, **kwargs):
+        raise MemoryError
+
+    monkeypatch.setattr(Image, "open", sin_memoria)
+    with pytest.raises(MemoryError):
+        getattr(decodificador, metodo)(b"cualquier cosa")
 
 
 @pytest.mark.parametrize("formato", ["JPEG", "PNG", "WEBP"])

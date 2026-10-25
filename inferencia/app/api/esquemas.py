@@ -11,7 +11,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.domain.deteccion import ClaseDano, Detecciones
+from app.domain.deteccion import LARGO_MAXIMO_VERSION, ClaseDano, Detecciones
 
 
 class DeteccionRespuesta(BaseModel):
@@ -27,7 +27,10 @@ class DeteccionRespuesta(BaseModel):
 class DeteccionesRespuesta(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    version_modelo: str = Field(description="Artefacto exacto que produjo las detecciones (máximo 40 caracteres).")
+    version_modelo: str = Field(
+        max_length=LARGO_MAXIMO_VERSION,
+        description="Artefacto exacto que produjo las detecciones; cabe en `version_modelo_sugerencia VARCHAR(40)`.",
+    )
     detecciones: list[DeteccionRespuesta] = Field(description="De mayor a menor confianza. Puede estar vacía.")
 
     @classmethod
@@ -43,7 +46,7 @@ class DeteccionesRespuesta(BaseModel):
 
 class SaludRespuesta(BaseModel):
     estado: Literal["ok"] = "ok"
-    version_modelo: str
+    version_modelo: str = Field(max_length=LARGO_MAXIMO_VERSION)
 
 
 class ErrorRespuesta(BaseModel):

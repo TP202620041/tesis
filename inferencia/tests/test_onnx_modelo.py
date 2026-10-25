@@ -185,9 +185,19 @@ class TestOnnxModelo:
     def test_etiquetas_que_no_cuadran_con_las_columnas_no_arranca(self, tmp_path):
         escribir_modelo(tmp_path)
         datos = json.loads((tmp_path / "modelo.json").read_text(encoding="utf-8"))
-        datos["etiquetas"] = ETIQUETAS[:3]
+        datos["etiquetas"], datos["indice_fondo"] = ETIQUETAS[:3], 3  # 4 columnas declaradas; el grafo tiene 5
         (tmp_path / "modelo.json").write_text(json.dumps(datos), encoding="utf-8")
         with pytest.raises(ErrorDeCargaDelModelo, match="clases"):
+            self.cargar(tmp_path)
+
+    @pytest.mark.parametrize("indice", [0, 2, -1])
+    def test_un_fondo_que_no_es_la_ultima_columna_no_arranca(self, tmp_path, indice):
+        # Con el fondo en otra columna, etiquetas[i] ya no sería la columna i: bache y grieta se cruzarían.
+        escribir_modelo(tmp_path)
+        datos = json.loads((tmp_path / "modelo.json").read_text(encoding="utf-8"))
+        datos["indice_fondo"] = indice
+        (tmp_path / "modelo.json").write_text(json.dumps(datos), encoding="utf-8")
+        with pytest.raises(ErrorDeCargaDelModelo, match="indice_fondo"):
             self.cargar(tmp_path)
 
     def test_un_modelo_sin_etiquetas_de_la_app_no_arranca(self, tmp_path):
