@@ -41,6 +41,14 @@ app:
     # `smtp` de desarrollo, cada correo fallaria contra localhost:1025 sin
     # que nada lo advierta al desplegar.
     tipo: ${CORREO_TIPO}
+  clasificacion:
+    falso:
+      # NC-04: hasta el adaptador del servicio de inferencia (NC-04b) la
+      # clasificacion esta apagada en produccion: el falso sin detecciones
+      # nunca sugiere ni escribe nada. Literal y no por entorno: una respuesta
+      # fija aqui llenaria la base de sugerencias inventadas y arruinaria la
+      # evaluacion del modelo (OE3).
+      respuesta: ""
   notificaciones:
     # Remitente de todos los correos, de un dominio verificado en Resend
     # (p. ej. "Ciudad Viva <no-reply@<dominio>>"). Sin default: el de

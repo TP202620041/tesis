@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import pe.edu.upc.viasegura.auth.domain.Usuario;
 import pe.edu.upc.viasegura.auth.service.UsuarioConsultaService;
+import pe.edu.upc.viasegura.clasificacion.domain.Sugerencia;
 import pe.edu.upc.viasegura.common.exception.BusinessException;
 import pe.edu.upc.viasegura.common.exception.ResourceNotFoundException;
 import pe.edu.upc.viasegura.common.geo.GeometryUtils;
@@ -168,10 +169,28 @@ public class ReporteService {
         // Un reporte nuevo suma al denominador de la tasa de resolucion
         // (US-18/US-20). Se publica solo aqui y no en adherir(): una adhesion
         // no crea fila en `reporte`, asi que no mueve ninguna metrica.
+        // Tambien dispara la sugerencia oficial de categoria (NC-04, D-08), que
+        // corre despues del commit y fuera de esta transaccion: la creacion
+        // nunca espera al clasificador ni falla por el.
         eventPublisher.publishEvent(new ReporteCreadoEvent(
-                reporte.getId(), distrito.getId(), categoria.getId()));
+                reporte.getId(), distrito.getId(), categoria.getId(), fotoUrl != null));
 
         return ReporteResponse.from(reporte, false);
+    }
+
+    /**
+     * NC-04 (D-08): guarda la sugerencia oficial de categoria, calculada por
+     * {@link SugerenciaCategoriaService} fuera de toda transaccion. Esta es la
+     * transaccion corta del final: un {@code UPDATE} de tres columnas que solo
+     * escribe si siguen nulas.
+     *
+     * @return {@code true} si la guardo; {@code false} si el reporte ya tenia
+     *         una (no se reemplaza) o ya no existe
+     */
+    @Transactional
+    public boolean registrarSugerencia(Long reporteId, Sugerencia sugerencia) {
+        return reporteRepository.registrarSugerencia(reporteId, sugerencia.categoriaId(),
+                sugerencia.confianza(), sugerencia.versionModelo()) == 1;
     }
 
     private ReporteResponse adherir(Reporte existente, Usuario ciudadano) {

@@ -1,0 +1,37 @@
+package pe.edu.upc.viasegura.clasificacion.port;
+
+import pe.edu.upc.viasegura.clasificacion.domain.ResultadoDeteccion;
+import pe.edu.upc.viasegura.common.port.ArchivoSubido;
+
+/**
+ * Puerto al servicio que detecta danos en una foto (NC-04, ARCHITECTURE.md
+ * §4.3 y §6). Solo detecta: el umbral y la clase dominante los aplica
+ * {@link pe.edu.upc.viasegura.clasificacion.domain.PoliticaDeSugerencia}.
+ *
+ * <p>Adaptadores, elegidos con {@code app.clasificacion.tipo}
+ * ({@code CLASIFICACION_TIPO}):</p>
+ * <ul>
+ *   <li>{@code falso} ({@code infra/FalsoClasificadorAdapter}): respuestas
+ *       fijas por configuracion, incluido un modo que falla. Es el unico
+ *       hasta NC-04b.</li>
+ *   <li>{@code http} (NC-04b, {@code infra/InferenciaHttpAdapter}):
+ *       {@code POST /v1/detecciones} del servicio {@code inferencia/} por la
+ *       red privada, con timeout de 3 s.</li>
+ * </ul>
+ */
+public interface ClasificadorDano {
+
+    /**
+     * Detecta danos en la foto.
+     *
+     * @param foto foto <b>ya saneada</b> por
+     *             {@link pe.edu.upc.viasegura.common.port.SaneadorDeImagen}
+     *             (JPEG sin EXIF, orientado, de 2048 px o menos): la misma que
+     *             se guarda, para que la vista previa y la sugerencia oficial
+     *             vean la misma imagen (D-08)
+     * @return la version del modelo y lo detectado (vacio si nada)
+     * @throws ClasificacionNoDisponibleException si el servicio no responde, se
+     *         pasa del timeout o responde algo que no cumple el contrato
+     */
+    ResultadoDeteccion detectar(ArchivoSubido foto);
+}

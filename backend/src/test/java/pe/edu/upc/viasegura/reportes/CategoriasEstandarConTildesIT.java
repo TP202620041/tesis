@@ -97,11 +97,14 @@ class CategoriasEstandarConTildesIT extends AbstractPostgisIT {
     void lasSeisEstandarTienenSusTextosConTildes() throws Exception {
         assertThat(estandarEnLaBase()).containsExactlyInAnyOrderEntriesOf(ESTANDAR);
 
-        // Y así las ve el público (catálogo sin distrito: solo las estándar).
+        // Y así las ve el público (catálogo sin distrito: solo las estándar
+        // activas). «Hueco en calzada» se desactivó en V19 (NC-04).
+        Map<String, String> activas = new LinkedHashMap<>(ESTANDAR);
+        activas.remove("Hueco en calzada");
         mockMvc.perform(get("/api/categorias"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[*].nombre", containsInAnyOrder(ESTANDAR.keySet().toArray())))
-                .andExpect(jsonPath("$[*].descripcion", containsInAnyOrder(ESTANDAR.values().toArray())));
+                .andExpect(jsonPath("$[*].nombre", containsInAnyOrder(activas.keySet().toArray())))
+                .andExpect(jsonPath("$[*].descripcion", containsInAnyOrder(activas.values().toArray())));
     }
 
     @Test

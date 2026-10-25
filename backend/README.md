@@ -93,6 +93,8 @@ preferible que no arranque y que el log diga qué falta.
 | `PORT` | no (8080) | Lo inyecta la plataforma. |
 | `SPRINGDOC_HABILITADO` | no (`false`) | `true` publica `/v3/api-docs` y Swagger UI. |
 | `ADMIN_INICIAL_EMAIL`, `ADMIN_INICIAL_PASSWORD`, `ADMIN_INICIAL_NOMBRE` | solo en el primer arranque | Crean el primer ADMIN en una base sin ninguno. Después se borra `ADMIN_INICIAL_PASSWORD`; las otras dos pueden quedar (ver «Operación en producción»). |
+| `CLASIFICACION_TIPO` | no (`falso`) | Adaptador del clasificador de fotos (NC-04). Hoy solo `falso`; `http` (servicio `inferencia/`) llega con NC-04b, que la volverá obligatoria. Otro valor no arranca (`clasificacion/infra/ValidacionTipoClasificador`). En `prod` el falso responde siempre «sin detecciones» (`application-prod.yml`, literal): la clasificación está apagada y no escribe nada (ver [Sugerencia de categoría](#sugerencia-de-categoría-por-la-foto-nc-04-fase-0)). |
+| `CLASIFICACION_UMBRAL` | no (`0.50`) | Confianza mínima para sugerir, en (0, 1]. Se calibra en NC-03b. |
 | `JWT_EXPIRATION_MINUTES`, `VAPID_*`, `PUSH_*`, `MAIL_*` (solo con `smtp`), `LEGAL_VERSION_TERMINOS`, `ASYNC_*` | no | Las mismas de `application.yml`, con sus valores por defecto. |
 
 ### Qué cambia respecto de `local`
@@ -502,6 +504,8 @@ src/main/java/pe/edu/upc/viasegura/
 ├── auth/              # US-01..US-04  (Usuario, login/registro, roles)
 ├── distritos/         # Distrito (límites GEOGRAPHY, base de asignación)
 ├── municipalidades/   # Municipalidad (1:1 con distrito, D-09) y PeriodoGestion (NC-01)
+├── clasificacion/     # Sugerencia de categoría por la foto (NC-04): port/ClasificadorDano,
+│                      #   infra/FalsoClasificadorAdapter, domain/PoliticaDeSugerencia
 ├── reportes/          # Reporte + CategoriaDano, Adhesion, Historial, Asignacion,
 │                      #   Calificacion, ComentarioPublico  (+ port/ + infra/ para Strategy geo)
 ├── notificaciones/    # Notificacion  (+ port/ + infra/ para Strategy push/email)
@@ -900,7 +904,7 @@ todas necesitan un `categoriaId` o un `distritoId` válido.
 
 | Método | Ruta | Auth | Descripción |
 |---|---|---|---|
-| GET | `/api/categorias` | No | Categorías seleccionables. Sin `?distritoId=`: solo las 6 estándar. Con él: estándar + personalizadas activas de ese distrito (US-29). |
+| GET | `/api/categorias` | No | Categorías seleccionables. Sin `?distritoId=`: solo las estándar activas (5 desde V19, que desactivó «Hueco en calzada», NC-04). Con él: estándar + personalizadas activas de ese distrito (US-29). |
 | GET | `/api/distritos` | No | Los 43 distritos (id, nombre, ubigeo) en orden alfabético. |
 
 Son públicos por el mismo criterio que la búsqueda de reportes (US-10/US-12),
@@ -1451,8 +1455,9 @@ pasa por `common/port/SaneadorDeImagen` (implementado por
   `IndexOutOfBounds`) también es 409: el error es del cliente, no un 500.
 - **Determinista.** Los mismos bytes dan los mismos bytes (mismo lector, mismo
   paso, giros exactos con vecino más cercano, mismo codificador y calidad).
-  D-08 depende de eso: con NC-04 la vista previa pasará por el mismo
-  saneador, y la sugerencia oficial leerá la foto guardada, ya saneada.
+  D-08 depende de eso: desde NC-04 la vista previa pasa por el mismo
+  saneador y la sugerencia oficial lee la foto guardada, ya saneada (ver
+  [Sugerencia de categoría](#sugerencia-de-categoría-por-la-foto-nc-04-fase-0)).
 
 **Memoria acotada.** El API corre con `-Xmx512m` (runbook). Cada saneado en
 curso ocupa el archivo subido (hasta 10 MB), la imagen decodificada
@@ -1729,8 +1734,8 @@ Timeouts del push: 3 s de conexión y 5 s de pedido
 ### Executor asíncrono (`AsyncConfig`)
 
 Uno solo, con nombre (`ejecutorAsincrono`, hilos `viasegura-async-*`), para
-reutilizar en todo trabajo posterior al commit: los avisos de hoy y la
-sugerencia de categoría de D-08 (`@Async(AsyncConfig.EJECUTOR)`). Reemplaza
+reutilizar en todo trabajo posterior al commit: los avisos, los correos y la
+sugerencia de categoría de D-08 (`@Async(AsyncConfig.EJECUTOR)`, NC-04). Reemplaza
 al `applicationTaskExecutor` de Spring Boot (Boot solo crea el suyo si no hay
 ningún `Executor`), así que también es el executor por defecto de cualquier
 `@Async` sin nombre.
@@ -1750,7 +1755,8 @@ perdido. Perder un aviso en ese caso se acepta: el reporte y su historial no
 dependen de él. Lo mismo hacen los correos de recuperación y de soporte
 (DEP-08): `RecuperacionSolicitadaListener` y `TicketRespondidoListener`
 encolan en este executor y, si los rechaza, registran el id del token o del
-ticket (ver «Correo saliente»).
+ticket (ver «Correo saliente»), y `SugerenciaCategoriaListener` registra el
+reporte cuya sugerencia se pierde (NC-04).
 
 **En los IT** el bean real no existe (`@Profile("!test")`) y
 `support/EjecutorSincronoTestConfig` registra uno con el mismo nombre que
@@ -2133,6 +2139,215 @@ Verificado en una copia de la base de desarrollo con 15 reportes: títulos
 como «Bache en Miraflores», severidad `MEDIA` y todos con periodo. También
 verificado en una base de test vacía.
 
+## Sugerencia de categoría por la foto (NC-04, fase 0)
+
+**Qué agrega.** Al reportar, la PWA puede enviar la foto a
+`POST /api/clasificaciones` y recibir la categoría que el modelo sugiere
+(«Bache», «Pista deteriorada») para proponerla al ciudadano. Después de crear
+el reporte, el backend vuelve a clasificar la foto **guardada** y registra la
+sugerencia oficial en `reporte` (`categoria_sugerida_id`,
+`confianza_sugerencia`, `version_modelo_sugerencia`). Esa es la que mide la
+evaluación del modelo (OE3: sugerida frente a confirmada). Sigue la propuesta
+aceptada el 21/10 (`project-context/decisions/propuestas/2026-10-21-ml-clases-modelo.md`),
+fase 0: todo el flujo con un **clasificador falso**, antes de que existan el
+servicio `inferencia/` (NC-03) y su adaptador HTTP (NC-04b).
+
+| Pieza | Capa | Qué hace |
+|---|---|---|
+| `clasificacion/port/ClasificadorDano` | Puerto | Detecta daños en una foto ya saneada y devuelve `ResultadoDeteccion(versionModelo, detecciones)`. Sus errores salen como `ClasificacionNoDisponibleException`. |
+| `clasificacion/infra/FalsoClasificadorAdapter` | Adaptador | Respuesta fija por configuración (`CLASIFICACION_FALSO_RESPUESTA`): vacía, pares `clase:confianza` o `falla`. |
+| `clasificacion/domain/PoliticaDeSugerencia` | Dominio | Umbral y clase dominante (abajo). Regla pura, con `PoliticaDeSugerenciaTest`. |
+| `clasificacion/service/ClasificacionService` | Aplicación | Vista previa (sanea, detecta y aplica la política) y sugerencia sobre una foto ya saneada. Sin transacción. |
+| `clasificacion/controller/ClasificacionController` | Presentación | `POST /api/clasificaciones`. |
+| `clasificacion/port/CategoriasClasificables` ← `reportes/infra/JpaCategoriasClasificablesAdapter` | Puerto y adaptador | Las categorías activas con clase del modelo. |
+| `reportes/listener/SugerenciaCategoriaListener` → `reportes/service/SugerenciaCategoriaService` → `ReporteService#registrarSugerencia` | Aplicación | Sugerencia oficial después del commit (D-08). |
+| V19 | Esquema | Columnas nuevas con sus `CHECK`, clases del modelo y baja de «Hueco en calzada». |
+
+### Política de sugerencia
+
+1. Se descartan las detecciones cuya clase no corresponde a ninguna categoría
+   **activa** con `clase_modelo`, y las de confianza fuera de [0, 1].
+2. El puntaje de cada categoría es la **máxima** confianza de sus detecciones
+   (no la suma: tres grietas de 0,4 no hacen una de 1,2).
+3. Se sugiere la de mayor puntaje si es **≥ umbral** (`CLASIFICACION_UMBRAL`,
+   0,50). Un empate exacto en el primer lugar o ningún puntaje sobre el umbral
+   dan «sin sugerencia».
+4. La confianza es ese puntaje con 3 decimales (`NUMERIC(4,3)`). El umbral se
+   compara con el valor **sin redondear**: 0,4996 no se sugiere aunque se
+   guardaría como 0,500.
+
+**Por qué 0,50 y no el 0,25 habitual** de los detectores: aquí una sugerencia
+equivocada empuja al ciudadano a la categoría errónea (anclaje), y equivocarse
+cuesta más que no sugerir. El umbral se calibra en NC-03b con fotos de Lima.
+La agregación por máximo es una elección razonable sin respaldo específico en
+la literatura; las alternativas (suma, área de la caja) se comparan con ese
+mismo conjunto de fotos.
+
+Las clases del contrato son las de la propuesta (opción A): `bache` (D40 de
+RDD2022) para «Bache» y `grieta` (D00, D10 y D20) para «Pista deteriorada».
+Se comparan tal cual, en minúsculas. Una categoría sin `clase_modelo` (las
+demás estándar y todas las de un distrito) **nunca** se sugiere: el ciudadano
+la elige a mano, como siempre.
+
+### Vista previa: `POST /api/clasificaciones`
+
+| | |
+|---|---|
+| Quién | Solo `CIUDADANO` con los términos vigentes (401 sin token, 403 con otro rol): es el único que crea reportes. |
+| Entrada | `multipart/form-data` con la parte `foto` (JPEG, PNG o WEBP, hasta 10 MB). |
+| Respuesta | **200** `{"categoriaId": 1, "categoriaNombre": "Bache"}`, o `{"categoriaId": null, "categoriaNombre": null}` sin sugerencia. |
+| Errores | Sin la parte `foto`, o vacía: 400. No es una imagen válida: 409, el mismo de la creación. Sin turno de saneado: 503. |
+| Persistencia | **Ninguna**: ni la foto ni el resultado (`ClasificacionVistaPreviaIT` cuenta reportes y archivos antes y después). |
+
+- **La foto pasa por el mismo `SaneadorDeImagen` que el almacenamiento**
+  antes de clasificarse (ajuste a D-08 de la propuesta de fotos del 21/10):
+  el modelo ve la imagen que verá la sugerencia oficial (orientada, a 2048 px,
+  recomprimida). Como el saneado y el modelo son deterministas, la misma foto
+  da la misma sugerencia en los dos momentos. La sugerencia oficial **no**
+  vuelve a sanear la foto guardada: recomprimirla daría otros píxeles.
+- **Solo la categoría, sin confianza ni versión.** La sugerencia es una señal
+  interna, y la vista previa muestra lo mínimo que necesita la interfaz.
+  Exponer el puntaje daría a cualquier ciudadano un instrumento para sondear
+  el detector foto a foto, y no ayuda a elegir (por debajo del umbral ya no se
+  sugiere nada). Agregar un campo después es compatible; quitarlo, no.
+- **Un servicio caído no es un error para el ciudadano**: la respuesta es
+  «sin sugerencia» y elige a mano. La PWA no distingue ese caso del de una
+  foto sin un daño claro.
+- **Comparte el semáforo de saneado** con las subidas de fotos (2 a la vez):
+  muchas vistas previas simultáneas pueden demorar una creación hasta el 503
+  de los 10 s. Se acepta en el MVP (una vista previa por foto elegida); si
+  hiciera falta, un límite por usuario o un semáforo propio.
+
+### Sugerencia oficial (D-08)
+
+1. `ReporteService` publica `ReporteCreadoEvent` (que ahora lleva `conFoto`)
+   solo al crear un reporte nuevo. Una **adhesión** (US-09) no crea un reporte
+   ni lo vuelve a clasificar, y su foto no se guarda.
+2. `SugerenciaCategoriaListener` (`AFTER_COMMIT`) solo encola, y solo si hay
+   foto. Con la cola del executor llena registra un WARN con el reporte y la
+   descarta, como los avisos (D-13).
+3. `SugerenciaCategoriaService#sugerir` (`@Async`, **sin transacción**) lee
+   la URL de la foto, la descarga por `FotoStorageService` y la clasifica. Ese
+   I/O ocurre sin ninguna conexión de la base tomada.
+4. `ReporteService#registrarSugerencia` escribe en una **transacción corta**
+   un `UPDATE` de tres columnas **condicionado a que sigan nulas**: la
+   sugerencia se escribe una sola vez, y un segundo intento (otro evento, un
+   reproceso futuro) no la reemplaza.
+
+**La creación nunca espera ni falla por la clasificación.** Si el servicio
+falla, la foto no se puede leer o no hay una sugerencia clara, las columnas
+quedan nulas y el reporte sigue su curso. Un error inesperado escapa al
+manejador de `@Async`, que lo registra.
+
+**Lo que envía el cliente se ignora.** `POST /api/reportes` no tiene
+parámetros de sugerencia, y las tres columnas son de **solo lectura para JPA**
+(`insertable = false, updatable = false` en `Reporte`): ni la creación ni
+ningún `save()` posterior pueden escribirlas. Eso además evita una carrera:
+una edición del ciudadano o un cambio de estado del funcionario que cargó el
+reporte antes de la sugerencia no la pisa con un nulo al guardar.
+
+**SQL nativo, no `save()`.** El `UPDATE` toca solo esas columnas: un `merge`
+de la entidad podría devolver a su valor viejo un estado que el funcionario
+cambió mientras tanto. Tampoco mueve `updated_at`, porque la sugerencia es
+interna y no debe notarse en ninguna fecha visible.
+
+**Las tres columnas van juntas** (`CHECK ck_reporte_sugerencia_completa`): o
+todas nulas o todas con valor. Así «sin sugerencia» es un estado claro, y la
+versión identifica al modelo que produjo cada sugerencia (las del falso dicen
+`falso-0`). Para OE3 se consulta por SQL; si hiciera falta una pantalla, sería
+un endpoint del ADMIN.
+
+### Por qué el catálogo es un puerto que implementa `reportes`
+
+La política necesita las categorías activas con clase del modelo, que viven
+en `reportes` (`CategoriaDano`). Pero `reportes` ya depende de
+`clasificacion` (la sugerencia oficial llama a `ClasificacionService`), así
+que si `clasificacion` llamara a `reportes` habría un **ciclo entre módulos**
+(`modulosSinCiclos`). La dependencia se invierte: `clasificacion` declara lo
+que necesita en `port/CategoriasClasificables` y `reportes` lo implementa en
+su `infra/` (`JpaCategoriasClasificablesAdapter`, una consulta derivada). El
+grafo queda `clasificacion ← reportes`, como en ARCHITECTURE.md §4.3, y
+ArchUnit sigue sin violaciones. Alternativas descartadas: llevar la vista
+previa a `reportes` (contradice el paso 1 de §4.3) o que el cliente envíe las
+categorías candidatas (el cliente decidiría qué se puede sugerir).
+
+### La sugerencia es una señal interna
+
+Sale de un detector, así que **no va en ningún DTO** del reporte: ni en el
+mapa y la búsqueda públicos, ni en las vistas del ciudadano (mis reportes, mis
+adhesiones, editar, cancelar, crear o adherirse), ni en la bandeja, el cambio
+de estado, el historial o la exportación del funcionario. Mostrársela al
+funcionario es una decisión aparte (pregunta 5 de la propuesta).
+`SugerenciaFueraDeDtosIT` lo fija endpoint por endpoint **sobre el cuerpo
+entero**: con una sugerencia de valores reconocibles en el reporte, la
+respuesta no puede contener esos valores ni ningún nombre de campo de la
+sugerencia. `clase_modelo` tampoco está en el catálogo público.
+
+### «Hueco en calzada» desactivada (V19)
+
+En una foto no se distingue de «Bache» (la profundidad no se ve), y con dos
+nombres para el mismo daño la deduplicación de US-09, que es por categoría,
+deja crear dos reportes del mismo hueco. La gravedad la expresa la
+`severidad` (NC-02). Es la decisión del usuario del 21/10.
+
+- V19 la pone en `activo = false`: sale del catálogo público y crear con ella
+  es 409, como con cualquier inactiva.
+- **Los reportes que ya la usan no cambian**: guardan `categoria_id`, se
+  siguen viendo con su categoría y el creador puede seguir editándolos sin
+  cambiarla (`ReporteService#editar` solo valida la categoría cuando cambia).
+  Lo prueba `CategoriasDelModeloIT`.
+- Consecuencia aceptada: como el catálogo público ya no la ofrece, la PWA no
+  puede filtrar el mapa por «Hueco en calzada». No se pasaron esos reportes a
+  «Bache» con la migración porque cambiaría lo que eligió el ciudadano; si
+  hubiera muchos, se decide aparte.
+- Las estándar no se reactivan por el API (US-29); volver atrás sería otra
+  migración.
+
+### Configuración
+
+| Propiedad (variable) | Por defecto | Qué es |
+|---|---|---|
+| `app.clasificacion.tipo` (`CLASIFICACION_TIPO`) | `falso` | Adaptador. Hoy solo `falso`; `http` falla al arrancar con un mensaje que remite a NC-04b. |
+| `app.clasificacion.umbral` (`CLASIFICACION_UMBRAL`) | `0.50` | En (0, 1]; fuera de rango no arranca. |
+| `app.clasificacion.falso.respuesta` (`CLASIFICACION_FALSO_RESPUESTA`) | vacía | Lo que el falso «detecta» en cualquier foto. Si está mal escrita, no arranca. |
+| `app.clasificacion.falso.version-modelo` | `falso-0` | Versión que informa el falso. |
+
+- **`local`**: `bache:0.87` por defecto, para ver la vista previa y la
+  sugerencia sin el servicio de inferencia.
+- **`prod`**: respuesta vacía **literal**, no por entorno. La clasificación
+  queda apagada: nunca sugiere ni escribe nada. Una respuesta fija en
+  producción llenaría la base de sugerencias inventadas y arruinaría la
+  evaluación del modelo.
+- **`test`**: `bache:0.87,grieta:0.30`, literal, para que un
+  `CLASIFICACION_*` del entorno no cambie la suite. La sugerencia esperada es
+  siempre «Bache» con 0,870.
+
+### Pruebas
+
+- Unitarias: `PoliticaDeSugerenciaTest` (las cuatro reglas, umbral exacto,
+  empates, redondeo y rangos), `FalsoClasificadorAdapterTest`,
+  `ValidacionTipoClasificadorTest`, `ClasificacionServiceTest` (la vista previa
+  clasifica la foto **saneada**; la oficial no la vuelve a sanear),
+  `SugerenciaCategoriaListenerTest` (cola llena) y
+  `SugerenciaCategoriaServiceTest` (foto ausente, almacenamiento caído, URL
+  que no es un nombre del servidor).
+- Integración: `ClasificacionVistaPreviaIT` (rol, no persiste, errores),
+  `SugerenciaCategoriaIT` (se escribe una sola vez, lo del cliente se ignora,
+  la adhesión no clasifica, la edición no la borra), `SugerenciaCategoriaFallaIT`
+  (con el falso en `falla`, el reporte se crea igual y la vista previa es «sin
+  sugerencia»; es el único contexto de Spring nuevo), `SugerenciaFueraDeDtosIT`
+  y `CategoriasDelModeloIT` (V19).
+
+### Pendiente
+
+- **NC-04b**: `clasificacion/infra/InferenciaHttpAdapter` (RestClient, timeout
+  de 3 s, errores traducidos a `ClasificacionNoDisponibleException`), aceptar
+  `http` en `ValidacionTipoClasificador` y volver obligatoria
+  `CLASIFICACION_TIPO` en `prod`.
+- **Aviso de privacidad** (frontend y textos legales): decir que la foto se
+  analiza automáticamente para sugerir una categoría y que la decisión es del
+  ciudadano (DS 016-2024-JUS, art. 6.1).
+
 ## Deuda técnica conocida
 
 - **Testcontainers bloqueado por Docker 29 / docker-java 1.20.x.** Los tests
@@ -2161,10 +2376,14 @@ verificado en una base de test vacía.
   tomada (el pool de Hikari tiene 10). Se acepta para el MVP, acotado por los
   timeouts del cliente (10 s) y del semáforo (10 s). Sacar la subida de la
   transacción cambia la estructura del caso de uso (idempotencia,
-  deduplicación) y se hace con NC-04, que vuelve a tocar la creación (§4.5,
-  D-13). Medido: con 16 creaciones con foto simultáneas, sumado al refresco
-  del índice en `AFTER_COMMIT` (que pide una segunda conexión), el pool se
-  agota durante 30 s (ver [Prueba de memoria](#prueba-de-memoria-dep-12)).
+  deduplicación) y queda para una tarea propia: la fase 0 de NC-04 agregó la
+  sugerencia **después** del commit sin tocar la subida (§4.5, D-13).
+  Medido: con 16 creaciones con foto simultáneas, sumado al refresco del
+  índice en `AFTER_COMMIT` (que pide una segunda conexión), el pool se agota
+  durante 30 s (ver [Prueba de memoria](#prueba-de-memoria-dep-12)). La
+  sugerencia de NC-04 no lo empeora en la creación: corre en el executor
+  asíncrono y solo toma una conexión para leer la URL de la foto y para el
+  `UPDATE` final, no durante la clasificación.
 - **Fotos huérfanas.** Si la transacción falla después de subir la foto, el
   archivo u objeto queda en el disco o el bucket (aceptable en el MVP).
   Mejora posible: borrarlo en `afterCompletion` con estado `ROLLED_BACK`.
@@ -2194,4 +2413,5 @@ verificado en una base de test vacía.
 `src/main/resources/db/migration/V1__init_schema.sql`. Las migraciones
 posteriores agregan tablas propias, como `suscripcion_push` (V12, NC-07),
 `consentimiento` (V13 y V14, NC-07b) y `municipalidad` y `periodo_gestion`
-(V15 y V16, NC-01).
+(V15 y V16, NC-01), o columnas, como la sugerencia de categoría de
+`reporte` y la clase del modelo de `categoria_dano` (V19, NC-04).
