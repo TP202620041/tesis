@@ -205,7 +205,7 @@ jobs:
           npm test 2>&1 | tee "$RUNNER_TEMP/vitest.log"
       # Las reglas de capas ya corren en Lint; aquí solo se cuentan.
       - id: capas
-        name: Avisos de capas (informativo)
+        name: Capas (conteo informativo; el error lo da Lint)
         if: ${{ !cancelled() && steps.instalar.outcome == 'success' }}
         continue-on-error: true
         run: |

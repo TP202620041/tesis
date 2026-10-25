@@ -67,6 +67,29 @@ describe('contraste de los tokens (DIS-1)', () => {
     expect([...temas].sort()).toEqual(['alto-contraste', 'claro', 'oscuro']);
   });
 
+  it('barra translúcida: el par «sobre contenido blanco» es la mezcla que pinta `.cv-translucida`', () => {
+    // El fondo de ese par no es un token: es la tinta mezclada con el blanco de
+    // lo que pasa por debajo. Se recalcula desde el token y el porcentaje de la
+    // regla, para que el par no quede viejo si cambia cualquiera de los dos.
+    const regla = /\.cv-translucida \{\s*background-color: color-mix\(in srgb, var\(--cv-barra-superior\) (\d+)%/.exec(css);
+    expect(regla, '.cv-translucida con su color-mix').not.toBeNull();
+    const porcentaje = Number(regla![1]);
+    const canal = (hex: string, i: number) => parseInt(hex.replace('#', '').slice(i, i + 2), 16);
+    const mezcla = (hex: string) =>
+      '#' +
+      [0, 2, 4]
+        .map((i) => Math.round((porcentaje / 100) * canal(hex, i) + (1 - porcentaje / 100) * 255).toString(16).padStart(2, '0'))
+        .join('');
+    const translucidos = Object.entries(grupos).flatMap(([grupo, pares]) =>
+      pares.filter(([nombre]) => nombre.startsWith('texto / barra superior al ')).map((par) => ({ tema: temaDelGrupo(grupo), par })),
+    );
+    expect(translucidos.length).toBeGreaterThan(0);
+    for (const { tema, par } of translucidos) {
+      expect(par[0]).toContain(`al ${porcentaje} %`);
+      expect(par[2].toLowerCase(), par[0]).toBe(mezcla(TOKENS[tema]['barra-superior']!));
+    }
+  });
+
   for (const [grupo, pares] of Object.entries(grupos)) {
     const tema = temaDelGrupo(grupo);
     describe(grupo, () => {

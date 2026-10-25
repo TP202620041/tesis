@@ -80,7 +80,7 @@ De otro módulo solo se usa su **API pública**: `service`, `domain`, `event`, `
 | `distritos` | 43 distritos y sus polígonos; resolución por coordenadas. | (geometría de MUNICIPALIDAD) | common | existe |
 | `municipalidades` | Canal oficial, periodos de gestión y requisitos de recepción. Cada municipalidad referencia a su distrito (D-09). | MUNICIPALIDAD, GESTION_MUNICIPAL, PERIODO_GESTION, REQUISITO_RECEPCION | distritos | **nuevo** |
 | `auth` | Cuentas, credenciales, perfil y consentimiento. | USUARIO, CONSENTIMIENTO | distritos, municipalidades | existe + CONSENTIMIENTO |
-| `clasificacion` | Sugerir la categoría de una foto: puerto al servicio de inferencia, umbral y clase dominante. | (escribe `categoria_sugerida_id` y `confianza_sugerencia` vía reportes) | — | **nuevo** |
+| `clasificacion` | Sugerir la categoría de una foto: puerto al servicio de inferencia, umbral y clase dominante. | (escribe `categoria_sugerida_id`, `confianza_sugerencia` y `version_modelo_sugerencia` vía reportes) | — | **nuevo** |
 | `reportes` | Ciclo del reporte: creación, adhesión, gestión, historial, categorías, fotos, idempotencia, confirmación. | REPORTE, CIUDADANO_AFECTADO, HISTORIAL_ESTADO, CATEGORIA_DANO | auth, distritos, municipalidades, clasificacion | existe |
 | `notificaciones` | Avisos al ciudadano (push o email) y **correo formal a la municipalidad**. | SUSCRIPCION_PUSH, ENVIO_CORREO | auth, municipalidades, reportes (event) | existe + 2 entidades |
 | `desempeno` | KPIs por municipalidad y periodo de gestión (dashboard RF-09). | (vista materializada) | municipalidades, reportes (event) | existe; se rehace por periodo |
@@ -92,7 +92,13 @@ Grafo, sin ciclos: `common ← distritos ← municipalidades ← auth ← report
 
 1. **Vista previa (solo UX, W-07/W-08).** `clasificacion.controller` recibe la foto (`POST /api/clasificaciones`). `ClasificacionService` llama a `port/ClasificadorDano`, que implementa `infra/InferenciaHttpAdapter` (RestClient a `inferencia/`, con timeout). Luego aplica `domain/PoliticaDeSugerencia` (umbral y clase dominante) y devuelve la sugerencia o “sin sugerencia”. **No guarda nada.** Si el servicio falla, la respuesta es “sin sugerencia” y el ciudadano elige la categoría a mano.
 2. **Creación.** `reportes.service` crea el reporte solo con la categoría que **confirmó** el ciudadano. `CrearReporteRequest` no tiene campos de sugerencia, y si el cliente los envía se ignoran (D-08).
-3. **Sugerencia oficial (D-08).** `reportes.listener.SugerenciaCategoriaListener` escucha `ReporteCreadoEvent` (solo reportes nuevos, no adhesiones) con `AFTER_COMMIT` + `@Async` + `REQUIRES_NEW`. Lee la foto guardada por `common.port.FotoStorageService` (D-11), llama a `clasificacion.service.ClasificacionService` y escribe `categoria_sugerida_id` y `confianza_sugerencia`, **solo si siguen nulos** (idempotente). Si la inferencia falla, los campos quedan nulos y el reporte sigue su curso: la IA nunca bloquea un reporte. Como es asíncrono, los hasta 3 s de inferencia no se suman al tiempo de respuesta de la creación.
+3. **Sugerencia oficial (D-08).** `reportes.listener.SugerenciaCategoriaListener` escucha `ReporteCreadoEvent` (solo reportes nuevos con foto, no adhesiones) con `AFTER_COMMIT`. Sigue el patrón de D-13, porque hay E/S externa (§4.5): el listener solo encola. Después:
+   - `reportes.service.SugerenciaCategoriaService` (`@Async` en el executor acotado de `AsyncConfig`, **sin transacción**) lee la foto guardada por `common.port.FotoStorageService` (D-11) y la clasifica con `clasificacion.service.ClasificacionService`.
+   - Una transacción corta escribe `categoria_sugerida_id`, `confianza_sugerencia` y `version_modelo_sugerencia` con un `UPDATE` que solo actúa **si siguen nulos** (idempotente).
+
+   Si la inferencia falla, los campos quedan nulos y el reporte sigue su curso: la IA nunca bloquea un reporte. Como es asíncrono, los hasta 3 s de inferencia no se suman al tiempo de respuesta de la creación.
+
+   Para no crear un ciclo entre módulos (`reportes` ya depende de `clasificacion`), las categorías que se pueden sugerir llegan por el puerto `clasificacion.port.CategoriasClasificables`, que implementa `reportes.infra.JpaCategoriasClasificablesAdapter` (NC-04, 25/10).
 4. `reportes.service.ConfirmacionReporteService` evalúa la regla “reporte confirmado” (campos completos, municipalidad asignada y requisitos de `municipalidades`) y publica `event/ReporteConfirmadoEvent`.
 5. `notificaciones.listener.ReporteConfirmadoListener` crea ENVIO_CORREO (como máximo uno por reporte) y envía por `common/port/CorreoSaliente` (desde DEP-08 vive en `common`, porque también lo usan `auth` y `soporte`; adaptadores `common/infra/SmtpCorreoAdapter` y `common/infra/ResendCorreoAdapter`, elegidos con `CORREO_TIPO`). Los reintentos se registran en `intentos`.
 6. `desempeno.listener` refresca los KPIs. Un reporte cuenta en el periodo de su `fecha_creacion`.
@@ -163,9 +169,9 @@ Una feature es un **área funcional de la UI** (`reportes`, `gestion`, `desempen
 
 ### 5.4 Cómo se verifica
 
-`eslint.capas.mjs` (incluido en `eslint.config.mjs`) aplica `no-restricted-imports` por capa. `npm run lint` muestra el mensaje de la regla. Durante la migración la severidad es `warn`; la tarea FE-09 la sube a `error`. Línea base (FE-01, 11/10): **66 avisos en 24 archivos**; **67** desde que `src/components/**` también prohíbe los tipos generados (bloque `compartidos-ui`, 11/10).
+`eslint.capas.mjs` (incluido en `eslint.config.mjs`) aplica `no-restricted-imports` por capa. `npm run lint` muestra el mensaje de la regla. La severidad es **`error`** desde FE-09 (25/10): un import que rompe las capas hace fallar el lint y la CI.
 
-La cantidad de avisos solo puede bajar. Única excepción: un archivo que hoy no cae en ningún bloque (por ejemplo `features/<f>/formato.ts`) y que una tarea mueve a `components/`, `hooks/`, `model/` o `api.ts` puede traer avisos que antes no se medían. Esos no cuentan como retroceso si el PR los lista uno por uno; un aviso causado por un import nuevo, sí (decisión del usuario, 11/10).
+Historia de la migración: la severidad fue `warn` mientras se migraba (FE-01..FE-08). Línea base (FE-01, 11/10): **66 avisos en 24 archivos**; **67** desde que `src/components/**` también prohíbe los tipos generados (bloque `compartidos-ui`, 11/10). La cantidad solo podía bajar (decisión del usuario, 11/10), y FE-08 la dejó en **0** (20/10).
 
 ### 5.5 Patrón de hook (uniforme en todas las features)
 
@@ -197,17 +203,23 @@ export default function MisReportesPage() {
 ```
 inferencia/
 ├── app/
+│   ├── main.py          ARRANQUE       raíz de composición: crea la app y arma los adaptadores (como la clase de arranque de Spring)
 │   ├── api/             PRESENTACIÓN   routers FastAPI + esquemas.py (Pydantic)
 │   ├── application/     APLICACIÓN     detectar(imagen) -> Detecciones: valida, preprocesa, invoca el modelo
 │   ├── domain/          DOMINIO        Deteccion, ClaseDano, VersionModelo (sin onnxruntime)
 │   └── infrastructure/  INFRAESTRUCTURA OnnxModelo (onnxruntime, CPU), carga de pesos
 ├── tests/
-└── pyproject.toml       (guarda de capas: import-linter, contrato "layers")
+└── pyproject.toml       (guarda de capas: import-linter, contrato "layers" exhaustivo main > api > application | infrastructure > domain)
 ```
 
 **Contrato** (lo define `inferencia/` y lo consume `clasificacion/infra`):
 `POST /v1/detecciones` (multipart `imagen`) → `{ "version_modelo": str, "detecciones": [{ "clase": str, "confianza": float, "caja": [x1, y1, x2, y2] }] }`.
-El servicio **solo detecta**. El umbral y la clase dominante se aplican en la API (`clasificacion/domain`), según la decisión del OB2 que sigue pendiente de validar.
+El servicio **solo detecta**. El umbral y la clase dominante se aplican en la API (`clasificacion/domain/PoliticaDeSugerencia`).
+
+**Modelo y vocabulario** (decisión del usuario del 21/10, `project-context/decisions/propuestas/2026-10-21-ml-clases-modelo.md`):
+- Pesos RF-DETR entrenados en RDD2022 (Apache-2.0), exportados a ONNX, con base `dronefreak/rdd2022-rfdetr-nano`. Si la latencia en 2 vCPU pasa de 1 s, la propuesta permite otra resolución o el tamaño S; el cambio se registra en NC-03a. No se usan los YOLO de Ultralytics, que son AGPL.
+- Los valores de `clase` son **`bache`** (D40) y **`grieta`** (D00, D10 y D20). Las demás clases del modelo se descartan en el servicio.
+- Umbral inicial **0,50** (`app.clasificacion.umbral`), a calibrar con fotos de Lima (NC-03b).
 
 ## 7. Contratos entre contenedores
 
@@ -223,10 +235,10 @@ Un agente **nunca** supone un campo que el otro lado todavía no publicó.
 | Entidad | Módulo / paquete | Tabla actual | Acción |
 |---|---|---|---|
 | USUARIO | `auth.domain.Usuario` | `usuario` | Jurisdicción del funcionario: **pendiente (D-10)**. Con D-09 la relación es 1:1, así que `distrito_id` y `municipalidad_id` son equivalentes. |
-| REPORTE | `reportes.domain.Reporte` | `reporte` | + `titulo`, `severidad`, `categoria_sugerida_id`, `confianza_sugerencia`, `periodo_gestion_id`. |
+| REPORTE | `reportes.domain.Reporte` | `reporte` | + `titulo`, `severidad`, `categoria_sugerida_id`, `confianza_sugerencia`, `version_modelo_sugerencia`, `periodo_gestion_id`. La sugerencia (NC-04) la escribe una vez `SugerenciaCategoriaListener`; es una señal interna y no va en ningún DTO público ni del ciudadano. |
 | CIUDADANO_AFECTADO | `reportes.domain.AdhesionReporte` | `adhesion_reporte` | Mantener la tabla; decidir si `total_adhesiones` se elimina (contradicción 1 del análisis). |
 | HISTORIAL_ESTADO | `reportes.domain.HistorialEstadoReporte` | `historial_estado_reporte` | Sin cambio. |
-| CATEGORIA_DANO | `reportes.domain.CategoriaDano` | `categoria_dano` | + `icono`, `clase_modelo`. Revisar el solapamiento entre Bache y Hueco en calzada. |
+| CATEGORIA_DANO | `reportes.domain.CategoriaDano` | `categoria_dano` | + `icono`, `clase_modelo` (único si no es nulo; Bache → `bache`, Pista deteriorada → `grieta`). La categoría estándar «Hueco en calzada» se desactiva: en una foto no se distingue de «Bache» (decisión del 21/10, migración de NC-04). |
 | MUNICIPALIDAD, GESTION_MUNICIPAL, PERIODO_GESTION, REQUISITO_RECEPCION | `municipalidades.domain` | — | Migración nueva. `municipalidad.distrito_id` es `NOT NULL UNIQUE` y apunta a `distrito`. La geometría sigue solo en `distrito` (D-09). |
 | ENVIO_CORREO, SUSCRIPCION_PUSH | `notificaciones.domain` | — | Migración nueva. |
 | CONSENTIMIENTO | `auth.domain` | — | Migración nueva. Historial por finalidad y versión (D-12). |
@@ -256,5 +268,5 @@ Un agente **nunca** supone un campo que el otro lado todavía no publicó.
 - **Orden ante un cambio de contrato**: primero el backend (DTO, test y commit), después el frontend (`api:sync`). Nunca en paralelo.
 - **Definición de terminado** de cualquier tarea:
   - backend: `mvn clean verify` en verde, `completed` de Failsafe igual o mayor que antes y `archunit_store` igual o más chico.
-  - frontend: `npm run typecheck`, `npm test` y `npm run lint` con avisos de capas iguales o menos.
+  - frontend: `npm run typecheck`, `npm test` y `npm run lint` en verde (las capas son error desde FE-09).
 - **Commits**: las tareas de arquitectura se titulan `ARQ BE-03: …` o `ARQ FE-05: …`; las funcionales siguen con `US-xx`.

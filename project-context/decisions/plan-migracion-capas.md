@@ -10,7 +10,7 @@
 | Agente | Condición |
 |---|---|
 | Backend | `mvn clean verify` en verde. `completed` en `target/failsafe-reports/failsafe-summary.xml` **igual** al de la línea base (una tarea de arquitectura no agrega ni quita IT). `src/test/resources/archunit_store` **más chico o igual**. |
-| Frontend | `npm run typecheck`, `npm test` (con su guarda) y `npm run lint` en verde. Avisos `capas/*` **menos o igual** que antes, salvo los de archivos que entran por primera vez a un bloque, listados en el PR (ARCHITECTURE.md §5.4). |
+| Frontend | `npm run typecheck`, `npm test` (con su guarda) y `npm run lint` en verde. Desde FE-09 las capas son error. Hasta entonces la regla era «avisos `capas/*` **menos o igual** que antes, salvo los de archivos que entran por primera vez a un bloque, listados en el PR». |
 
 Los tests se **mueven** con el código que prueban; no se borran.
 
@@ -323,9 +323,14 @@ Cierre (2026-10-20, rama `feature/fe-08-cierre`): no queda trabajo; solo se regi
 - `listarCategorias` solo se exporta desde `src/lib/api/catalogos.ts`. La reexportación de `reportes/api.ts` ya no existe (la quitó FE-06), y la usan los hooks `desempeno/useIndiceDesempeno`, `reportes/useCategoriasDeReporte`, `reportes/useCatalogosMapa` y `gestion/useBandeja`.
 - `contar-capas.mjs`: **0 avisos de capas en 0 archivos** (`otraFeature` = 0) y 0 avisos de lint que no son de capas.
 
-### [ ] FE-09 · Cierre
+### [x] FE-09 · Cierre
 - `npm run lint` con 0 avisos de capas. El cambio de `SEVERIDAD` a `'error'` en `eslint.capas.mjs` lo hace la sesión de raíz, porque la guardia lo bloquea para el agente (WORKFLOW.md §5).
 - Actualizar `frontend/README.md` (estructura) y `frontend/CLAUDE.md`.
+
+Cierre (2026-10-25, rama `feature/fe-09-cierre`, sesión de raíz; el usuario autorizó adelantarla ese día):
+- `SEVERIDAD = 'error'` en `eslint.capas.mjs`. `npm run lint` sobre `develop` (c05c7d5) termina en 0, sin avisos ni errores.
+- Prueba de que la guarda muerde: un `components/` que importa `@/features/auth/api` da **2 errores** (capa de presentación y otra feature) y `npm run lint` sale con 1. El archivo de prueba se borró.
+- Documentación: `frontend/README.md` (estructura con las capas), `frontend/CLAUDE.md`, `ARCHITECTURE.md` §5.4 y la tabla de guardas de `WORKFLOW.md` dicen «error desde FE-09».
 
 ---
 
@@ -337,8 +342,8 @@ No es migración, es funcionalidad. Se lista aquí para fijar **dónde** va cada
 |---|---|---|---|
 | NC-01 | Módulo `municipalidades` y una migración Flyway nueva, con la siguiente versión libre (MUNICIPALIDAD, GESTION_MUNICIPAL, PERIODO_GESTION, REQUISITO_RECEPCION). `municipalidad.distrito_id NOT NULL UNIQUE` → `distrito`, sin geometría propia. Seed de 43 municipalidades: 42 distritales más la MML para Cercado de Lima. `correo_contacto` puede ser nulo. Seed del periodo 2023-2026 (verificar las fechas antes de sembrar). API pública: `MunicipalidadService#deDistrito(distritoId)` y `#periodoVigente(fecha)`. IT: cada distrito tiene exactamente una municipalidad. | §4.3, §8, D-09 | D-09 decidida (04/10). D-10 (jurisdicción del funcionario) no bloquea NC-01 |
 | NC-02 | `reportes`: `titulo`, `severidad` y `periodo_gestion_id` | §8 | NC-01 |
-| NC-03 | Servicio `inferencia/` (FastAPI + ONNX) con contrato `/v1/detecciones` | §6 | Elegir las clases finales del modelo |
-| NC-04 | Módulo `clasificacion` (puerto, adaptador HTTP y política de umbral), vista previa en `features/reportes` y `reportes.listener.SugerenciaCategoriaListener` asíncrono (D-08). Requiere `@EnableAsync` con un executor acotado. IT: la creación responde aunque la inferencia falle, la sugerencia se escribe una sola vez y lo que envíe el cliente se ignora. | §4.3 pasos 1-3, D-08 | NC-03 (se puede usar un adaptador falso mientras tanto) |
+| NC-03 | Servicio `inferencia/` (FastAPI + ONNX) con contrato `/v1/detecciones`. **NC-03a:** el servicio con RF-DETR exportado y la medición de latencia y RAM. **NC-03b:** la calibración con ≥ 200 fotos de Lima (`ml-clases-modelo.md`, fases 1 y 2). | §6 | Clases, pesos y umbral decididos el 21/10 (`propuestas/2026-10-21-ml-clases-modelo.md`). NC-03a abierta el 25/10 |
+| NC-04 | Módulo `clasificacion` (puerto, adaptador falso ahora y HTTP en NC-04b, `PoliticaDeSugerencia` con umbral 0,50), `POST /api/clasificaciones` (vista previa), vista previa en `features/reportes` y `reportes.listener.SugerenciaCategoriaListener` asíncrono (D-08). Requiere `@EnableAsync` con un executor acotado. Su migración agrega `clase_modelo` e `icono` a `categoria_dano`, y `categoria_sugerida_id`, `confianza_sugerencia` y `version_modelo_sugerencia` a `reporte`; además desactiva «Hueco en calzada». IT: la creación responde aunque la inferencia falle, la sugerencia se escribe una sola vez y lo que envíe el cliente se ignora. | §4.3 pasos 1-3, D-08 | Fase 0 con el adaptador falso, abierta el 25/10. El adaptador HTTP (NC-04b) depende de NC-03 |
 | NC-05 | Confirmación de reporte + ENVIO_CORREO | §4.3 pasos 3-4 | NC-01, requisitos por municipalidad |
 | NC-06 | Dashboard por periodo (`desempeno`) + `app/(municipal)/dashboard` | §4.3 paso 5 | NC-01, fórmulas de los KPIs |
 | NC-07 | CONSENTIMIENTO y SUSCRIPCION_PUSH | §8 | — |
