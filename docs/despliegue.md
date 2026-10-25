@@ -154,7 +154,12 @@ railway connect postgis               # abre psql por túnel SSH (requiere psql 
 4. **Settings › Deploy:** *Healthcheck Path* `/actuator/health` (el tiempo de espera por defecto, 300 s, alcanza); *Restart Policy* `On Failure`. Railway solo consulta el health check al desplegar, para cambiar de versión sin corte; no lo vigila después.
 5. **Networking:**
    - **Generate Domain:** la URL `*.up.railway.app`, para depurar.
-   - **Custom Domain:** `api.ciudadviva.app` (`$API`). Railway muestra el destino del registro: crearlo en el DNS de Cloudflare. Verificar en ese momento si va **sin proxy** (nube gris); si Railway necesita el proxy de Cloudflare, revisar el modo SSL de la zona. Esperar a que Railway emita el certificado.
+   - **Custom Domain** (Settings › Public Networking): `api.ciudadviva.app` (`$API`). Según [la documentación de Railway](https://docs.railway.com/networking/domains/working-with-domains), revisada por la sesión «dominio» el 25/10, se crean en Cloudflare **los dos registros** que muestra Railway:
+     - el `CNAME` `api` → `<id>.up.railway.app`, **con proxy** (nube naranja);
+     - el `TXT` de verificación. Sin el `TXT`, el dominio responde 404 aunque el `CNAME` ya resuelva.
+
+     En Cloudflare, SSL/TLS de la zona en **Full, NO «Full (strict)»**, porque el modo estricto no funciona con Railway; Universal SSL activado. Ese modo es de toda la zona, pero solo afecta a los registros con proxy: la raíz y `www` (Vercel, sin proxy), el correo y el DMARC no cambian. Cuando está bien, Railway muestra «Cloudflare proxy detected». Cloudflare presenta el certificado al público y Railway emite el suyo hacia el origen; por el HSTS de `.app`, el API no responde hasta tener certificado, así que hay que contar unos minutos.
+   - **Límites del proxy (plan Free):** 100 MB por petición y 100 s de espera. Alcanzan de sobra (la foto se corta en 10 MB). El backend no limita por IP (no lee `X-Forwarded-For`), así que el doble proxy Cloudflare → Railway no rompe nada.
 6. **Variables** (con «Add Reference» para las de `postgis`):
 
    | Variable | Valor |
@@ -250,7 +255,11 @@ Si el plan de Railway incluye respaldos del volumen (en el servicio `postgis` �
 5. **Settings › Domains:**
    - agregar `ciudadviva.app` como dominio de producción (`$PWA`);
    - agregar `www.ciudadviva.app` con **redirección permanente a la raíz**;
-   - crear en el DNS de Cloudflare los registros que indique Vercel: uno para el *apex* y uno para `www`. Verificar en ese momento si van **sin proxy** (nube gris).
+   - crear en el DNS de Cloudflare los registros que indique Vercel, los dos **sin proxy** (nube gris):
+     - un **`A`** para el *apex* (`@`), con el valor que muestre Vercel (`vercel domains inspect`). Conviene un `A` y no un `CNAME` aplanado;
+     - un `CNAME` para `www`.
+
+     Con proxy naranja se han reportado «Invalid Configuration» y fallos al emitir el certificado ([integración de Vercel con Cloudflare](https://vercel.com/docs/integrations/cloudflare)). El `A` de la raíz convive con el `MX` y el SPF de Email Routing.
 
    Esperar a que Vercel emita los certificados: `.app` solo funciona con HTTPS.
 6. **Settings › Git:** *Production Branch* `main`. *Ignored Build Step*: preset **«Only build production»** (sin previews: cada preview tendría otro origen, que el CORS del API rechaza, y usaría la base de producción).
@@ -323,6 +332,7 @@ Después de cada despliegue de `main`. La corre `qa-e2e` con la PWA en el navega
 | 13 | `$API/actuator/env`, `$API/v3/api-docs` | No responden 200 |
 | 14 | Subir una foto de 11 MB | 413 con mensaje legible; el reporte no queda en la cola offline |
 | 15 | Respaldo de anoche | Existe en `ciudadviva-respaldos` |
+| 16 | Caché de Cloudflare delante del API (`api` va con proxy): `curl -sI` a la foto de perfil (con `Authorization`), a `/api/auth/me` y a una foto de reporte | La foto de perfil y `/api/**` **no** quedan en caché (`cf-cache-status` distinto de `HIT`; el backend envía `Cache-Control: private` en la foto de perfil). La foto de reporte, pública e inmutable, sí puede cachearse. |
 
 ## 8. Respaldo y restauración
 
