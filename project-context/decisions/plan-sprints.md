@@ -37,11 +37,17 @@ Hay un carril de backend y uno de frontend en paralelo. En un mismo sprint el fr
 | S4 | US-11 (endpoint de densidad) · BE-06 (incluye `ReincidenciaDetector` → `domain/`) · BE-10 | US-11 (capa de calor) · FE-06 | v0.5.0 |
 | S5 | NC-01 · NC-02 | US-19 · FE-07 · FE-08 | v0.6.0 |
 | Despliegue | DEP-01..DEP-05 · DEP-08 · DEP-11 · DEP-12 · correcciones de QA-1 · CI (DEP-07) | DEP-06 · correcciones de QA-1 · fase 1 del diseño «Cívica» (DIS-1, con US-23) | v0.7.0 |
-| S6 | NC-05 · NC-06 · BE-08 | NC-06 (dashboard por periodo, reemplaza US-17 v1) · FE-09 | v0.8.0 |
-| S7 | NC-03 (`inferencia/`) · NC-04 (`clasificacion`) | NC-04 (vista previa al reportar) | v0.9.0 |
+| S7 | NC-03a (`inferencia/`) · NC-04 (`clasificacion`) · BE-11 (la foto se sube fuera de la transacción de creación) | NC-04 (vista previa al reportar) · FE-09 (adelantada) · atribución de RDD2022 (CC BY-SA 4.0) y de los pesos RF-DETR (Apache-2.0) en «Acerca de» o en los términos | v0.8.0 |
+| S6 | NC-05 · NC-06 · BE-08 | NC-06 (dashboard por periodo, reemplaza US-17 v1) | v0.9.0 |
 | S8 | Ajustes que pida el diseño | **Diseño de la interfaz, fase 2** (mapa con hoja inferior, reporte en pasos, bandeja con panel, portada y desempeño), revisión de cada pantalla y US-24 (guía de uso) | v1.0.0 |
 
-El sprint «Despliegue» se intercaló el 21/10 por decisión del usuario, así que S6 y S7 se corren una versión. v0.7.0 es el MVP listo para desplegar: el primer despliegue (DEP-09) y su prueba de humo (DEP-10) esperan las cuentas del usuario, y lo que exijan corregir sale como hotfix `v0.7.x`. El sistema visual y US-23 del S8 se adelantaron en ese sprint con la dirección «Cívica» (`docs/diseno/`); en el S8 quedan la fase 2 del rediseño y US-24.
+**El S7 va antes que el S6 (decisión del usuario del 25/10).** El S6 está bloqueado por tres decisiones pendientes: las fórmulas de los KPIs, las columnas del OB2 §5 y D-10. El S7 no está bloqueado: las clases y el umbral se decidieron el 21/10. Por eso el S7 sale como v0.8.0 y el S6 como v0.9.0. FE-09 no depende de nada del S6, así que se adelantó y quedó hecha el 25/10. Los nombres S6 y S7 se conservan, para no romper las referencias.
+
+**NC-03 se parte en dos:** NC-03a es el servicio (S7) y NC-03b, la calibración del umbral con al menos 200 fotos de Lima. NC-03b depende de que el equipo tome y etiquete esas fotos, así que no tiene sprint fijo. **La atribución** la pide la revisión de NC-03a (25/10): los datos de RDD2022 son CC BY-SA 4.0 y los pesos, Apache-2.0. Tiene que estar antes de abrir a usuarios. Sigue abierta la pregunta de si el *share-alike* de los datos alcanza a los pesos entrenados con ellos; es parte de la decisión 7 (legal) del índice.
+
+**BE-11** sale de la deuda de DEP-12 (`propuestas/2026-10-21-fotos-r2.md`, «La regla de §4.5…»): `ReporteService#crear` sube la foto a R2 **dentro** de su `@Transactional` y retiene una conexión del pool durante la red (~100–500 ms). La propuesta sugería resolverla con NC-04; NC-04 no la tomó (revisión del 25/10) y queda como tarea propia del S7. Va junto con borrar el objeto huérfano en `afterCompletion` cuando la transacción se revierte.
+
+El sprint «Despliegue» se intercaló el 21/10 por decisión del usuario, así que S6 y S7 se corren una versión (y el 25/10 se intercambian, ver arriba). v0.7.0 es el MVP listo para desplegar: el primer despliegue (DEP-09) y su prueba de humo (DEP-10) esperan las cuentas del usuario, y lo que exijan corregir sale como hotfix `v0.7.x`. El sistema visual y US-23 del S8 se adelantaron en ese sprint con la dirección «Cívica» (`docs/diseno/`); en el S8 quedan la fase 2 del rediseño y US-24.
 
 Ya hechas antes de S1: BE-01, BE-02, BE-07, FE-01 y FE-02.
 

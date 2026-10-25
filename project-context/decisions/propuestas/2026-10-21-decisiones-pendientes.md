@@ -25,14 +25,26 @@ Reúne **todo** lo que hoy espera una decisión del usuario, venga de esta ronda
 | 17 | Dirección visual | **A · Cívica** (tinta azul marino y blanco, Public Sans, foco amarillo; deja el celeste) | Canvas «Rediseño Ciudad Viva» y la propuesta de diseño |
 | 1 | Versionado (22/10) | El usuario pidió cortar **v0.7.0** con la preparación del despliegue (DEP-01..DEP-08, DEP-11, DEP-12) **antes** del primer despliegue: es el MVP listo para desplegar. DEP-09 y DEP-10 quedan pendientes de sus cuentas, y lo que exijan corregir sale como hotfix `v0.7.x`. S6, S7 y S8 pasan a v0.8.0, v0.9.0 y v1.0.0 | `plan-sprints.md` y `CHANGELOG.md` (v0.7.0) |
 
+## Decididas el 25/10/2026
+
+| # | Decisión | Qué se decidió | Dónde quedó registrada |
+|---|---|---|---|
+| 3 | Dominio propio | **`ciudadviva.app`**, comprado el 25/10 en Cloudflare Registrar (vence el 25/10/2027; renueva a precio de costo). El DNS está en Cloudflare, la misma cuenta de R2. Por ser `.app`, los navegadores solo lo abren por HTTPS. El correo corporativo (contacto@, soporte@ y dmarc@) va por Cloudflare Email Routing, y Resend usa el subdominio `send`; el dominio quedó verificado en Resend y con DNSSEC activo el mismo día. **3b, decidida el mismo día:**
+- PWA en **`https://ciudadviva.app`** (Vercel), su único origen; `www` redirige a la raíz.
+- API en **`https://api.ciudadviva.app`** (Railway).
+- `fotos.ciudadviva.app` queda reservado para un dominio propio de R2, más adelante.
+- En producción, `CORS_ALLOWED_ORIGINS=https://ciudadviva.app` y `NEXT_PUBLIC_API_BASE_URL=https://api.ciudadviva.app`. | `docs/despliegue.md` §0, §3, §5.2 y §6 |
+| 4 (parte) | Plan de Railway | **Hobby**, que ya es el plan de la cuenta del usuario. Respaldos según el runbook (cron `respaldo-bd`). El gasto se mide en el primer mes | `docs/despliegue.md` §1 y §5.3 |
+| — | Orden de los sprints | El **S7 (ML) va antes que el S6**: el S6 está bloqueado por las decisiones 11, 12 y 13. El S7 sale como v0.8.0 y el S6 como v0.9.0. FE-09 se adelantó y quedó hecha | `plan-sprints.md` |
+
 ## Resumen
 
 | # | Decisión | Urgencia | Bloquea | Recomendación corta | Detalle |
 |---|---|---|---|---|---|
-| 1 | Versionado: v0.7.0 = MVP desplegado (**decidida el 22/10**: v0.7.0 sale antes del primer despliegue) | Alta | Planificar el próximo sprint | Sí; S6..S8 pasan a v0.8.0, v0.9.0 y v1.0.0 | §1 |
+| 1 | Versionado: v0.7.0 = MVP desplegado (**decidida el 22/10**: v0.7.0 sale antes del primer despliegue) | Alta | Planificar el próximo sprint | Sí; S6..S8 pasan a v0.8.0, v0.9.0 y v1.0.0 (reordenado el 25/10: S7 = v0.8.0, S6 = v0.9.0) | §1 |
 | 2 | Proveedor de correo y remitente | Alta | DEP-08 → US-03, US-16 (correo), US-25 en producción | Brevo; remitente propio si hay dominio | §2 |
-| 3 | Dominio propio: sí o no, y cuándo | Alta | Invitar usuarios reales (push, sesión y cola offline dependen del origen) | Decidirlo antes de invitar a nadie; si se compra, DNS en Cloudflare | §3 |
-| 4 | Plan de Railway, respaldos y gasto aceptado | Alta | Crear el proyecto (runbook §1) | Hobby + cron `pg_dump` a R2; ~US$ 10/mes | §4 |
+| 3 | Dominio propio: sí o no, y cuándo (**decidida el 25/10**: `ciudadviva.app`; 3b: PWA en la raíz y API en `api.`) | Alta | Invitar usuarios reales (push, sesión y cola offline dependen del origen) | Decidirlo antes de invitar a nadie; si se compra, DNS en Cloudflare | §3 |
+| 4 | Plan de Railway, respaldos y gasto aceptado (**plan decidido el 25/10: Hobby**) | Alta | Crear el proyecto (runbook §1) | Hobby + cron `pg_dump` a R2; ~US$ 10/mes | §4 |
 | 5 | Primer ADMIN y funcionarios de la demo | Alta | DEP-04, DEP-05 | Una cuenta del equipo como ADMIN; funcionarios solo con permiso de su titular | §5 |
 | 6 | Datos de demostración en producción | Alta | Mostrar el sistema al jurado | No sembrar datos falsos en producción | §6 |
 | 7 | Legal: `[COMPLETAR]`, titular, ANPD, edad, transcripción en el repo | Alta | Abrir a usuarios reales | Completar y registrar antes de abrir | §7 |
@@ -67,11 +79,20 @@ Reúne **todo** lo que hoy espera una decisión del usuario, venga de esta ronda
 - **Opciones:** quedarse en `*.vercel.app` y `*.up.railway.app`, o comprar un dominio (`app.<dominio>`, `api.<dominio>`, remitente y, más adelante, la CDN de fotos).
 - **Lo que decide:** el origen de la PWA. Push, la sesión (`localStorage`) y la cola offline (IndexedDB) son por origen: mudarse después obliga a cada usuario a reinstalar, volver a entrar y volver a suscribirse, y pierde lo que tenía en cola.
 - **Recomendación:** decidirlo **antes de invitar usuarios reales**. Si se compra, poner el DNS en Cloudflare (lo exige R2 para dominios propios). No usar `viasegura.pe` mientras no conste que es del proyecto. Detalle: `2026-10-21-despliegue-mvp.md`, «Dominio propio».
+- **Decidido el 25/10:** se compró `ciudadviva.app` (Cloudflare Registrar, DNS en Cloudflare). **Queda abierto (3b):** qué nombre lleva cada servicio, porque eso es lo que fija el origen de la PWA:
+  - **PWA:** `ciudadviva.app` o `app.ciudadviva.app`;
+  - **API:** `api.ciudadviva.app`, con la CSP y el CORS correspondientes.
+
+  Conviene fijarlo antes de DEP-09, para que el primer despliegue ya salga con el origen definitivo.
+
+  **Decidido el 25/10 (3b):** la PWA en `https://ciudadviva.app` (con `www` redirigiendo a la raíz) y el API en `https://api.ciudadviva.app`; `fotos.ciudadviva.app` reservado.
 
 ## 4. Railway: plan, respaldos y gasto
 
 - **Opciones:** Hobby (US$ 5/mes con US$ 5 de uso incluidos; estimado total ~US$ 9–10) o Pro (US$ 20/mes; SMTP permitido, IP fija y, según la comunidad, respaldos de volumen: NO VERIFICADO).
 - **Recomendación:** **Hobby**, con el servicio cron `respaldo-bd` (`pg_dump` diario a un bucket R2 separado, 30 días de retención) y una prueba de restauración mensual. Aceptar el gasto de ~US$ 10/mes (más ~US$ 5–10 cuando exista el servicio de inferencia).
+- **Decidido el 25/10:** plan **Hobby**, que ya es el plan de la cuenta de Railway del usuario. Los respaldos siguen el runbook (cron `respaldo-bd`, §5.3). El gasto real se mide en el primer mes.
+- **Ojo con el costo:** la cuenta tiene otros dos proyectos ajenos a la tesis, y en Hobby consumen del mismo crédito incluido de US$ 5. Si están encendidos, la factura total pasa de los ~US$ 10/mes estimados para Ciudad Viva. El usuario revisó el consumo el 25/10 y está dentro de lo permitido. Ese día se creó el proyecto «Ciudad Viva», vacío, sin servicios.
 
 ## 5. Primer ADMIN y funcionarios
 
@@ -119,7 +140,7 @@ No es asesoría legal; es la lista para revisar con un asesor. Fuentes oficiales
 
 - **Opciones:** `usuario.distrito_id` (hoy) o `usuario.municipalidad_id`. Con D-09 son equivalentes 1:1.
 - **Recomendación:** decidirla junto con NC-06. Si el dashboard por periodo y la confirmación (NC-05) se modelan por municipalidad, migrar a `municipalidad_id` en esa tarea; si no, confirmar `distrito_id` y cerrarla. El script `asignar-funcionario.sql` (DEP-05) sigue la decisión.
-- **Bloquea:** NC-05 y NC-06 (S6, ahora v0.8.0).
+- **Bloquea:** NC-05 y NC-06 (S6, ahora v0.9.0: el S7 se adelantó el 25/10).
 
 ## 12. Fórmulas de los KPIs (NC-06)
 
