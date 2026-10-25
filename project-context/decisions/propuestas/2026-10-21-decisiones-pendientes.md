@@ -92,6 +92,7 @@ Reúne **todo** lo que hoy espera una decisión del usuario, venga de esta ronda
 - **Opciones:** Hobby (US$ 5/mes con US$ 5 de uso incluidos; estimado total ~US$ 9–10) o Pro (US$ 20/mes; SMTP permitido, IP fija y, según la comunidad, respaldos de volumen: NO VERIFICADO).
 - **Recomendación:** **Hobby**, con el servicio cron `respaldo-bd` (`pg_dump` diario a un bucket R2 separado, 30 días de retención) y una prueba de restauración mensual. Aceptar el gasto de ~US$ 10/mes (más ~US$ 5–10 cuando exista el servicio de inferencia).
 - **Decidido el 25/10:** plan **Hobby**, que ya es el plan de la cuenta de Railway del usuario. Los respaldos siguen el runbook (cron `respaldo-bd`, §5.3). El gasto real se mide en el primer mes.
+- **Ojo con el costo:** la cuenta tiene otros dos proyectos ajenos a la tesis, y en Hobby consumen del mismo crédito incluido de US$ 5. Si están encendidos, la factura total pasa de los ~US$ 10/mes estimados para Ciudad Viva. Todavía no hay ningún proyecto de Ciudad Viva en Railway (`railway list`, 25/10).
 
 ## 5. Primer ADMIN y funcionarios
 
