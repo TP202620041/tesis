@@ -64,14 +64,19 @@ En los comandos, `$API` es la URL pública del API (`https://<algo>.up.railway.a
 
 **Dominio del proyecto (25/10): `ciudadviva.app`**, en Cloudflare Registrar. Sus DNS están en la misma cuenta de Cloudflare que R2.
 - **Solo HTTPS:** por ser `.app`, los navegadores solo lo abren por HTTPS (HSTS precargado en todo el dominio). Vercel, Railway y los túneles con nombre emiten el certificado solos.
-- **Correo corporativo con Cloudflare Email Routing:** contacto@ y soporte@ se reenvían a la bandeja del equipo. Usa el `MX` y un SPF en el dominio **raíz**.
-- **Convivencia con Resend:** Resend usa el subdominio `send` y `resend._domainkey`, así que los dos conviven.
-- **DMARC:** hay **un solo** registro `_dmarc` para todo el dominio.
+- **Correo corporativo con Cloudflare Email Routing** (activo desde el 25/10, comprobado en el DNS público):
+  - **Direcciones:** `contacto@`, `soporte@` y `dmarc@` se reenvían a la bandeja del equipo. El *catch-all* está desactivado: cualquier otra dirección rebota, incluida `no-reply@`, que solo envía. Esto es lo esperado.
+  - **Registros que Cloudflare crea solo:** tres `MX` en la raíz (`route1`, `route2` y `route3.mx.cloudflare.net`), el SPF de la raíz (`v=spf1 include:_spf.mx.cloudflare.net ~all`) y **su propio DKIM** (`TXT` en `cf2024-1._domainkey`).
+  - **Verificación del destino:** si el destino es el correo de la propia cuenta de Cloudflare, queda verificado en el acto. Con otra dirección llega un correo de verificación, y hasta confirmarlo no se pueden crear las reglas.
+  - **Por API:** `POST /zones/{id}/email/routing/dns` con `name` sirve solo para subdominios; para la raíz se envía el cuerpo vacío.
+- **Convivencia con Resend:** Resend usa el subdominio `send` y `resend._domainkey`. En la zona quedan dos DKIM, uno de Cloudflare y otro de Resend, y no chocan.
+- **DMARC:** hay **un solo** registro para todo el dominio: `TXT` en `_dmarc` con `v=DMARC1; p=none; rua=mailto:dmarc@ciudadviva.app` (creado el 25/10). Endurecer a `p=quarantine` cuando los informes muestren que todo lo legítimo pasa.
+- **Pendiente:** verificar el dominio en Resend (pasos de abajo) y activar DNSSEC en Cloudflare.
 
 1. **Dominio** (Domains › Add Domain): agregar `ciudadviva.app` y cargar en su DNS (Cloudflare) los registros que muestra Resend:
    - **DKIM:** `TXT` en `resend._domainkey`;
    - **SPF:** `MX` y `TXT` en el subdominio `send`, que no chocan con el `MX` de Email Routing en la raíz;
-   - **DMARC:** recomendado, el único `TXT` en `_dmarc` del punto anterior.
+   - **DMARC:** ya existe (el de arriba). No crear otro.
 
    Esperar a que el dominio quede **Verified**.
    - **Sin dominio verificado**, Resend solo entrega al correo del dueño de la cuenta (desde `onboarding@resend.dev`) y responde 403 a cualquier otro destinatario. El despliegue puede salir así, con el correo limitado a esa dirección: cada envío rechazado queda como un `WARN` en el log del backend, y la recuperación de contraseña sigue respondiendo 202.
