@@ -323,9 +323,14 @@ Cierre (2026-10-20, rama `feature/fe-08-cierre`): no queda trabajo; solo se regi
 - `listarCategorias` solo se exporta desde `src/lib/api/catalogos.ts`. La reexportación de `reportes/api.ts` ya no existe (la quitó FE-06), y la usan los hooks `desempeno/useIndiceDesempeno`, `reportes/useCategoriasDeReporte`, `reportes/useCatalogosMapa` y `gestion/useBandeja`.
 - `contar-capas.mjs`: **0 avisos de capas en 0 archivos** (`otraFeature` = 0) y 0 avisos de lint que no son de capas.
 
-### [ ] FE-09 · Cierre
+### [x] FE-09 · Cierre
 - `npm run lint` con 0 avisos de capas. El cambio de `SEVERIDAD` a `'error'` en `eslint.capas.mjs` lo hace la sesión de raíz, porque la guardia lo bloquea para el agente (WORKFLOW.md §5).
 - Actualizar `frontend/README.md` (estructura) y `frontend/CLAUDE.md`.
+
+Cierre (2026-10-25, rama `feature/fe-09-cierre`, sesión de raíz; el usuario autorizó adelantarla ese día):
+- `SEVERIDAD = 'error'` en `eslint.capas.mjs`. `npm run lint` sobre `develop` (c05c7d5) termina en 0, sin avisos ni errores.
+- Prueba de que la guarda muerde: un `components/` que importa `@/features/auth/api` da **2 errores** (capa de presentación y otra feature) y `npm run lint` sale con 1. El archivo de prueba se borró.
+- Documentación: `frontend/README.md` (estructura con las capas), `frontend/CLAUDE.md`, `ARCHITECTURE.md` §5.4 y la tabla de guardas de `WORKFLOW.md` dicen «error desde FE-09».
 
 ---
 

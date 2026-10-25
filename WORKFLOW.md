@@ -68,7 +68,7 @@ Cada agente de Claude Code trabaja **en una sola carpeta, en una sola tarea, en 
 |---|---|---|
 | **Hook `guardia.mjs`** (PreToolUse) | `.claude/settings.json` de raíz, `backend/` y `frontend/` | Escribir fuera de la carpeta propia; editar `ARCHITECTURE.md`, `WORKFLOW.md`, `CLAUDE.md` raíz, `.claude/`, las guardas de ArchUnit/ESLint o `project-context/` (salvo plan, handoffs y propuestas); editar el almacén de ArchUnit, `generated/schema.ts` o una migración existente; commit, merge o push sobre `main` o `develop`; `git flow … finish`; push forzado, `reset --hard`, `clean -f`, restaurar documentos normativos. |
 | **ArchUnit** | `mvn test` | Una violación de capas nueva en el backend. |
-| **ESLint de capas** | `npm run lint` | Un import que rompe las capas del frontend (aviso hasta FE-09, luego error). |
+| **ESLint de capas** | `npm run lint` | Un import que rompe las capas del frontend (error desde FE-09; antes, aviso). |
 | **Revisor** | `/revisar` | Reglas que ninguna herramienta mide: señales internas en DTO, SEC-01, eventos de KPI, limpieza de tests, CSP. |
 | **CI** (`.github/workflows/ci.yml`, desde el 21/10) | GitHub Actions en cada PR a `develop`/`main` y en cada push a esas ramas (no en PR apilados sobre otra rama: `docs/ci.md`) | Que se fusione algo con el backend o el frontend en rojo: `mvn clean verify` contra PostGIS con guarda de completitud por clase y mínimos de tests, y lint, typecheck, `npm test` y build del frontend. Detalle en `docs/ci.md`. |
 | **Protección de `main` y `develop`** (activa desde el 11/10; check `ci` obligatorio desde el 21/10) | GitHub → Settings → Branches | Que algo llegue a `main` o `develop` sin PR, sin el check `ci` en verde, con un push forzado o borrando esas ramas, también para admins. |
