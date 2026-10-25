@@ -235,7 +235,7 @@ railway connect postgis               # abre psql por túnel SSH (requiere psql 
 
 ```bash
 railway logs --service backend
-#  - Flyway: "Successfully applied N migrations" en la primera corrida (todas las V*.sql; 18 en v0.7.0)
+#  - Flyway: "Successfully applied N migrations" en la primera corrida (todas las V*.sql; 18 en v0.7.0 y v0.7.1)
 #  - DistritoSeeder: 43 distritos; MunicipalidadSeeder: 43 municipalidades
 #  - "Started ViaSeguraApplication"; ninguna línea con "show-sql" ni DEBUG
 curl -s $API/actuator/health                       # {"status":"UP"} y nada más
@@ -404,6 +404,6 @@ docker exec viasegura-db psql -U viasegura -d viasegura -c "DROP DATABASE restau
 
 ## 10. Publicar una versión nueva y volver atrás
 
-- **Publicar:** al fusionar el PR de `release/vX.Y.0` en `main`, Railway reconstruye `backend` y Vercel reconstruye la PWA, en paralelo. Por eso cada cambio del API tiene que ser **compatible con la PWA anterior durante una versión** (propuesta de despliegue, riesgo 1). Si una versión no puede cumplirlo, desactivar antes en Vercel la asignación automática del dominio de producción y promover el despliegue a mano cuando el API ya esté arriba (verificar el nombre exacto de la opción).
+- **Publicar:** al fusionar en `main` el PR de un `release/*` o de un `hotfix/*`, Railway reconstruye `backend` y Vercel reconstruye la PWA, en paralelo. Por eso cada cambio del API tiene que ser **compatible con la PWA anterior durante una versión** (propuesta de despliegue, riesgo 1). Si una versión no puede cumplirlo, desactivar antes en Vercel la asignación automática del dominio de producción y promover el despliegue a mano cuando el API ya esté arriba (verificar el nombre exacto de la opción).
 - **Después de publicar:** prueba de humo (§7.3).
 - **Volver atrás:** Railway › `backend` › Deployments › el anterior › *Redeploy*; Vercel › Deployments › el anterior › *Instant Rollback* (en Hobby, verificar hasta cuántas versiones atrás). Las migraciones de Flyway no se deshacen: una versión vieja arranca sobre un esquema más nuevo solo si las migraciones fueron aditivas (columnas nulables, tablas nuevas). Nunca restaurar un respaldo para «deshacer» una migración sin antes medir cuántos datos se perderían.
