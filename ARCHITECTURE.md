@@ -203,12 +203,13 @@ export default function MisReportesPage() {
 ```
 inferencia/
 ├── app/
+│   ├── main.py          ARRANQUE       raíz de composición: crea la app y arma los adaptadores (como la clase de arranque de Spring)
 │   ├── api/             PRESENTACIÓN   routers FastAPI + esquemas.py (Pydantic)
 │   ├── application/     APLICACIÓN     detectar(imagen) -> Detecciones: valida, preprocesa, invoca el modelo
 │   ├── domain/          DOMINIO        Deteccion, ClaseDano, VersionModelo (sin onnxruntime)
 │   └── infrastructure/  INFRAESTRUCTURA OnnxModelo (onnxruntime, CPU), carga de pesos
 ├── tests/
-└── pyproject.toml       (guarda de capas: import-linter, contrato "layers")
+└── pyproject.toml       (guarda de capas: import-linter, contrato "layers" exhaustivo main > api > application | infrastructure > domain)
 ```
 
 **Contrato** (lo define `inferencia/` y lo consume `clasificacion/infra`):
