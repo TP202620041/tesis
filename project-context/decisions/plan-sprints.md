@@ -50,7 +50,8 @@ Hay un carril de backend y uno de frontend en paralelo. En un mismo sprint el fr
 **BE-12** es la opción A de `propuestas/2026-10-22-refresco-indice-asincrono.md`, aceptada por el usuario el 25/10.
 - **Qué hace:** `IndiceDesempenoRefreshListener` deja de refrescar en el hilo de la petición. Marca el índice como sucio y encola una tarea `@Async` en el executor acotado, que refresca mientras la marca siga puesta. Una ráfaga de eventos produce pocos `REFRESH` y siempre uno final.
 - **Por qué va con BE-11:** las dos tocan la creación del reporte, así que conviene probarlas juntas.
-- **Al cerrarla:** el mismo PR actualiza ARCHITECTURE.md §4.5 y la fila D-13 (lo hace la sesión de raíz).
+- **Al cerrarla:** ARCHITECTURE.md §4.5 y la fila D-13 se actualizan en la rama de BE-12, antes de fusionarla. Ese commit lo agrega la sesión de raíz, porque la guardia no deja que el agente de backend edite normas.
+- **Ficha y criterios:** `plan-migracion-capas.md`, BE-12.
 - **Mientras tanto:** producción corre con el pool en 20 (`SPRING_DATASOURCE_HIKARI_MAXIMUMPOOLSIZE`, runbook §5.2).
 
 El sprint «Despliegue» se intercaló el 21/10 por decisión del usuario, así que S6 y S7 se corren una versión (y el 25/10 se intercambian, ver arriba). v0.7.0 es el MVP listo para desplegar: el primer despliegue (DEP-09) y su prueba de humo (DEP-10) esperan las cuentas del usuario, y lo que exijan corregir sale como hotfix `v0.7.x`. El sistema visual y US-23 del S8 se adelantaron en ese sprint con la dirección «Cívica» (`docs/diseno/`); en el S8 quedan la fase 2 del rediseño y US-24.

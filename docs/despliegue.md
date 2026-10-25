@@ -11,9 +11,10 @@
 **Reglas.**
 
 - **Ningún secreto se escribe en el repo, en un issue, en un PR ni en un chat.** Se generan en la máquina del responsable, se guardan en un gestor de contraseñas y se pegan directamente en el panel de Railway o Vercel.
-  - **Quién:** desde el 25/10 lo hace el usuario, siguiendo este runbook paso a paso. Las sesiones de Claude no crean ni ven secretos.
-  - **Sellar:** en Railway, los secretos se sellan (menú ⋮ › *Seal*). Railway los usa, pero no los vuelve a mostrar en el panel ni por la API, así que antes tienen que estar en el gestor de contraseñas.
-  - **Aplicar sin redesplegar:** hay que mantener *Alt* apretado al pulsar *Deploy* en el aviso de cambios pendientes ([staged changes](https://docs.railway.com/deployments/staged-changes)).
+  - **Quién:** desde el 25/10 lo hace el usuario, siguiendo este runbook paso a paso. Las sesiones de Claude no crean ni ven secretos. Antes de esa decisión, la sesión «dominio» ya había cargado tres: `JWT_SECRET`, el par VAPID y `POSTGRES_PASSWORD`. Qué hacer con ellos está en §5, «Estado al 25/10».
+  - **Sellar:** en Railway, un secreto sellado (menú ⋮ › *Seal*) se sigue usando, pero no vuelve a mostrarse en el panel, por la API ni por la CLI. Por eso antes tiene que estar en el gestor de contraseñas. Sellar no se puede deshacer.
+    - **Se sellan:** `JWT_SECRET`, `VAPID_PRIVATE_KEY`, `CORREO_API_KEY`, `FOTOS_S3_SECRET_ACCESS_KEY`, `AWS_SECRET_ACCESS_KEY` (`respaldo-bd`) y `ADMIN_INICIAL_PASSWORD`.
+    - **`POSTGRES_PASSWORD`, todavía no:** la usan las referencias `DB_PASSWORD` y `BACKUP_DATABASE_URL`, y la necesita `railway connect postgis` (§5.1 y §9). Se sella solo después de comprobar que, sellada, todo eso sigue funcionando.
 - **Producción sin datos falsos** (decisión 6, 25/10): nunca se corre `backend/scripts/seed-datos-prueba.sql` contra producción. Inventa reportes en distritos reales y falsearía el índice público de desempeño. Los reportes de la demo los toma el equipo en calles reales.
 - Los nombres de servicio de este documento (`backend`, `postgis`, `respaldo-bd`) se usan en las variables de referencia de Railway (`${{postgis.…}}`): si se cambian, hay que cambiar también las referencias.
 - Railway deprecó `railway.toml` (*Config as Code*): **la configuración vive en el panel** y este documento es su fuente de verdad. Si se cambia algo en el panel, se cambia aquí en el mismo día.
@@ -133,12 +134,21 @@ Crear un proyecto («Ciudad Viva», entorno `production`). **Hecho el 25/10**, a
   - Faltan `CORREO_API_KEY` (la pega el usuario), `FOTOS_S3_ACCESS_KEY_ID` y `FOTOS_S3_SECRET_ACCESS_KEY` (falta R2 de producción) y `ADMIN_INICIAL_*`.
   - El dominio propio `api.ciudadviva.app` está creado en Railway; sus dos registros DNS los crea el usuario (§5.2, paso 5).
 - **`respaldo-bd`:** todavía no; espera el bucket y el token de respaldos de R2.
+- **Secretos cargados por una sesión antes de la decisión del 25/10:** `POSTGRES_PASSWORD` (al crear `postgis`), `JWT_SECRET` y el par VAPID. Se cargaron por stdin, así que no aparecieron en ninguna transcripción, pero no están en el gestor del usuario ni sellados. Antes del primer despliegue, el usuario elige:
+  - **Regenerarlos** (§4): `JWT_SECRET` y el par VAPID se reemplazan en `backend` sin efecto para nadie, porque todavía no hay sesiones ni suscripciones. El par VAPID se genera en una terminal propia, fuera de Claude Code, para que la clave privada no quede en una transcripción.
+  - **O copiarlos** del panel a su gestor.
+
+  En los dos casos, después los sella (§0). `POSTGRES_PASSWORD` se copia al gestor y no se sella todavía (§0); rotarla exige `ALTER ROLE` (§9).
+
+**Cambios de variables en el panel** ([staged changes](https://docs.railway.com/deployments/staged-changes)): agregar, cambiar o borrar una variable deja un aviso de cambios pendientes, que se aplican con *Deploy*.
+- **Sin redesplegar** (*Alt* + clic en *Deploy*): para cargar varias variables seguidas antes del primer despliegue, o para borrar `ADMIN_INICIAL_PASSWORD` (§7.1, paso 3). Los valores nuevos se aplican en el próximo despliegue de cada servicio.
+- **Con *Deploy* normal**, que redespliega: cuando la app tiene que tomar ya un valor nuevo, como al rotar un secreto (§9) o al cambiar el pool (§5.2) después del primer despliegue.
 
 **Si se usa la CLI de Railway desde Git Bash en Windows:**
 - **Rutas:** las que empiezan con `/` se convierten en `C:/Program Files/Git/…` (pasó con `PGDATA`). Usar `MSYS_NO_PATHCONV=1` delante del comando, o el panel.
 - **`railway variable delete`:** no acepta `--skip-deploys`, así que siempre redespliega.
 - **Región:** `railway environment edit --service-config … deploy.multiRegionConfig '<json>'` no se aplicó; funcionó el parche JSON por stdin.
-- **Secretos:** se cargan con `railway variable set --stdin`, para que nunca aparezcan en la terminal ni en una transcripción.
+- **Secretos:** hasta el 25/10, las sesiones los cargaban con `railway variable set --stdin`, para que no aparecieran en la terminal ni en una transcripción. Esa vía no los sella. Desde la decisión de ese día, los pega el usuario en el panel y los sella (§0).
 
 ### 5.1 Servicio `postgis`
 

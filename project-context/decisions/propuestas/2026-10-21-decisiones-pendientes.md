@@ -42,7 +42,7 @@ Reúne **todo** lo que hoy espera una decisión del usuario, venga de esta ronda
 | 9 | Previews de Vercel y Swagger | **Apagados.** En Vercel, el preset «Only build production». Swagger queda apagado en `prod` (`SPRINGDOC_HABILITADO` sin definir) y se activa solo para una demostración | `docs/despliegue.md` §5.2 y §6 |
 | 20 | Pool de conexiones y refresco del índice | **A** (refresco asíncrono y coalescido) como tarea **BE-12** del S7, junto con BE-11. Mientras tanto, **B**: el pool sube de 10 a **20** con la variable `SPRING_DATASOURCE_HIKARI_MAXIMUMPOOLSIZE=20` en Railway, sin cambiar código. Se revisa al cerrar BE-12 | `2026-10-22-refresco-indice-asincrono.md`, `plan-sprints.md` y `docs/despliegue.md` §5.2 |
 
-Las claves y contraseñas de producción las genera y las pega **el usuario** en cada panel, siguiendo el runbook paso a paso (25/10). Las sesiones no crean ni ven secretos.
+Desde el 25/10, las claves y contraseñas de producción las genera y las pega **el usuario** en cada panel, siguiendo el runbook paso a paso, y las sesiones no crean ni ven secretos. Antes de la decisión, una sesión había cargado `POSTGRES_PASSWORD`, `JWT_SECRET` y el par VAPID; qué hacer con ellos está en el runbook, §5 «Estado al 25/10».
 
 ## Resumen
 
@@ -105,12 +105,14 @@ Las claves y contraseñas de producción las genera y las pega **el usuario** en
 
 - **Qué:** el correo de la cuenta que será ADMIN (DEP-04: desde el 22/10 el seeder la **crea** desde variables si no hay ningún ADMIN; ya no promueve) y la lista de funcionarios con su distrito para la demostración (DEP-05).
 - **Recomendación:** el ADMIN es una cuenta del equipo. Un funcionario solo se crea con el acuerdo de la persona y, si representa a una municipalidad real, con la autorización de esa municipalidad. Para la demo, cuentas del equipo marcadas como de prueba.
+- **Decidido el 25/10 (ADMIN):** la cuenta del usuario, dueño del proyecto. Él carga el correo, el nombre y la contraseña en Railway; no se escriben en el repo (runbook §7.1). **Siguen abiertos** los funcionarios de la demo.
 
 ## 6. Datos de demostración en producción
 
 - **Problema:** `backend/scripts/seed-datos-prueba.sql` inventa reportes en distritos reales. En producción falsearía el índice público de desempeño, que se presenta como transparencia.
 - **Opciones:** (a) producción sin datos falsos, demo con reportes reales tomados por el equipo; (b) un segundo entorno de Railway («demo») con su propia base sembrada; (c) sembrar producción y borrarlo después.
 - **Recomendación:** **(a)**, y **(b)** si el jurado necesita ver el índice con volumen (costo: otro `backend` y otro `postgis`, ~US$ 8/mes mientras exista). Nunca (c).
+- **Decidido el 25/10:** **(a)**. Producción arranca sin datos falsos y, por ahora, sin entorno «demo» aparte (runbook §0).
 
 ## 7. Legal (Ley N.° 29733 y DS 016-2024-JUS)
 
@@ -137,6 +139,7 @@ No es asesoría legal; es la lista para revisar con un asesor. Fuentes oficiales
 ## 9. Previews de Vercel y Swagger en producción
 
 - **Recomendación:** previews **apagadas** (preset «Only build production»): cada preview tiene otro origen que el CORS rechaza, y usaría la base de producción. Swagger **apagado** en producción, activable con `SPRINGDOC_HABILITADO=true` para una demostración.
+- **Decidido el 25/10:** los dos **apagados**, como recomienda este punto (runbook §5.2 y §6).
 
 ## 10. CI obligatoria
 

@@ -32,7 +32,7 @@ Con picos de creación de reportes con foto, el refresco síncrono del índice d
 ## Decisión (usuario, 2026-10-25)
 **A, con B mientras tanto.**
 - **A** pasa a ser la tarea **BE-12** del S7 (v0.8.0), junto con BE-11, que es la opción C: las dos tocan la creación del reporte.
-  - Al cerrarla, la sesión de raíz actualiza ARCHITECTURE.md §4.5 y la fila D-13 **en el mismo PR**, no antes, para que la norma no describa un código que todavía no existe.
+  - Al cerrarla se actualizan ARCHITECTURE.md §4.5 y la fila D-13, **en la rama de BE-12 y no antes**, para que la norma no describa un código que todavía no existe. Ese commit lo agrega la sesión de raíz a esa rama antes de fusionar, porque la guardia no deja que el agente de backend edite normas.
 - **B** en el primer despliegue: el pool sube de 10 a 20 con la variable `SPRING_DATASOURCE_HIKARI_MAXIMUMPOOLSIZE=20` en Railway.
   - **Por qué una variable:** Spring la lee con *relaxed binding* y no hace falta tocar `application-prod.yml` ni cortar otra versión. Así el despliegue no se atrasa.
   - **Margen:** el PostgreSQL acepta 100 conexiones por defecto, así que 20 cabe de sobra.
