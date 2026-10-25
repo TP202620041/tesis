@@ -10,7 +10,7 @@
 | Agente | Condición |
 |---|---|
 | Backend | `mvn clean verify` en verde. `completed` en `target/failsafe-reports/failsafe-summary.xml` **igual** al de la línea base (una tarea de arquitectura no agrega ni quita IT). `src/test/resources/archunit_store` **más chico o igual**. |
-| Frontend | `npm run typecheck`, `npm test` (con su guarda) y `npm run lint` en verde. Avisos `capas/*` **menos o igual** que antes, salvo los de archivos que entran por primera vez a un bloque, listados en el PR (ARCHITECTURE.md §5.4). |
+| Frontend | `npm run typecheck`, `npm test` (con su guarda) y `npm run lint` en verde. Desde FE-09 las capas son error. Hasta entonces la regla era «avisos `capas/*` **menos o igual** que antes, salvo los de archivos que entran por primera vez a un bloque, listados en el PR». |
 
 Los tests se **mueven** con el código que prueban; no se borran.
 

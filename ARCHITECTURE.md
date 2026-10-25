@@ -256,5 +256,5 @@ Un agente **nunca** supone un campo que el otro lado todavía no publicó.
 - **Orden ante un cambio de contrato**: primero el backend (DTO, test y commit), después el frontend (`api:sync`). Nunca en paralelo.
 - **Definición de terminado** de cualquier tarea:
   - backend: `mvn clean verify` en verde, `completed` de Failsafe igual o mayor que antes y `archunit_store` igual o más chico.
-  - frontend: `npm run typecheck`, `npm test` y `npm run lint` con avisos de capas iguales o menos.
+  - frontend: `npm run typecheck`, `npm test` y `npm run lint` en verde (las capas son error desde FE-09).
 - **Commits**: las tareas de arquitectura se titulan `ARQ BE-03: …` o `ARQ FE-05: …`; las funcionales siguen con `US-xx`.
