@@ -265,8 +265,9 @@ marco común, `features/auth/components/MarcoDeLaApp.tsx`, en el layout raíz:
   sesión, queda «sin identificar»: se ofrece lo público y el menú de cuenta
   (para poder salir), y vuelve a preguntar al volver la conexión. La sesión
   llega a la cabecera y a la barra por props (`ARCHITECTURE.md` §5).
-- **Menú de cuenta**: nombre, rol o municipalidad, enlaces de la cuenta,
-  Apariencia y «Cerrar sesión». Es un desplegable (`aria-expanded`), no un
+- **Menú de cuenta** (escritorio; en el móvil «Cuenta» es una pantalla, ver
+  «Ajustes tras la prueba en iPhone»): nombre, rol o municipalidad, enlaces de
+  la cuenta, Apariencia y «Cerrar sesión». Es un desplegable (`aria-expanded`), no un
   `role="menu"`: adentro hay enlaces y radios que se recorren con Tab. Escape
   lo cierra y devuelve el foco; se cierra al tocar fuera y al navegar. «Cerrar
   sesión» usa el mismo `useCerrarSesion`: siguen las preguntas de
@@ -312,11 +313,22 @@ marco común, `features/auth/components/MarcoDeLaApp.tsx`, en el layout raíz:
   estado opaca en las PWA ([WebKit 301994](https://bugs.webkit.org/show_bug.cgi?id=301994)).
   Si pasa, el título compacto y el difuminado siguen funcionando; solo la
   página no llega bajo la hora.
-- **«Cuenta» a pantalla completa.** En el móvil la hoja crecía con su contenido
-  y dejaba media pantalla de la anterior a la vista. Ahora el panel cubre la
-  pantalla sobre la barra inferior, como una pestaña, con la misma barra tinta
-  («Cuenta» centrado y «Cerrar»). Lo de debajo queda `inert`, y si el teléfono
-  se gira a escritorio con el panel abierto, se cierra.
+- **«Cuenta» es una pantalla.** En el móvil, la hoja del menú de cuenta
+  ocupaba media pantalla. Un primer arreglo la llevó a pantalla completa como
+  panel encima, y el usuario lo descartó: «Cuenta» tiene que seguir las mismas
+  reglas que las demás pantallas. Ahora el ítem de la barra (`CUENTA` en
+  `model/navegacion.ts`) lleva a `/perfil`, con la barra de cristal y el
+  título grande de siempre, y queda marcado también en `/soporte`.
+  - El ciudadano ve su perfil (US-30), que termina en «Otras opciones»
+    (`AccionesDeLaCuenta`): Soporte y «Cerrar sesión». Ya no lleva «Volver a
+    mis reportes», porque es un destino de la barra.
+  - El funcionario y el ADMIN no tienen perfil editable: el backend solo
+    acepta `PATCH /api/auth/me` del ciudadano. En la misma ruta ven `MiCuenta`:
+    quiénes son, la apariencia, sus enlaces y «Cerrar sesión». La ruta pasó
+    del grupo `(ciudadano)` a `(cuenta)`; la URL no cambia.
+  - En escritorio sigue el desplegable de la cabecera.
+  - Sin red, `/perfil` lleva al login, como cualquier pantalla con sesión.
+    En escritorio el menú de la cabecera sigue ofreciendo «Cerrar sesión».
 
 ### Apariencia: claro, oscuro, alto contraste o sistema (US-23)
 

@@ -14,7 +14,9 @@ import { RUTA_ACEPTAR_TERMINOS, RUTA_SOPORTE_ADMIN } from './rutas';
  * | Funcionario | Bandeja · Panel · Categorías · Cuenta                   | Municipalidad de X · Bandeja · Panel · Categorías · Soporte |
  * | Admin       | Soporte · Cuenta                                        | Tickets de soporte + menú de cuenta                          |
  *
- * «Cerrar sesión» vive en el menú de cuenta, no compite con las acciones.
+ * En el móvil, «Cuenta» es una pantalla más ({@link CUENTA}, `/perfil`), con la
+ * misma barra y el mismo título grande que las otras; en escritorio es el menú
+ * de la cabecera. «Cerrar sesión» vive en los dos, no compite con las acciones.
  */
 
 /** Nombre del icono de cada ítem; el componente lo traduce a Lucide. */
@@ -28,6 +30,7 @@ export type IconoNavegacion =
   | 'categorias'
   | 'soporte'
   | 'perfil'
+  | 'cuenta'
   | 'entrar'
   | 'registrarse';
 
@@ -46,7 +49,7 @@ export interface ItemNavegacion {
 export interface Navegacion {
   /** Enlaces de la cabecera (escritorio). */
   principal: readonly ItemNavegacion[];
-  /** Barra inferior del móvil; «Cuenta» se agrega aparte cuando hay sesión. */
+  /** Barra inferior del móvil; {@link CUENTA} se agrega aparte cuando hay sesión. */
   inferior: readonly ItemNavegacion[];
   /** Enlaces del menú de cuenta, antes de Apariencia y Cerrar sesión. */
   cuenta: readonly ItemNavegacion[];
@@ -77,6 +80,14 @@ const SOPORTE_ADMIN: ItemNavegacion = {
 };
 const INICIAR_SESION: ItemNavegacion = { href: '/login', etiqueta: 'Iniciar sesión', etiquetaCorta: 'Entrar', icono: 'entrar' };
 const CREAR_CUENTA: ItemNavegacion = { href: '/registro', etiqueta: 'Crear cuenta', icono: 'registrarse' };
+
+/**
+ * «Cuenta», el último ítem de la barra inferior cuando hay sesión: lleva a
+ * `/perfil`, la pantalla de la cuenta de cualquier rol (prueba en iPhone del
+ * 23/10: un panel encima no seguía las reglas de las demás pantallas). Sigue
+ * marcado en `/soporte`, al que se llega desde ahí.
+ */
+export const CUENTA: ItemNavegacion = { href: PERFIL.href, etiqueta: 'Cuenta', icono: 'cuenta', tambienEn: [SOPORTE.href] };
 
 /**
  * Navegación de quien mira. `rol` es `null` para el visitante y `'desconocido'`
@@ -112,6 +123,14 @@ export function navegacionDe(rol: Rol | 'desconocido' | null): Navegacion {
     case 'desconocido':
       return { principal: [MAPA, DESEMPENO], inferior: [MAPA, DESEMPENO], cuenta: [], acceso: [] };
   }
+}
+
+/**
+ * Lo que la pantalla de la cuenta (`/perfil`) ofrece al final, junto a
+ * «Cerrar sesión»: los enlaces de la cuenta del rol, menos ella misma.
+ */
+export function enlacesDeLaPantallaDeCuenta(rol: Rol): readonly ItemNavegacion[] {
+  return navegacionDe(rol).cuenta.filter((item) => item.href !== PERFIL.href);
 }
 
 /**

@@ -1,5 +1,6 @@
 import {
   ChartColumn,
+  CircleUser,
   ClipboardList,
   Inbox,
   LayoutDashboard,
@@ -34,6 +35,7 @@ export const ICONOS_DE_NAVEGACION: Record<IconoNavegacion, LucideIcon> = {
   categorias: Tags,
   soporte: LifeBuoy,
   perfil: UserRound,
+  cuenta: CircleUser,
   entrar: LogIn,
   registrarse: UserRoundPlus,
 };

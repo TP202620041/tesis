@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { ROLES } from '@/lib/types/domain';
 import {
+  CUENTA,
   descripcionDeCuenta,
+  enlacesDeLaPantallaDeCuenta,
   esRutaActual,
   iniciales,
   modoDelMarco,
@@ -63,6 +65,22 @@ describe('navegacionDe (DIS-1)', () => {
     for (const rol of [...ROLES, null, 'desconocido'] as const) {
       expect(navegacionDe(rol).inferior.length).toBeLessThanOrEqual(4);
     }
+  });
+});
+
+describe('«Cuenta» en el móvil: una pantalla, no un menú (prueba en iPhone del 23/10)', () => {
+  it('lleva a /perfil y queda marcada también en /soporte, al que se llega desde ahí', () => {
+    expect(CUENTA.href).toBe('/perfil');
+    expect(esRutaActual('/perfil', CUENTA)).toBe(true);
+    expect(esRutaActual('/soporte', CUENTA)).toBe(true);
+    // La bandeja de soporte del ADMIN es su propio destino.
+    expect(esRutaActual(RUTA_SOPORTE_ADMIN, CUENTA)).toBe(false);
+  });
+
+  it('la pantalla de la cuenta ofrece los enlaces de la cuenta del rol, menos ella misma', () => {
+    expect(hrefs(enlacesDeLaPantallaDeCuenta('CIUDADANO'))).toEqual(['/soporte']);
+    expect(hrefs(enlacesDeLaPantallaDeCuenta('FUNCIONARIO_MUNICIPAL'))).toEqual(['/soporte', '/desempeno']);
+    expect(enlacesDeLaPantallaDeCuenta('ADMIN')).toEqual([]);
   });
 });
 

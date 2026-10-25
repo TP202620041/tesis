@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -6,11 +6,7 @@ import type { Usuario } from '@/lib/types/domain';
 import { useUsuarioDelMarco, type UsuarioDelMarco } from '../hooks/useUsuarioDelMarco';
 import { MarcoDeLaApp } from './MarcoDeLaApp';
 
-const { ruta, cierre } = vi.hoisted(() => ({
-  ruta: { actual: '/mapa' },
-  // Lo que además dispara el toque en «Cerrar sesión» (la pregunta de la cola).
-  cierre: { alPulsar: null as null | (() => void) },
-}));
+const { ruta } = vi.hoisted(() => ({ ruta: { actual: '/mapa' } }));
 vi.mock('next/navigation', () => ({ usePathname: () => ruta.actual }));
 vi.mock('next/link', () => ({
   default: ({ href, children, ...props }: { href: string; children: ReactNode }) => (
@@ -23,45 +19,11 @@ vi.mock('../hooks/useUsuarioDelMarco', () => ({ useUsuarioDelMarco: vi.fn() }));
 // El cierre real (preguntas de la cola, push, navegación) lo cubre BotonCerrarSesion.test.
 vi.mock('./BotonCerrarSesion', () => ({
   BotonCerrarSesion: ({ alActivar }: { alActivar?: () => void }) => (
-    <button
-      type="button"
-      onClick={() => {
-        alActivar?.();
-        cierre.alPulsar?.();
-      }}
-    >
+    <button type="button" onClick={alActivar}>
       Cerrar sesión
     </button>
   ),
 }));
-
-/**
- * Como `DialogoCierreConPendientes`: el mismo toque en «Cerrar sesión» la
- * monta (está en el contenido de la página) y, al montarse, toma el foco.
- */
-function PreguntaDelCierre({ alMontar }: { alMontar: (inerte: boolean) => void }) {
-  const [visible, setVisible] = useState(false);
-  useEffect(() => {
-    cierre.alPulsar = () => setVisible(true);
-    return () => {
-      cierre.alPulsar = null;
-    };
-  }, []);
-  return visible ? <Conservar alMontar={alMontar} /> : null;
-}
-
-function Conservar({ alMontar }: { alMontar: (inerte: boolean) => void }) {
-  const boton = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    alMontar(boton.current!.closest('[inert]') !== null);
-    boton.current!.focus();
-  }, [alMontar]);
-  return (
-    <button ref={boton} type="button">
-      Conservar
-    </button>
-  );
-}
 
 const ANA = {
   id: 7,
@@ -85,6 +47,7 @@ function como(usuario: UsuarioDelMarco, en = '/mapa') {
 
 /** En jsdom no hay CSS: la cabecera (escritorio) y la barra (móvil) están las dos. */
 const barraInferior = () => screen.getAllByRole('navigation', { name: 'Principal' }).at(-1)!;
+const menuDeAna = () => screen.getByRole('button', { name: 'Menú de cuenta de Ana Vecina' });
 
 afterEach(() => {
   vi.mocked(useUsuarioDelMarco).mockReset();
@@ -98,13 +61,14 @@ describe('MarcoDeLaApp (DIS-1)', () => {
     expect(screen.getByRole('link', { name: 'Saltar al contenido' })).toHaveAttribute('href', '#contenido');
   });
 
-  it('visitante: lo público, Reportar y la entrada; sin menú de cuenta', () => {
+  it('visitante: lo público, Reportar y la entrada; sin cuenta', () => {
     como({ estado: 'visitante' });
     const barra = barraInferior();
     expect(within(barra).getByRole('link', { name: 'Mapa' })).toHaveAttribute('aria-current', 'page');
     expect(within(barra).getByRole('link', { name: 'Reportar' })).toHaveAttribute('href', '/reportar');
     expect(within(barra).getByRole('link', { name: 'Entrar' })).toHaveAttribute('href', '/login');
     expect(screen.getByRole('link', { name: 'Crear cuenta' })).toHaveAttribute('href', '/registro');
+    expect(within(barra).queryByRole('link', { name: 'Cuenta' })).toBeNull();
     expect(screen.queryByRole('button', { name: /cuenta/i })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Cerrar sesión' })).toBeNull();
   });
@@ -114,15 +78,28 @@ describe('MarcoDeLaApp (DIS-1)', () => {
     const barra = barraInferior();
     expect(within(barra).getAllByRole('listitem')).toHaveLength(5);
     expect(within(barra).getByRole('link', { name: 'Mis reportes' })).toHaveAttribute('aria-current', 'page');
-    expect(within(barra).getByRole('button', { name: 'Cuenta' })).toHaveAttribute('aria-expanded', 'false');
+    expect(within(barra).getAllByRole('link').at(-1)).toHaveAccessibleName('Cuenta');
   });
 
-  it('«Cerrar sesión» vive en el menú de cuenta, con perfil y soporte', async () => {
+  it('móvil: «Cuenta» es una pantalla (Mi perfil), no un menú encima; sigue marcada en Soporte', () => {
+    // Prueba en iPhone del 23/10: tiene que seguir las reglas de las demás pantallas.
+    const { unmount } = como({ estado: 'identificado', usuario: ANA }, '/perfil');
+    const cuenta = within(barraInferior()).getByRole('link', { name: 'Cuenta' });
+    expect(cuenta).toHaveAttribute('href', '/perfil');
+    expect(cuenta).toHaveAttribute('aria-current', 'page');
+    expect(within(barraInferior()).queryByRole('button')).toBeNull();
+    unmount();
+
+    como({ estado: 'identificado', usuario: ANA }, '/soporte');
+    expect(within(barraInferior()).getByRole('link', { name: 'Cuenta' })).toHaveAttribute('aria-current', 'page');
+  });
+
+  it('escritorio: «Cerrar sesión» vive en el menú de cuenta, con perfil y soporte', async () => {
     como({ estado: 'identificado', usuario: ANA });
     const usuario = userEvent.setup();
     expect(screen.queryByRole('button', { name: 'Cerrar sesión' })).toBeNull();
 
-    const boton = screen.getByRole('button', { name: 'Menú de cuenta de Ana Vecina' });
+    const boton = menuDeAna();
     await usuario.click(boton);
     expect(boton).toHaveAttribute('aria-expanded', 'true');
     const panel = document.getElementById(boton.getAttribute('aria-controls')!)!;
@@ -139,12 +116,12 @@ describe('MarcoDeLaApp (DIS-1)', () => {
     expect(boton).toHaveFocus();
   });
 
-  it('«Cerrar sesión» cierra el menú y devuelve el foco a «Cuenta»', async () => {
+  it('escritorio: «Cerrar sesión» cierra el menú y devuelve el foco a su botón', async () => {
     // Si hay reportes en cola, el diálogo de la pregunta no queda encima de un
     // menú abierto que también atiende Escape, ni el foco en un botón tapado.
     como({ estado: 'identificado', usuario: ANA });
     const usuario = userEvent.setup();
-    const boton = within(barraInferior()).getByRole('button', { name: 'Cuenta' });
+    const boton = menuDeAna();
     await usuario.click(boton);
     const panel = document.getElementById(boton.getAttribute('aria-controls')!)!;
     await usuario.click(within(panel).getByRole('button', { name: 'Cerrar sesión' }));
@@ -153,87 +130,14 @@ describe('MarcoDeLaApp (DIS-1)', () => {
     expect(boton).toHaveFocus();
   });
 
-  it('el menú se cierra al tocar fuera de él', async () => {
+  it('escritorio: el menú se cierra al tocar fuera', async () => {
     como({ estado: 'identificado', usuario: ANA });
     const usuario = userEvent.setup();
-    // Escritorio: la página sigue a la vista y se puede tocar.
-    const desplegable = screen.getByRole('button', { name: 'Menú de cuenta de Ana Vecina' });
-    await usuario.click(desplegable);
-    expect(desplegable).toHaveAttribute('aria-expanded', 'true');
-    await usuario.click(screen.getByText('Contenido de la página'));
-    expect(desplegable).toHaveAttribute('aria-expanded', 'false');
-    // Móvil: el panel tapa la página; lo que queda a mano es la barra.
-    const boton = within(barraInferior()).getByRole('button', { name: 'Cuenta' });
+    const boton = menuDeAna();
     await usuario.click(boton);
     expect(boton).toHaveAttribute('aria-expanded', 'true');
-    await usuario.click(barraInferior());
+    await usuario.click(screen.getByText('Contenido de la página'));
     expect(boton).toHaveAttribute('aria-expanded', 'false');
-  });
-
-  it('móvil: lo que abre «Cerrar sesión» (la pregunta de la cola) nace sin inert y toma el foco', async () => {
-    // Si la página se destapara recién en la limpieza del efecto, la pregunta
-    // se montaría inerte y su foco no llegaría (el de la prueba en iPhone).
-    const alMontar = vi.fn();
-    ruta.actual = '/mapa';
-    vi.mocked(useUsuarioDelMarco).mockReturnValue({ estado: 'identificado', usuario: ANA });
-    render(
-      <MarcoDeLaApp>
-        <PreguntaDelCierre alMontar={alMontar} />
-      </MarcoDeLaApp>,
-    );
-    const usuario = userEvent.setup();
-    const boton = within(barraInferior()).getByRole('button', { name: 'Cuenta' });
-    await usuario.click(boton);
-    const panel = document.getElementById(boton.getAttribute('aria-controls')!)!;
-    await usuario.click(within(panel).getByRole('button', { name: 'Cerrar sesión' }));
-    expect(alMontar).toHaveBeenCalledTimes(1);
-    expect(alMontar).toHaveBeenCalledWith(false);
-    expect(screen.getByRole('button', { name: 'Conservar' })).toHaveFocus();
-  });
-
-  it('móvil: el menú cubre la pantalla con su título, deja inerte lo de debajo y «Cerrar» lo cierra', async () => {
-    como({ estado: 'identificado', usuario: ANA });
-    const usuario = userEvent.setup();
-    const contenido = screen.getByText('Contenido de la página');
-    const boton = within(barraInferior()).getByRole('button', { name: 'Cuenta' });
-    await usuario.click(boton);
-    const panel = document.getElementById(boton.getAttribute('aria-controls')!)!;
-    expect(within(panel).getByRole('heading', { name: 'Cuenta' })).toBeInTheDocument();
-    // La cabecera y el contenido quedan inertes; la barra, no: se puede cambiar de destino.
-    expect(contenido.closest('[inert]')).not.toBeNull();
-    expect(screen.getByRole('link', { name: 'Ciudad Viva' }).closest('[inert]')).not.toBeNull();
-    expect(barraInferior().closest('[inert]')).toBeNull();
-
-    await usuario.click(within(panel).getByRole('button', { name: 'Cerrar' }));
-    expect(boton).toHaveAttribute('aria-expanded', 'false');
-    expect(boton).toHaveFocus();
-    expect(contenido.closest('[inert]')).toBeNull();
-  });
-
-  it('móvil: si la ventana pasa a escritorio con el menú abierto, se cierra y nada queda inerte', async () => {
-    // Con el teléfono girado la barra se oculta, y el panel con ella.
-    const oyentes = new Set<() => void>();
-    const escritorio = {
-      matches: false,
-      addEventListener: (_: string, oyente: () => void) => oyentes.add(oyente),
-      removeEventListener: (_: string, oyente: () => void) => oyentes.delete(oyente),
-    };
-    const otra = { matches: false, addEventListener: () => {}, removeEventListener: () => {} };
-    vi.stubGlobal('matchMedia', (consulta: string) => (consulta === '(min-width: 48rem)' ? escritorio : otra));
-    try {
-      como({ estado: 'identificado', usuario: ANA });
-      const boton = within(barraInferior()).getByRole('button', { name: 'Cuenta' });
-      await userEvent.setup().click(boton);
-      expect(screen.getByText('Contenido de la página').closest('[inert]')).not.toBeNull();
-
-      escritorio.matches = true;
-      act(() => oyentes.forEach((oyente) => oyente()));
-      expect(boton).toHaveAttribute('aria-expanded', 'false');
-      expect(screen.getByText('Contenido de la página').closest('[inert]')).toBeNull();
-      expect(oyentes.size).toBe(0);
-    } finally {
-      vi.unstubAllGlobals();
-    }
   });
 
   it('móvil: el título pasa a la barra siguiendo el desplazamiento, y sigue sus cambios', async () => {
@@ -309,13 +213,7 @@ describe('MarcoDeLaApp (DIS-1)', () => {
     expect(Number(barra.style.getPropertyValue('--cv-avance-titulo'))).toBe(0);
   });
 
-  it('escritorio: el menú de la cabecera no deja inerte la página', async () => {
-    como({ estado: 'identificado', usuario: ANA });
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Menú de cuenta de Ana Vecina' }));
-    expect(screen.getByText('Contenido de la página').closest('[inert]')).toBeNull();
-  });
-
-  it('funcionario: su navegación y la insignia de su municipalidad', () => {
+  it('funcionario: su navegación, la insignia de su municipalidad y «Cuenta»', () => {
     como({
       estado: 'identificado',
       usuario: { ...ANA, rol: 'FUNCIONARIO_MUNICIPAL', distritoNombre: 'Miraflores' } as Usuario,
@@ -325,13 +223,18 @@ describe('MarcoDeLaApp (DIS-1)', () => {
     expect(within(barra).getByRole('link', { name: 'Bandeja' })).toHaveAttribute('aria-current', 'page');
     expect(within(barra).getByRole('link', { name: 'Panel' })).toHaveAttribute('href', '/dashboard');
     expect(within(barra).queryByRole('link', { name: 'Reportar' })).toBeNull();
+    expect(within(barra).getByRole('link', { name: 'Cuenta' })).toHaveAttribute('href', '/perfil');
   });
 
-  it('sin red y con sesión: lo público y el menú de cuenta para poder salir', async () => {
+  it('sin red y con sesión: lo público, «Cuenta» y, en escritorio, el menú para poder salir', async () => {
     como({ estado: 'sin-identificar' });
     const barra = barraInferior();
-    expect(within(barra).getAllByRole('link').map((a) => a.getAttribute('href'))).toEqual(['/mapa', '/desempeno']);
-    await userEvent.setup().click(within(barra).getByRole('button', { name: 'Cuenta' }));
+    expect(within(barra).getAllByRole('link').map((a) => a.getAttribute('href'))).toEqual([
+      '/mapa',
+      '/desempeno',
+      '/perfil',
+    ]);
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Menú de cuenta de Tu cuenta' }));
     expect(screen.getByText('No se pudo cargar tu cuenta: revisa tu conexión.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cerrar sesión' })).toBeInTheDocument();
   });

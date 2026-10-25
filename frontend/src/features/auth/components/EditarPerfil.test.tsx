@@ -20,6 +20,9 @@ vi.mock('./FotoDePerfil', () => ({ FotoDePerfil: () => null }));
 vi.mock('./PrivacidadYConsentimientos', () => ({ PrivacidadYConsentimientos: () => null }));
 vi.mock('./PushEnEsteNavegador', () => ({ PushEnEsteNavegador: () => null }));
 vi.mock('./SelectorDeApariencia', () => ({ SelectorDeApariencia: () => null }));
+vi.mock('./AccionesDeLaCuenta', () => ({
+  AccionesDeLaCuenta: ({ rol }: { rol: string }) => <p>Acciones de la cuenta de {rol}</p>,
+}));
 
 const ANA: Usuario = {
   id: 1,
@@ -59,6 +62,15 @@ function montar() {
   const guardar = () => usuario.click(screen.getByRole('button', { name: 'Guardar cambios' }));
   return { usuario, campo, guardar };
 }
+
+describe('EditarPerfil: la pantalla de «Cuenta» del ciudadano', () => {
+  it('termina con Soporte y «Cerrar sesión», y ya no lleva «Volver a mis reportes»', () => {
+    // Prueba en iPhone del 23/10: en el móvil esta es la pantalla de «Cuenta».
+    montar();
+    expect(screen.getByText('Acciones de la cuenta de CIUDADANO')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /volver a mis reportes/i })).toBeNull();
+  });
+});
 
 describe('EditarPerfil: foto de perfil (US-30, DEP-11)', () => {
   it('el selector acepta solo JPG, PNG y WEBP y dice el límite', () => {

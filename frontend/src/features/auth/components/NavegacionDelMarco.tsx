@@ -6,7 +6,7 @@ import { clasesDeBoton } from '@/components/ui/Boton';
 import { Icono } from '@/components/ui/Icono';
 import { Logo } from '@/components/ui/Logo';
 import type { Usuario } from '@/lib/types/domain';
-import { esRutaActual, navegacionDe, type ItemNavegacion } from '../model/navegacion';
+import { CUENTA, esRutaActual, navegacionDe, type ItemNavegacion } from '../model/navegacion';
 import { useTituloAlDesplazar } from '../hooks/useTituloAlDesplazar';
 import type { UsuarioDelMarco } from '../hooks/useUsuarioDelMarco';
 import { ETIQUETA_INFERIOR, ICONOS_DE_NAVEGACION } from './iconosDeNavegacion';
@@ -159,7 +159,7 @@ export function CabeceraDeLaApp({ usuario, ruta, conNavegacion, extrasDeCuenta, 
           )}
           {nav && conSesion(usuario) && (
             <div className="hidden md:block">
-              <MenuCuenta usuario={persona} items={nav.cuenta} variante="cabecera" ruta={ruta}>
+              <MenuCuenta usuario={persona} items={nav.cuenta} ruta={ruta}>
                 {extrasDeCuenta}
               </MenuCuenta>
             </div>
@@ -198,46 +198,30 @@ function EnlaceDeCabecera({ item, actual }: { item: ItemNavegacion; actual: bool
 interface BarraInferiorProps {
   usuario: UsuarioDelMarco;
   ruta: string;
-  extrasDeCuenta?: ReactNode;
-  /** El menú de cuenta abierto cubre la pantalla (ver `MenuCuenta`). */
-  alCubrirLaPantalla?: (cubre: boolean) => void;
-  /**
-   * El menú ya cubre la pantalla: la barra (y el panel, que vive en ella)
-   * sube sobre los avisos de la cola (1100), que quedaron inertes debajo y no
-   * deben llevarse un toque que es para el panel. Sigue bajo los diálogos (1200).
-   */
-  cubriendo?: boolean;
 }
 
 /**
  * Barra de navegación inferior del móvil (DIS-1): hasta cinco destinos con
- * icono y nombre, «Reportar» destacado al centro para el ciudadano y «Cuenta»
- * al final con el menú. Fija abajo, respeta `env(safe-area-inset-bottom)` y
- * mide `--cv-alto-nav`, que el contenido reserva para no quedar tapado. Desde
- * `md` la reemplaza la cabecera.
+ * icono y nombre, «Reportar» destacado al centro para el ciudadano y, con
+ * sesión, «Cuenta» al final: una pantalla más (`CUENTA`, `/perfil`), no un
+ * menú encima. Fija abajo, respeta `env(safe-area-inset-bottom)` y mide
+ * `--cv-alto-nav`, que el contenido reserva para no quedar tapado. Desde `md`
+ * la reemplaza la cabecera.
  */
-export function BarraInferiorDeLaApp({
-  usuario,
-  ruta,
-  extrasDeCuenta,
-  alCubrirLaPantalla,
-  cubriendo = false,
-}: BarraInferiorProps) {
+export function BarraInferiorDeLaApp({ usuario, ruta }: BarraInferiorProps) {
   const rol = rolDelMarco(usuario);
-  const clases = [
-    'fixed inset-x-0 bottom-0 border-t border-linea bg-superficie pb-[env(safe-area-inset-bottom)] md:hidden',
-    cubriendo ? 'z-[1150]' : 'z-[1050]',
-  ].join(' ');
+  const clases =
+    'fixed inset-x-0 bottom-0 z-[1050] border-t border-linea bg-superficie pb-[env(safe-area-inset-bottom)] md:hidden';
   // Mientras se averigua quién mira, la barra ocupa su lugar vacía: así el
   // contenido no salta cuando llegan los ítems.
   if (rol === undefined) return <div aria-hidden="true" className={`${clases} h-[var(--cv-alto-nav)]`} />;
 
   const nav = navegacionDe(rol);
-  const columnas = nav.inferior.length + (conSesion(usuario) ? 1 : 0);
+  const items = conSesion(usuario) ? [...nav.inferior, CUENTA] : nav.inferior;
   return (
     <nav aria-label="Principal" className={clases}>
-      <ul className="grid h-16" style={{ gridTemplateColumns: `repeat(${columnas}, minmax(0, 1fr))` }}>
-        {nav.inferior.map((item) => {
+      <ul className="grid h-16" style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}>
+        {items.map((item) => {
           const actual = esRutaActual(ruta, item);
           return (
             <li key={item.href}>
@@ -264,19 +248,6 @@ export function BarraInferiorDeLaApp({
             </li>
           );
         })}
-        {conSesion(usuario) && (
-          <li>
-            <MenuCuenta
-              usuario={usuarioDe(usuario)}
-              items={nav.cuenta}
-              variante="inferior"
-              ruta={ruta}
-              alCubrirLaPantalla={alCubrirLaPantalla}
-            >
-              {extrasDeCuenta}
-            </MenuCuenta>
-          </li>
-        )}
       </ul>
     </nav>
   );

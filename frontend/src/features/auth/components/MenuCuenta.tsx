@@ -1,49 +1,38 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { ChevronDown, CircleUser } from 'lucide-react';
 import { Icono } from '@/components/ui/Icono';
 import type { Usuario } from '@/lib/types/domain';
 import { descripcionDeCuenta, iniciales, type ItemNavegacion } from '../model/navegacion';
 import { BotonCerrarSesion } from './BotonCerrarSesion';
-import { ETIQUETA_INFERIOR, ICONOS_DE_NAVEGACION } from './iconosDeNavegacion';
+import { ICONOS_DE_NAVEGACION } from './iconosDeNavegacion';
 
 interface MenuCuentaProps {
   /** `null`: hay sesión pero no se pudo saber de quién (sin red). */
   usuario: Usuario | null;
   /** Enlaces de la cuenta según el rol (`navegacionDe(rol).cuenta`). */
   items: readonly ItemNavegacion[];
-  /** En la cabecera (escritorio) o como último ítem de la barra inferior (móvil). */
-  variante: 'cabecera' | 'inferior';
   /** Ruta actual: el menú se cierra al navegar. */
   ruta: string;
   /** Contenido adicional antes de «Cerrar sesión» (el selector de apariencia). */
   children?: ReactNode;
-  /**
-   * Solo en la barra inferior: avisa cuando el panel cubre la pantalla, para
-   * que el marco deje inerte lo que queda debajo.
-   */
-  alCubrirLaPantalla?: (cubre: boolean) => void;
 }
 
 /**
- * Menú de cuenta (DIS-1): quién es, sus enlaces (perfil, soporte…), la
- * apariencia y «Cerrar sesión», que ya no compite con las acciones de cada
- * pantalla.
+ * Menú de cuenta de la cabecera (DIS-1, escritorio): quién es, sus enlaces
+ * (perfil, soporte…), la apariencia y «Cerrar sesión», que ya no compite con
+ * las acciones de cada pantalla. En el móvil no hay menú: «Cuenta» es una
+ * pantalla más de la barra inferior (`CUENTA`, `/perfil`).
  *
  * Es un **desplegable** (botón con `aria-expanded` que muestra un panel), no
  * un `role="menu"`: adentro hay enlaces y un grupo de opciones de radio, que
  * se recorren con Tab como en cualquier página. Se cierra con Escape (y el
  * foco vuelve al botón), al tocar fuera, al navegar y al pulsar «Cerrar
  * sesión».
- *
- * En el móvil el panel ocupa la pantalla sobre la barra inferior, como una
- * pestaña más, con su título y «Cerrar»; la barra sigue a mano para cambiar
- * de destino. Una hoja que crecía con su contenido dejaba media pantalla de
- * la página anterior a la vista (prueba en iPhone del 23/10).
  */
-export function MenuCuenta({ usuario, items, variante, ruta, children, alCubrirLaPantalla }: MenuCuentaProps) {
+export function MenuCuenta({ usuario, items, ruta, children }: MenuCuentaProps) {
   const [abierto, setAbierto] = useState(false);
   // Al navegar se cierra. Se ajusta durante el render (el patrón de React
   // para estado que depende de una prop), no con un efecto que pintaría un
@@ -56,27 +45,16 @@ export function MenuCuenta({ usuario, items, variante, ruta, children, alCubrirL
   const idPanel = useId();
   const contenedor = useRef<HTMLDivElement>(null);
   const boton = useRef<HTMLButtonElement>(null);
-  const nombre = usuario ? `${usuario.nombre} ${usuario.apellido}`.trim() : 'Tu cuenta';
-  const enCabecera = variante === 'cabecera';
-
-  // Cerrar destapa la página en el MISMO cambio que cierra el panel: lo que
-  // el mismo toque abra (la pregunta de «Cerrar sesión» con reportes en
-  // cola) nace sin `inert` y puede tomar el foco al montarse. Si se esperara
-  // a la limpieza del efecto, el foco caería en un botón todavía inerte.
-  const cerrar = useCallback(() => {
-    setAbierto(false);
-    if (!enCabecera) alCubrirLaPantalla?.(false);
-  }, [enCabecera, alCubrirLaPantalla]);
 
   useEffect(() => {
     if (!abierto) return;
     const alPulsar = (evento: KeyboardEvent) => {
       if (evento.key !== 'Escape') return;
-      cerrar();
+      setAbierto(false);
       boton.current?.focus();
     };
     const alTocar = (evento: PointerEvent) => {
-      if (!contenedor.current?.contains(evento.target as Node)) cerrar();
+      if (!contenedor.current?.contains(evento.target as Node)) setAbierto(false);
     };
     document.addEventListener('keydown', alPulsar);
     document.addEventListener('pointerdown', alTocar);
@@ -84,95 +62,39 @@ export function MenuCuenta({ usuario, items, variante, ruta, children, alCubrirL
       document.removeEventListener('keydown', alPulsar);
       document.removeEventListener('pointerdown', alTocar);
     };
-  }, [abierto, cerrar]);
+  }, [abierto]);
 
-  // A pantalla completa, lo de debajo queda inerte (ni el foco ni el lector
-  // llegan a lo que no se ve). Si la ventana pasa a escritorio (el teléfono
-  // girado), la barra se oculta y el panel con ella: se cierra, para que la
-  // página no quede inerte sin nada encima. La limpieza también destapa: es
-  // la red para el cierre al navegar y el desmontaje.
-  useEffect(() => {
-    if (!abierto || enCabecera) return;
-    alCubrirLaPantalla?.(true);
-    const escritorio = typeof window.matchMedia === 'function' ? window.matchMedia('(min-width: 48rem)') : null;
-    const alCambiarElAncho = () => {
-      if (escritorio?.matches) cerrar();
-    };
-    escritorio?.addEventListener('change', alCambiarElAncho);
-    return () => {
-      escritorio?.removeEventListener('change', alCambiarElAncho);
-      alCubrirLaPantalla?.(false);
-    };
-  }, [abierto, enCabecera, alCubrirLaPantalla, cerrar]);
+  const nombre = usuario ? `${usuario.nombre} ${usuario.apellido}`.trim() : 'Tu cuenta';
 
   return (
-    <div ref={contenedor} className={enCabecera ? 'relative' : 'h-full'}>
+    <div ref={contenedor} className="relative">
       <button
         ref={boton}
         type="button"
         aria-expanded={abierto}
         aria-controls={idPanel}
-        onClick={() => (abierto ? cerrar() : setAbierto(true))}
-        className={
-          enCabecera
-            ? 'inline-flex min-h-objetivo items-center gap-2 rounded-full border border-linea bg-superficie py-1 pr-3 pl-1 font-semibold text-texto hover:bg-superficie-2'
-            : `flex h-full w-full flex-col items-center justify-center gap-0.5 border-t-[3px] leading-tight ${ETIQUETA_INFERIOR} ${
-                abierto ? 'border-t-primario font-bold text-texto' : 'border-t-transparent font-semibold text-texto-2'
-              }`
-        }
+        onClick={() => setAbierto(!abierto)}
+        className="inline-flex min-h-objetivo items-center gap-2 rounded-full border border-linea bg-superficie py-1 pr-3 pl-1 font-semibold text-texto hover:bg-superficie-2"
       >
-        {enCabecera ? (
-          <>
-            <span
-              aria-hidden="true"
-              className="flex size-8 items-center justify-center rounded-full bg-primario text-sm font-bold text-sobre-primario"
-            >
-              {usuario ? iniciales(usuario.nombre, usuario.apellido) : <Icono icono={CircleUser} tamano={18} />}
-            </span>
-            {/* El nombre accesible contiene el visible (WCAG 2.5.3). */}
-            <span className="sr-only">Menú de cuenta de {nombre}</span>
-            <span aria-hidden="true" className="max-w-48 truncate">
-              {nombre}
-            </span>
-            <Icono icono={ChevronDown} tamano={16} className={abierto ? 'rotate-180' : ''} />
-          </>
-        ) : (
-          <>
-            <Icono icono={CircleUser} tamano={22} trazo={abierto ? 2.4 : 2} />
-            Cuenta
-          </>
-        )}
+        <span
+          aria-hidden="true"
+          className="flex size-8 items-center justify-center rounded-full bg-primario text-sm font-bold text-sobre-primario"
+        >
+          {usuario ? iniciales(usuario.nombre, usuario.apellido) : <Icono icono={CircleUser} tamano={18} />}
+        </span>
+        {/* El nombre accesible contiene el visible (WCAG 2.5.3). */}
+        <span className="sr-only">Menú de cuenta de {nombre}</span>
+        <span aria-hidden="true" className="max-w-48 truncate">
+          {nombre}
+        </span>
+        <Icono icono={ChevronDown} tamano={16} className={abierto ? 'rotate-180' : ''} />
       </button>
 
       {abierto && (
         <div
           id={idPanel}
-          className={[
-            // `overscroll-contain`: llegar al final del panel no desplaza la página de fondo.
-            'z-[1060] flex flex-col gap-1 overflow-y-auto overscroll-contain bg-superficie text-texto',
-            enCabecera
-              ? 'absolute top-full right-0 mt-2 max-h-[calc(100dvh-5rem)] w-80 rounded-hoja border border-linea p-2 shadow-elevada'
-              : 'fixed inset-x-0 top-0 bottom-[var(--cv-alto-nav,4rem)] px-2 pb-4',
-          ].join(' ')}
+          className="absolute top-full right-0 z-[1060] mt-2 flex max-h-[calc(100dvh-5rem)] w-80 flex-col gap-1 overflow-y-auto rounded-hoja border border-linea bg-superficie p-2 text-texto shadow-elevada"
         >
-          {!enCabecera && (
-            // La misma barra tinta de la cabecera, que el panel tapa: bajo la
-            // hora y la batería, con el título centrado como en iOS.
-            <div className="cv-translucida sticky top-0 z-10 -mx-2 mb-1 grid h-[var(--cv-alto-encabezado,3.5rem)] shrink-0 grid-cols-[1fr_auto_1fr] items-center px-2 pt-[env(safe-area-inset-top)] text-sobre-barra-superior">
-              <h2 className="col-start-2 font-semibold">Cuenta</h2>
-              <button
-                type="button"
-                onClick={() => {
-                  cerrar();
-                  boton.current?.focus();
-                }}
-                className="col-start-3 inline-flex min-h-objetivo items-center justify-self-end rounded-control px-2 font-semibold underline-offset-4 hover:underline"
-              >
-                Cerrar
-              </button>
-            </div>
-          )}
-
           <div className="border-b border-linea px-3 pt-2 pb-3">
             <p className="font-semibold">{nombre}</p>
             <p className="text-sm text-texto-2">
@@ -187,7 +109,7 @@ export function MenuCuenta({ usuario, items, variante, ruta, children, alCubrirL
                 <li key={item.href}>
                   <Link
                     href={item.href}
-                    onClick={cerrar}
+                    onClick={() => setAbierto(false)}
                     className="flex min-h-objetivo items-center gap-3 rounded-control px-3 font-semibold text-texto hover:bg-superficie-2"
                   >
                     <Icono icono={ICONOS_DE_NAVEGACION[item.icono]} tamano={18} />
@@ -204,12 +126,12 @@ export function MenuCuenta({ usuario, items, variante, ruta, children, alCubrirL
             {/* Se cierra antes de empezar el cierre de sesión: si hay una
                 pregunta previa (reportes en cola), el diálogo no queda encima
                 de un menú abierto que también atiende Escape, y el foco no se
-                queda en un botón tapado (vuelve al de «Cuenta»; el diálogo lo
-                toma después). */}
+                queda en un botón tapado (vuelve al de la cuenta; el diálogo
+                lo toma después). */}
             <BotonCerrarSesion
               variante="menu"
               alActivar={() => {
-                cerrar();
+                setAbierto(false);
                 boton.current?.focus();
               }}
             />

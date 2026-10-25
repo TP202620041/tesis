@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import { useRef, useState, type ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
 import { useTemaDeLaApp } from '../hooks/useApariencia';
 import { useUsuarioDelMarco } from '../hooks/useUsuarioDelMarco';
 import { modoDelMarco } from '../model/navegacion';
@@ -22,16 +22,12 @@ import { SelectorDeApariencia } from './SelectorDeApariencia';
  * Fija dos medidas como variables CSS para quien las necesite (el mapa ocupa
  * el alto que queda; los avisos flotantes van por encima de la barra):
  * `--cv-alto-encabezado` y `--cv-alto-nav`.
- *
- * Mientras el menú de cuenta del móvil cubre la pantalla, la cabecera y el
- * contenido quedan inertes; la barra inferior no.
  */
 export function MarcoDeLaApp({ children }: { children: ReactNode }) {
   const ruta = usePathname();
   const usuario = useUsuarioDelMarco();
   useTemaDeLaApp();
   const modo = modoDelMarco(ruta);
-  const [cuentaCubre, setCuentaCubre] = useState(false);
   const contenido = useRef<HTMLDivElement>(null);
 
   if (modo === 'ninguno') {
@@ -45,7 +41,6 @@ export function MarcoDeLaApp({ children }: { children: ReactNode }) {
     );
   }
   const completo = modo === 'completo';
-  const apariencia = <SelectorDeApariencia variante="menu" />;
 
   return (
     <div
@@ -59,41 +54,30 @@ export function MarcoDeLaApp({ children }: { children: ReactNode }) {
           : '[--cv-alto-nav:env(safe-area-inset-bottom)]',
       ].join(' ')}
     >
-      {/* `contents`: el envoltorio no cuenta para el layout en columna. */}
-      <div inert={cuentaCubre} className="contents">
-        <a
-          href="#contenido"
-          className="sr-only z-[1100] rounded-control bg-primario px-4 py-3 font-semibold text-sobre-primario focus:not-sr-only focus:fixed focus:top-[calc(0.5rem+env(safe-area-inset-top))] focus:left-[calc(0.5rem+env(safe-area-inset-left))]"
-        >
-          Saltar al contenido
-        </a>
-        <CabeceraDeLaApp
-          usuario={usuario}
-          ruta={ruta}
-          conNavegacion={completo}
-          extrasDeCuenta={apariencia}
-          contenido={contenido}
-        />
-        {/* Los laterales reservan las zonas seguras (el teléfono girado); la
-            cabecera las suma a su margen interno para que su fondo llegue al borde. */}
-        <div
-          id="contenido"
-          ref={contenido}
-          tabIndex={-1}
-          className="flex flex-1 flex-col pr-[env(safe-area-inset-right)] pb-[var(--cv-alto-nav)] pl-[env(safe-area-inset-left)]"
-        >
-          {children}
-        </div>
+      <a
+        href="#contenido"
+        className="sr-only z-[1100] rounded-control bg-primario px-4 py-3 font-semibold text-sobre-primario focus:not-sr-only focus:fixed focus:top-[calc(0.5rem+env(safe-area-inset-top))] focus:left-[calc(0.5rem+env(safe-area-inset-left))]"
+      >
+        Saltar al contenido
+      </a>
+      <CabeceraDeLaApp
+        usuario={usuario}
+        ruta={ruta}
+        conNavegacion={completo}
+        extrasDeCuenta={<SelectorDeApariencia variante="menu" />}
+        contenido={contenido}
+      />
+      {/* Los laterales reservan las zonas seguras (el teléfono girado); la
+          cabecera las suma a su margen interno para que su fondo llegue al borde. */}
+      <div
+        id="contenido"
+        ref={contenido}
+        tabIndex={-1}
+        className="flex flex-1 flex-col pr-[env(safe-area-inset-right)] pb-[var(--cv-alto-nav)] pl-[env(safe-area-inset-left)]"
+      >
+        {children}
       </div>
-      {completo && (
-        <BarraInferiorDeLaApp
-          usuario={usuario}
-          ruta={ruta}
-          extrasDeCuenta={apariencia}
-          alCubrirLaPantalla={setCuentaCubre}
-          cubriendo={cuentaCubre}
-        />
-      )}
+      {completo && <BarraInferiorDeLaApp usuario={usuario} ruta={ruta} />}
     </div>
   );
 }
