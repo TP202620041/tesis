@@ -1,0 +1,7 @@
+# Tests y guarda de capas (CI y desarrollo). No hacen falta pesos.
+-r requirements.txt
+pytest==9.1.1
+httpx2==2.16.0
+import-linter==2.15
+# Para construir en los tests un .onnx sintético con la misma interfaz que RF-DETR.
+onnx==1.23.2
