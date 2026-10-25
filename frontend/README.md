@@ -115,6 +115,7 @@ src/
 │   └── (admin)/admin/          # rol ADMIN — soporte (bandeja de tickets)
 ├── features/                   # lógica por dominio, no por tipo de archivo
 │   ├── auth/  reportes/  desempeno/  gestion/  soporte/  legal/
+│   └── <dominio>/              # components/ → hooks/ → model/ ← api.ts (ARCHITECTURE.md §5)
 ├── lib/
 │   ├── api/                    # cliente HTTP tipado + tipos generados + catálogos compartidos
 │   ├── auth/                   # almacenamiento del token
@@ -128,6 +129,13 @@ src/
 
 Las vistas de `app/` componen; la lógica vive en `features/`. Un componente de
 `app/` no debe llamar al API directamente: pasa por `features/<dominio>/api.ts`.
+
+**Capas (FE-09).** Dentro de cada feature, `components/` (presentación) usa
+`hooks/` (aplicación), que usan `model/` (dominio, puro) y `api.ts` (el único
+que toca el cliente HTTP); de otra feature solo se toma su `model/`.
+`eslint.capas.mjs` lo hace cumplir en `npm run lint` como **error** desde el
+25/10: un import que rompa las capas hace fallar el lint y la CI. La migración
+(FE-01..FE-08) bajó los avisos de 67 a 0 antes de endurecerla.
 
 **Títulos de página (QA-1 M-8).** Cada ruta tiene su `<title>` («Mapa de
 reportes · Ciudad Viva»), que también es lo que lee el anunciador de rutas de

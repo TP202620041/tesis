@@ -13,11 +13,13 @@
  * `@/features/* /api|hooks|components` para bloquear el acoplamiento entre
  * features sin tener que nombrar cada una.
  *
- * Severidad: `SEVERIDAD` arranca en 'warn' durante la migración (FE-01..FE-08
- * del plan) para no romper `npm run lint`. La tarea FE-09 la cambia a 'error'.
+ * Severidad: `SEVERIDAD` fue 'warn' durante la migración (FE-01..FE-08 del
+ * plan) para no romper `npm run lint`. Desde FE-09 (25/10/2026, con 0 avisos
+ * de capas) es 'error': un import que rompa las capas hace fallar el lint y
+ * la CI.
  */
 
-const SEVERIDAD = 'warn';
+const SEVERIDAD = 'error';
 
 const SIN_TESTS = ['**/*.test.ts', '**/*.test.tsx'];
 

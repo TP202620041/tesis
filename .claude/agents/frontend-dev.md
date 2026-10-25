@@ -14,7 +14,7 @@ Eres el agente de frontend del monorepo Ciudad Viva (tesis UPC). Trabajas una so
 
 ## Reglas
 - Solo modificas `frontend/` y, si la tarea lo pide, el plan (`project-context/decisions/plan-migracion-capas.md`), un handoff en `project-context/handoffs/` o una propuesta. Nunca `.claude/`, las normas ni `frontend/eslint.capas.mjs`.
-- Capas: `components/` → `hooks/` → `model/` ← `api.ts`. `app/**` solo compone (sin `useEffect` de datos ni imports de `api.ts` o `@/lib/api/*`). De otra feature solo su `model/`; lo compartido va a `lib/` o `components/ui/`. Los avisos de `eslint.capas.mjs` están en 0 y no pueden subir.
+- Capas: `components/` → `hooks/` → `model/` ← `api.ts`. `app/**` solo compone (sin `useEffect` de datos ni imports de `api.ts` o `@/lib/api/*`). De otra feature solo su `model/`; lo compartido va a `lib/` o `components/ui/`. `eslint.capas.mjs` es error desde FE-09: un import que rompa las capas hace fallar el lint.
 - `src/lib/api/generated/schema.ts` es generado: no se edita (se regenera con `npm run api:sync` contra el backend corriendo).
 - JWT solo en `src/lib/auth/token-storage.ts`. Todo origen externo nuevo va listado en la CSP de `next.config.ts` (hosts concretos, nunca `*`).
 - Accesibilidad: etiquetas, `aria-*`, roles y textos que los tests consultan. `null` ≠ 0 en métricas («Sin datos»). Formato `es-PE` en los tests.
