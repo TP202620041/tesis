@@ -82,7 +82,7 @@ El origen de la PWA no debe cambiar después de abrir a usuarios: push, la sesi�
 - **DNSSEC:** activo desde el 25/10. Cloudflare publicó el `DS` en el registro de `.app` en unos 6 minutos, y la consulta a `1.1.1.1` devuelve `AD=true`.
 - **Registros web:** el de la raíz (PWA, Vercel), el de `www` y el de `api` (Railway) **todavía no existen**. Se crean en el primer despliegue (§5.2 y §6) con el destino que indique cada plataforma. Conviven con el `MX` y el SPF de Email Routing en la raíz.
 - **Hecho el 25/10:** la API key de envío (paso 2). La creó el usuario y la pega él en Railway.
-- **Configuración TLS de la zona:** SSL/TLS = **Full** (no strict) con `ssl_automatic_mode = custom`, así que Cloudflare no la pasa sola a strict. Universal SSL está activo. Sugerido y todavía no aplicado: subir `min_tls_version` de 1.0 a 1.2.
+- **Configuración TLS de la zona:** SSL/TLS = **Full** (no strict) con `ssl_automatic_mode = custom`, así que Cloudflare no la pasa sola a strict. Universal SSL está activo. TLS mínimo **1.2** desde el 25/10 (antes 1.0) y TLS 1.3 encendido. Solo afecta a los registros con proxy, es decir, a `api`. Un dominio propio de R2 (`fotos.`, reservado) configura su TLS mínimo en el bucket.
 
 1. **Dominio** (Domains › Add Domain): **hecho el 25/10**; quedó «Verified» unos 6 minutos después de cargar los registros.
    - **Configuración:** región **`us-east-1`**, la misma que Railway. **No se puede cambiar después de crear el dominio.** Es de solo envío (recibir lo hace Email Routing), con TLS en modo *opportunistic*, el valor por defecto.
@@ -120,7 +120,7 @@ Si no es 200: `401`, la clave no es válida; `403`, el remitente no es del domin
 
 ## 5. Railway
 
-Crear un proyecto («Ciudad Viva», entorno `production`). Región de cada servicio: **US East (Virginia)** (Settings › Deploy › Regions); no hay región en Sudamérica.
+Crear un proyecto («Ciudad Viva», entorno `production`). **Hecho el 25/10**, a pedido del usuario: el proyecto existe en su workspace, en plan Hobby, todavía **sin servicios**. Los servicios se crean en DEP-09. Región de cada servicio: **US East (Virginia)** (Settings › Deploy › Regions); no hay región en Sudamérica.
 
 ### 5.1 Servicio `postgis`
 
