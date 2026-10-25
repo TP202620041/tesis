@@ -328,6 +328,21 @@ marco común, `features/auth/components/MarcoDeLaApp.tsx`, en el layout raíz:
     quiénes son, la apariencia, sus enlaces y «Cerrar sesión». La ruta pasó
     del grupo `(ciudadano)` a `(cuenta)`; la URL no cambia.
   - En escritorio sigue el desplegable de la cabecera.
+- **Volver a donde se estaba.** Al volver de «Soporte» a «Cuenta», la
+  pantalla quedaba en blanco hasta mover el dedo. Las pantallas cargan sus
+  datos al montarse: un momento miden poco más que «Cargando…», y el
+  navegador devolvía la posición antes de que el contenido llegara tan abajo.
+  Chrome la dejaba arriba; Safari en iOS, más allá del contenido.
+  - El marco se queda con la restauración (`useMemoriaDeDesplazamiento`,
+    `history.scrollRestoration = 'manual'`).
+  - Anota la posición al irse: un clic en un enlace, o atrás/adelante.
+  - Al volver, empieza arriba y baja a la posición anotada en cuanto la
+    página mide lo suficiente. Vale para atrás/adelante y para tocar el
+    destino del que se venía (`esRegresoDentroDeSuDestino`: de «Soporte» a
+    «Cuenta», del detalle a «Mis reportes» o a la bandeja), como las
+    pestañas de iOS.
+  - Si la persona se mueve antes, no se le quita el control.
+  - Ir a otro destino deja la pantalla arriba, como siempre.
   - Sin red, `/perfil` no lleva al login como las demás pantallas con
     sesión, porque `GuardiaDeRol` tomaría el fallo de `/me` como «sin
     sesión» y en el móvil no quedaría cómo salir. `PantallaDeCuenta`

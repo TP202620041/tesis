@@ -3,6 +3,7 @@
 import { usePathname } from 'next/navigation';
 import { useRef, type ReactNode } from 'react';
 import { useTemaDeLaApp } from '../hooks/useApariencia';
+import { useMemoriaDeDesplazamiento } from '../hooks/useMemoriaDeDesplazamiento';
 import { useUsuarioDelMarco } from '../hooks/useUsuarioDelMarco';
 import { modoDelMarco } from '../model/navegacion';
 import { BarraInferiorDeLaApp, CabeceraDeLaApp } from './NavegacionDelMarco';
@@ -27,6 +28,8 @@ export function MarcoDeLaApp({ children }: { children: ReactNode }) {
   const ruta = usePathname();
   const usuario = useUsuarioDelMarco();
   useTemaDeLaApp();
+  // Al volver a una pantalla, a donde se estaba (no en blanco mientras carga).
+  useMemoriaDeDesplazamiento(ruta);
   const modo = modoDelMarco(ruta);
   const contenido = useRef<HTMLDivElement>(null);
 

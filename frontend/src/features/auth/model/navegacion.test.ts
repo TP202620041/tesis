@@ -4,6 +4,7 @@ import {
   CUENTA,
   descripcionDeCuenta,
   enlacesDeLaPantallaDeCuenta,
+  esRegresoDentroDeSuDestino,
   esRutaActual,
   iniciales,
   modoDelMarco,
@@ -81,6 +82,22 @@ describe('«Cuenta» en el móvil: una pantalla, no un menú (prueba en iPhone d
     expect(hrefs(enlacesDeLaPantallaDeCuenta('CIUDADANO'))).toEqual(['/soporte']);
     expect(hrefs(enlacesDeLaPantallaDeCuenta('FUNCIONARIO_MUNICIPAL'))).toEqual(['/soporte', '/desempeno']);
     expect(enlacesDeLaPantallaDeCuenta('ADMIN')).toEqual([]);
+  });
+});
+
+describe('esRegresoDentroDeSuDestino: volver a donde se estaba, como en las pestañas de iOS', () => {
+  it('de lo que cuelga de un destino a ese destino, sí', () => {
+    expect(esRegresoDentroDeSuDestino('/soporte', '/perfil')).toBe(true);
+    expect(esRegresoDentroDeSuDestino('/mis-reportes/12', '/mis-reportes')).toBe(true);
+    expect(esRegresoDentroDeSuDestino('/bandeja/7', '/bandeja?estado=PENDIENTE')).toBe(true);
+    expect(esRegresoDentroDeSuDestino('/reportes/3', '/mapa')).toBe(true);
+  });
+
+  it('ir hacia adentro, a otro destino o al mismo, no', () => {
+    expect(esRegresoDentroDeSuDestino('/perfil', '/soporte')).toBe(false);
+    expect(esRegresoDentroDeSuDestino('/mis-reportes', '/mis-reportes/12')).toBe(false);
+    expect(esRegresoDentroDeSuDestino('/mis-reportes/12', '/mapa')).toBe(false);
+    expect(esRegresoDentroDeSuDestino('/perfil', '/perfil')).toBe(false);
   });
 });
 

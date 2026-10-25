@@ -1,15 +1,13 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import type { Rol } from '@/lib/types/domain';
 import { useUsuarioDelMarco } from '../hooks/useUsuarioDelMarco';
+import { ROLES_CON_SESION } from '../model/rutas';
 import { BotonCerrarSesion } from './BotonCerrarSesion';
 import { EditarPerfil } from './EditarPerfil';
 import { GuardiaDeRol } from './GuardiaDeRol';
 import { MiCuenta } from './MiCuenta';
 import { SelectorDeApariencia } from './SelectorDeApariencia';
-
-const ROLES_CON_CUENTA: readonly Rol[] = ['CIUDADANO', 'FUNCIONARIO_MUNICIPAL', 'ADMIN'];
 
 /**
  * La pantalla de «Cuenta» (`/perfil`), para cualquier rol. El ciudadano edita
@@ -28,7 +26,7 @@ export function PantallaDeCuenta({ textoLegal }: { textoLegal: ReactNode }) {
   if (quien.estado === 'cargando') return <p className="p-8 text-texto-2">Cargando…</p>;
   if (quien.estado === 'sin-identificar') return <CuentaSinConexion />;
   return (
-    <GuardiaDeRol rolesPermitidos={ROLES_CON_CUENTA}>
+    <GuardiaDeRol rolesPermitidos={ROLES_CON_SESION}>
       {(u) =>
         u.rol === 'CIUDADANO' ? <EditarPerfil inicial={u} textoLegal={textoLegal} /> : <MiCuenta usuario={u} />
       }

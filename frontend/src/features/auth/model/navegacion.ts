@@ -125,6 +125,33 @@ export function navegacionDe(rol: Rol | 'desconocido' | null): Navegacion {
   }
 }
 
+/** Todos los destinos de la navegación, de cualquier rol. */
+const DESTINOS: readonly ItemNavegacion[] = [
+  MAPA,
+  DESEMPENO,
+  REPORTAR,
+  MIS_REPORTES,
+  PERFIL,
+  SOPORTE,
+  BANDEJA,
+  PANEL,
+  CATEGORIAS,
+  SOPORTE_ADMIN,
+  CUENTA,
+];
+
+/**
+ * `true` si ir de `anterior` a `nueva` es volver al inicio de un destino desde
+ * algo que cuelga de él (de `/soporte` a «Cuenta», del detalle a «Mis
+ * reportes»): como en las pestañas de iOS, se vuelve a donde se estaba, no
+ * arriba. Ir a otro destino, o tocar el que ya está abierto, no lo es.
+ */
+export function esRegresoDentroDeSuDestino(anterior: string, nueva: string): boolean {
+  const camino = (ruta: string) => ruta.split(/[?#]/)[0] ?? ruta;
+  if (camino(anterior) === camino(nueva)) return false;
+  return DESTINOS.some((item) => item.href === camino(nueva) && esRutaActual(anterior, item));
+}
+
 /**
  * Lo que la pantalla de la cuenta (`/perfil`) ofrece al final, junto a
  * «Cerrar sesión»: los enlaces de la cuenta del rol, menos ella misma.
