@@ -23,7 +23,9 @@ import pe.edu.upc.viasegura.common.port.ArchivoSubido;
  * ({@code CLASIFICACION_FALSO_RESPUESTA}):</p>
  * <ul>
  *   <li><b>vacia</b> (por defecto, y siempre en produccion): no detecta nada,
- *       asi que nunca hay sugerencia. Es la clasificacion apagada;</li>
+ *       asi que nunca hay sugerencia. Es la clasificacion apagada, y
+ *       {@link #estaDisponible()} lo dice para que nadie sanee ni descargue
+ *       una foto en vano;</li>
  *   <li><b>{@code clase:confianza} separadas por coma</b>, p. ej.
  *       {@code bache:0.87,grieta:0.30}: esas detecciones para cualquier foto
  *       (el perfil {@code local} y los IT);</li>
@@ -56,6 +58,16 @@ public class FalsoClasificadorAdapter implements ClasificadorDano {
         log.info("Clasificador falso: {}", falla ? "modo falla"
                 : resultado.detecciones().isEmpty() ? "sin detecciones (nunca sugiere)"
                 : resultado.detecciones().size() + " deteccion(es) fija(s)");
+    }
+
+    /**
+     * Sin respuesta configurada no detectaria nada nunca: la clasificacion esta
+     * apagada (produccion hasta NC-04b). En modo {@code falla} si esta
+     * disponible, para que el camino de error se recorra entero.
+     */
+    @Override
+    public boolean estaDisponible() {
+        return falla || !resultado.detecciones().isEmpty();
     }
 
     @Override

@@ -22,6 +22,21 @@ import pe.edu.upc.viasegura.common.port.ArchivoSubido;
 public interface ClasificadorDano {
 
     /**
+     * Si este adaptador puede detectar algo. Con {@code false} la vista previa
+     * no sanea la foto y la sugerencia oficial no la descarga: no se gasta un
+     * turno de saneado, ni memoria ni red, en una respuesta que de antemano es
+     * «sin sugerencia».
+     *
+     * <p>Es el falso sin respuesta configurada, que es como corre produccion
+     * hasta NC-04b (la clasificacion apagada). Lo decide el adaptador y no una
+     * propiedad aparte: asi no puede haber una «habilitada» que diga si
+     * mientras el adaptador no detecta nada, o al reves. El adaptador HTTP
+     * (NC-04b) respondera {@code true}: si el servicio esta caido, eso se ve
+     * al llamarlo.</p>
+     */
+    boolean estaDisponible();
+
+    /**
      * Detecta danos en la foto.
      *
      * @param foto foto <b>ya saneada</b> por

@@ -21,6 +21,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import pe.edu.upc.viasegura.auth.domain.Rol;
 import pe.edu.upc.viasegura.auth.domain.Usuario;
+import pe.edu.upc.viasegura.auth.repository.UsuarioRepository;
 import pe.edu.upc.viasegura.common.security.JwtService;
 import pe.edu.upc.viasegura.distritos.repository.DistritoRepository;
 import pe.edu.upc.viasegura.reportes.repository.CategoriaDanoRepository;
@@ -48,6 +49,8 @@ class ClasificacionVistaPreviaIT extends AbstractPostgisIT {
     CategoriaDanoRepository categoriaRepository;
     @Autowired
     ReporteRepository reporteRepository;
+    @Autowired
+    UsuarioRepository usuarioRepository;
 
     @Value("${app.storage.fotos-dir}")
     String fotosDir;
@@ -134,6 +137,20 @@ class ClasificacionVistaPreviaIT extends AbstractPostgisIT {
                 .andExpect(status().isForbidden());
         previa(foto(ImagenesDePrueba.png(64, 48), "bache.png"), usuario(Rol.ADMIN))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void ciudadanoConLosTerminosPendientes_403TerminosPendientes() throws Exception {
+        // Como cualquier ruta privada (D-12): sin aceptar los terminos vigentes no se clasifica.
+        Usuario sinTerminos = usuarioRepository.save(Usuario.builder()
+                .email("sin-terminos-" + UUID.randomUUID() + "@lima.pe")
+                .passwordHash(passwordEncoder.encode("x"))
+                .nombre("Ana").apellido("Vecina").rol(Rol.CIUDADANO).build());
+
+        previa(foto(ImagenesDePrueba.png(64, 48), "bache.png"), sinTerminos)
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.codigo", is("TERMINOS_PENDIENTES")))
+                .andExpect(jsonPath("$.categoriaId").doesNotExist());
     }
 
     @Test

@@ -2196,7 +2196,7 @@ la elige a mano, como siempre.
 | Quién | Solo `CIUDADANO` con los términos vigentes (401 sin token, 403 con otro rol): es el único que crea reportes. |
 | Entrada | `multipart/form-data` con la parte `foto` (JPEG, PNG o WEBP, hasta 10 MB). |
 | Respuesta | **200** `{"categoriaId": 1, "categoriaNombre": "Bache"}`, o `{"categoriaId": null, "categoriaNombre": null}` sin sugerencia. |
-| Errores | Sin la parte `foto`, o vacía: 400. No es una imagen válida: 409, el mismo de la creación. Sin turno de saneado: 503. |
+| Errores | Sin la parte `foto`, o vacía: 400. No es una imagen válida: 409, el mismo de la creación (solo con la clasificación encendida: apagada no se sanea y la respuesta es 200 «sin sugerencia»). **Nunca 503**: sin turno, 200 «sin sugerencia». |
 | Persistencia | **Ninguna**: ni la foto ni el resultado (`ClasificacionVistaPreviaIT` cuenta reportes y archivos antes y después). |
 
 - **La foto pasa por el mismo `SaneadorDeImagen` que el almacenamiento**
@@ -2210,13 +2210,30 @@ la elige a mano, como siempre.
   Exponer el puntaje daría a cualquier ciudadano un instrumento para sondear
   el detector foto a foto, y no ayuda a elegir (por debajo del umbral ya no se
   sugiere nada). Agregar un campo después es compatible; quitarlo, no.
-- **Un servicio caído no es un error para el ciudadano**: la respuesta es
-  «sin sugerencia» y elige a mano. La PWA no distingue ese caso del de una
-  foto sin un daño claro.
-- **Comparte el semáforo de saneado** con las subidas de fotos (2 a la vez):
-  muchas vistas previas simultáneas pueden demorar una creación hasta el 503
-  de los 10 s. Se acepta en el MVP (una vista previa por foto elegida); si
-  hiciera falta, un límite por usuario o un semáforo propio.
+- **Un error del clasificador nunca llega al ciudadano**: ni el servicio
+  caído (`ClasificacionNoDisponibleException`) ni cualquier otra excepción del
+  adaptador (un bug, una respuesta fuera del contrato). La respuesta es «sin
+  sugerencia», con un WARN en el log, y el ciudadano elige a mano. La PWA no
+  distingue esos casos del de una foto sin un daño claro.
+- **La vista previa no compite con las subidas por el saneado** (la IA nunca
+  bloquea un reporte, §4.3). El saneado admite 2 fotos a la vez en todo el
+  servidor y la creación sanea dentro de su transacción, con una conexión
+  tomada (ver la deuda técnica). Por eso la vista previa tiene un **turno
+  propio que no espera** (`ClasificacionService`, uno a la vez): si está
+  ocupado, la respuesta es «sin sugerencia» al instante. Así las vistas
+  previas nunca ocupan más de uno de los dos turnos y siempre queda otro para
+  las creaciones. Si las creaciones ocupan los dos, la vista previa que tiene
+  su turno espera el del saneado como cualquier subida (hasta 10 s) y, sin él,
+  responde «sin sugerencia», nunca 503.
+- **Con la clasificación apagada no se sanea nada.** `ClasificadorDano`
+  declara si puede detectar algo (`estaDisponible()`); el falso sin respuesta,
+  que es como corre producción hasta NC-04b, dice que no. Entonces la vista
+  previa responde «sin sugerencia» sin sanear la foto (por eso ahí una foto
+  inválida no da 409) y la sugerencia oficial no lee la base ni descarga la
+  foto. Lo decide el adaptador y no una propiedad `habilitada` aparte, para
+  que no puedan contradecirse (una «habilitada» con un falso que no detecta
+  nada). El adaptador HTTP de NC-04b responderá `true`: un servicio caído se
+  nota al llamarlo, no antes.
 
 ### Sugerencia oficial (D-08)
 
@@ -2226,9 +2243,10 @@ la elige a mano, como siempre.
 2. `SugerenciaCategoriaListener` (`AFTER_COMMIT`) solo encola, y solo si hay
    foto. Con la cola del executor llena registra un WARN con el reporte y la
    descarta, como los avisos (D-13).
-3. `SugerenciaCategoriaService#sugerir` (`@Async`, **sin transacción**) lee
-   la URL de la foto, la descarga por `FotoStorageService` y la clasifica. Ese
-   I/O ocurre sin ninguna conexión de la base tomada.
+3. `SugerenciaCategoriaService#sugerir` (`@Async`, **sin transacción**)
+   termina enseguida si la clasificación está apagada. Si no, lee la URL de la
+   foto, la descarga por `FotoStorageService` y la clasifica. Ese I/O ocurre
+   sin ninguna conexión de la base tomada.
 4. `ReporteService#registrarSugerencia` escribe en una **transacción corta**
    un `UPDATE` de tres columnas **condicionado a que sigan nulas**: la
    sugerencia se escribe una sola vez, y un segundo intento (otro evento, un
@@ -2236,8 +2254,10 @@ la elige a mano, como siempre.
 
 **La creación nunca espera ni falla por la clasificación.** Si el servicio
 falla, la foto no se puede leer o no hay una sugerencia clara, las columnas
-quedan nulas y el reporte sigue su curso. Un error inesperado escapa al
-manejador de `@Async`, que lo registra.
+quedan nulas y el reporte sigue su curso. Un error del clasificador, aunque
+sea inesperado, da «sin sugerencia» con un WARN; cualquier otro error
+inesperado (leer la base, por ejemplo) escapa al manejador de `@Async`, que lo
+registra.
 
 **Lo que envía el cliente se ignora.** `POST /api/reportes` no tiene
 parámetros de sugerencia, y las tres columnas son de **solo lectura para JPA**
@@ -2296,10 +2316,15 @@ deja crear dos reportes del mismo hueco. La gravedad la expresa la
   siguen viendo con su categoría y el creador puede seguir editándolos sin
   cambiarla (`ReporteService#editar` solo valida la categoría cuando cambia).
   Lo prueba `CategoriasDelModeloIT`.
-- Consecuencia aceptada: como el catálogo público ya no la ofrece, la PWA no
-  puede filtrar el mapa por «Hueco en calzada». No se pasaron esos reportes a
-  «Bache» con la migración porque cambiaría lo que eligió el ciudadano; si
-  hubiera muchos, se decide aparte.
+- **La deduplicación no cruza categorías.** Un «Bache» nuevo a 20 m o menos
+  de un reporte activo de «Hueco en calzada» no se suma a él (US-09 busca la
+  misma categoría): se crea un reporte aparte para el mismo daño. Y como el
+  catálogo público ya no la ofrece, la PWA no puede filtrar el mapa por
+  «Hueco en calzada». Las dos cosas solo afectan a datos que ya existían:
+  **producción todavía no está desplegada** (v0.7.0 está lista, sin
+  desplegar), así que allí no hay reportes con esa categoría; las bases de
+  desarrollo sí pueden tenerlos. No se pasaron a «Bache» con la migración
+  porque cambiaría lo que eligió el ciudadano.
 - Las estándar no se reactivan por el API (US-29); volver atrás sería otra
   migración.
 
@@ -2315,7 +2340,8 @@ deja crear dos reportes del mismo hueco. La gravedad la expresa la
 - **`local`**: `bache:0.87` por defecto, para ver la vista previa y la
   sugerencia sin el servicio de inferencia.
 - **`prod`**: respuesta vacía **literal**, no por entorno. La clasificación
-  queda apagada: nunca sugiere ni escribe nada. Una respuesta fija en
+  queda apagada (`estaDisponible()` en `false`): nunca sugiere ni escribe
+  nada, y ni sanea ni descarga fotos para eso. Una respuesta fija en
   producción llenaría la base de sugerencias inventadas y arruinaría la
   evaluación del modelo.
 - **`test`**: `bache:0.87,grieta:0.30`, literal, para que un
@@ -2327,11 +2353,14 @@ deja crear dos reportes del mismo hueco. La gravedad la expresa la
 - Unitarias: `PoliticaDeSugerenciaTest` (las cuatro reglas, umbral exacto,
   empates, redondeo y rangos), `FalsoClasificadorAdapterTest`,
   `ValidacionTipoClasificadorTest`, `ClasificacionServiceTest` (la vista previa
-  clasifica la foto **saneada**; la oficial no la vuelve a sanear),
+  clasifica la foto **saneada**; la oficial no la vuelve a sanear; una vista
+  previa a la vez, sin esperar; sin turno de saneado, error inesperado del
+  adaptador o clasificación apagada = «sin sugerencia»),
   `SugerenciaCategoriaListenerTest` (cola llena) y
-  `SugerenciaCategoriaServiceTest` (foto ausente, almacenamiento caído, URL
-  que no es un nombre del servidor).
-- Integración: `ClasificacionVistaPreviaIT` (rol, no persiste, errores),
+  `SugerenciaCategoriaServiceTest` (clasificación apagada, foto ausente,
+  almacenamiento caído, URL que no es un nombre del servidor).
+- Integración: `ClasificacionVistaPreviaIT` (rol, términos pendientes, no
+  persiste, errores),
   `SugerenciaCategoriaIT` (se escribe una sola vez, lo del cliente se ignora,
   la adhesión no clasifica, la edición no la borra), `SugerenciaCategoriaFallaIT`
   (con el falso en `falla`, el reporte se crea igual y la vista previa es «sin
@@ -2380,10 +2409,14 @@ deja crear dos reportes del mismo hueco. La gravedad la expresa la
   sugerencia **después** del commit sin tocar la subida (§4.5, D-13).
   Medido: con 16 creaciones con foto simultáneas, sumado al refresco del
   índice en `AFTER_COMMIT` (que pide una segunda conexión), el pool se agota
-  durante 30 s (ver [Prueba de memoria](#prueba-de-memoria-dep-12)). La
-  sugerencia de NC-04 no lo empeora en la creación: corre en el executor
-  asíncrono y solo toma una conexión para leer la URL de la foto y para el
-  `UPDATE` final, no durante la clasificación.
+  durante 30 s (ver [Prueba de memoria](#prueba-de-memoria-dep-12)). NC-04
+  lo acota así: la sugerencia oficial corre en el executor asíncrono y solo
+  toma una conexión para leer la URL de la foto y para el `UPDATE` final,
+  nunca durante la descarga ni la clasificación; y la vista previa ocupa como
+  mucho uno de los dos turnos de saneado y no espera el suyo, así que una
+  creación puede esperar a lo sumo a una vista previa en curso (unos cientos de
+  ms), no a una fila de ellas. Con la clasificación apagada (producción hasta
+  NC-04b) ninguna de las dos sanea ni descarga nada.
 - **Fotos huérfanas.** Si la transacción falla después de subir la foto, el
   archivo u objeto queda en el disco o el bucket (aceptable en el MVP).
   Mejora posible: borrarlo en `afterCompletion` con estado `ROLLED_BACK`.

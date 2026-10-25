@@ -1,6 +1,7 @@
 package pe.edu.upc.viasegura.clasificacion.service;
 
 import java.util.Optional;
+import java.util.concurrent.Semaphore;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -11,6 +12,7 @@ import pe.edu.upc.viasegura.clasificacion.dto.ClasificacionResponse;
 import pe.edu.upc.viasegura.clasificacion.port.CategoriasClasificables;
 import pe.edu.upc.viasegura.clasificacion.port.ClasificacionNoDisponibleException;
 import pe.edu.upc.viasegura.clasificacion.port.ClasificadorDano;
+import pe.edu.upc.viasegura.common.exception.ServicioNoDisponibleException;
 import pe.edu.upc.viasegura.common.port.ArchivoSubido;
 import pe.edu.upc.viasegura.common.port.SaneadorDeImagen;
 
@@ -33,17 +35,31 @@ import pe.edu.upc.viasegura.common.port.SaneadorDeImagen;
  * conexion del pool (D-13). La unica lectura de la base, el catalogo de
  * categorias, es una consulta corta propia del adaptador.</p>
  *
- * <p><b>La IA nunca bloquea un reporte.</b> Si el servicio falla, el resultado
- * es «sin sugerencia», nunca un error para el ciudadano.</p>
+ * <p><b>La IA nunca bloquea un reporte.</b> Si el clasificador falla, por la
+ * razon que sea, el resultado es «sin sugerencia», nunca un error para el
+ * ciudadano. Y la vista previa no le quita a la creacion de reportes los
+ * turnos de saneado: ver {@link #vistaPrevia}.</p>
  */
 @Slf4j
 @Service
 public class ClasificacionService {
 
+    /**
+     * Vistas previas saneando a la vez. El saneado admite
+     * {@code app.storage.saneado.max-concurrentes} (2) en todo el servidor y lo
+     * comparten las subidas de fotos; con una sola vista previa a la vez, las
+     * vistas previas nunca ocupan mas de un turno y queda al menos otro para las
+     * creaciones (con {@code max-concurrentes} de 2 o mas). Si las creaciones
+     * ocupan todos, la vista previa que ya tiene su turno espera el del saneado
+     * como cualquier subida y, sin el, responde «sin sugerencia».
+     */
+    static final int VISTAS_PREVIAS_SIMULTANEAS = 1;
+
     private final ClasificadorDano clasificador;
     private final CategoriasClasificables categorias;
     private final SaneadorDeImagen saneador;
     private final PoliticaDeSugerencia politica;
+    private final Semaphore turnoDeVistaPrevia = new Semaphore(VISTAS_PREVIAS_SIMULTANEAS);
 
     public ClasificacionService(ClasificadorDano clasificador,
                                 CategoriasClasificables categorias,
@@ -56,6 +72,15 @@ public class ClasificacionService {
     }
 
     /**
+     * Si la clasificacion puede sugerir algo. Con {@code false} (el falso sin
+     * respuesta: produccion hasta NC-04b) nadie sanea ni descarga una foto para
+     * clasificarla.
+     */
+    public boolean estaDisponible() {
+        return clasificador.estaDisponible();
+    }
+
+    /**
      * Vista previa (W-07/W-08): sugiere una categoria para la foto que el
      * ciudadano esta por reportar, sin guardar nada.
      *
@@ -64,7 +89,15 @@ public class ClasificacionService {
      * (orientada, a 2048 px, recomprimida), y como el saneado y el modelo son
      * deterministas, la misma foto da la misma sugerencia en los dos momentos
      * (D-08). Por eso una foto que no es una imagen valida recibe el mismo 409
-     * que al crear el reporte, y sin turno de saneado, el mismo 503.</p>
+     * que al crear el reporte.</p>
+     *
+     * <p><b>La vista previa nunca compite con las subidas.</b> Tiene un turno
+     * propio ({@value #VISTAS_PREVIAS_SIMULTANEAS} a la vez) que <b>no
+     * espera</b>: si esta ocupado, o si el saneado no da turno a tiempo, la
+     * respuesta es «sin sugerencia» y no un 503. El ciudadano elige a mano y su
+     * reporte no espera a nadie. Con la clasificacion apagada
+     * ({@link #estaDisponible()} en {@code false}) ni siquiera se sanea: la
+     * respuesta es «sin sugerencia» aunque la foto no sea una imagen valida.</p>
      *
      * @throws IllegalArgumentException si la foto llega vacia (400)
      */
@@ -72,27 +105,57 @@ public class ClasificacionService {
         if (foto == null || foto.vacio()) {
             throw new IllegalArgumentException("Adjunta la foto del daño para sugerir una categoría");
         }
-        ArchivoSubido saneada = saneador.sanear(foto);
-        return sugerir(saneada).map(ClasificacionResponse::de).orElseGet(ClasificacionResponse::sinSugerencia);
+        if (!clasificador.estaDisponible()) {
+            return ClasificacionResponse.sinSugerencia();
+        }
+        return sanearSiHayTurno(foto)
+                .flatMap(this::sugerir)
+                .map(ClasificacionResponse::de)
+                .orElseGet(ClasificacionResponse::sinSugerencia);
     }
 
     /**
      * Sugerencia para una foto <b>ya saneada</b>; no la vuelve a sanear
      * (recomprimirla daria otros pixeles que los de la vista previa).
      *
-     * @return la sugerencia, o vacio si no hay una clara o el servicio fallo
+     * @return la sugerencia, o vacio si no hay una clara, la clasificacion
+     *         esta apagada o el clasificador fallo
      */
     public Optional<Sugerencia> sugerir(ArchivoSubido fotoSaneada) {
+        if (!clasificador.estaDisponible()) {
+            return Optional.empty();
+        }
         ResultadoDeteccion resultado;
         try {
             resultado = clasificador.detectar(fotoSaneada);
         } catch (ClasificacionNoDisponibleException e) {
             log.warn("Clasificacion no disponible, sin sugerencia: {}", e.getMessage());
             return Optional.empty();
+        } catch (RuntimeException e) {
+            // Un error del adaptador que no tradujo (un bug, una respuesta que no
+            // cumple el contrato): tampoco llega al ciudadano ni al reporte.
+            log.warn("Error inesperado del clasificador, sin sugerencia", e);
+            return Optional.empty();
         }
         if (resultado.detecciones().isEmpty()) {
             return Optional.empty();
         }
         return politica.aplicar(resultado, categorias.activas());
+    }
+
+    /** La foto saneada, o vacio si no hay turno de vista previa o de saneado, sin esperar el primero. */
+    private Optional<ArchivoSubido> sanearSiHayTurno(ArchivoSubido foto) {
+        if (!turnoDeVistaPrevia.tryAcquire()) {
+            log.debug("Otra vista previa esta saneando: sin sugerencia");
+            return Optional.empty();
+        }
+        try {
+            return Optional.of(saneador.sanear(foto));
+        } catch (ServicioNoDisponibleException e) {
+            log.info("Vista previa sin turno de saneado, sin sugerencia: {}", e.getMessage());
+            return Optional.empty();
+        } finally {
+            turnoDeVistaPrevia.release();
+        }
     }
 }

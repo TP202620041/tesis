@@ -40,6 +40,15 @@ class FalsoClasificadorAdapterTest {
     }
 
     @Test
+    void soloSinRespuesta_noEstaDisponible() {
+        // Vacio es la clasificacion apagada (produccion hasta NC-04b).
+        assertThat(new FalsoClasificadorAdapter("", "falso-0").estaDisponible()).isFalse();
+        assertThat(new FalsoClasificadorAdapter("bache:0.4", "falso-0").estaDisponible()).isTrue();
+        // En modo falla si: el camino de error se recorre entero.
+        assertThat(new FalsoClasificadorAdapter("falla", "falso-0").estaDisponible()).isTrue();
+    }
+
+    @Test
     void fotoVacia_noSeClasifica() {
         FalsoClasificadorAdapter falso = new FalsoClasificadorAdapter("bache:0.9", "falso-0");
 

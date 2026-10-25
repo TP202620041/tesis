@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.util.Optional;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.core.io.ByteArrayResource;
@@ -41,6 +42,11 @@ class SugerenciaCategoriaServiceTest {
     private final ReporteService reporteService = mock(ReporteService.class);
     private final SugerenciaCategoriaService servicio =
             new SugerenciaCategoriaService(reporteRepository, fotos, clasificacion, reporteService);
+
+    @BeforeEach
+    void clasificacionEncendida() {
+        when(clasificacion.estaDisponible()).thenReturn(true);
+    }
 
     private void conFoto(String url) {
         when(reporteRepository.findFotoUrlById(42L)).thenReturn(Optional.ofNullable(url));
@@ -83,12 +89,25 @@ class SugerenciaCategoriaServiceTest {
     }
 
     @Test
+    void conLaClasificacionApagada_niLeeLaBaseNiDescargaLaFoto() {
+        // Produccion hasta NC-04b: el falso sin respuesta no detectaria nada.
+        when(clasificacion.estaDisponible()).thenReturn(false);
+        conFoto("/media/fotos/reportes/" + NOMBRE);
+
+        servicio.sugerir(42L);
+
+        verifyNoInteractions(reporteRepository, fotos, reporteService);
+        verify(clasificacion, never()).sugerir(any());
+    }
+
+    @Test
     void sinFoto_niLeeElAlmacenamiento() {
         conFoto(null);
 
         servicio.sugerir(42L);
 
-        verifyNoInteractions(fotos, clasificacion, reporteService);
+        verifyNoInteractions(fotos, reporteService);
+        verify(clasificacion, never()).sugerir(any());
     }
 
     @Test
@@ -97,7 +116,8 @@ class SugerenciaCategoriaServiceTest {
 
         servicio.sugerir(42L);
 
-        verifyNoInteractions(fotos, clasificacion, reporteService);
+        verifyNoInteractions(fotos, reporteService);
+        verify(clasificacion, never()).sugerir(any());
     }
 
     @Test
@@ -107,7 +127,8 @@ class SugerenciaCategoriaServiceTest {
 
         servicio.sugerir(42L);
 
-        verifyNoInteractions(clasificacion, reporteService);
+        verifyNoInteractions(reporteService);
+        verify(clasificacion, never()).sugerir(any());
     }
 
     @Test
@@ -116,7 +137,7 @@ class SugerenciaCategoriaServiceTest {
         when(fotos.cargarFotoReporte(NOMBRE)).thenThrow(new ServicioNoDisponibleException("R2 caido"));
 
         assertThatCode(() -> servicio.sugerir(42L)).doesNotThrowAnyException();
-        verifyNoInteractions(clasificacion);
+        verify(clasificacion, never()).sugerir(any());
         verify(reporteService, never()).registrarSugerencia(anyLong(), any());
     }
 }
