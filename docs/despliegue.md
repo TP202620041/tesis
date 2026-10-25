@@ -25,7 +25,7 @@
 | Docker | Probar la restauración en el PostGIS local. |
 | `curl` | Verificar cada paso. |
 
-En los comandos, `$API` es la URL pública del API (`https://<algo>.up.railway.app`) y `$PWA` la de la PWA (`https://<algo>.vercel.app`).
+En los comandos, `$API` es la URL pública del API (`https://<algo>.up.railway.app`) y `$PWA` la de la PWA (`https://<algo>.vercel.app`). Pasarán a nombres bajo `ciudadviva.app` cuando el usuario decida cuáles (decisión 3b, §3), y conviene que eso ocurra antes del primer despliegue.
 
 ## 1. Cuentas
 
@@ -71,14 +71,18 @@ En los comandos, `$API` es la URL pública del API (`https://<algo>.up.railway.a
   - **Por API:** `POST /zones/{id}/email/routing/dns` con `name` sirve solo para subdominios; para la raíz se envía el cuerpo vacío.
 - **Convivencia con Resend:** Resend usa el subdominio `send` y `resend._domainkey`. En la zona quedan dos DKIM, uno de Cloudflare y otro de Resend, y no chocan.
 - **DMARC:** hay **un solo** registro para todo el dominio: `TXT` en `_dmarc` con `v=DMARC1; p=none; rua=mailto:dmarc@ciudadviva.app` (creado el 25/10). Endurecer a `p=quarantine` cuando los informes muestren que todo lo legítimo pasa.
-- **Pendiente:** verificar el dominio en Resend (pasos de abajo) y activar DNSSEC en Cloudflare.
+- **DNSSEC:** activo desde el 25/10. Cloudflare publicó el `DS` en el registro de `.app` en unos 6 minutos, y la consulta a `1.1.1.1` devuelve `AD=true`.
+- **Pendiente:**
+  - la API key de envío (paso 2);
+  - qué nombre lleva cada servicio (decisión 3b, abierta), porque fija el origen de la PWA. Por ejemplo, la PWA en `ciudadviva.app` o `app.ciudadviva.app` y el API en `api.ciudadviva.app`. Hay que fijarlo antes del primer despliegue.
 
-1. **Dominio** (Domains › Add Domain): agregar `ciudadviva.app` y cargar en su DNS (Cloudflare) los registros que muestra Resend:
-   - **DKIM:** `TXT` en `resend._domainkey`;
-   - **SPF:** `MX` y `TXT` en el subdominio `send`, que no chocan con el `MX` de Email Routing en la raíz;
-   - **DMARC:** ya existe (el de arriba). No crear otro.
-
-   Esperar a que el dominio quede **Verified**.
+1. **Dominio** (Domains › Add Domain): **hecho el 25/10**; quedó «Verified» unos 6 minutos después de cargar los registros.
+   - **Configuración:** región **`us-east-1`**, la misma que Railway. **No se puede cambiar después de crear el dominio.** Es de solo envío (recibir lo hace Email Routing), con TLS en modo *opportunistic*, el valor por defecto.
+   - **Registros que pidió Resend (cuatro)**, cargados en el DNS de Cloudflare:
+     - **DKIM:** `TXT` en `resend._domainkey`;
+     - **SPF:** `MX` en `send` (`feedback-smtp.us-east-1.amazonses.com`, prioridad 10) y `TXT` en `send` (`v=spf1 include:amazonses.com ~all`). No chocan con el `MX` de Email Routing en la raíz;
+     - **`CNAME` en `rsend`** → `send.forge.rmta.net`, **sin proxy** (nube gris);
+     - **DMARC:** ya existe (el de arriba). No crear otro.
    - **Sin dominio verificado**, Resend solo entrega al correo del dueño de la cuenta (desde `onboarding@resend.dev`) y responde 403 a cualquier otro destinatario. El despliegue puede salir así, con el correo limitado a esa dirección: cada envío rechazado queda como un `WARN` en el log del backend, y la recuperación de contraseña sigue respondiendo 202.
 2. **Clave** (API Keys › Create API Key): nombre `ciudadviva-backend`, permiso **Sending access** (solo envía) y, en *Domain*, **solo el dominio verificado**. Resend la muestra una sola vez: al gestor de contraseñas. Es `CORREO_API_KEY` (§5.2).
 3. **Remitente:** `NOTIF_FROM=Ciudad Viva <no-reply@ciudadviva.app>` (§5.2).
@@ -163,7 +167,7 @@ railway connect postgis               # abre psql por túnel SSH (requiere psql 
    | `FOTOS_S3_BUCKET_PERFILES` | `ciudadviva-fotos-perfiles` |
    | `FOTOS_S3_ACCESS_KEY_ID` / `FOTOS_S3_SECRET_ACCESS_KEY` | token **fotos** de §2 |
    | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | §4 |
-   | `VAPID_SUBJECT` | `mailto:<correo de contacto real del proyecto>` |
+   | `VAPID_SUBJECT` | `mailto:contacto@ciudadviva.app` (activo en Email Routing, §3) |
    | `JAVA_TOOL_OPTIONS` | `-Xms256m -Xmx512m -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError` |
    | `SPRINGDOC_HABILITADO` | sin definir (Swagger apagado); `true` solo para una demo y después se quita |
 

@@ -43,7 +43,7 @@ Hay un carril de backend y uno de frontend en paralelo. En un mismo sprint el fr
 
 **El S7 va antes que el S6 (decisión del usuario del 25/10).** El S6 está bloqueado por tres decisiones pendientes: las fórmulas de los KPIs, las columnas del OB2 §5 y D-10. El S7 no está bloqueado: las clases y el umbral se decidieron el 21/10. Por eso el S7 sale como v0.8.0 y el S6 como v0.9.0. FE-09 no depende de nada del S6, así que se adelantó y quedó hecha el 25/10. Los nombres S6 y S7 se conservan, para no romper las referencias.
 
-El sprint «Despliegue» se intercaló el 21/10 por decisión del usuario, así que S6 y S7 se corren una versión. v0.7.0 es el MVP listo para desplegar: el primer despliegue (DEP-09) y su prueba de humo (DEP-10) esperan las cuentas del usuario, y lo que exijan corregir sale como hotfix `v0.7.x`. El sistema visual y US-23 del S8 se adelantaron en ese sprint con la dirección «Cívica» (`docs/diseno/`); en el S8 quedan la fase 2 del rediseño y US-24.
+El sprint «Despliegue» se intercaló el 21/10 por decisión del usuario, así que S6 y S7 se corren una versión (y el 25/10 se intercambian, ver arriba). v0.7.0 es el MVP listo para desplegar: el primer despliegue (DEP-09) y su prueba de humo (DEP-10) esperan las cuentas del usuario, y lo que exijan corregir sale como hotfix `v0.7.x`. El sistema visual y US-23 del S8 se adelantaron en ese sprint con la dirección «Cívica» (`docs/diseno/`); en el S8 quedan la fase 2 del rediseño y US-24.
 
 Ya hechas antes de S1: BE-01, BE-02, BE-07, FE-01 y FE-02.
 

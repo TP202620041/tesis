@@ -80,7 +80,7 @@ De otro módulo solo se usa su **API pública**: `service`, `domain`, `event`, `
 | `distritos` | 43 distritos y sus polígonos; resolución por coordenadas. | (geometría de MUNICIPALIDAD) | common | existe |
 | `municipalidades` | Canal oficial, periodos de gestión y requisitos de recepción. Cada municipalidad referencia a su distrito (D-09). | MUNICIPALIDAD, GESTION_MUNICIPAL, PERIODO_GESTION, REQUISITO_RECEPCION | distritos | **nuevo** |
 | `auth` | Cuentas, credenciales, perfil y consentimiento. | USUARIO, CONSENTIMIENTO | distritos, municipalidades | existe + CONSENTIMIENTO |
-| `clasificacion` | Sugerir la categoría de una foto: puerto al servicio de inferencia, umbral y clase dominante. | (escribe `categoria_sugerida_id` y `confianza_sugerencia` vía reportes) | — | **nuevo** |
+| `clasificacion` | Sugerir la categoría de una foto: puerto al servicio de inferencia, umbral y clase dominante. | (escribe `categoria_sugerida_id`, `confianza_sugerencia` y `version_modelo_sugerencia` vía reportes) | — | **nuevo** |
 | `reportes` | Ciclo del reporte: creación, adhesión, gestión, historial, categorías, fotos, idempotencia, confirmación. | REPORTE, CIUDADANO_AFECTADO, HISTORIAL_ESTADO, CATEGORIA_DANO | auth, distritos, municipalidades, clasificacion | existe |
 | `notificaciones` | Avisos al ciudadano (push o email) y **correo formal a la municipalidad**. | SUSCRIPCION_PUSH, ENVIO_CORREO | auth, municipalidades, reportes (event) | existe + 2 entidades |
 | `desempeno` | KPIs por municipalidad y periodo de gestión (dashboard RF-09). | (vista materializada) | municipalidades, reportes (event) | existe; se rehace por periodo |
@@ -92,7 +92,7 @@ Grafo, sin ciclos: `common ← distritos ← municipalidades ← auth ← report
 
 1. **Vista previa (solo UX, W-07/W-08).** `clasificacion.controller` recibe la foto (`POST /api/clasificaciones`). `ClasificacionService` llama a `port/ClasificadorDano`, que implementa `infra/InferenciaHttpAdapter` (RestClient a `inferencia/`, con timeout). Luego aplica `domain/PoliticaDeSugerencia` (umbral y clase dominante) y devuelve la sugerencia o “sin sugerencia”. **No guarda nada.** Si el servicio falla, la respuesta es “sin sugerencia” y el ciudadano elige la categoría a mano.
 2. **Creación.** `reportes.service` crea el reporte solo con la categoría que **confirmó** el ciudadano. `CrearReporteRequest` no tiene campos de sugerencia, y si el cliente los envía se ignoran (D-08).
-3. **Sugerencia oficial (D-08).** `reportes.listener.SugerenciaCategoriaListener` escucha `ReporteCreadoEvent` (solo reportes nuevos, no adhesiones) con `AFTER_COMMIT` + `@Async` + `REQUIRES_NEW`. Lee la foto guardada por `common.port.FotoStorageService` (D-11), llama a `clasificacion.service.ClasificacionService` y escribe `categoria_sugerida_id` y `confianza_sugerencia`, **solo si siguen nulos** (idempotente). Si la inferencia falla, los campos quedan nulos y el reporte sigue su curso: la IA nunca bloquea un reporte. Como es asíncrono, los hasta 3 s de inferencia no se suman al tiempo de respuesta de la creación.
+3. **Sugerencia oficial (D-08).** `reportes.listener.SugerenciaCategoriaListener` escucha `ReporteCreadoEvent` (solo reportes nuevos, no adhesiones) con `AFTER_COMMIT` + `@Async` + `REQUIRES_NEW`. Lee la foto guardada por `common.port.FotoStorageService` (D-11), llama a `clasificacion.service.ClasificacionService` y escribe `categoria_sugerida_id`, `confianza_sugerencia` y `version_modelo_sugerencia`, **solo si siguen nulos** (idempotente). Si la inferencia falla, los campos quedan nulos y el reporte sigue su curso: la IA nunca bloquea un reporte. Como es asíncrono, los hasta 3 s de inferencia no se suman al tiempo de respuesta de la creación.
 4. `reportes.service.ConfirmacionReporteService` evalúa la regla “reporte confirmado” (campos completos, municipalidad asignada y requisitos de `municipalidades`) y publica `event/ReporteConfirmadoEvent`.
 5. `notificaciones.listener.ReporteConfirmadoListener` crea ENVIO_CORREO (como máximo uno por reporte) y envía por `common/port/CorreoSaliente` (desde DEP-08 vive en `common`, porque también lo usan `auth` y `soporte`; adaptadores `common/infra/SmtpCorreoAdapter` y `common/infra/ResendCorreoAdapter`, elegidos con `CORREO_TIPO`). Los reintentos se registran en `intentos`.
 6. `desempeno.listener` refresca los KPIs. Un reporte cuenta en el periodo de su `fecha_creacion`.
@@ -210,7 +210,7 @@ inferencia/
 El servicio **solo detecta**. El umbral y la clase dominante se aplican en la API (`clasificacion/domain/PoliticaDeSugerencia`).
 
 **Modelo y vocabulario** (decisión del usuario del 21/10, `project-context/decisions/propuestas/2026-10-21-ml-clases-modelo.md`):
-- Pesos RF-DETR N entrenados en RDD2022 (`dronefreak/rdd2022-rfdetr-nano`, Apache-2.0), exportados a ONNX. No se usan los YOLO de Ultralytics, que son AGPL.
+- Pesos RF-DETR entrenados en RDD2022 (Apache-2.0), exportados a ONNX, con base `dronefreak/rdd2022-rfdetr-nano`. Si la latencia en 2 vCPU pasa de 1 s, la propuesta permite otra resolución o el tamaño S; el cambio se registra en NC-03a. No se usan los YOLO de Ultralytics, que son AGPL.
 - Los valores de `clase` son **`bache`** (D40) y **`grieta`** (D00, D10 y D20). Las demás clases del modelo se descartan en el servicio.
 - Umbral inicial **0,50** (`app.clasificacion.umbral`), a calibrar con fotos de Lima (NC-03b).
 
