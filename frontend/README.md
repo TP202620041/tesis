@@ -109,9 +109,9 @@ src/
 ├── app/                        # App Router: solo routing y composición
 │   ├── (public)/               # sin login — mapa, desempeño, guía
 │   ├── (auth)/                 # login, registro, recuperar-password
-│   ├── (ciudadano)/            # rol CIUDADANO — mis-reportes, reportar, perfil
+│   ├── (ciudadano)/            # rol CIUDADANO — mis-reportes, reportar
 │   ├── (municipal)/            # rol FUNCIONARIO_MUNICIPAL — bandeja, dashboard
-│   ├── (cuenta)/               # cualquier usuario con sesión — soporte
+│   ├── (cuenta)/               # cualquier usuario con sesión — perfil («Cuenta»), soporte
 │   └── (admin)/admin/          # rol ADMIN — soporte (bandeja de tickets)
 ├── features/                   # lógica por dominio, no por tipo de archivo
 │   ├── auth/  reportes/  desempeno/  gestion/  soporte/  legal/
@@ -262,11 +262,13 @@ marco común, `features/auth/components/MarcoDeLaApp.tsx`, en el layout raíz:
   no debe sacar de ahí a quien solo miraba (lo borra y queda como visitante,
   con `usuarioActualSinRedirigir`). Pregunta `/me` una vez por sesión (el marco
   no se desmonta al navegar) y otra al iniciar o cerrar sesión. Sin red, con
-  sesión, queda «sin identificar»: se ofrece lo público y el menú de cuenta
-  (para poder salir), y vuelve a preguntar al volver la conexión. La sesión
+  sesión, queda «sin identificar»: se ofrece lo público y la cuenta para poder
+  salir (en el móvil, «Cuenta» con el aviso y «Cerrar sesión»; en escritorio,
+  el menú), y vuelve a preguntar al volver la conexión. La sesión
   llega a la cabecera y a la barra por props (`ARCHITECTURE.md` §5).
-- **Menú de cuenta**: nombre, rol o municipalidad, enlaces de la cuenta,
-  Apariencia y «Cerrar sesión». Es un desplegable (`aria-expanded`), no un
+- **Menú de cuenta** (escritorio; en el móvil «Cuenta» es una pantalla, ver
+  «Ajustes tras la prueba en iPhone»): nombre, rol o municipalidad, enlaces de
+  la cuenta, Apariencia y «Cerrar sesión». Es un desplegable (`aria-expanded`), no un
   `role="menu"`: adentro hay enlaces y radios que se recorren con Tab. Escape
   lo cierra y devuelve el foco; se cierra al tocar fuera y al navegar. «Cerrar
   sesión» usa el mismo `useCerrarSesion`: siguen las preguntas de
@@ -279,6 +281,74 @@ marco común, `features/auth/components/MarcoDeLaApp.tsx`, en el layout raíz:
   tienen el suyo, centrado, con el logo. La aceptación de términos lleva solo
   el logo (mientras no acepte, el resto de la app daría 403).
 - «Dashboard del distrito» pasa a «Panel del distrito», como en la navegación.
+
+#### Ajustes tras la prueba en iPhone (23/10)
+
+- **Barra superior al estilo iOS.** El usuario pidió «el scroll de WhatsApp»:
+  al bajar, el título de la pantalla se centra en la barra y lo que pasa por
+  debajo se ve difuminado, sin tapar la hora ni la batería. Comparó cuatro
+  efectos en un prototipo (barra de cristal, borde difuminado, título que
+  viaja, barra que se esconde) y eligió la **barra de cristal**. La cabecera
+  es fija y, en el móvil, translúcida (`.cv-translucida`: tinta al 70 % y
+  `backdrop-filter`; al 85 %, la primera versión, el difuminado casi no se
+  notaba). A medida que el `<h1>` de la pantalla pasa bajo la barra, su texto
+  entra centrado, el logo se va y aparece la línea fina inferior, **ligado al
+  dedo** y no con un fundido de tiempo fijo (`useTituloAlDesplazar` escribe el
+  avance como `--cv-avance-titulo`, sin un render de React por cuadro). Las
+  pantallas no cambian. La copia es `aria-hidden`: el lector ya tiene el `<h1>`.
+- **Por qué tinta y no clara.** Para que la página siga bajo la hora y la
+  batería, la PWA declara `viewport-fit=cover` y `black-translucent`, e iOS
+  pinta esos íconos **siempre en blanco**. Una barra clara los borraría; el
+  usuario eligió la barra tinta entera (también en el tema claro) sobre una
+  franja tinta con cabecera clara. Blanco sobre tinta al 70 % encima de
+  contenido blanco da 5,03:1 (`scripts/contraste-civica.json`). En alto
+  contraste la barra es opaca; también donde el navegador informa
+  `prefers-reduced-transparency` (sin verificar en Safari, que podría no
+  exponerlo). En escritorio
+  la cabecera sigue clara y solo la franja de la hora (iPad) va en tinta.
+- **Zonas seguras.** Con `viewport-fit=cover` la página llega a los bordes:
+  `--cv-alto-encabezado` y `--cv-alto-nav` incluyen `env(safe-area-inset-*)`,
+  el marco reserva los laterales (el teléfono girado) y las pantallas de
+  acceso, que no tienen cabecera, llevan una franja tinta bajo la hora.
+- **Sin verificar:** iOS 26.1 tuvo una regresión que dejaba la barra de
+  estado opaca en las PWA ([WebKit 301994](https://bugs.webkit.org/show_bug.cgi?id=301994)).
+  Si pasa, el título compacto y el difuminado siguen funcionando; solo la
+  página no llega bajo la hora.
+- **«Cuenta» es una pantalla.** En el móvil, la hoja del menú de cuenta
+  ocupaba media pantalla. Un primer arreglo la llevó a pantalla completa como
+  panel encima, y el usuario lo descartó: «Cuenta» tiene que seguir las mismas
+  reglas que las demás pantallas. Ahora el ítem de la barra (`CUENTA` en
+  `model/navegacion.ts`) lleva a `/perfil`, con la barra de cristal y el
+  título grande de siempre, y queda marcado también en `/soporte`.
+  - El ciudadano ve su perfil (US-30), que termina en «Otras opciones»
+    (`AccionesDeLaCuenta`): Soporte y «Cerrar sesión». Ya no lleva «Volver a
+    mis reportes», porque es un destino de la barra.
+  - El funcionario y el ADMIN no tienen perfil editable: el backend solo
+    acepta `PATCH /api/auth/me` del ciudadano. En la misma ruta ven `MiCuenta`:
+    quiénes son, la apariencia, sus enlaces y «Cerrar sesión». La ruta pasó
+    del grupo `(ciudadano)` a `(cuenta)`; la URL no cambia.
+  - En escritorio sigue el desplegable de la cabecera.
+- **Volver a donde se estaba.** Al volver de «Soporte» a «Cuenta», la
+  pantalla quedaba en blanco hasta mover el dedo. Las pantallas cargan sus
+  datos al montarse: un momento miden poco más que «Cargando…», y el
+  navegador devolvía la posición antes de que el contenido llegara tan abajo.
+  Chrome la dejaba arriba; Safari en iOS, más allá del contenido.
+  - El marco se queda con la restauración (`useMemoriaDeDesplazamiento`,
+    `history.scrollRestoration = 'manual'`).
+  - Anota la posición al irse: un clic en un enlace, o atrás/adelante.
+  - Al volver, empieza arriba y baja a la posición anotada en cuanto la
+    página mide lo suficiente. Vale para atrás/adelante y para tocar el
+    destino del que se venía (`esRegresoDentroDeSuDestino`: de «Soporte» a
+    «Cuenta», del detalle a «Mis reportes» o a la bandeja), como las
+    pestañas de iOS.
+  - Si la persona se mueve antes, no se le quita el control.
+  - Ir a otro destino deja la pantalla arriba, como siempre.
+  - Sin red, `/perfil` no lleva al login como las demás pantallas con
+    sesión, porque `GuardiaDeRol` tomaría el fallo de `/me` como «sin
+    sesión» y en el móvil no quedaría cómo salir. `PantallaDeCuenta`
+    pregunta primero como el marco: sin identificar, muestra el aviso, la
+    apariencia y «Cerrar sesión», que funciona sin red (revisión de
+    arquitectura).
 
 ### Apariencia: claro, oscuro, alto contraste o sistema (US-23)
 
