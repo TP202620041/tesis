@@ -93,11 +93,11 @@ Ya hechas antes de S1: BE-01, BE-02, BE-07, FE-01 y FE-02.
   - **Imagen del backend:** probada con `prod` contra un PostGIS vacío y S3Mock: V1–V18 y health UP en 9 s.
   - **Pendiente:** el primer despliegue (DEP-09) y su prueba de humo (DEP-10) esperan las cuentas del usuario y un dominio verificado para Resend. El usuario pidió cortar v0.7.0 antes de desplegar (22/10).
   - **Siguen abiertos:** D-10, las fórmulas de los KPIs, las columnas de OB2, el Gherkin de US-19, los `[COMPLETAR]` legales, §4.3 y el pool del índice (#97).
-- **v0.7.1 (2026-10-25):** versión de mantenimiento antes del primer despliegue, cortada a pedido del usuario.
+- **v0.7.1 (2026-10-25):** versión de mantenimiento antes del primer despliegue, cortada a pedido del usuario. Es una excepción a `WORKFLOW.md` §8: un patch desde `develop` y no un `hotfix/*`, porque no cambia el backend ni el contrato. Las correcciones de DEP-09 salen como v0.7.2 o siguientes.
   - **Contenido:**
     - ajustes de la prueba en el iPhone del 23/10 (#105): «Cuenta» como pantalla, la barra de cristal y volver a donde se estaba;
     - FE-09, con las capas del frontend en error (#106);
     - la documentación del S7 adelantado, el dominio y el runbook (#107).
   - **Cifras:** el backend no cambia (Failsafe 418, Surefire 230, ArchUnit 0). El frontend pasa de 1015 a 1041 tests (118 → 121 archivos), con 0 avisos de capas.
   - **Queda fuera:** NC-04 (#108) y NC-03a (#109) se fusionan después del corte y salen en v0.8.0. El primer despliegue no lleva V19 ni el servicio de inferencia.
-  - **Pendiente:** DEP-09 y DEP-10, según el checklist del 25/10 (R2 de producción, DNS de `api`, variables del backend y proyecto de Vercel).
+  - **Pendiente:** DEP-09 y DEP-10. Faltan R2 de producción, los registros DNS de `api`, las variables del backend y el proyecto de Vercel (`docs/despliegue.md` §3, §5 «Estado al 25/10» y §6).

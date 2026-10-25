@@ -9,7 +9,9 @@ Versión de mantenimiento antes del primer despliegue (DEP-09). Reúne tres cosa
 - el cierre de la migración de capas del frontend;
 - la documentación de las decisiones del 25/10.
 
-**El backend y el contrato del API no cambian:** la imagen y las migraciones (V1–V18) son las de v0.7.0. El ML queda para v0.8.0, el S7: NC-03a (#109) y NC-04 (#108).
+**El backend y el contrato del API no cambian:** el código del backend y las migraciones (V1–V18) son los de v0.7.0. El ML queda para v0.8.0, el S7: NC-03a (#109) y NC-04 (#108).
+
+**Número de versión:** es una excepción a `WORKFLOW.md` §8, que reserva el patch para un `hotfix/*` desde `main`. La pidió el usuario el 25/10. Sale de `develop` porque no cambia el backend ni el contrato, y #105–#107 no caben en un hotfix. Las correcciones que pida el primer despliegue (DEP-09) saldrán como v0.7.2 o siguientes.
 
 ### Diseño
 - **DIS-1 · «Cuenta» es una pantalla** (#105). Antes, en el móvil, abría una hoja que ocupaba media pantalla.
@@ -28,14 +30,19 @@ Versión de mantenimiento antes del primer despliegue (DEP-09). Reúne tres cosa
 - **Sin verificar en el iPhone real:** el paso del contenido bajo la hora con la PWA instalada. iOS 26.1 tuvo una regresión que dejaba opaca esa barra ([WebKit 301994](https://bugs.webkit.org/show_bug.cgi?id=301994)). Para ver la barra nueva hay que borrar la PWA de la pantalla de inicio y volver a agregarla.
 
 ### Arquitectura
-- **FE-09 · Cierre de la migración de capas del frontend** (#106): la regla de capas de ESLint pasa a error, así que un import que rompa las capas hace fallar el lint y la CI. Lo dicen ARCHITECTURE.md §5.4 y §10, `WORKFLOW.md`, `docs/ci.md`, `frontend/CLAUDE.md` y la regla del agente `frontend-dev`.
+- **FE-09 · Cierre de la migración de capas del frontend** (#106): la regla de capas de ESLint pasa a error, así que un import que rompa las capas hace fallar el lint y la CI. Lo dicen ARCHITECTURE.md §5.4 y §10, `WORKFLOW.md`, `docs/ci.md`, `frontend/CLAUDE.md`, `frontend/README.md` (la estructura con las capas), el nombre del paso informativo de la CI y la regla del agente `frontend-dev`. En `plan-migracion-capas.md` quedó marcada con la evidencia.
 
 ### Documentación y decisiones (#107)
 - **Orden de los sprints:** el S7 (ML) va antes que el S6, que espera D-10, las fórmulas de los KPIs y las columnas del OB2. El S7 sale como v0.8.0 y el S6 como v0.9.0.
 - **ARCHITECTURE.md §4.3, §6 y §8:** recogen la decisión de ML del 21/10:
   - el modelo RF-DETR Nano, con las clases `bache` y `grieta` y el umbral de 0,50;
   - la sugerencia como señal interna;
-  - «Hueco en calzada» desactivada.
+  - la desactivación de «Hueco en calzada», que hará la migración de NC-04 (v0.8.0); en esta versión la categoría sigue activa.
+
+  Además, §4.3 fija el diseño de NC-04 del 25/10: el listener solo encola, `SugerenciaCategoriaService` es `@Async` y sin transacción, y aparece el puerto `CategoriasClasificables`. §6 suma `app/main.py` y el contrato de import-linter.
+- **Plan:**
+  - NC-03 se parte en NC-03a (el servicio) y NC-03b, y se actualiza la fila de NC-04 en `plan-migracion-capas.md`;
+  - entran al S7 BE-11 y la atribución de RDD2022 (CC BY-SA 4.0) y de los pesos RF-DETR (Apache-2.0).
 - **Decisiones del 25/10:**
   - el dominio `ciudadviva.app` (decisión 3);
   - la PWA en la raíz y el API en `api.ciudadviva.app` (3b);
@@ -45,6 +52,13 @@ Versión de mantenimiento antes del primer despliegue (DEP-09). Reúne tres cosa
   - **Dominio y correo:** Email Routing, DMARC, DNSSEC y Resend verificado.
   - **Producción:** los nombres de cada servicio, el dominio propio en Railway (SSL Full) y en Vercel, y `PORT=8080` obligatoria.
   - **Prueba de humo:** suma la caché de Cloudflare.
+- **Estado de las cuentas al 25/10:**
+  - el proyecto de Railway está creado, con `postgis` desplegado y `backend` todavía sin el repo conectado;
+  - la API key de Resend existe;
+  - R2 de producción y el proyecto de Vercel están pendientes.
+
+  Fusionar esta versión en `main` todavía no despliega nada: el primer despliegue sigue siendo DEP-09, a mano.
+- **C4 de despliegue** (`docs/arquitectura/c4-despliegue.md`): suma los dominios de la decisión 3b y el proxy de Cloudflare delante del API.
 
 ### Cifras
 | Métrica | v0.7.0 | v0.7.1 |

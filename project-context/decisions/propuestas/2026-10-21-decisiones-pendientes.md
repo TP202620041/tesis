@@ -36,6 +36,7 @@ Reúne **todo** lo que hoy espera una decisión del usuario, venga de esta ronda
 - En producción, `CORS_ALLOWED_ORIGINS=https://ciudadviva.app` y `NEXT_PUBLIC_API_BASE_URL=https://api.ciudadviva.app`. | `docs/despliegue.md` §0, §3, §5.2 y §6 |
 | 4 (parte) | Plan de Railway | **Hobby**, que ya es el plan de la cuenta del usuario. Respaldos según el runbook (cron `respaldo-bd`). El gasto se mide en el primer mes | `docs/despliegue.md` §1 y §5.3 |
 | — | Orden de los sprints | El **S7 (ML) va antes que el S6**: el S6 está bloqueado por las decisiones 11, 12 y 13. El S7 sale como v0.8.0 y el S6 como v0.9.0. FE-09 se adelantó y quedó hecha | `plan-sprints.md` |
+| — | Versión antes del primer despliegue | **v0.7.1** desde `develop`, con #105–#107, a pedido del usuario. Es una excepción a `WORKFLOW.md` §8, que reserva el patch para un `hotfix/*` desde `main`: no cambia el backend ni el contrato. Las correcciones de DEP-09 salen como v0.7.2 o siguientes | `CHANGELOG.md` (v0.7.1) y `plan-sprints.md` |
 
 ## Resumen
 
