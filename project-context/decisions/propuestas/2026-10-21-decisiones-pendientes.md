@@ -25,13 +25,20 @@ Reúne **todo** lo que hoy espera una decisión del usuario, venga de esta ronda
 | 17 | Dirección visual | **A · Cívica** (tinta azul marino y blanco, Public Sans, foco amarillo; deja el celeste) | Canvas «Rediseño Ciudad Viva» y la propuesta de diseño |
 | 1 | Versionado (22/10) | El usuario pidió cortar **v0.7.0** con la preparación del despliegue (DEP-01..DEP-08, DEP-11, DEP-12) **antes** del primer despliegue: es el MVP listo para desplegar. DEP-09 y DEP-10 quedan pendientes de sus cuentas, y lo que exijan corregir sale como hotfix `v0.7.x`. S6, S7 y S8 pasan a v0.8.0, v0.9.0 y v1.0.0 | `plan-sprints.md` y `CHANGELOG.md` (v0.7.0) |
 
+## Decididas el 25/10/2026
+
+| # | Decisión | Qué se decidió | Dónde quedó registrada |
+|---|---|---|---|
+| 3 | Dominio propio | **`ciudadviva.app`**, comprado el 25/10 en Cloudflare Registrar (vence el 25/10/2027; renueva a precio de costo). El DNS está en Cloudflare, la misma cuenta de R2. Por ser `.app`, los navegadores solo lo abren por HTTPS. El correo corporativo (contacto@, soporte@) va por Cloudflare Email Routing, y Resend usa el subdominio `send` | `docs/despliegue.md` §1 y §3 |
+| — | Orden de los sprints | El **S7 (ML) va antes que el S6**: el S6 está bloqueado por las decisiones 11, 12 y 13. El S7 sale como v0.8.0 y el S6 como v0.9.0. FE-09 se adelantó y quedó hecha | `plan-sprints.md` |
+
 ## Resumen
 
 | # | Decisión | Urgencia | Bloquea | Recomendación corta | Detalle |
 |---|---|---|---|---|---|
 | 1 | Versionado: v0.7.0 = MVP desplegado (**decidida el 22/10**: v0.7.0 sale antes del primer despliegue) | Alta | Planificar el próximo sprint | Sí; S6..S8 pasan a v0.8.0, v0.9.0 y v1.0.0 | §1 |
 | 2 | Proveedor de correo y remitente | Alta | DEP-08 → US-03, US-16 (correo), US-25 en producción | Brevo; remitente propio si hay dominio | §2 |
-| 3 | Dominio propio: sí o no, y cuándo | Alta | Invitar usuarios reales (push, sesión y cola offline dependen del origen) | Decidirlo antes de invitar a nadie; si se compra, DNS en Cloudflare | §3 |
+| 3 | Dominio propio: sí o no, y cuándo (**decidida el 25/10**: `ciudadviva.app`) | Alta | Invitar usuarios reales (push, sesión y cola offline dependen del origen) | Decidirlo antes de invitar a nadie; si se compra, DNS en Cloudflare | §3 |
 | 4 | Plan de Railway, respaldos y gasto aceptado | Alta | Crear el proyecto (runbook §1) | Hobby + cron `pg_dump` a R2; ~US$ 10/mes | §4 |
 | 5 | Primer ADMIN y funcionarios de la demo | Alta | DEP-04, DEP-05 | Una cuenta del equipo como ADMIN; funcionarios solo con permiso de su titular | §5 |
 | 6 | Datos de demostración en producción | Alta | Mostrar el sistema al jurado | No sembrar datos falsos en producción | §6 |

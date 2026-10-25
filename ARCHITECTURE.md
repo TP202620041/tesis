@@ -207,7 +207,12 @@ inferencia/
 
 **Contrato** (lo define `inferencia/` y lo consume `clasificacion/infra`):
 `POST /v1/detecciones` (multipart `imagen`) → `{ "version_modelo": str, "detecciones": [{ "clase": str, "confianza": float, "caja": [x1, y1, x2, y2] }] }`.
-El servicio **solo detecta**. El umbral y la clase dominante se aplican en la API (`clasificacion/domain`), según la decisión del OB2 que sigue pendiente de validar.
+El servicio **solo detecta**. El umbral y la clase dominante se aplican en la API (`clasificacion/domain/PoliticaDeSugerencia`).
+
+**Modelo y vocabulario** (decisión del usuario del 21/10, `project-context/decisions/propuestas/2026-10-21-ml-clases-modelo.md`):
+- Pesos RF-DETR N entrenados en RDD2022 (`dronefreak/rdd2022-rfdetr-nano`, Apache-2.0), exportados a ONNX. No se usan los YOLO de Ultralytics, que son AGPL.
+- Los valores de `clase` son **`bache`** (D40) y **`grieta`** (D00, D10 y D20). Las demás clases del modelo se descartan en el servicio.
+- Umbral inicial **0,50** (`app.clasificacion.umbral`), a calibrar con fotos de Lima (NC-03b).
 
 ## 7. Contratos entre contenedores
 
@@ -223,10 +228,10 @@ Un agente **nunca** supone un campo que el otro lado todavía no publicó.
 | Entidad | Módulo / paquete | Tabla actual | Acción |
 |---|---|---|---|
 | USUARIO | `auth.domain.Usuario` | `usuario` | Jurisdicción del funcionario: **pendiente (D-10)**. Con D-09 la relación es 1:1, así que `distrito_id` y `municipalidad_id` son equivalentes. |
-| REPORTE | `reportes.domain.Reporte` | `reporte` | + `titulo`, `severidad`, `categoria_sugerida_id`, `confianza_sugerencia`, `periodo_gestion_id`. |
+| REPORTE | `reportes.domain.Reporte` | `reporte` | + `titulo`, `severidad`, `categoria_sugerida_id`, `confianza_sugerencia`, `version_modelo_sugerencia`, `periodo_gestion_id`. La sugerencia (NC-04) la escribe una vez `SugerenciaCategoriaListener`; es una señal interna y no va en ningún DTO público ni del ciudadano. |
 | CIUDADANO_AFECTADO | `reportes.domain.AdhesionReporte` | `adhesion_reporte` | Mantener la tabla; decidir si `total_adhesiones` se elimina (contradicción 1 del análisis). |
 | HISTORIAL_ESTADO | `reportes.domain.HistorialEstadoReporte` | `historial_estado_reporte` | Sin cambio. |
-| CATEGORIA_DANO | `reportes.domain.CategoriaDano` | `categoria_dano` | + `icono`, `clase_modelo`. Revisar el solapamiento entre Bache y Hueco en calzada. |
+| CATEGORIA_DANO | `reportes.domain.CategoriaDano` | `categoria_dano` | + `icono`, `clase_modelo` (único si no es nulo; Bache → `bache`, Pista deteriorada → `grieta`). La categoría estándar «Hueco en calzada» se desactiva: en una foto no se distingue de «Bache» (decisión del 21/10, migración de NC-04). |
 | MUNICIPALIDAD, GESTION_MUNICIPAL, PERIODO_GESTION, REQUISITO_RECEPCION | `municipalidades.domain` | — | Migración nueva. `municipalidad.distrito_id` es `NOT NULL UNIQUE` y apunta a `distrito`. La geometría sigue solo en `distrito` (D-09). |
 | ENVIO_CORREO, SUSCRIPCION_PUSH | `notificaciones.domain` | — | Migración nueva. |
 | CONSENTIMIENTO | `auth.domain` | — | Migración nueva. Historial por finalidad y versión (D-12). |
