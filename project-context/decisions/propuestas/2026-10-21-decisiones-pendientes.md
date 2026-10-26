@@ -37,6 +37,12 @@ Reúne **todo** lo que hoy espera una decisión del usuario, venga de esta ronda
 | 4 (parte) | Plan de Railway | **Hobby**, que ya es el plan de la cuenta del usuario. Respaldos según el runbook (cron `respaldo-bd`). El gasto se mide en el primer mes | `docs/despliegue.md` §1 y §5.3 |
 | — | Orden de los sprints | El **S7 (ML) va antes que el S6**: el S6 está bloqueado por las decisiones 11, 12 y 13. El S7 sale como v0.8.0 y el S6 como v0.9.0. FE-09 se adelantó y quedó hecha | `plan-sprints.md` |
 | — | Versión antes del primer despliegue | **v0.7.1** desde `develop`, con #105–#107, a pedido del usuario. Es una excepción a `WORKFLOW.md` §8, que reserva el patch para un `hotfix/*` desde `main`: no cambia el backend ni el contrato. Las correcciones de DEP-09 salen como v0.7.2 o siguientes | `CHANGELOG.md` (v0.7.1) y `plan-sprints.md` |
+| 5 (parte) | Primer ADMIN | La **cuenta del usuario**, dueño del proyecto. El correo y el nombre los carga él en Railway (`ADMIN_INICIAL_*`) y no se escriben en el repo, que es público. Los funcionarios de la demo siguen abiertos | `docs/despliegue.md` §7.1 |
+| 6 | Datos de demostración en producción | **(a)**: producción arranca **sin datos falsos**. Nunca se corre `backend/scripts/seed-datos-prueba.sql` contra producción. Los reportes de la demo los toma el equipo en calles reales. Sin entorno «demo» aparte, por ahora | `docs/despliegue.md` §0 |
+| 9 | Previews de Vercel y Swagger | **Apagados.** En Vercel, el preset «Only build production». Swagger queda apagado en `prod` (`SPRINGDOC_HABILITADO` sin definir) y se activa solo para una demostración | `docs/despliegue.md` §5.2 y §6 |
+| 20 | Pool de conexiones y refresco del índice | **A** (refresco asíncrono y coalescido) como tarea **BE-12** del S7, junto con BE-11. Mientras tanto, **B**: el pool sube de 10 a **20** con la variable `SPRING_DATASOURCE_HIKARI_MAXIMUMPOOLSIZE=20` en Railway, sin cambiar código. Se revisa al cerrar BE-12 | `2026-10-22-refresco-indice-asincrono.md`, `plan-sprints.md` y `docs/despliegue.md` §5.2 |
+
+Desde el 25/10, las claves y contraseñas de producción las genera y las pega **el usuario** en cada panel, siguiendo el runbook paso a paso, y las sesiones no crean ni ven secretos. En Railway quedan **sin sellar**, por decisión del usuario: el panel hace de lugar donde se guardan, con verificación en dos pasos en las cuentas (runbook §0). Antes de la decisión, una sesión había cargado `POSTGRES_PASSWORD`, `JWT_SECRET` y el par VAPID; qué hacer con ellos está en el runbook, §5 «Estado al 25/10».
 
 ## Resumen
 
@@ -46,11 +52,11 @@ Reúne **todo** lo que hoy espera una decisión del usuario, venga de esta ronda
 | 2 | Proveedor de correo y remitente | Alta | DEP-08 → US-03, US-16 (correo), US-25 en producción | Brevo; remitente propio si hay dominio | §2 |
 | 3 | Dominio propio: sí o no, y cuándo (**decidida el 25/10**: `ciudadviva.app`; 3b: PWA en la raíz y API en `api.`) | Alta | Invitar usuarios reales (push, sesión y cola offline dependen del origen) | Decidirlo antes de invitar a nadie; si se compra, DNS en Cloudflare | §3 |
 | 4 | Plan de Railway, respaldos y gasto aceptado (**plan decidido el 25/10: Hobby**) | Alta | Crear el proyecto (runbook §1) | Hobby + cron `pg_dump` a R2; ~US$ 10/mes | §4 |
-| 5 | Primer ADMIN y funcionarios de la demo | Alta | DEP-04, DEP-05 | Una cuenta del equipo como ADMIN; funcionarios solo con permiso de su titular | §5 |
-| 6 | Datos de demostración en producción | Alta | Mostrar el sistema al jurado | No sembrar datos falsos en producción | §6 |
+| 5 | Primer ADMIN y funcionarios de la demo (**ADMIN decidido el 25/10**: la cuenta del usuario; los funcionarios siguen abiertos) | Alta | DEP-04, DEP-05 | Una cuenta del equipo como ADMIN; funcionarios solo con permiso de su titular | §5 |
+| 6 | Datos de demostración en producción (**decidida el 25/10**: opción a, sin datos falsos) | Alta | Mostrar el sistema al jurado | No sembrar datos falsos en producción | §6 |
 | 7 | Legal: `[COMPLETAR]`, titular, ANPD, edad, transcripción en el repo | Alta | Abrir a usuarios reales | Completar y registrar antes de abrir | §7 |
 | 8 | Fotos: recodificar a JPEG, dos buckets y ajuste a D-08 | Alta | DEP-12 (y NC-04 por D-08) | Sí (opción A de la propuesta de fotos) | §8 |
-| 9 | Previews de Vercel y Swagger en producción | Baja | Nada grave | Previews apagadas; Swagger apagado salvo variable | §9 |
+| 9 | Previews de Vercel y Swagger en producción (**decidida el 25/10**: apagados) | Baja | Nada grave | Previews apagadas; Swagger apagado salvo variable | §9 |
 | 10 | CI como chequeo obligatorio de los PR | Media | Protección de ramas | Sí, cuando DEP-07 esté verde una semana | §10 |
 | 11 | D-10: jurisdicción del funcionario | Media | NC-05, NC-06; el script DEP-05 | `municipalidad_id` con NC-06 (o confirmar `distrito_id`) | §11 |
 | 12 | Fórmulas de los KPIs por periodo | Media | NC-06 | Que el usuario las pegue del OB2 | §12 |
@@ -61,7 +67,7 @@ Reúne **todo** lo que hoy espera una decisión del usuario, venga de esta ronda
 | 17 | Dirección visual del rediseño | Baja | S8; los iconos de DEP-06 son provisionales | Definirla antes del S8 | §17 |
 | 18 | Límite de tasa (abuso) | Media | Nada para v0.7.0 | Tope por cuenta en DEP-08; limitador general después | §18 |
 | 19 | Migración que corrige las tildes de las categorías estándar (**aprobada el 22/10**: opción A, en QA-1 backend) | Baja | QA-1 M-1 (parte de datos); puede ir con la de NC-04 que desactiva «Hueco en calzada» | Sí, una migración nueva sin editar V3 (opción A) | `2026-10-22-tildes-categorias-estandar.md` |
-| 20 | Refresco asíncrono del índice de desempeño (pool de conexiones agotado con 16 creaciones con foto simultáneas) | Media | Robustez del MVP en picos; no bloquea v0.7.0 | A (asíncrono y coalescido) + B (subir el pool en prod mientras tanto) | `2026-10-22-refresco-indice-asincrono.md` |
+| 20 | Refresco asíncrono del índice de desempeño (pool de conexiones agotado con 16 creaciones con foto simultáneas) (**decidida el 25/10**: A como BE-12 en el S7; mientras tanto B, con el pool en 20) | Media | Robustez del MVP en picos; no bloquea v0.7.0 | A (asíncrono y coalescido) + B (subir el pool en prod mientras tanto) | `2026-10-22-refresco-indice-asincrono.md` |
 
 ## 1. Versionado
 
@@ -99,12 +105,14 @@ Reúne **todo** lo que hoy espera una decisión del usuario, venga de esta ronda
 
 - **Qué:** el correo de la cuenta que será ADMIN (DEP-04: desde el 22/10 el seeder la **crea** desde variables si no hay ningún ADMIN; ya no promueve) y la lista de funcionarios con su distrito para la demostración (DEP-05).
 - **Recomendación:** el ADMIN es una cuenta del equipo. Un funcionario solo se crea con el acuerdo de la persona y, si representa a una municipalidad real, con la autorización de esa municipalidad. Para la demo, cuentas del equipo marcadas como de prueba.
+- **Decidido el 25/10 (ADMIN):** la cuenta del usuario, dueño del proyecto. Él carga el correo, el nombre y la contraseña en Railway; no se escriben en el repo (runbook §7.1). **Siguen abiertos** los funcionarios de la demo.
 
 ## 6. Datos de demostración en producción
 
 - **Problema:** `backend/scripts/seed-datos-prueba.sql` inventa reportes en distritos reales. En producción falsearía el índice público de desempeño, que se presenta como transparencia.
 - **Opciones:** (a) producción sin datos falsos, demo con reportes reales tomados por el equipo; (b) un segundo entorno de Railway («demo») con su propia base sembrada; (c) sembrar producción y borrarlo después.
 - **Recomendación:** **(a)**, y **(b)** si el jurado necesita ver el índice con volumen (costo: otro `backend` y otro `postgis`, ~US$ 8/mes mientras exista). Nunca (c).
+- **Decidido el 25/10:** **(a)**. Producción arranca sin datos falsos y, por ahora, sin entorno «demo» aparte (runbook §0).
 
 ## 7. Legal (Ley N.° 29733 y DS 016-2024-JUS)
 
@@ -131,6 +139,7 @@ No es asesoría legal; es la lista para revisar con un asesor. Fuentes oficiales
 ## 9. Previews de Vercel y Swagger en producción
 
 - **Recomendación:** previews **apagadas** (preset «Only build production»): cada preview tiene otro origen que el CORS rechaza, y usaría la base de producción. Swagger **apagado** en producción, activable con `SPRINGDOC_HABILITADO=true` para una demostración.
+- **Decidido el 25/10:** los dos **apagados**, como recomienda este punto (runbook §5.2 y §6).
 
 ## 10. CI obligatoria
 

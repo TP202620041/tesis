@@ -11,6 +11,12 @@
 **Reglas.**
 
 - **Ningún secreto se escribe en el repo, en un issue, en un PR ni en un chat.** Se generan en la máquina del responsable, se guardan en un gestor de contraseñas y se pegan directamente en el panel de Railway o Vercel.
+  - **Quién:** desde el 25/10 lo hace el usuario, siguiendo este runbook paso a paso. Las sesiones de Claude no crean ni ven secretos. Antes de esa decisión, la sesión «dominio» ya había cargado tres: `JWT_SECRET`, el par VAPID y `POSTGRES_PASSWORD`. Qué hacer con ellos está en §5, «Estado al 25/10».
+  - **Sin sellar** (decisión del usuario, 25/10). Railway puede sellar un secreto (menú ⋮ › *Seal*): se sigue usando, pero no vuelve a mostrarse en el panel, por la API ni por la CLI, y no se puede deshacer. El proyecto **no los sella**, y el panel de Railway hace de lugar donde se guardan.
+    - **A cambio:** verificación en dos pasos en Railway, GitHub y Cloudflare. Y las sesiones de Claude no leen valores: para comprobar una variable miran solo su nombre o si tiene valor.
+    - **Si más adelante se quiere sellar:** antes, copiar el valor al gestor de contraseñas que use el usuario. Los candidatos son `JWT_SECRET`, `VAPID_PRIVATE_KEY`, `CORREO_API_KEY`, `FOTOS_S3_SECRET_ACCESS_KEY` y `AWS_SECRET_ACCESS_KEY` (`respaldo-bd`).
+    - **`POSTGRES_PASSWORD`:** se sellaría solo después de comprobar que siguen funcionando las referencias `DB_PASSWORD` y `BACKUP_DATABASE_URL` y `railway connect postgis` (§5.1 y §9).
+- **Producción sin datos falsos** (decisión 6, 25/10): nunca se corre `backend/scripts/seed-datos-prueba.sql` contra producción. Inventa reportes en distritos reales y falsearía el índice público de desempeño. Los reportes de la demo los toma el equipo en calles reales.
 - Los nombres de servicio de este documento (`backend`, `postgis`, `respaldo-bd`) se usan en las variables de referencia de Railway (`${{postgis.…}}`): si se cambian, hay que cambiar también las referencias.
 - Railway deprecó `railway.toml` (*Config as Code*): **la configuración vive en el panel** y este documento es su fuente de verdad. Si se cambia algo en el panel, se cambia aquí en el mismo día.
 
@@ -129,12 +135,17 @@ Crear un proyecto («Ciudad Viva», entorno `production`). **Hecho el 25/10**, a
   - Faltan `CORREO_API_KEY` (la pega el usuario), `FOTOS_S3_ACCESS_KEY_ID` y `FOTOS_S3_SECRET_ACCESS_KEY` (falta R2 de producción) y `ADMIN_INICIAL_*`.
   - El dominio propio `api.ciudadviva.app` está creado en Railway; sus dos registros DNS los crea el usuario (§5.2, paso 5).
 - **`respaldo-bd`:** todavía no; espera el bucket y el token de respaldos de R2.
+- **Secretos cargados por una sesión antes de la decisión del 25/10:** `POSTGRES_PASSWORD` (al crear `postgis`), `JWT_SECRET` y el par VAPID. Se cargaron por stdin, así que no aparecieron en ninguna transcripción. Como el proyecto no sella (§0), quedan en el panel. Antes del primer despliegue se pueden regenerar (§4) sin efecto para nadie, porque todavía no hay sesiones ni suscripciones. El par VAPID se genera en una terminal propia, fuera de Claude Code, para que la clave privada no quede en una transcripción. Rotar `POSTGRES_PASSWORD` exige `ALTER ROLE` (§9).
+
+**Cambios de variables en el panel** ([staged changes](https://docs.railway.com/deployments/staged-changes)): agregar, cambiar o borrar una variable deja un aviso de cambios pendientes, que se aplican con *Deploy*.
+- **Sin redesplegar** (*Alt* + clic en *Deploy*): para cargar varias variables seguidas antes del primer despliegue, o para borrar `ADMIN_INICIAL_PASSWORD` (§7.1, paso 3). Los valores nuevos se aplican en el próximo despliegue de cada servicio.
+- **Con *Deploy* normal**, que redespliega: cuando la app tiene que tomar ya un valor nuevo, como al rotar un secreto (§9) o al cambiar el pool (§5.2) después del primer despliegue.
 
 **Si se usa la CLI de Railway desde Git Bash en Windows:**
 - **Rutas:** las que empiezan con `/` se convierten en `C:/Program Files/Git/…` (pasó con `PGDATA`). Usar `MSYS_NO_PATHCONV=1` delante del comando, o el panel.
 - **`railway variable delete`:** no acepta `--skip-deploys`, así que siempre redespliega.
 - **Región:** `railway environment edit --service-config … deploy.multiRegionConfig '<json>'` no se aplicó; funcionó el parche JSON por stdin.
-- **Secretos:** se cargan con `railway variable set --stdin`, para que nunca aparezcan en la terminal ni en una transcripción.
+- **Secretos:** hasta el 25/10, las sesiones los cargaban con `railway variable set --stdin`, para que no aparecieran en la terminal ni en una transcripción. Desde la decisión de ese día, los pega el usuario en el panel, sin sellar (§0).
 
 ### 5.1 Servicio `postgis`
 
@@ -201,6 +212,7 @@ railway connect postgis               # abre psql por túnel SSH (requiere psql 
    | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | §4 |
    | `VAPID_SUBJECT` | `mailto:contacto@ciudadviva.app` (activo en Email Routing, §3) |
    | `JAVA_TOOL_OPTIONS` | `-Xms256m -Xmx512m -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError` |
+   | `SPRING_DATASOURCE_HIKARI_MAXIMUMPOOLSIZE` | `20` (decisión 20, 25/10). Es temporal hasta BE-12, que hace asíncrono el refresco del índice: sin ella rige el valor por defecto, 10, y 16 reportes con foto en el mismo segundo agotan el pool (`propuestas/2026-10-22-refresco-indice-asincrono.md`). |
    | `SPRINGDOC_HABILITADO` | sin definir (Swagger apagado); `true` solo para una demo y después se quita |
 
    **`FOTOS_ALMACEN` es obligatoria en el perfil `prod`** (DEP-12): sin ella la app no arranca, para que un despliegue nunca guarde fotos en un disco que se borra. Con R2, `s3` y las variables `FOTOS_S3_*` de la tabla. Opcional: `FOTOS_SANEADO_MAX_CONCURRENTES` (2 por defecto).
@@ -308,8 +320,8 @@ curl -s -o /dev/null -w "%{http_code}\n" -X OPTIONS $API/api/reportes \
 Diseño decidido por el usuario el 22/10: el seeder **crea** el ADMIN desde variables y **solo si la base no tiene ningún ADMIN**. Nunca promueve una cuenta existente. Detalle en `backend/README.md`, «Operación en producción».
 
 1. **Antes del primer despliegue** del backend, en Railway › `backend` › Variables:
-   - `ADMIN_INICIAL_EMAIL`: el correo real de la persona del equipo;
-   - `ADMIN_INICIAL_PASSWORD`: una contraseña de 12 caracteres o más y 72 bytes como máximo, generada para la ocasión y marcada como secreta;
+   - `ADMIN_INICIAL_EMAIL`: el correo del usuario, dueño del proyecto (decisión 5, 25/10). No se escribe en el repo, que es público;
+   - `ADMIN_INICIAL_PASSWORD`: una contraseña de 12 caracteres o más y 72 bytes como máximo, sin tildes ni ñ (ocupan más de un byte), generada para la ocasión. **Hay que guardarla fuera de Railway antes del paso 3**, que la borra: por ejemplo, en el gestor de contraseñas del teléfono, aceptando guardarla al iniciar sesión por primera vez en `$PWA`;
    - `ADMIN_INICIAL_NOMBRE`: opcional.
 2. Desplegar. **Verificar:** en los logs aparece «Administrador inicial creado» y solo el correo, nunca la contraseña. Iniciar sesión en `$PWA` con esa cuenta: pide aceptar los términos (D-12) y después muestra el área de ADMIN.
 3. **Borrar `ADMIN_INICIAL_PASSWORD`** de Railway (obligatorio). Las otras dos variables pueden quedar: con un ADMIN ya creado el seeder no hace nada (avisa en el log si la contraseña sigue definida). No hay pantalla para cambiar la contraseña: se cambia con «¿Olvidaste tu contraseña?» cuando el correo (DEP-08) funcione.

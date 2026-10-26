@@ -116,6 +116,33 @@ Decisión del usuario (13/10), a partir de la observación del revisor en BE-04:
 ### [ ] BE-09 · (Opcional, después de BE-08) Partir `reportes`
 Si el tamaño lo justifica, separar `categorias` (CategoriaDano y su CRUD, US-29) y `participacion` (calificación, comentarios y reincidencia, US-26 y US-27). Requiere aprobación previa: mueve tablas de módulo y afecta `limpiezaFkSafe`.
 
+### [ ] BE-11 · La foto se sube fuera de la transacción de creación (S7)
+Deuda de DEP-12 (`propuestas/2026-10-21-fotos-r2.md`, «La regla de §4.5…»). Es también la opción C de `propuestas/2026-10-22-refresco-indice-asincrono.md`. Hoy `ReporteService#crear` sanea y sube la foto a R2 **dentro** de su `@Transactional`, y retiene una conexión del pool durante la red (~100–500 ms).
+- La foto se sanea y se sube **sin transacción abierta**, antes de la transacción o después de ella con su compensación. No cambia el contrato del API.
+- Si la transacción se revierte, el objeto subido se borra en `afterCompletion`. Un reenvío idempotente (US-06) o una adhesión (US-09) no deja fotos huérfanas en el bucket.
+
+**Aceptación:**
+- un test con un `FotoStorageService` de prueba comprueba que no hay transacción activa al subir (`TransactionSynchronizationManager.isActualTransactionActive()`);
+- un IT de reversión deja el bucket sin el objeto;
+- Failsafe igual o mayor y ArchUnit en 0.
+
+### [ ] BE-12 · Refresco asíncrono y coalescido del índice de desempeño (S7)
+Decisión del usuario (25/10): opción A de `propuestas/2026-10-22-refresco-indice-asincrono.md`. Va junto con BE-11. Mientras no entre, producción corre con el pool en 20 (runbook §5.2).
+- `desempeno/listener/IndiceDesempenoRefreshListener` deja de refrescar en el hilo de la petición:
+  - marca el índice como sucio y encola una tarea `@Async` en el executor acotado (`AsyncConfig`);
+  - la tarea repite `while (sucio.getAndSet(false)) refrescar()`;
+  - si el executor rechaza la tarea, la marca queda puesta y el siguiente evento la recoge.
+- Se conserva la regla «todo evento que mueve el índice lo refresca» (`backend/CLAUDE.md`): siempre hay un refresco final.
+- Los IT de `DesempenoIT` que esperan el refresco por evento pasan a esperar con sondeo acotado, o el perfil `test` desactiva la ventana.
+- ARCHITECTURE.md §4.5 y la fila D-13 se actualizan en la rama de esta tarea, antes de fusionar. Ese commit lo agrega la sesión de raíz, porque la guardia no deja que el agente edite normas.
+
+**Aceptación:**
+- **Coalescido:** un IT de «muchos eventos seguidos» da al menos un refresco final y menos refrescos que eventos.
+- **Carga:** se repite la prueba de la propuesta, 16 creaciones simultáneas con foto sobre la imagen `prod` con el pool en 10, y todas terminan en 201.
+- **Suites:** Failsafe igual o mayor y ArchUnit en 0.
+
+Al cerrarla, se decide si el pool de producción vuelve a 10.
+
 ---
 
 ## Frontend
