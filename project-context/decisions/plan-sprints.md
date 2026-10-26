@@ -101,3 +101,13 @@ Ya hechas antes de S1: BE-01, BE-02, BE-07, FE-01 y FE-02.
   - **Cifras:** el backend no cambia (Failsafe 418, Surefire 230, ArchUnit 0). El frontend pasa de 1015 a 1041 tests (118 → 121 archivos), con 0 avisos de capas.
   - **Queda fuera:** NC-04 (#108) y NC-03a (#109) se fusionan después del corte y salen en v0.8.0. El primer despliegue no lleva V19 ni el servicio de inferencia.
   - **Pendiente:** DEP-09 y DEP-10. Faltan R2 de producción, los registros DNS de `api`, las variables del backend y el proyecto de Vercel (`docs/despliegue.md` §3, §5 «Estado al 25/10» y §6).
+- **Primer despliegue, DEP-09 (2026-10-25):** v0.7.1 en producción, con autorización explícita del usuario.
+  - **Dónde:** la PWA en `https://ciudadviva.app` (Vercel, proyecto `ciudad-viva`) y el API en `https://api.ciudadviva.app` (Railway). Railway y Vercel despliegan solos desde `main`, y Railway espera además a la CI.
+  - **Verificado:**
+    - el API arranca con las 18 migraciones, los 43 distritos, las 43 municipalidades y el ADMIN del usuario;
+    - health UP; Swagger y el actuator no son visibles; el CORS solo acepta la PWA;
+    - la PWA es instalable y su CSP solo permite el API.
+  - **Pendiente:** DEP-10, la prueba de humo.
+- **v0.7.2 (2026-10-25, hotfix desde `main`):** el servicio `respaldo-bd` es un script propio (`backend/scripts/respaldo-bd/`). La plantilla del runbook quedó archivada y su reemplazo despliega código de un tercero, así que el usuario eligió la opción (b).
+  - **Probado en local:** el volcado y la subida a S3Mock, y la restauración en una base nueva, con una copia idéntica.
+  - **Sin cambios de código** en el API ni en la PWA.

@@ -460,6 +460,63 @@ misma sesión, un `\i` que falla (la cuenta ADMIN) seguido de otro que
 funciona: tras el fallo no queda transacción abierta, ni el `SET LOCAL`, ni
 las variables, y la persona siguiente se asigna sin arrastrar nada.
 
+### Respaldo diario de la base (DEP-09, v0.7.2)
+
+`scripts/respaldo-bd/` es el servicio cron `respaldo-bd` de Railway (runbook
+§5.3):
+- **Imagen:** `postgres:16.15-alpine3.24` más `curl` 8.x, con la versión
+  fijada.
+- **Script:** `respaldar.sh` hace un `pg_dump --format=custom --no-owner
+  --no-privileges` por la red privada y lo valida antes de subirlo:
+  - `pg_restore --file=/dev/null` lee y descomprime cada bloque;
+  - el índice del volcado tiene que incluir los datos de
+    `flyway_schema_history`. Así se descarta una base vacía o equivocada.
+
+  Después lo sube a `ciudadviva-respaldos` en R2 con `curl --aws-sigv4`. El
+  sha256 del volcado va dentro de la firma, y R2 rechaza un cuerpo que no
+  coincida.
+- **Timeouts:** 15 s para conectar a la base, 60 s de espera por un lock,
+  20 s para conectar a R2 y 15 min para la subida, con 3 reintentos. Un
+  cuelgue haría que Railway saltara las corridas siguientes sin avisar.
+- **Claves de R2:** van por la configuración de curl en stdin, así que no
+  aparecen en los argumentos del proceso. La contraseña de la base sí va en
+  los argumentos de `pg_dump`, dentro de la URL, pero en un contenedor de un
+  solo proceso no es un riesgo.
+- **Errores:** ante cualquiera sale con código distinto de 0, y Railway
+  marca la corrida como fallida.
+
+**Por qué un script propio y no una plantilla de Railway:** la plantilla que
+nombraba el runbook («Postgres S3 Backups», `railwayapp-templates/…`) quedó
+archivada. La plantilla oficial que la reemplaza despliega código mantenido
+por un tercero, fuera de `railwayapp-templates`, con acceso a la base y al
+bucket. Además crea un bucket de Railway que no se usa. Decisión del usuario
+(25/10): opción (b), script propio versionado y revisado.
+
+- **Cliente de la misma versión mayor que el servidor (16):** el volcado se
+  restaura con el `pg_restore` del PostGIS local (runbook §8).
+- **Formato custom:** viene comprimido y se valida antes de subirlo.
+
+**Verificación (2026-10-25)** con Docker:
+- **Contra el PostGIS de desarrollo y S3Mock 5.2.3:**
+  - sin variables, sale con código 1 y nombra la que falta;
+  - con una base vacía, sale con código 1 y explica que el volcado no tiene
+    los datos de `flyway_schema_history`;
+  - con un host que no responde, corta a los 15 s con el error de libpq,
+    que muestra el host y el puerto, no la contraseña;
+  - con un bucket inexistente, muestra el XML de error del servicio y sale
+    con código 22;
+  - con todo correcto, sube `ciudadviva-<fecha UTC>.dump` (154 kB), y el
+    sha256 del objeto descargado coincide con el que imprime el script.
+- **Restauración según el runbook §8**, en una base nueva:
+  - `pg_restore` termina sin errores;
+  - la copia tiene los mismos 190 reportes, 40 usuarios, 43 distritos y
+    309 filas de historial que el original;
+  - también coinciden la versión de Flyway, PostGIS 3.4.3 y las 109 filas
+    de `mv_indice_desempeno_distrital`.
+- **Falta verificarlo contra R2 real**, porque S3Mock no valida la firma
+  SigV4. Se prueba en la primera corrida en Railway, con
+  `BACKUP_FILE_PREFIX=prueba` (runbook §5.3).
+
 ## Endpoints implementados (vertical slice inicial)
 
 | Método | Ruta                | Auth | Historia | Descripción |
