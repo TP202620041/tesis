@@ -460,6 +460,42 @@ misma sesión, un `\i` que falla (la cuenta ADMIN) seguido de otro que
 funciona: tras el fallo no queda transacción abierta, ni el `SET LOCAL`, ni
 las variables, y la persona siguiente se asigna sin arrastrar nada.
 
+### Respaldo diario de la base (DEP-09, v0.7.2)
+
+`scripts/respaldo-bd/` es el servicio cron `respaldo-bd` de Railway (runbook
+§5.3):
+- **Imagen:** `postgres:16-alpine` más `curl`.
+- **Script:** `respaldar.sh` hace un `pg_dump --format=custom --no-owner
+  --no-privileges` por la red privada, valida el volcado con
+  `pg_restore --list` y lo sube a `ciudadviva-respaldos` en R2 con
+  `curl --aws-sigv4`. Las claves van por la configuración de curl en stdin,
+  así que no aparecen en los argumentos del proceso. Ante cualquier error
+  sale con código distinto de 0, y Railway marca la corrida como fallida.
+
+**Por qué un script propio y no una plantilla de Railway:** la plantilla que
+nombraba el runbook («Postgres S3 Backups», `railwayapp-templates/…`) quedó
+archivada. La plantilla oficial que la reemplaza despliega código de un
+tercero (`brody192/pg_backup`) con acceso a la base y al bucket, y además
+crea un bucket de Railway que no se usa. Decisión del usuario (25/10):
+opción (b), script propio versionado y revisado.
+
+- **Cliente de la misma versión mayor que el servidor (16):** el volcado se
+  restaura con el `pg_restore` del PostGIS local (runbook §8).
+- **Formato custom:** viene comprimido y se valida antes de subirlo.
+
+**Verificación (2026-10-25)** con Docker:
+- **Contra el PostGIS de desarrollo y S3Mock 5.2.3:**
+  - sin variables, sale con código 1 y nombra la que falta;
+  - con todas, sube `ciudadviva-<fecha UTC>.dump` (154 kB), y el sha256 del
+    objeto descargado coincide con el que imprime el script.
+- **Restauración según el runbook §8**, en una base nueva:
+  - `pg_restore` termina sin errores;
+  - la copia tiene los mismos 190 reportes, 40 usuarios, 43 distritos y
+    309 filas de historial que el original;
+  - también coinciden la versión de Flyway, PostGIS 3.4.3 y las 109 filas
+    de `mv_indice_desempeno_distrital`.
+- **Falta verificarlo contra R2 real**, en la primera corrida en Railway.
+
 ## Endpoints implementados (vertical slice inicial)
 
 | Método | Ruta                | Auth | Historia | Descripción |

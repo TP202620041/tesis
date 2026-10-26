@@ -246,23 +246,34 @@ curl -s -o /dev/null -w "%{http_code}\n" $API/v3/api-docs          # distinto de
 
 ### 5.3 Servicio `respaldo-bd`
 
-1. New › **Template** › «Postgres S3 Backups» (`railwayapp-templates/postgres-s3-backups`). Renombrar a `respaldo-bd`.
-2. **Variables:**
+**Script propio del repo:** `backend/scripts/respaldo-bd/` (decisión del usuario, 25/10). Hace un `pg_dump` en formato custom, lo valida con `pg_restore --list` y lo sube a R2 con `curl --aws-sigv4`. El detalle y la verificación están en `backend/README.md`, «Respaldo diario de la base».
+
+**Por qué no la plantilla:** la versión anterior de este runbook usaba la plantilla «Postgres S3 Backups» (`railwayapp-templates/postgres-s3-backups`), que quedó archivada. Su reemplazo oficial despliega código de un tercero con acceso a la base y además crea un bucket de Railway que no se usa.
+
+1. New › **GitHub Repo** › `TP202620041/tesis`. Renombrar el servicio a `respaldo-bd` y fijar la región US East (Virginia) (§5).
+2. **Settings › Source:**
+   - **Rama y carpeta:** rama `main`; *Root Directory* `backend/scripts/respaldo-bd`. Railway construye con el `Dockerfile` de esa carpeta.
+   - **Watch Paths:** `/backend/scripts/respaldo-bd/**`.
+   - **En `backend`:** agregar `!/backend/scripts/respaldo-bd/**` a sus *Watch Paths*, para que un cambio del script no redespliegue el API.
+3. **Variables:**
 
    | Variable | Valor |
    |---|---|
    | `BACKUP_DATABASE_URL` | `postgresql://${{postgis.POSTGRES_USER}}:${{postgis.POSTGRES_PASSWORD}}@${{postgis.RAILWAY_PRIVATE_DOMAIN}}:5432/${{postgis.POSTGRES_DB}}` |
-   | `AWS_S3_ENDPOINT` | endpoint de §2 |
+   | `AWS_S3_ENDPOINT` | `${{backend.FOTOS_S3_ENDPOINT}}`: el endpoint de §2, por referencia |
    | `AWS_S3_REGION` | `auto` |
    | `AWS_S3_BUCKET` | `ciudadviva-respaldos` |
-   | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | token **respaldos** de §2 |
-   | `SINGLE_SHOT_MODE` | `true` |
-   | `PG_VERSION` | `16` |
-   | `BACKUP_FILE_PREFIX` | `ciudadviva` |
+   | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | token **respaldos** de §2 (los pega el usuario, §0) |
+   | `BACKUP_FILE_PREFIX` | opcional; `ciudadviva` por defecto |
 
-3. **Settings › Deploy › Cron Schedule:** `0 8 * * *` (08:00 UTC = 03:00 en Lima). El cron de Railway corre en UTC, con un mínimo de 5 minutos entre corridas, y el proceso debe terminar al acabar (por eso `SINGLE_SHOT_MODE`).
+4. **Settings › Deploy:**
+   - **Cron Schedule:** `0 8 * * *`, que son las 08:00 UTC, las 03:00 en Lima. El cron de Railway corre en UTC, con un mínimo de 5 minutos entre corridas.
+   - **Restart Policy:** *Never*. El script termina al acabar y, si falla, sale con código distinto de 0: la corrida queda fallida en Railway y no se repite sola (verificar).
 
-**Verificar:** `railway cron run --service respaldo-bd` (o esperar a la primera corrida) y comprobar que aparece un objeto `ciudadviva…` en `ciudadviva-respaldos` con un tamaño razonable (verificar el formato del volcado, que necesita §8).
+**Verificar:** `railway cron run --service respaldo-bd`, o esperar a la primera corrida.
+- **En el log:** `Respaldo subido: ciudadviva-respaldos/ciudadviva-<fecha UTC>.dump (<bytes> bytes, sha256 …)`.
+- **En el bucket:** el objeto aparece en `ciudadviva-respaldos`.
+- **Formato:** `pg_dump` custom; se restaura con `pg_restore` (§8).
 
 Si el plan de Railway incluye respaldos del volumen (en el servicio `postgis` › Backups), activar también el diario y el semanal (verificar disponibilidad en Hobby).
 
@@ -364,11 +375,9 @@ Después de cada despliegue de `main`. La corre `qa-e2e` con la PWA en el navega
 # 1. Descargar el último volcado de ciudadviva-respaldos (panel de R2 › objeto › Download).
 # 2. Base vacía en el PostGIS local
 docker exec viasegura-db psql -U viasegura -d viasegura -c "CREATE DATABASE restaurada;"
-# 3. Restaurar según el formato que genera la plantilla (verificar en el primer respaldo):
-#    formato custom o tar:
+# 3. Restaurar. El volcado de respaldo-bd es formato custom (§5.3). Probado el 25/10 con un
+#    volcado del PostGIS de desarrollo: copia idéntica (backend/README.md, «Respaldo diario»).
 docker exec -i viasegura-db pg_restore -U viasegura -d restaurada --no-owner --no-acl < volcado.dump
-#    SQL plano comprimido:
-gunzip -c volcado.sql.gz | docker exec -i viasegura-db psql -U viasegura -d restaurada -v ON_ERROR_STOP=1
 # 4. Arrancar el API contra la copia (sin migraciones pendientes: Flyway valida y no aplica nada)
 #    (desde backend/; el perfil dev exige DB_* y JWT_SECRET)
 DB_URL=jdbc:postgresql://localhost:${POSTGRES_PORT:-5432}/restaurada \

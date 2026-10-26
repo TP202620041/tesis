@@ -18,7 +18,7 @@ flowchart TB
   subgraph railway["Railway · proyecto Ciudad Viva · entorno production"]
     api["backend<br/>contenedor Spring Boot 3.4 · Java 21 (backend/Dockerfile)<br/>perfil prod · FOTOS_ALMACEN=s3 · CORREO_TIPO=resend<br/>health check /actuator/health · PORT=8080<br/>dominio propio api.ciudadviva.app; *.up.railway.app solo para depurar"]
     db[("postgis<br/>postgis/postgis:16-3.4 + volumen<br/>solo red privada (*.railway.internal)")]
-    respaldo["respaldo-bd<br/>cron diario (plantilla Postgres S3 Backups): pg_dump"]
+    respaldo["respaldo-bd<br/>cron diario 08:00 UTC (backend/scripts/respaldo-bd)<br/>pg_dump custom, validado con pg_restore --list"]
     inferencia["inferencia (planificado, NC-03a, v0.8.0)<br/>FastAPI + ONNX en CPU"]
   end
 

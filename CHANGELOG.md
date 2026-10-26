@@ -2,6 +2,39 @@
 
 Versiones de Ciudad Viva (antes ViaSegura) según GitFlow (`WORKFLOW.md` §8): cada sprint cierra con una versión minor en `main`. Plan: `project-context/decisions/plan-sprints.md`.
 
+## v0.7.2 — Respaldo diario de la base (2026-10-25)
+
+Hotfix desde `main` sobre v0.7.1, la versión que quedó en producción con el primer despliegue (DEP-09, 25/10). Agrega el servicio de respaldos de la base y no toca el código del API ni de la PWA. Las correcciones que salgan de DEP-09 van por esta vía (decisión del 25/10, registrada en v0.7.1).
+
+### Primer despliegue (DEP-09, 25/10)
+- **PWA:** `https://ciudadviva.app`, en Vercel. `www` redirige a la raíz.
+- **API:** `https://api.ciudadviva.app`, en Railway, detrás del proxy de Cloudflare.
+- **Despliegue automático:** los dos despliegan solos al fusionar en `main`, y Railway espera además a que pase la CI. `develop` no publica nada.
+- **Verificado:**
+  - el API arranca con las 18 migraciones, los 43 distritos, las 43 municipalidades y el ADMIN del usuario;
+  - health UP; Swagger y `/v3/api-docs` dan 404 y `/actuator/env` da 401;
+  - el CORS solo acepta la PWA;
+  - la PWA es instalable, con su `sw.js`, el manifest y los iconos;
+  - la CSP solo permite el API y las teselas de OpenStreetMap.
+
+### Operación
+- **Respaldo diario de la base** (`backend/scripts/respaldo-bd/`, servicio cron `respaldo-bd`):
+  - **Qué hace:** con `postgres:16-alpine`, un `pg_dump` en formato custom. Lo valida con `pg_restore --list` y lo sube a `ciudadviva-respaldos` en R2 con `curl --aws-sigv4`. Las claves nunca quedan en los argumentos del proceso.
+  - **Por qué propio:** reemplaza a la plantilla «Postgres S3 Backups», que quedó archivada. La plantilla oficial actual despliega código de un tercero con acceso a la base, y el usuario eligió un script propio y revisado (25/10).
+- **Runbook:** §5.3 describe el servicio nuevo (carpeta raíz, *Watch Paths*, variables por referencia, cron a las 08:00 UTC, *Restart Policy* `Never`). §8 restaura el formato custom.
+- **C4 de despliegue:** `respaldo-bd` ya no figura como plantilla.
+
+### Verificación
+- **Respaldo en local,** con Docker contra el PostGIS de desarrollo y S3Mock 5.2.3:
+  - sin variables, sale con código 1 y nombra la que falta;
+  - con todas, sube el volcado, y el sha256 del objeto descargado coincide con el que imprime el script.
+- **Restauración según §8,** en una base nueva: sin errores y con la copia idéntica:
+  - 190 reportes, 40 usuarios, 43 distritos y 309 filas de historial;
+  - la misma versión de Flyway y PostGIS 3.4.3;
+  - las 109 filas de `mv_indice_desempeno_distrital`.
+- **Contra R2 real:** falta. Se verifica en la primera corrida del servicio en Railway.
+- **Código:** el del API y la PWA no cambia. Las cifras siguen siendo las de v0.7.1 (Failsafe 418, Surefire 230, frontend 1041 tests).
+
 ## v0.7.1 — Ajustes del iPhone y documentación del S7 (2026-10-25)
 
 Versión de mantenimiento antes del primer despliegue (DEP-09). Reúne tres cosas:
