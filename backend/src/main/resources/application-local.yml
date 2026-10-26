@@ -18,6 +18,15 @@ security:
     secret: ${JWT_SECRET:Y2hhbmdlLW1lLXRoaXMtaXMtYS1kZXYtb25seS1zZWNyZXQtMDEyMzQ1Njc4OQ==}
     permitir-secreto-de-desarrollo: true
 
+# Clasificador falso (NC-04): en local "detecta" un bache en cualquier foto,
+# para ver la vista previa y la sugerencia sin el servicio de inferencia.
+# CLASIFICACION_FALSO_RESPUESTA lo cambia: vacio (nunca sugiere), 'falla' o
+# pares clase:confianza ('grieta:0.70').
+app:
+  clasificacion:
+    falso:
+      respuesta: ${CLASIFICACION_FALSO_RESPUESTA:bache:0.87}
+
 logging:
   level:
     pe.edu.upc.viasegura: DEBUG

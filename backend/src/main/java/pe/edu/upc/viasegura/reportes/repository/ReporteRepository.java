@@ -1,11 +1,13 @@
 package pe.edu.upc.viasegura.reportes.repository;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import pe.edu.upc.viasegura.reportes.domain.EstadoReporte;
@@ -282,4 +284,41 @@ public interface ReporteRepository extends JpaRepository<Reporte, Long> {
             @Param("estado") String estado,
             @Param("fechaDesde") Instant fechaDesde,
             @Param("fechaHasta") Instant fechaHasta);
+
+    /**
+     * NC-04: URL relativa de la foto del reporte, o vacio si no tiene (o si el
+     * reporte no existe). Solo la columna: la sugerencia oficial corre fuera
+     * de toda transaccion y no necesita la entidad.
+     */
+    @Query("SELECT r.fotoUrl FROM Reporte r WHERE r.id = :id")
+    Optional<String> findFotoUrlById(@Param("id") Long id);
+
+    /**
+     * NC-04 (D-08): escribe la sugerencia oficial <b>una sola vez</b>. El
+     * {@code WHERE} exige que las columnas sigan nulas, asi que un segundo
+     * intento (otro evento, un reproceso) no pisa la primera; devuelve las
+     * filas actualizadas (0 o 1).
+     *
+     * <p>SQL nativo y no {@code save()}: escribe solo estas tres columnas, sin
+     * cargar la entidad, sin tocar el resto de la fila (un {@code merge}
+     * podria devolver a su valor viejo un estado que el funcionario cambio
+     * mientras tanto) y sin mover {@code updated_at}: la sugerencia es una
+     * senal interna y no debe notarse en ninguna fecha visible.</p>
+     */
+    @Modifying
+    @Query(value = """
+            UPDATE reporte
+               SET categoria_sugerida_id = :categoriaId,
+                   confianza_sugerencia = :confianza,
+                   version_modelo_sugerencia = :versionModelo
+             WHERE id = :reporteId
+               AND categoria_sugerida_id IS NULL
+               AND confianza_sugerencia IS NULL
+               AND version_modelo_sugerencia IS NULL
+            """, nativeQuery = true)
+    int registrarSugerencia(
+            @Param("reporteId") Long reporteId,
+            @Param("categoriaId") Long categoriaId,
+            @Param("confianza") BigDecimal confianza,
+            @Param("versionModelo") String versionModelo);
 }

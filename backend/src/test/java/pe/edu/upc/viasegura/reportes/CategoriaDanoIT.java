@@ -131,13 +131,14 @@ class CategoriaDanoIT extends AbstractPostgisIT {
     // clases (las personalizadas se acumulan entre corridas), asi que estos
     // tests afirman invariantes y pertenencia, no conteos exactos de
     // personalizadas. Las estandar SI son un conteo estable: son las 6 del
-    // seed V3 y nada en la suite crea estandar nuevas.
+    // seed V3 y nada en la suite crea estandar nuevas. El catalogo ofrece 5:
+    // V19 (NC-04) desactivo «Hueco en calzada».
 
     @Test
-    void sinFiltroDeDistrito_devuelveSoloLas6Estandar() throws Exception {
+    void sinFiltroDeDistrito_devuelveSoloLas5EstandarActivas() throws Exception {
         mockMvc.perform(get("/api/categorias"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(6)))
+                .andExpect(jsonPath("$", hasSize(5)))
                 .andExpect(jsonPath("$[*].esEstandar", everyItem(is(true))))
                 // Orden alfabetico estable, util para el selector del frontend.
                 .andExpect(jsonPath("$[0].nombre", is("Bache")));
@@ -159,8 +160,8 @@ class CategoriaDanoIT extends AbstractPostgisIT {
                 .andExpect(status().isOk())
                 // Incluye la recien creada...
                 .andExpect(jsonPath("$[?(@.nombre == '" + nombrePropio + "')]", hasSize(1)))
-                // ...y sigue incluyendo las 6 estandar.
-                .andExpect(jsonPath("$[?(@.esEstandar == true)]", hasSize(6)))
+                // ...y sigue incluyendo las 5 estandar activas.
+                .andExpect(jsonPath("$[?(@.esEstandar == true)]", hasSize(5)))
                 // Invariante clave: TODO lo devuelto es seleccionable en este
                 // distrito -- o es estandar, o es personalizada de Miraflores.
                 .andExpect(jsonPath("$[?(@.esEstandar == false && @.distritoNombre != 'Miraflores')]",

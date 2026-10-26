@@ -13,8 +13,13 @@ package pe.edu.upc.viasegura.reportes.event;
  * cercano existente no inserta una fila nueva en {@code reporte}, asi que
  * {@code total_reportes} no cambia y refrescar seria trabajo inutil.</p>
  *
+ * <p>Tambien dispara la sugerencia oficial de categoria (NC-04, D-08,
+ * {@code SugerenciaCategoriaListener}), solo si el reporte tiene foto.</p>
+ *
  * @param reporteId   reporte recien creado
  * @param distritoId  distrito asignado automaticamente por coordenadas
  * @param categoriaId categoria del dano (afecta el desglose de US-20)
+ * @param conFoto     si se guardo una foto con el reporte: sin foto no hay
+ *                    nada que clasificar y no se encola ninguna tarea
  */
-public record ReporteCreadoEvent(Long reporteId, Long distritoId, Long categoriaId) {}
+public record ReporteCreadoEvent(Long reporteId, Long distritoId, Long categoriaId, boolean conFoto) {}

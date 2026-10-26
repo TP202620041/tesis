@@ -55,4 +55,21 @@ public class CategoriaDano {
     @Column(nullable = false)
     @Builder.Default
     private boolean activo = true;
+
+    /**
+     * Clase del modelo de deteccion que corresponde a esta categoria (NC-04,
+     * V19): {@code bache} para «Bache» y {@code grieta} para «Pista
+     * deteriorada»; nula en las demas, que nunca se sugieren. Unica cuando no
+     * es nula y solo en categorias estandar (CHECK de V19).
+     *
+     * <p>Solo lectura para JPA: la fijan las migraciones, junto con el
+     * vocabulario del contrato de {@code inferencia/}; ningun caso de uso la
+     * escribe.</p>
+     */
+    @Column(name = "clase_modelo", length = 40, insertable = false, updatable = false)
+    private String claseModelo;
+
+    /** Icono de la categoria (ARCHITECTURE.md §8). Su contenido lo define el rediseño (S8); hoy nulo y fuera de los DTO. */
+    @Column(length = 40)
+    private String icono;
 }
