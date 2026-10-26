@@ -49,7 +49,7 @@ Diagrama y lectura en `docs/arquitectura/c4-despliegue.md`. Resumen:
 | PWA | Vercel, plan Hobby, proyecto con *Root Directory* `frontend`, rama de producción `main`, Node 24.x | Build `npm run build` (Next + Serwist). Solo se construye `main` (preset «Only build production» del *Ignored Build Step*). |
 | API | Railway, servicio `backend`, región **US East (Virginia)** (no hay región en Sudamérica) | Imagen desde `backend/Dockerfile` (multi-etapa, JRE 21 Ubuntu noble, usuario no root), perfil `prod`, health check `/actuator/health`, *watch paths* `/backend/**`. Dominio `*.up.railway.app`. |
 | Base de datos | Railway, servicio `postgis` con imagen `postgis/postgis:16-3.4` y un volumen | Volumen en `/var/lib/postgresql/data` con `PGDATA=/var/lib/postgresql/data/pgdata` (el volumen nuevo trae `lost+found` y `initdb` falla si se usa la raíz). **Sin TCP Proxy público**: el API llega por la red privada (`postgis.railway.internal`). |
-| Respaldo | Railway, servicio cron `respaldo-bd` desde la plantilla oficial «Postgres S3 Backups» (`railwayapp-templates/postgres-s3-backups`) | `SINGLE_SHOT_MODE=true`, cron `0 8 * * *` UTC (03:00 en Lima), `PG_VERSION=16`, sube el volcado a un bucket R2 de respaldos. |
+| Respaldo | Railway, servicio cron `respaldo-bd` desde la plantilla oficial «Postgres S3 Backups» (`railwayapp-templates/postgres-s3-backups`). **Superado el 25/10:** la plantilla quedó archivada, y `respaldo-bd` es un script propio (`backend/scripts/respaldo-bd/`, runbook §5.3, v0.7.2) | `SINGLE_SHOT_MODE=true`, cron `0 8 * * *` UTC (03:00 en Lima), `PG_VERSION=16`, sube el volcado a un bucket R2 de respaldos. |
 | Fotos | Cloudflare R2: buckets privados `…-fotos-reportes` y `…-fotos-perfiles` | El API las guarda y las lee con la API S3 y las sirve en las rutas de hoy (propuesta `2026-10-21-fotos-r2.md`). |
 | Correo | Brevo o Resend por API HTTP | Propuesta `2026-10-21-correo-saliente-http.md`. |
 | Push | Servicios Web Push del navegador | Sin cambios (VAPID por variables). |
@@ -117,7 +117,7 @@ Solo nombres y origen; **ningún valor secreto va al repositorio ni a este docum
 | `PGDATA` | `/var/lib/postgresql/data/pgdata` | no |
 | Volumen | montado en `/var/lib/postgresql/data` | — |
 
-### Railway · `respaldo-bd` (plantilla «Postgres S3 Backups»)
+### Railway · `respaldo-bd` (plantilla «Postgres S3 Backups»; superada el 25/10, ver runbook §5.3)
 
 | Variable | Valor u origen | Secreta |
 |---|---|---|

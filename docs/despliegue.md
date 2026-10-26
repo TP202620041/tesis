@@ -2,7 +2,7 @@
 
 > Procedimiento para desplegar el MVP en **Railway** (API + PostGIS + respaldo), **Vercel** (PWA), **Cloudflare R2** (fotos y respaldos) y **Resend** (correo por HTTP). Diseño, opciones y fuentes: `project-context/decisions/propuestas/2026-10-21-despliegue-mvp.md` (aceptada el 21/10). Diagrama: `docs/arquitectura/c4-despliegue.md`.
 >
-> Versión 0.1 · 2026-10-21 · Redactado antes del primer despliegue real: lo marcado **(verificar)** se confirma en esa primera ejecución (DEP-09) y se corrige aquí.
+> Versión 0.2 · 2026-10-25 · El primer despliegue (DEP-09) se hizo el 25/10 con v0.7.1, y v0.7.2 agrega `respaldo-bd` (§5.3). Lo que sigue marcado **(verificar)** se confirma con la prueba de humo (DEP-10) y se corrige aquí.
 
 ## 0. Antes de empezar
 
@@ -128,6 +128,11 @@ Si no es 200: `401`, la clave no es válida; `403`, el remitente no es del domin
 
 Crear un proyecto («Ciudad Viva», entorno `production`). **Hecho el 25/10**, a pedido del usuario, en su workspace y en plan Hobby. Región de cada servicio: **US East (Virginia)** (Settings › Deploy › Regions); no hay región en Sudamérica. **Fijarla siempre**: un servicio nuevo nace en `sfo` (oeste de EE. UU.).
 
+**Después del primer despliegue (25/10, DEP-09),** el estado de abajo quedó atrás:
+- **`backend`:** tiene el repo conectado en `main` y está desplegado con v0.7.1. Un disparador redespliega al fusionar en `main` y espera a que pase la CI («Wait for CI»).
+  - Ese disparador exige que la app de Railway en GitHub tenga acceso a la organización `TP202620041`. Sin ese acceso, el primer despliegue funciona porque el repo es público, pero no hay despliegue automático.
+- **`respaldo-bd`:** se crea con v0.7.2 (§5.3).
+
 **Estado al 25/10** (lo hizo la sesión «dominio» a pedido del usuario):
 - **`postgis`:** desplegado y sano (§5.1). Región `us-east4`, volumen de 5 GB.
 - **`backend`:** configurado según §5.2 pero **sin el repo conectado** y sin despliegues.
@@ -176,7 +181,7 @@ railway connect postgis               # abre psql por túnel SSH (requiere psql 
 
 1. New › **GitHub Repo** › `TP202620041/tesis`. Renombrar a `backend`.
 2. **Settings › Source:** rama `main`; *Root Directory* `backend`. Railway detecta `backend/Dockerfile` y construye con él.
-3. **Settings › Build › Watch Paths:** `/backend/**` (las rutas parten de la raíz del repo aunque haya *Root Directory*), para que un cambio en `frontend/` o `docs/` no redespliegue el API.
+3. **Settings › Build › Watch Paths:** `/backend/**` y `!/backend/scripts/respaldo-bd/**`. Las rutas parten de la raíz del repo aunque haya *Root Directory*. Así, un cambio en `frontend/`, en `docs/` o en el script de respaldos (§5.3) no redespliega el API.
 4. **Settings › Deploy:** *Healthcheck Path* `/actuator/health` (el tiempo de espera por defecto, 300 s, alcanza); *Restart Policy* `On Failure`. Railway solo consulta el health check al desplegar, para cambiar de versión sin corte; no lo vigila después.
 5. **Networking:**
    - **Generate Domain:** la URL `*.up.railway.app`, para depurar.
@@ -258,23 +263,45 @@ curl -s -o /dev/null -w "%{http_code}\n" $API/v3/api-docs          # distinto de
 
 ### 5.3 Servicio `respaldo-bd`
 
-1. New › **Template** › «Postgres S3 Backups» (`railwayapp-templates/postgres-s3-backups`). Renombrar a `respaldo-bd`.
-2. **Variables:**
+**Script propio del repo:** `backend/scripts/respaldo-bd/` (decisión del usuario, 25/10). Hace un `pg_dump` en formato custom, lo valida con `pg_restore --list` y lo sube a R2 con `curl --aws-sigv4`. El detalle y la verificación están en `backend/README.md`, «Respaldo diario de la base».
+
+**Por qué no la plantilla:** la versión anterior de este runbook usaba la plantilla «Postgres S3 Backups» (`railwayapp-templates/postgres-s3-backups`), que quedó archivada. Su reemplazo oficial despliega código de un tercero con acceso a la base y además crea un bucket de Railway que no se usa.
+
+1. New › **GitHub Repo** › `TP202620041/tesis`. Renombrar el servicio a `respaldo-bd` y fijar la región US East (Virginia) (§5).
+2. **Settings › Source:**
+   - **Rama y carpeta:** rama `main`; *Root Directory* `backend/scripts/respaldo-bd`. Railway construye con el `Dockerfile` de esa carpeta.
+   - **Watch Paths:** `/backend/scripts/respaldo-bd/**`.
+   - **En `backend`:** agregar `!/backend/scripts/respaldo-bd/**` a sus *Watch Paths*, para que un cambio del script no redespliegue el API.
+3. **Variables:**
 
    | Variable | Valor |
    |---|---|
    | `BACKUP_DATABASE_URL` | `postgresql://${{postgis.POSTGRES_USER}}:${{postgis.POSTGRES_PASSWORD}}@${{postgis.RAILWAY_PRIVATE_DOMAIN}}:5432/${{postgis.POSTGRES_DB}}` |
-   | `AWS_S3_ENDPOINT` | endpoint de §2 |
+   | `AWS_S3_ENDPOINT` | `${{backend.FOTOS_S3_ENDPOINT}}`: el endpoint de §2, por referencia |
    | `AWS_S3_REGION` | `auto` |
    | `AWS_S3_BUCKET` | `ciudadviva-respaldos` |
-   | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | token **respaldos** de §2 |
-   | `SINGLE_SHOT_MODE` | `true` |
-   | `PG_VERSION` | `16` |
-   | `BACKUP_FILE_PREFIX` | `ciudadviva` |
+   | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | token **respaldos** de §2 (los pega el usuario, §0) |
+   | `BACKUP_FILE_PREFIX` | opcional; `ciudadviva` por defecto |
 
-3. **Settings › Deploy › Cron Schedule:** `0 8 * * *` (08:00 UTC = 03:00 en Lima). El cron de Railway corre en UTC, con un mínimo de 5 minutos entre corridas, y el proceso debe terminar al acabar (por eso `SINGLE_SHOT_MODE`).
+   **La URL lleva `POSTGRES_PASSWORD` sin codificar.** Funciona porque §4 la genera sin `/`, `+` ni `=`. Si se rota (§9), la nueva tiene que ser **solo alfanumérica**: un `/`, `@` o `%` rompe la URL, y libpq repite trozos de ella en el error del log.
+4. **Settings › Deploy:**
+   - **Cron Schedule:** `0 8 * * *`, que son las 08:00 UTC, las 03:00 en Lima. El cron de Railway corre en UTC, con un mínimo de 5 minutos entre corridas.
+   - **Restart Policy:** *On Failure*, con **2** reintentos como máximo.
+     - **Por qué se puede reintentar:** cada corrida crea un objeto con otro nombre, así que un reintento nunca pisa un respaldo bueno.
+     - **Qué cubre:** un fallo pasajero de la red o de R2 que sobreviva a los 3 reintentos de `curl` no deja el día sin respaldo.
+     - **Por qué no se cuelga:** el script corta solo, con 15 s para conectar a la base, 60 s de espera por un lock y 15 min para la subida. Un cuelgue haría que Railway saltara las corridas siguientes.
+     - (verificar que Railway aplique la política a un servicio cron).
+5. **Si falla, que se note:** Railway avisa por correo cuando un despliegue o una corrida falla. Comprobar que esas notificaciones estén activas en la cuenta del usuario (*Account › Notifications*; verificar el nombre exacto). Además, §8 pide revisar cada semana que el último objeto tenga menos de 24 h.
 
-**Verificar:** `railway cron run --service respaldo-bd` (o esperar a la primera corrida) y comprobar que aparece un objeto `ciudadviva…` en `ciudadviva-respaldos` con un tamaño razonable (verificar el formato del volcado, que necesita §8).
+**Verificar la primera vez** (desde la PC del usuario, con la CLI enlazada al proyecto):
+1. **Probar contra R2 antes de esperar al cron**, porque la prueba local con S3Mock no valida la firma SigV4:
+   - con la variable `BACKUP_FILE_PREFIX=prueba`, correr `railway cron run --service respaldo-bd`;
+   - si el objeto `prueba-….dump` aparece en `ciudadviva-respaldos`, quitar la variable y borrar el objeto.
+2. **Resultado esperado:**
+   - **En el log:** `Respaldo subido: ciudadviva-respaldos/<prefijo>-<fecha UTC>.dump (<bytes> bytes, sha256 …)`.
+   - **Un 403 de R2:** muestra el XML del error, sin la clave. Lo normal es que el token «respaldos» no alcance a ese bucket.
+   - **Si dice `could not translate host name "postgis.railway.internal"`:** es la resolución DNS de Alpine (musl) en la red privada. Agregar `ENABLE_ALPINE_PRIVATE_NETWORKING=true` o cambiar la imagen a `postgres:16-bookworm`.
+   - **Formato:** `pg_dump` custom; se restaura con `pg_restore` (§8).
 
 Si el plan de Railway incluye respaldos del volumen (en el servicio `postgis` › Backups), activar también el diario y el semanal (verificar disponibilidad en Hobby).
 
@@ -370,17 +397,21 @@ Después de cada despliegue de `main`. La corre `qa-e2e` con la PWA en el navega
 
 ## 8. Respaldo y restauración
 
+**Revisión semanal:**
+- **En R2:** que el objeto más reciente de `ciudadviva-respaldos` tenga **menos de 24 h**, con un tamaño parecido al de los días anteriores.
+- **En Railway:** que `railway cron list --service respaldo-bd` no muestre corridas fallidas.
+
+Un respaldo que dejó de correr no avisa por sí mismo más allá del correo de Railway (§5.3, paso 5).
+
 **Prueba de restauración** (una vez al mes y antes de cada release), en la máquina local con el `docker compose` de `backend/`:
 
 ```bash
 # 1. Descargar el último volcado de ciudadviva-respaldos (panel de R2 › objeto › Download).
 # 2. Base vacía en el PostGIS local
 docker exec viasegura-db psql -U viasegura -d viasegura -c "CREATE DATABASE restaurada;"
-# 3. Restaurar según el formato que genera la plantilla (verificar en el primer respaldo):
-#    formato custom o tar:
+# 3. Restaurar. El volcado de respaldo-bd es formato custom (§5.3). Probado el 25/10 con un
+#    volcado del PostGIS de desarrollo: copia idéntica (backend/README.md, «Respaldo diario»).
 docker exec -i viasegura-db pg_restore -U viasegura -d restaurada --no-owner --no-acl < volcado.dump
-#    SQL plano comprimido:
-gunzip -c volcado.sql.gz | docker exec -i viasegura-db psql -U viasegura -d restaurada -v ON_ERROR_STOP=1
 # 4. Arrancar el API contra la copia (sin migraciones pendientes: Flyway valida y no aplica nada)
 #    (desde backend/; el perfil dev exige DB_* y JWT_SECRET)
 DB_URL=jdbc:postgresql://localhost:${POSTGRES_PORT:-5432}/restaurada \
@@ -403,7 +434,7 @@ docker exec viasegura-db psql -U viasegura -d viasegura -c "DROP DATABASE restau
 | Secreto | Cómo rotarlo | Efecto en los usuarios |
 |---|---|---|
 | `JWT_SECRET` | Generar otro (§4), reemplazarlo en `backend`, redesplegar. | Todas las sesiones vencen: cada usuario vuelve a iniciar sesión. Los reportes en la cola offline se reenvían después del login. |
-| `POSTGRES_PASSWORD` | `railway connect postgis` → `ALTER ROLE viasegura WITH PASSWORD '<nuevo>';` (sin dejarlo en el historial de la terminal), actualizar la variable en `postgis` y redesplegar `backend` y `respaldo-bd` (usan la referencia). | Corte breve del API. |
+| `POSTGRES_PASSWORD` | `railway connect postgis` → `ALTER ROLE viasegura WITH PASSWORD '<nuevo>';` (sin dejarlo en el historial de la terminal), actualizar la variable en `postgis` y redesplegar `backend` y `respaldo-bd` (usan la referencia). La nueva, **solo alfanumérica**, como en §4: va sin codificar en la URL de `respaldo-bd` (§5.3). | Corte breve del API. |
 | Tokens R2 (fotos, respaldos) | Crear un token nuevo con el mismo alcance, reemplazar las variables, redesplegar y **después** revocar el viejo. | Ninguno. |
 | `CORREO_API_KEY` | Igual: clave nueva, redesplegar, revocar la vieja. | Ninguno. |
 | Claves VAPID | **Solo si se comprometió la privada.** Par nuevo, redesplegar. | Todas las suscripciones push dejan de servir; cada usuario vuelve a suscribirse al iniciar sesión. |
