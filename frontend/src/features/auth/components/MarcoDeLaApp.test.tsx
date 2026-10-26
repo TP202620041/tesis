@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { Usuario } from '@/lib/types/domain';
 import { useUsuarioDelMarco, type UsuarioDelMarco } from '../hooks/useUsuarioDelMarco';
@@ -47,6 +47,7 @@ function como(usuario: UsuarioDelMarco, en = '/mapa') {
 
 /** En jsdom no hay CSS: la cabecera (escritorio) y la barra (móvil) están las dos. */
 const barraInferior = () => screen.getAllByRole('navigation', { name: 'Principal' }).at(-1)!;
+const menuDeAna = () => screen.getByRole('button', { name: 'Menú de cuenta de Ana Vecina' });
 
 afterEach(() => {
   vi.mocked(useUsuarioDelMarco).mockReset();
@@ -60,13 +61,14 @@ describe('MarcoDeLaApp (DIS-1)', () => {
     expect(screen.getByRole('link', { name: 'Saltar al contenido' })).toHaveAttribute('href', '#contenido');
   });
 
-  it('visitante: lo público, Reportar y la entrada; sin menú de cuenta', () => {
+  it('visitante: lo público, Reportar y la entrada; sin cuenta', () => {
     como({ estado: 'visitante' });
     const barra = barraInferior();
     expect(within(barra).getByRole('link', { name: 'Mapa' })).toHaveAttribute('aria-current', 'page');
     expect(within(barra).getByRole('link', { name: 'Reportar' })).toHaveAttribute('href', '/reportar');
     expect(within(barra).getByRole('link', { name: 'Entrar' })).toHaveAttribute('href', '/login');
     expect(screen.getByRole('link', { name: 'Crear cuenta' })).toHaveAttribute('href', '/registro');
+    expect(within(barra).queryByRole('link', { name: 'Cuenta' })).toBeNull();
     expect(screen.queryByRole('button', { name: /cuenta/i })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Cerrar sesión' })).toBeNull();
   });
@@ -76,15 +78,28 @@ describe('MarcoDeLaApp (DIS-1)', () => {
     const barra = barraInferior();
     expect(within(barra).getAllByRole('listitem')).toHaveLength(5);
     expect(within(barra).getByRole('link', { name: 'Mis reportes' })).toHaveAttribute('aria-current', 'page');
-    expect(within(barra).getByRole('button', { name: 'Cuenta' })).toHaveAttribute('aria-expanded', 'false');
+    expect(within(barra).getAllByRole('link').at(-1)).toHaveAccessibleName('Cuenta');
   });
 
-  it('«Cerrar sesión» vive en el menú de cuenta, con perfil y soporte', async () => {
+  it('móvil: «Cuenta» es una pantalla (Mi perfil), no un menú encima; sigue marcada en Soporte', () => {
+    // Prueba en iPhone del 23/10: tiene que seguir las reglas de las demás pantallas.
+    const { unmount } = como({ estado: 'identificado', usuario: ANA }, '/perfil');
+    const cuenta = within(barraInferior()).getByRole('link', { name: 'Cuenta' });
+    expect(cuenta).toHaveAttribute('href', '/perfil');
+    expect(cuenta).toHaveAttribute('aria-current', 'page');
+    expect(within(barraInferior()).queryByRole('button')).toBeNull();
+    unmount();
+
+    como({ estado: 'identificado', usuario: ANA }, '/soporte');
+    expect(within(barraInferior()).getByRole('link', { name: 'Cuenta' })).toHaveAttribute('aria-current', 'page');
+  });
+
+  it('escritorio: «Cerrar sesión» vive en el menú de cuenta, con perfil y soporte', async () => {
     como({ estado: 'identificado', usuario: ANA });
     const usuario = userEvent.setup();
     expect(screen.queryByRole('button', { name: 'Cerrar sesión' })).toBeNull();
 
-    const boton = screen.getByRole('button', { name: 'Menú de cuenta de Ana Vecina' });
+    const boton = menuDeAna();
     await usuario.click(boton);
     expect(boton).toHaveAttribute('aria-expanded', 'true');
     const panel = document.getElementById(boton.getAttribute('aria-controls')!)!;
@@ -101,12 +116,12 @@ describe('MarcoDeLaApp (DIS-1)', () => {
     expect(boton).toHaveFocus();
   });
 
-  it('«Cerrar sesión» cierra el menú y devuelve el foco a «Cuenta»', async () => {
+  it('escritorio: «Cerrar sesión» cierra el menú y devuelve el foco a su botón', async () => {
     // Si hay reportes en cola, el diálogo de la pregunta no queda encima de un
     // menú abierto que también atiende Escape, ni el foco en un botón tapado.
     como({ estado: 'identificado', usuario: ANA });
     const usuario = userEvent.setup();
-    const boton = within(barraInferior()).getByRole('button', { name: 'Cuenta' });
+    const boton = menuDeAna();
     await usuario.click(boton);
     const panel = document.getElementById(boton.getAttribute('aria-controls')!)!;
     await usuario.click(within(panel).getByRole('button', { name: 'Cerrar sesión' }));
@@ -115,17 +130,90 @@ describe('MarcoDeLaApp (DIS-1)', () => {
     expect(boton).toHaveFocus();
   });
 
-  it('el menú se cierra al tocar fuera', async () => {
+  it('escritorio: el menú se cierra al tocar fuera', async () => {
     como({ estado: 'identificado', usuario: ANA });
     const usuario = userEvent.setup();
-    const boton = within(barraInferior()).getByRole('button', { name: 'Cuenta' });
+    const boton = menuDeAna();
     await usuario.click(boton);
     expect(boton).toHaveAttribute('aria-expanded', 'true');
     await usuario.click(screen.getByText('Contenido de la página'));
     expect(boton).toHaveAttribute('aria-expanded', 'false');
   });
 
-  it('funcionario: su navegación y la insignia de su municipalidad', () => {
+  it('móvil: el título pasa a la barra siguiendo el desplazamiento, y sigue sus cambios', async () => {
+    // Cada cuadro se mide en el acto; jsdom no mide cajas: se las dicta el test.
+    vi.stubGlobal('requestAnimationFrame', (medir: FrameRequestCallback) => {
+      medir(0);
+      return 1;
+    });
+    try {
+      ruta.actual = '/mis-reportes';
+      vi.mocked(useUsuarioDelMarco).mockReturnValue({ estado: 'identificado', usuario: ANA });
+      const { rerender } = render(
+        <MarcoDeLaApp>
+          <h1>Mis reportes</h1>
+        </MarcoDeLaApp>,
+      );
+      const barra = screen.getByRole('banner');
+      const h1 = screen.getByRole('heading', { level: 1, name: 'Mis reportes' });
+      vi.spyOn(barra, 'getBoundingClientRect').mockReturnValue({ bottom: 110 } as DOMRect);
+      let arribaDelH1 = 150;
+      vi.spyOn(h1, 'getBoundingClientRect').mockImplementation(() => ({ top: arribaDelH1, height: 32 }) as DOMRect);
+      /** El <h1> queda con su borde superior en `arriba` (px desde el borde de la pantalla). */
+      const desplazar = (arriba: number) => {
+        arribaDelH1 = arriba;
+        act(() => {
+          window.dispatchEvent(new Event('scroll'));
+        });
+      };
+      const avance = () => Number(barra.style.getPropertyValue('--cv-avance-titulo'));
+      const compacto = () => barra.querySelector('[data-titulo-compacto]')!;
+
+      // En la página, por debajo de la barra: nada cambia, pero el texto ya está listo.
+      desplazar(150);
+      expect(avance()).toBe(0);
+      expect(compacto()).toHaveTextContent('Mis reportes');
+      expect(compacto()).toHaveAttribute('aria-hidden', 'true');
+      expect(barra).toHaveAttribute('data-compacto', 'false');
+      // Mientras pasa bajo la barra, el cambio queda a medias y crece con el
+      // dedo, sin saltos de 0 a 1 (los valores exactos dependen del ajuste).
+      const intermedios = [90, 75, 60].map((arriba) => {
+        desplazar(arriba);
+        return avance();
+      });
+      expect(intermedios.every((valor) => valor > 0 && valor < 1)).toBe(true);
+      expect(intermedios).toEqual([...intermedios].sort((a, b) => a - b));
+      expect(new Set(intermedios).size).toBe(intermedios.length);
+      expect(barra).toHaveAttribute('data-compacto', 'false');
+      // Ya por encima: el título está en la barra y el logo sale del foco.
+      desplazar(-20);
+      expect(avance()).toBe(1);
+      expect(barra).toHaveAttribute('data-compacto', 'true');
+      // De vuelta arriba, se deshace.
+      desplazar(150);
+      expect(avance()).toBe(0);
+
+      // El detalle que termina de cargar cambia el texto del mismo <h1>.
+      rerender(
+        <MarcoDeLaApp>
+          <h1>Bache en Av. Larco</h1>
+        </MarcoDeLaApp>,
+      );
+      await waitFor(() => expect(compacto()).toHaveTextContent('Bache en Av. Larco'));
+    } finally {
+      vi.unstubAllGlobals();
+      vi.restoreAllMocks();
+    }
+  });
+
+  it('sin <h1> en la pantalla, la barra no muestra título compacto', () => {
+    como({ estado: 'identificado', usuario: ANA });
+    const barra = screen.getByRole('banner');
+    expect(barra.querySelector('[data-titulo-compacto]')).toBeEmptyDOMElement();
+    expect(Number(barra.style.getPropertyValue('--cv-avance-titulo'))).toBe(0);
+  });
+
+  it('funcionario: su navegación, la insignia de su municipalidad y «Cuenta»', () => {
     como({
       estado: 'identificado',
       usuario: { ...ANA, rol: 'FUNCIONARIO_MUNICIPAL', distritoNombre: 'Miraflores' } as Usuario,
@@ -135,13 +223,18 @@ describe('MarcoDeLaApp (DIS-1)', () => {
     expect(within(barra).getByRole('link', { name: 'Bandeja' })).toHaveAttribute('aria-current', 'page');
     expect(within(barra).getByRole('link', { name: 'Panel' })).toHaveAttribute('href', '/dashboard');
     expect(within(barra).queryByRole('link', { name: 'Reportar' })).toBeNull();
+    expect(within(barra).getByRole('link', { name: 'Cuenta' })).toHaveAttribute('href', '/perfil');
   });
 
-  it('sin red y con sesión: lo público y el menú de cuenta para poder salir', async () => {
+  it('sin red y con sesión: lo público, «Cuenta» y, en escritorio, el menú para poder salir', async () => {
     como({ estado: 'sin-identificar' });
     const barra = barraInferior();
-    expect(within(barra).getAllByRole('link').map((a) => a.getAttribute('href'))).toEqual(['/mapa', '/desempeno']);
-    await userEvent.setup().click(within(barra).getByRole('button', { name: 'Cuenta' }));
+    expect(within(barra).getAllByRole('link').map((a) => a.getAttribute('href'))).toEqual([
+      '/mapa',
+      '/desempeno',
+      '/perfil',
+    ]);
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Menú de cuenta de Tu cuenta' }));
     expect(screen.getByText('No se pudo cargar tu cuenta: revisa tu conexión.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cerrar sesión' })).toBeInTheDocument();
   });

@@ -1,12 +1,12 @@
 'use client';
 
-import Link from 'next/link';
 import { useState, type ReactNode } from 'react';
 import { AlertaError, Boton, Campo } from '@/components/ui/form';
 import { PREFERENCIAS_NOTIFICACION, type PreferenciaNotificacion, type Usuario } from '@/lib/types/domain';
 import { useConsentimientos } from '../hooks/useConsentimientos';
 import { useDistritosDeResidencia, usePerfil } from '../hooks/usePerfil';
 import { usePushEnEsteNavegador } from '../hooks/usePushEnEsteNavegador';
+import { AccionesDeLaCuenta } from './AccionesDeLaCuenta';
 import { CampoFotoDePerfil } from './CampoFotoDePerfil';
 import { FotoDePerfil } from './FotoDePerfil';
 import { PrivacidadYConsentimientos } from './PrivacidadYConsentimientos';
@@ -37,10 +37,8 @@ export function EditarPerfil({ inicial, textoLegal }: { inicial: Usuario; textoL
 
   return (
     <main className="mx-auto flex w-full max-w-lg flex-col gap-6 px-4 py-6">
-      <Link href="/mis-reportes" className="self-start text-sm text-enlace hover:underline">
-        ← Volver a mis reportes
-      </Link>
-
+      {/* Sin «Volver a mis reportes»: es la pantalla de «Cuenta» de la barra
+          inferior, un destino más, como las otras. */}
       <header className="flex items-center gap-4">
         <FotoDePerfil fotoUrl={usuario.fotoUrl} nombre={usuario.nombre} />
         <div>
@@ -136,7 +134,7 @@ export function EditarPerfil({ inicial, textoLegal }: { inicial: Usuario; textoL
         </p>
       </section>
 
-      {/* US-23: también está en el menú de cuenta; aquí, con la descripción. */}
+      {/* US-23: también está en el menú de cuenta de escritorio; aquí, con la descripción. */}
       <section className="border-t border-linea pt-4">
         <SelectorDeApariencia />
       </section>
@@ -151,6 +149,9 @@ export function EditarPerfil({ inicial, textoLegal }: { inicial: Usuario; textoL
         }
         extra={{ NOTIFICACIONES_PUSH: <PushEnEsteNavegador push={push} /> }}
       />
+
+      {/* Soporte y «Cerrar sesión»: en el móvil, esta es la pantalla de «Cuenta». */}
+      <AccionesDeLaCuenta rol={usuario.rol} />
     </main>
   );
 }

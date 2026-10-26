@@ -7,15 +7,13 @@ import { Icono } from '@/components/ui/Icono';
 import type { Usuario } from '@/lib/types/domain';
 import { descripcionDeCuenta, iniciales, type ItemNavegacion } from '../model/navegacion';
 import { BotonCerrarSesion } from './BotonCerrarSesion';
-import { ETIQUETA_INFERIOR, ICONOS_DE_NAVEGACION } from './iconosDeNavegacion';
+import { ICONOS_DE_NAVEGACION } from './iconosDeNavegacion';
 
 interface MenuCuentaProps {
   /** `null`: hay sesión pero no se pudo saber de quién (sin red). */
   usuario: Usuario | null;
   /** Enlaces de la cuenta según el rol (`navegacionDe(rol).cuenta`). */
   items: readonly ItemNavegacion[];
-  /** En la cabecera (escritorio) o como último ítem de la barra inferior (móvil). */
-  variante: 'cabecera' | 'inferior';
   /** Ruta actual: el menú se cierra al navegar. */
   ruta: string;
   /** Contenido adicional antes de «Cerrar sesión» (el selector de apariencia). */
@@ -23,9 +21,10 @@ interface MenuCuentaProps {
 }
 
 /**
- * Menú de cuenta (DIS-1): quién es, sus enlaces (perfil, soporte…), la
- * apariencia y «Cerrar sesión», que ya no compite con las acciones de cada
- * pantalla.
+ * Menú de cuenta de la cabecera (DIS-1, escritorio): quién es, sus enlaces
+ * (perfil, soporte…), la apariencia y «Cerrar sesión», que ya no compite con
+ * las acciones de cada pantalla. En el móvil no hay menú: «Cuenta» es una
+ * pantalla más de la barra inferior (`CUENTA`, `/perfil`).
  *
  * Es un **desplegable** (botón con `aria-expanded` que muestra un panel), no
  * un `role="menu"`: adentro hay enlaces y un grupo de opciones de radio, que
@@ -33,7 +32,7 @@ interface MenuCuentaProps {
  * foco vuelve al botón), al tocar fuera, al navegar y al pulsar «Cerrar
  * sesión».
  */
-export function MenuCuenta({ usuario, items, variante, ruta, children }: MenuCuentaProps) {
+export function MenuCuenta({ usuario, items, ruta, children }: MenuCuentaProps) {
   const [abierto, setAbierto] = useState(false);
   // Al navegar se cierra. Se ajusta durante el render (el patrón de React
   // para estado que depende de una prop), no con un efecto que pintaría un
@@ -66,56 +65,35 @@ export function MenuCuenta({ usuario, items, variante, ruta, children }: MenuCue
   }, [abierto]);
 
   const nombre = usuario ? `${usuario.nombre} ${usuario.apellido}`.trim() : 'Tu cuenta';
-  const enCabecera = variante === 'cabecera';
 
   return (
-    <div ref={contenedor} className={enCabecera ? 'relative' : 'h-full'}>
+    <div ref={contenedor} className="relative">
       <button
         ref={boton}
         type="button"
         aria-expanded={abierto}
         aria-controls={idPanel}
         onClick={() => setAbierto(!abierto)}
-        className={
-          enCabecera
-            ? 'inline-flex min-h-objetivo items-center gap-2 rounded-full border border-linea bg-superficie py-1 pr-3 pl-1 font-semibold text-texto hover:bg-superficie-2'
-            : `flex h-full w-full flex-col items-center justify-center gap-0.5 border-t-[3px] leading-tight ${ETIQUETA_INFERIOR} ${
-                abierto ? 'border-t-primario font-bold text-texto' : 'border-t-transparent font-semibold text-texto-2'
-              }`
-        }
+        className="inline-flex min-h-objetivo items-center gap-2 rounded-full border border-linea bg-superficie py-1 pr-3 pl-1 font-semibold text-texto hover:bg-superficie-2"
       >
-        {enCabecera ? (
-          <>
-            <span
-              aria-hidden="true"
-              className="flex size-8 items-center justify-center rounded-full bg-primario text-sm font-bold text-sobre-primario"
-            >
-              {usuario ? iniciales(usuario.nombre, usuario.apellido) : <Icono icono={CircleUser} tamano={18} />}
-            </span>
-            {/* El nombre accesible contiene el visible (WCAG 2.5.3). */}
-            <span className="sr-only">Menú de cuenta de {nombre}</span>
-            <span aria-hidden="true" className="max-w-48 truncate">
-              {nombre}
-            </span>
-            <Icono icono={ChevronDown} tamano={16} className={abierto ? 'rotate-180' : ''} />
-          </>
-        ) : (
-          <>
-            <Icono icono={CircleUser} tamano={22} trazo={abierto ? 2.4 : 2} />
-            Cuenta
-          </>
-        )}
+        <span
+          aria-hidden="true"
+          className="flex size-8 items-center justify-center rounded-full bg-primario text-sm font-bold text-sobre-primario"
+        >
+          {usuario ? iniciales(usuario.nombre, usuario.apellido) : <Icono icono={CircleUser} tamano={18} />}
+        </span>
+        {/* El nombre accesible contiene el visible (WCAG 2.5.3). */}
+        <span className="sr-only">Menú de cuenta de {nombre}</span>
+        <span aria-hidden="true" className="max-w-48 truncate">
+          {nombre}
+        </span>
+        <Icono icono={ChevronDown} tamano={16} className={abierto ? 'rotate-180' : ''} />
       </button>
 
       {abierto && (
         <div
           id={idPanel}
-          className={[
-            'z-[1060] flex flex-col gap-1 overflow-y-auto border border-linea bg-superficie p-2 text-texto shadow-elevada',
-            enCabecera
-              ? 'absolute top-full right-0 mt-2 max-h-[calc(100dvh-5rem)] w-80 rounded-hoja'
-              : 'fixed inset-x-0 bottom-[var(--cv-alto-nav,4rem)] max-h-[70dvh] rounded-t-hoja border-b-0',
-          ].join(' ')}
+          className="absolute top-full right-0 z-[1060] mt-2 flex max-h-[calc(100dvh-5rem)] w-80 flex-col gap-1 overflow-y-auto rounded-hoja border border-linea bg-superficie p-2 text-texto shadow-elevada"
         >
           <div className="border-b border-linea px-3 pt-2 pb-3">
             <p className="font-semibold">{nombre}</p>
@@ -148,8 +126,8 @@ export function MenuCuenta({ usuario, items, variante, ruta, children }: MenuCue
             {/* Se cierra antes de empezar el cierre de sesión: si hay una
                 pregunta previa (reportes en cola), el diálogo no queda encima
                 de un menú abierto que también atiende Escape, y el foco no se
-                queda en un botón tapado (vuelve al de «Cuenta»; el diálogo lo
-                toma después). */}
+                queda en un botón tapado (vuelve al de la cuenta; el diálogo
+                lo toma después). */}
             <BotonCerrarSesion
               variante="menu"
               alActivar={() => {
