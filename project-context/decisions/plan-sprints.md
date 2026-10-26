@@ -37,13 +37,28 @@ Hay un carril de backend y uno de frontend en paralelo. En un mismo sprint el fr
 | S4 | US-11 (endpoint de densidad) · BE-06 (incluye `ReincidenciaDetector` → `domain/`) · BE-10 | US-11 (capa de calor) · FE-06 | v0.5.0 |
 | S5 | NC-01 · NC-02 | US-19 · FE-07 · FE-08 | v0.6.0 |
 | Despliegue | DEP-01..DEP-05 · DEP-08 · DEP-11 · DEP-12 · correcciones de QA-1 · CI (DEP-07) | DEP-06 · correcciones de QA-1 · fase 1 del diseño «Cívica» (DIS-1, con US-23) | v0.7.0 |
-| S7 | NC-03a (`inferencia/`) · NC-04 (`clasificacion`) · BE-11 (la foto se sube fuera de la transacción de creación) · BE-12 (refresco asíncrono y coalescido del índice) | NC-04 (vista previa al reportar) · FE-09 (adelantada) · atribución de RDD2022 (CC BY-SA 4.0) y de los pesos RF-DETR (Apache-2.0) en «Acerca de» o en los términos | v0.8.0 |
+| S7 | NC-03a (`inferencia/`) · NC-04 (`clasificacion`) · NC-04b (adaptador HTTP de `clasificacion` al servicio `inferencia/`) · DEP-13 (servicio `inferencia` en Railway, solo por la red privada) · BE-11 (la foto se sube fuera de la transacción de creación) · BE-12 (refresco asíncrono y coalescido del índice) | NC-04 (vista previa al reportar) · FE-09 (adelantada) · atribución de RDD2022 (CC BY-SA 4.0) y de los pesos RF-DETR (Apache-2.0) en «Acerca de» o en los términos | v0.8.0 |
 | S6 | NC-05 · NC-06 · BE-08 | NC-06 (dashboard por periodo, reemplaza US-17 v1) | v0.9.0 |
 | S8 | Ajustes que pida el diseño | **Diseño de la interfaz, fase 2** (mapa con hoja inferior, reporte en pasos, bandeja con panel, portada y desempeño), revisión de cada pantalla y US-24 (guía de uso) | v1.0.0 |
 
 **El S7 va antes que el S6 (decisión del usuario del 25/10).** El S6 está bloqueado por tres decisiones pendientes: las fórmulas de los KPIs, las columnas del OB2 §5 y D-10. El S7 no está bloqueado: las clases y el umbral se decidieron el 21/10. Por eso el S7 sale como v0.8.0 y el S6 como v0.9.0. FE-09 no depende de nada del S6, así que se adelantó y quedó hecha el 25/10. Los nombres S6 y S7 se conservan, para no romper las referencias.
 
 **NC-03 se parte en dos:** NC-03a es el servicio (S7) y NC-03b, la calibración del umbral con al menos 200 fotos de Lima. NC-03b depende de que el equipo tome y etiquete esas fotos, así que no tiene sprint fijo. **La atribución** la pide la revisión de NC-03a (25/10): los datos de RDD2022 son CC BY-SA 4.0 y los pesos, Apache-2.0. Tiene que estar antes de abrir a usuarios. Sigue abierta la pregunta de si el *share-alike* de los datos alcanza a los pesos entrenados con ellos; es parte de la decisión 7 (legal) del índice.
+
+**El modelo real entra al S7 (decisión del usuario del 26/10).** Sin NC-04b, la v0.8.0 publicaba el módulo `clasificacion` solo con el adaptador falso, que en producción está fijado para no sugerir nunca (`application-prod.yml`). Con NC-04b y DEP-13, la v0.8.0 sale sugiriendo con RF-DETR Nano.
+- **NC-04b (backend):** `clasificacion/infra/InferenciaHttpAdapter`, según el handoff `handoffs/2026-10-25-contrato-inferencia-v1.md`. El perfil `prod` deja el falso fijo y pasa a `http`. Ficha y criterios: `plan-migracion-capas.md`, NC-04b.
+- **DEP-13 (raíz, con el usuario):**
+  - servicio `inferencia` en Railway, construido desde `inferencia/Dockerfile`, sin dominio público (solo la red privada) y con watch paths `/inferencia/**`;
+  - `INFERENCIA_HILOS` igual a las vCPU, y fijo;
+  - se vuelven a medir la latencia y la RAM allí, con `scripts/medir_latencia.py`;
+  - el runbook (§5) y el C4 de despliegue se actualizan en la misma rama.
+- **Orden:** el servicio y las variables del backend se crean **antes** de fusionar la release en `main`, porque el backend con `http` no debe llegar a producción antes de que el servicio exista.
+- **Costo estimado:** Railway cobra US$ 10 por GB de memoria al mes y US$ 20 por vCPU al mes, por uso real medido por minuto.
+  - **El servicio nuevo:** con lo medido en NC-03a (200–480 MiB y unos 0,4 s de CPU por foto), suma unos US$ 3–5 al mes.
+  - **Producción actual:** ronda los US$ 6 al mes. Métricas del 26/10: el backend promedia 0,50 GB, PostGIS 0,09 GB y la CPU es casi nula.
+  - **Total esperado:** unos US$ 9–11 al mes.
+- **Umbral sin calibrar:** la v0.8.0 sale con 0,50, que es conservador. NC-03b lo calibra después cambiando `CLASIFICACION_UMBRAL`, sin código nuevo.
+- **Atribución y licencia:** la atribución de la fila del S7 tiene que estar en la v0.8.0. Desde esa versión, la pregunta del *share-alike* (decisión 7) también afecta a producción.
 
 **BE-11** sale de la deuda de DEP-12 (`propuestas/2026-10-21-fotos-r2.md`, «La regla de §4.5…»): `ReporteService#crear` sube la foto a R2 **dentro** de su `@Transactional` y retiene una conexión del pool durante la red (~100–500 ms). La propuesta sugería resolverla con NC-04; NC-04 no la tomó (revisión del 25/10) y queda como tarea propia del S7. Va junto con borrar el objeto huérfano en `afterCompletion` cuando la transacción se revierte.
 
@@ -66,6 +81,7 @@ Ya hechas antes de S1: BE-01, BE-02, BE-07, FE-01 y FE-02.
 | S5 | D-10: jurisdicción del funcionario (`distrito_id` o `municipalidad_id`) y las fechas exactas del periodo 2023-2026. |
 | S6 | Fórmulas de los KPIs por periodo; requisitos de recepción por municipalidad (NC-05). |
 | S7 | Clases finales del modelo y umbral (NC-03): **decidido el 21/10** (`propuestas/2026-10-21-ml-clases-modelo.md`: `bache` y `grieta` de RDD2022, umbral 0,50). NC-04 arranca con un adaptador falso. |
+| v0.8.0 | Si la versión sale con el modelo real: **decidido el 26/10**, sí (NC-04b y DEP-13 entran al S7). |
 
 ## Ejecución
 
