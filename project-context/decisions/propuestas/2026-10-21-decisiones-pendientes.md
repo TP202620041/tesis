@@ -42,7 +42,7 @@ Reúne **todo** lo que hoy espera una decisión del usuario, venga de esta ronda
 | 9 | Previews de Vercel y Swagger | **Apagados.** En Vercel, el preset «Only build production». Swagger queda apagado en `prod` (`SPRINGDOC_HABILITADO` sin definir) y se activa solo para una demostración | `docs/despliegue.md` §5.2 y §6 |
 | 20 | Pool de conexiones y refresco del índice | **A** (refresco asíncrono y coalescido) como tarea **BE-12** del S7, junto con BE-11. Mientras tanto, **B**: el pool sube de 10 a **20** con la variable `SPRING_DATASOURCE_HIKARI_MAXIMUMPOOLSIZE=20` en Railway, sin cambiar código. Se revisa al cerrar BE-12 | `2026-10-22-refresco-indice-asincrono.md`, `plan-sprints.md` y `docs/despliegue.md` §5.2 |
 
-Desde el 25/10, las claves y contraseñas de producción las genera y las pega **el usuario** en cada panel, siguiendo el runbook paso a paso, y las sesiones no crean ni ven secretos. Antes de la decisión, una sesión había cargado `POSTGRES_PASSWORD`, `JWT_SECRET` y el par VAPID; qué hacer con ellos está en el runbook, §5 «Estado al 25/10».
+Desde el 25/10, las claves y contraseñas de producción las genera y las pega **el usuario** en cada panel, siguiendo el runbook paso a paso, y las sesiones no crean ni ven secretos. En Railway quedan **sin sellar**, por decisión del usuario: el panel hace de lugar donde se guardan, con verificación en dos pasos en las cuentas (runbook §0). Antes de la decisión, una sesión había cargado `POSTGRES_PASSWORD`, `JWT_SECRET` y el par VAPID; qué hacer con ellos está en el runbook, §5 «Estado al 25/10».
 
 ## Resumen
 
