@@ -1,0 +1,3 @@
+# El script corre en Linux: con CRLF (checkout en Windows) /bin/sh no lo ejecuta.
+*.sh text eol=lf
+Dockerfile text eol=lf
