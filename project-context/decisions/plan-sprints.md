@@ -76,7 +76,12 @@ Hay un carril de backend y uno de frontend en paralelo. En un mismo sprint el fr
 - **Atribución y licencia:** la atribución de la fila del S7 tiene que estar en la v0.8.0. Desde esa versión, la pregunta del *share-alike* (decisión 7) también afecta a producción.
 - **Aviso de privacidad (frontend y textos legales):** desde la v0.8.0 la foto se analiza automáticamente en producción, así que el texto de privacidad tiene que decirlo, y aclarar que la decisión final es del ciudadano (DS 016-2024-JUS, art. 6.1; `backend/README.md`, «Pendiente» de la sugerencia).
   - Va en la v0.8.0 como nueva versión de `legal/terminos-y-privacidad-v1.md` (D-12).
-  - Si hay que volver a aceptarla lo decide el usuario (tabla de abajo).
+  - **Todos vuelven a aceptar (decisión del usuario del 26/10).** Se usa el mecanismo de D-12, sin código nuevo de consentimiento. Al subir la versión vigente, `debeAceptarTerminos` pasa a `true` para quien aceptó la anterior, y la PWA le muestra la pantalla de aceptación en su próximo inicio de sesión.
+  - **Piezas, en la misma release:**
+    - el texto v2 en `project-context/legal/`, a cargo de la sesión de raíz;
+    - la página `/privacidad` de la PWA;
+    - la versión, en dos lugares a la vez: `app.legal.version-terminos` (`LEGAL_VERSION_TERMINOS`) en el backend y `VERSION_TERMINOS` en `frontend/src/features/auth/model/terminos.ts`.
+  - **Ventana de despliegue:** si la PWA y el backend no publican la versión a la vez, el registro responde 409 (`versionTerminos` distinta de la vigente) mientras se despliegan. La tarea de frontend evalúa leer la versión desde el API o acepta esa ventana corta.
 
 **BE-11** sale de la deuda de DEP-12 (`propuestas/2026-10-21-fotos-r2.md`, «La regla de §4.5…»): `ReporteService#crear` sube la foto a R2 **dentro** de su `@Transactional` y retiene una conexión del pool durante la red (~100–500 ms). La propuesta sugería resolverla con NC-04; NC-04 no la tomó (revisión del 25/10) y queda como tarea propia del S7. Va junto con borrar el objeto huérfano en `afterCompletion` cuando la transacción se revierte.
 
@@ -100,7 +105,7 @@ Ya hechas antes de S1: BE-01, BE-02, BE-07, FE-01 y FE-02.
 | S6 | Fórmulas de los KPIs por periodo; requisitos de recepción por municipalidad (NC-05). |
 | S7 | Clases finales del modelo y umbral (NC-03): **decidido el 21/10** (`propuestas/2026-10-21-ml-clases-modelo.md`: `bache` y `grieta` de RDD2022, umbral 0,50). NC-04 arranca con un adaptador falso. |
 | v0.8.0 | Si la versión sale con el modelo real: **decidido el 26/10**, sí (NC-04b y DEP-13 entran al S7). |
-| v0.8.0 | El aviso del análisis automático de la foto como nueva versión de los términos: si los ciudadanos que ya aceptaron tienen que volver a aceptar (D-12). **Pendiente.** |
+| v0.8.0 | El aviso del análisis automático de la foto como nueva versión de los términos: si los ciudadanos que ya aceptaron tienen que volver a aceptar (D-12). **Decidido el 26/10:** sí, todos vuelven a aceptar. |
 
 ## Ejecución
 
