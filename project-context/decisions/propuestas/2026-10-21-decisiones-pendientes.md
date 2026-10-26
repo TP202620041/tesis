@@ -25,19 +25,38 @@ Reúne **todo** lo que hoy espera una decisión del usuario, venga de esta ronda
 | 17 | Dirección visual | **A · Cívica** (tinta azul marino y blanco, Public Sans, foco amarillo; deja el celeste) | Canvas «Rediseño Ciudad Viva» y la propuesta de diseño |
 | 1 | Versionado (22/10) | El usuario pidió cortar **v0.7.0** con la preparación del despliegue (DEP-01..DEP-08, DEP-11, DEP-12) **antes** del primer despliegue: es el MVP listo para desplegar. DEP-09 y DEP-10 quedan pendientes de sus cuentas, y lo que exijan corregir sale como hotfix `v0.7.x`. S6, S7 y S8 pasan a v0.8.0, v0.9.0 y v1.0.0 | `plan-sprints.md` y `CHANGELOG.md` (v0.7.0) |
 
+## Decididas el 25/10/2026
+
+| # | Decisión | Qué se decidió | Dónde quedó registrada |
+|---|---|---|---|
+| 3 | Dominio propio | **`ciudadviva.app`**, comprado el 25/10 en Cloudflare Registrar (vence el 25/10/2027; renueva a precio de costo). El DNS está en Cloudflare, la misma cuenta de R2. Por ser `.app`, los navegadores solo lo abren por HTTPS. El correo corporativo (contacto@, soporte@ y dmarc@) va por Cloudflare Email Routing, y Resend usa el subdominio `send`; el dominio quedó verificado en Resend y con DNSSEC activo el mismo día. **3b, decidida el mismo día:**
+- PWA en **`https://ciudadviva.app`** (Vercel), su único origen; `www` redirige a la raíz.
+- API en **`https://api.ciudadviva.app`** (Railway).
+- `fotos.ciudadviva.app` queda reservado para un dominio propio de R2, más adelante.
+- En producción, `CORS_ALLOWED_ORIGINS=https://ciudadviva.app` y `NEXT_PUBLIC_API_BASE_URL=https://api.ciudadviva.app`. | `docs/despliegue.md` §0, §3, §5.2 y §6 |
+| 4 (parte) | Plan de Railway | **Hobby**, que ya es el plan de la cuenta del usuario. Respaldos según el runbook (cron `respaldo-bd`). El gasto se mide en el primer mes | `docs/despliegue.md` §1 y §5.3 |
+| — | Orden de los sprints | El **S7 (ML) va antes que el S6**: el S6 está bloqueado por las decisiones 11, 12 y 13. El S7 sale como v0.8.0 y el S6 como v0.9.0. FE-09 se adelantó y quedó hecha | `plan-sprints.md` |
+| — | Versión antes del primer despliegue | **v0.7.1** desde `develop`, con #105–#107, a pedido del usuario. Es una excepción a `WORKFLOW.md` §8, que reserva el patch para un `hotfix/*` desde `main`: no cambia el backend ni el contrato. Las correcciones de DEP-09 salen como v0.7.2 o siguientes | `CHANGELOG.md` (v0.7.1) y `plan-sprints.md` |
+| 5 (parte) | Primer ADMIN | La **cuenta del usuario**, dueño del proyecto. El correo y el nombre los carga él en Railway (`ADMIN_INICIAL_*`) y no se escriben en el repo, que es público. Los funcionarios de la demo siguen abiertos | `docs/despliegue.md` §7.1 |
+| 6 | Datos de demostración en producción | **(a)**: producción arranca **sin datos falsos**. Nunca se corre `backend/scripts/seed-datos-prueba.sql` contra producción. Los reportes de la demo los toma el equipo en calles reales. Sin entorno «demo» aparte, por ahora | `docs/despliegue.md` §0 |
+| 9 | Previews de Vercel y Swagger | **Apagados.** En Vercel, el preset «Only build production». Swagger queda apagado en `prod` (`SPRINGDOC_HABILITADO` sin definir) y se activa solo para una demostración | `docs/despliegue.md` §5.2 y §6 |
+| 20 | Pool de conexiones y refresco del índice | **A** (refresco asíncrono y coalescido) como tarea **BE-12** del S7, junto con BE-11. Mientras tanto, **B**: el pool sube de 10 a **20** con la variable `SPRING_DATASOURCE_HIKARI_MAXIMUMPOOLSIZE=20` en Railway, sin cambiar código. Se revisa al cerrar BE-12 | `2026-10-22-refresco-indice-asincrono.md`, `plan-sprints.md` y `docs/despliegue.md` §5.2 |
+
+Desde el 25/10, las claves y contraseñas de producción las genera y las pega **el usuario** en cada panel, siguiendo el runbook paso a paso, y las sesiones no crean ni ven secretos. En Railway quedan **sin sellar**, por decisión del usuario: el panel hace de lugar donde se guardan, con verificación en dos pasos en las cuentas (runbook §0). Antes de la decisión, una sesión había cargado `POSTGRES_PASSWORD`, `JWT_SECRET` y el par VAPID; qué hacer con ellos está en el runbook, §5 «Estado al 25/10».
+
 ## Resumen
 
 | # | Decisión | Urgencia | Bloquea | Recomendación corta | Detalle |
 |---|---|---|---|---|---|
-| 1 | Versionado: v0.7.0 = MVP desplegado (**decidida el 22/10**: v0.7.0 sale antes del primer despliegue) | Alta | Planificar el próximo sprint | Sí; S6..S8 pasan a v0.8.0, v0.9.0 y v1.0.0 | §1 |
+| 1 | Versionado: v0.7.0 = MVP desplegado (**decidida el 22/10**: v0.7.0 sale antes del primer despliegue) | Alta | Planificar el próximo sprint | Sí; S6..S8 pasan a v0.8.0, v0.9.0 y v1.0.0 (reordenado el 25/10: S7 = v0.8.0, S6 = v0.9.0) | §1 |
 | 2 | Proveedor de correo y remitente | Alta | DEP-08 → US-03, US-16 (correo), US-25 en producción | Brevo; remitente propio si hay dominio | §2 |
-| 3 | Dominio propio: sí o no, y cuándo | Alta | Invitar usuarios reales (push, sesión y cola offline dependen del origen) | Decidirlo antes de invitar a nadie; si se compra, DNS en Cloudflare | §3 |
-| 4 | Plan de Railway, respaldos y gasto aceptado | Alta | Crear el proyecto (runbook §1) | Hobby + cron `pg_dump` a R2; ~US$ 10/mes | §4 |
-| 5 | Primer ADMIN y funcionarios de la demo | Alta | DEP-04, DEP-05 | Una cuenta del equipo como ADMIN; funcionarios solo con permiso de su titular | §5 |
-| 6 | Datos de demostración en producción | Alta | Mostrar el sistema al jurado | No sembrar datos falsos en producción | §6 |
+| 3 | Dominio propio: sí o no, y cuándo (**decidida el 25/10**: `ciudadviva.app`; 3b: PWA en la raíz y API en `api.`) | Alta | Invitar usuarios reales (push, sesión y cola offline dependen del origen) | Decidirlo antes de invitar a nadie; si se compra, DNS en Cloudflare | §3 |
+| 4 | Plan de Railway, respaldos y gasto aceptado (**plan decidido el 25/10: Hobby**) | Alta | Crear el proyecto (runbook §1) | Hobby + cron `pg_dump` a R2; ~US$ 10/mes | §4 |
+| 5 | Primer ADMIN y funcionarios de la demo (**ADMIN decidido el 25/10**: la cuenta del usuario; los funcionarios siguen abiertos) | Alta | DEP-04, DEP-05 | Una cuenta del equipo como ADMIN; funcionarios solo con permiso de su titular | §5 |
+| 6 | Datos de demostración en producción (**decidida el 25/10**: opción a, sin datos falsos) | Alta | Mostrar el sistema al jurado | No sembrar datos falsos en producción | §6 |
 | 7 | Legal: `[COMPLETAR]`, titular, ANPD, edad, transcripción en el repo | Alta | Abrir a usuarios reales | Completar y registrar antes de abrir | §7 |
 | 8 | Fotos: recodificar a JPEG, dos buckets y ajuste a D-08 | Alta | DEP-12 (y NC-04 por D-08) | Sí (opción A de la propuesta de fotos) | §8 |
-| 9 | Previews de Vercel y Swagger en producción | Baja | Nada grave | Previews apagadas; Swagger apagado salvo variable | §9 |
+| 9 | Previews de Vercel y Swagger en producción (**decidida el 25/10**: apagados) | Baja | Nada grave | Previews apagadas; Swagger apagado salvo variable | §9 |
 | 10 | CI como chequeo obligatorio de los PR | Media | Protección de ramas | Sí, cuando DEP-07 esté verde una semana | §10 |
 | 11 | D-10: jurisdicción del funcionario | Media | NC-05, NC-06; el script DEP-05 | `municipalidad_id` con NC-06 (o confirmar `distrito_id`) | §11 |
 | 12 | Fórmulas de los KPIs por periodo | Media | NC-06 | Que el usuario las pegue del OB2 | §12 |
@@ -48,7 +67,7 @@ Reúne **todo** lo que hoy espera una decisión del usuario, venga de esta ronda
 | 17 | Dirección visual del rediseño | Baja | S8; los iconos de DEP-06 son provisionales | Definirla antes del S8 | §17 |
 | 18 | Límite de tasa (abuso) | Media | Nada para v0.7.0 | Tope por cuenta en DEP-08; limitador general después | §18 |
 | 19 | Migración que corrige las tildes de las categorías estándar (**aprobada el 22/10**: opción A, en QA-1 backend) | Baja | QA-1 M-1 (parte de datos); puede ir con la de NC-04 que desactiva «Hueco en calzada» | Sí, una migración nueva sin editar V3 (opción A) | `2026-10-22-tildes-categorias-estandar.md` |
-| 20 | Refresco asíncrono del índice de desempeño (pool de conexiones agotado con 16 creaciones con foto simultáneas) | Media | Robustez del MVP en picos; no bloquea v0.7.0 | A (asíncrono y coalescido) + B (subir el pool en prod mientras tanto) | `2026-10-22-refresco-indice-asincrono.md` |
+| 20 | Refresco asíncrono del índice de desempeño (pool de conexiones agotado con 16 creaciones con foto simultáneas) (**decidida el 25/10**: A como BE-12 en el S7; mientras tanto B, con el pool en 20) | Media | Robustez del MVP en picos; no bloquea v0.7.0 | A (asíncrono y coalescido) + B (subir el pool en prod mientras tanto) | `2026-10-22-refresco-indice-asincrono.md` |
 
 ## 1. Versionado
 
@@ -67,22 +86,33 @@ Reúne **todo** lo que hoy espera una decisión del usuario, venga de esta ronda
 - **Opciones:** quedarse en `*.vercel.app` y `*.up.railway.app`, o comprar un dominio (`app.<dominio>`, `api.<dominio>`, remitente y, más adelante, la CDN de fotos).
 - **Lo que decide:** el origen de la PWA. Push, la sesión (`localStorage`) y la cola offline (IndexedDB) son por origen: mudarse después obliga a cada usuario a reinstalar, volver a entrar y volver a suscribirse, y pierde lo que tenía en cola.
 - **Recomendación:** decidirlo **antes de invitar usuarios reales**. Si se compra, poner el DNS en Cloudflare (lo exige R2 para dominios propios). No usar `viasegura.pe` mientras no conste que es del proyecto. Detalle: `2026-10-21-despliegue-mvp.md`, «Dominio propio».
+- **Decidido el 25/10:** se compró `ciudadviva.app` (Cloudflare Registrar, DNS en Cloudflare). **Queda abierto (3b):** qué nombre lleva cada servicio, porque eso es lo que fija el origen de la PWA:
+  - **PWA:** `ciudadviva.app` o `app.ciudadviva.app`;
+  - **API:** `api.ciudadviva.app`, con la CSP y el CORS correspondientes.
+
+  Conviene fijarlo antes de DEP-09, para que el primer despliegue ya salga con el origen definitivo.
+
+  **Decidido el 25/10 (3b):** la PWA en `https://ciudadviva.app` (con `www` redirigiendo a la raíz) y el API en `https://api.ciudadviva.app`; `fotos.ciudadviva.app` reservado.
 
 ## 4. Railway: plan, respaldos y gasto
 
 - **Opciones:** Hobby (US$ 5/mes con US$ 5 de uso incluidos; estimado total ~US$ 9–10) o Pro (US$ 20/mes; SMTP permitido, IP fija y, según la comunidad, respaldos de volumen: NO VERIFICADO).
 - **Recomendación:** **Hobby**, con el servicio cron `respaldo-bd` (`pg_dump` diario a un bucket R2 separado, 30 días de retención) y una prueba de restauración mensual. Aceptar el gasto de ~US$ 10/mes (más ~US$ 5–10 cuando exista el servicio de inferencia).
+- **Decidido el 25/10:** plan **Hobby**, que ya es el plan de la cuenta de Railway del usuario. Los respaldos siguen el runbook (cron `respaldo-bd`, §5.3). El gasto real se mide en el primer mes.
+- **Ojo con el costo:** la cuenta tiene otros dos proyectos ajenos a la tesis, y en Hobby consumen del mismo crédito incluido de US$ 5. Si están encendidos, la factura total pasa de los ~US$ 10/mes estimados para Ciudad Viva. El usuario revisó el consumo el 25/10 y está dentro de lo permitido. Ese día se creó el proyecto «Ciudad Viva», vacío, sin servicios.
 
 ## 5. Primer ADMIN y funcionarios
 
 - **Qué:** el correo de la cuenta que será ADMIN (DEP-04: desde el 22/10 el seeder la **crea** desde variables si no hay ningún ADMIN; ya no promueve) y la lista de funcionarios con su distrito para la demostración (DEP-05).
 - **Recomendación:** el ADMIN es una cuenta del equipo. Un funcionario solo se crea con el acuerdo de la persona y, si representa a una municipalidad real, con la autorización de esa municipalidad. Para la demo, cuentas del equipo marcadas como de prueba.
+- **Decidido el 25/10 (ADMIN):** la cuenta del usuario, dueño del proyecto. Él carga el correo, el nombre y la contraseña en Railway; no se escriben en el repo (runbook §7.1). **Siguen abiertos** los funcionarios de la demo.
 
 ## 6. Datos de demostración en producción
 
 - **Problema:** `backend/scripts/seed-datos-prueba.sql` inventa reportes en distritos reales. En producción falsearía el índice público de desempeño, que se presenta como transparencia.
 - **Opciones:** (a) producción sin datos falsos, demo con reportes reales tomados por el equipo; (b) un segundo entorno de Railway («demo») con su propia base sembrada; (c) sembrar producción y borrarlo después.
 - **Recomendación:** **(a)**, y **(b)** si el jurado necesita ver el índice con volumen (costo: otro `backend` y otro `postgis`, ~US$ 8/mes mientras exista). Nunca (c).
+- **Decidido el 25/10:** **(a)**. Producción arranca sin datos falsos y, por ahora, sin entorno «demo» aparte (runbook §0).
 
 ## 7. Legal (Ley N.° 29733 y DS 016-2024-JUS)
 
@@ -109,6 +139,7 @@ No es asesoría legal; es la lista para revisar con un asesor. Fuentes oficiales
 ## 9. Previews de Vercel y Swagger en producción
 
 - **Recomendación:** previews **apagadas** (preset «Only build production»): cada preview tiene otro origen que el CORS rechaza, y usaría la base de producción. Swagger **apagado** en producción, activable con `SPRINGDOC_HABILITADO=true` para una demostración.
+- **Decidido el 25/10:** los dos **apagados**, como recomienda este punto (runbook §5.2 y §6).
 
 ## 10. CI obligatoria
 
@@ -119,7 +150,7 @@ No es asesoría legal; es la lista para revisar con un asesor. Fuentes oficiales
 
 - **Opciones:** `usuario.distrito_id` (hoy) o `usuario.municipalidad_id`. Con D-09 son equivalentes 1:1.
 - **Recomendación:** decidirla junto con NC-06. Si el dashboard por periodo y la confirmación (NC-05) se modelan por municipalidad, migrar a `municipalidad_id` en esa tarea; si no, confirmar `distrito_id` y cerrarla. El script `asignar-funcionario.sql` (DEP-05) sigue la decisión.
-- **Bloquea:** NC-05 y NC-06 (S6, ahora v0.8.0).
+- **Bloquea:** NC-05 y NC-06 (S6, ahora v0.9.0: el S7 se adelantó el 25/10).
 
 ## 12. Fórmulas de los KPIs (NC-06)
 

@@ -24,7 +24,7 @@ Una clase con todos sus tests omitidos deja solo un aviso, salvo las listadas en
 **Línea base.** La CI exige los mínimos declarados en `ci.yml`, no la línea base exacta del plan y del CHANGELOG. Hay cosas que siguen siendo trabajo de `/verificar` y del PR:
 
 - comparar contra esa línea base, por ejemplo un `completed` **igual** en las tareas ARQ;
-- revisar que los avisos de capas no suban.
+- revisar que las capas sigan en 0 (desde FE-09 son error: un retroceso ya hace fallar el paso Lint).
 
 Tampoco despliega ni cambia las guardas: ArchUnit y ESLint de capas corren dentro de `mvn verify` y `npm run lint` tal como están.
 

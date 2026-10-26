@@ -2,6 +2,85 @@
 
 Versiones de Ciudad Viva (antes ViaSegura) según GitFlow (`WORKFLOW.md` §8): cada sprint cierra con una versión minor en `main`. Plan: `project-context/decisions/plan-sprints.md`.
 
+## v0.7.1 — Ajustes del iPhone y documentación del S7 (2026-10-25)
+
+Versión de mantenimiento antes del primer despliegue (DEP-09). Reúne tres cosas:
+- los ajustes que salieron de probar la PWA en el iPhone del usuario el 23/10;
+- el cierre de la migración de capas del frontend;
+- la documentación de las decisiones del 25/10.
+
+**El backend y el contrato del API no cambian:** el código del backend y las migraciones (V1–V18) son los de v0.7.0. El ML queda para v0.8.0, el S7: NC-03a (#109) y NC-04 (#108).
+
+**Número de versión:** es una excepción a `WORKFLOW.md` §8, que reserva el patch para un `hotfix/*` desde `main`. La pidió el usuario el 25/10. Sale de `develop` porque no cambia el backend ni el contrato, y #105–#107 no caben en un hotfix. Las correcciones que pida el primer despliegue (DEP-09) saldrán como v0.7.2 o siguientes.
+
+### Diseño
+- **DIS-1 · «Cuenta» es una pantalla** (#105). Antes, en el móvil, abría una hoja que ocupaba media pantalla.
+  - **Destino:** el ítem «Cuenta» de la barra inferior lleva a `/perfil` («Mi perfil»), con las mismas reglas que las demás pantallas.
+  - **Al final del perfil:** «Otras opciones», con Soporte y «Cerrar sesión».
+  - **Funcionario y ADMIN:** como no tienen perfil editable, ven su cuenta: quiénes son, la apariencia, sus enlaces y el cierre de sesión.
+  - **Sin conexión:** la pantalla igual deja cerrar sesión.
+  - **Escritorio:** sigue el desplegable de la cabecera.
+  - **Ruta:** pasó al grupo `(cuenta)`; la URL no cambia.
+- **DIS-1 · Barra de cristal en el móvil** (#105). El usuario eligió el efecto A entre cuatro prototipos, a partir de su pedido del «scroll de WhatsApp».
+  - **Barra:** la cabecera es translúcida (tinta al 70 % con `backdrop-filter`), y el contenido se ve pasar bajo la hora y la batería del iPhone (`viewport-fit=cover`, `black-translucent`).
+  - **Título:** al desplazar, el de la pantalla entra centrado en la barra, ligado al dedo.
+  - **Contraste:** 5,03:1 en claro y 5,24:1 en oscuro, con contenido blanco detrás. La barra es opaca en alto contraste y con transparencia reducida.
+  - **Zonas seguras:** el marco reserva `env(safe-area-inset-*)` arriba, abajo y a los lados.
+- **Volver a una pantalla** (#105), por ejemplo de Soporte al perfil, la deja donde estaba. Antes quedaba en blanco hasta mover el dedo.
+- **Sin verificar en el iPhone real:** el paso del contenido bajo la hora con la PWA instalada. iOS 26.1 tuvo una regresión que dejaba opaca esa barra ([WebKit 301994](https://bugs.webkit.org/show_bug.cgi?id=301994)). Para ver la barra nueva hay que borrar la PWA de la pantalla de inicio y volver a agregarla.
+
+### Arquitectura
+- **FE-09 · Cierre de la migración de capas del frontend** (#106): la regla de capas de ESLint pasa a error, así que un import que rompa las capas hace fallar el lint y la CI. Lo dicen ARCHITECTURE.md §5.4 y §10, `WORKFLOW.md`, `docs/ci.md`, `frontend/CLAUDE.md`, `frontend/README.md` (la estructura con las capas), el nombre del paso informativo de la CI y la regla del agente `frontend-dev`. En `plan-migracion-capas.md` quedó marcada con la evidencia.
+
+### Documentación y decisiones (#107)
+- **Orden de los sprints:** el S7 (ML) va antes que el S6, que espera D-10, las fórmulas de los KPIs y las columnas del OB2. El S7 sale como v0.8.0 y el S6 como v0.9.0.
+- **ARCHITECTURE.md §4.3, §6 y §8:** recogen la decisión de ML del 21/10:
+  - el modelo RF-DETR Nano, con las clases `bache` y `grieta` y el umbral de 0,50;
+  - la sugerencia como señal interna;
+  - la desactivación de «Hueco en calzada», que hará la migración de NC-04 (v0.8.0); en esta versión la categoría sigue activa.
+
+  Además, §4.3 fija el diseño de NC-04 del 25/10: el listener solo encola, `SugerenciaCategoriaService` es `@Async` y sin transacción, y aparece el puerto `CategoriasClasificables`. §6 suma `app/main.py` y el contrato de import-linter.
+- **Plan:**
+  - NC-03 se parte en NC-03a (el servicio) y NC-03b, y se actualiza la fila de NC-04 en `plan-migracion-capas.md`;
+  - entran al S7 BE-11 y la atribución de RDD2022 (CC BY-SA 4.0) y de los pesos RF-DETR (Apache-2.0).
+- **Decisiones del 25/10:**
+  - el dominio `ciudadviva.app` (decisión 3);
+  - la PWA en la raíz y el API en `api.ciudadviva.app` (3b);
+  - Railway Hobby (decisión 4).
+- **Runbook (`docs/despliegue.md`):**
+  - **R2:** verificado contra la cuenta real.
+  - **Dominio y correo:** Email Routing, DMARC, DNSSEC y Resend verificado.
+  - **Producción:** los nombres de cada servicio, el dominio propio en Railway (SSL Full) y en Vercel, y `PORT=8080` obligatoria.
+  - **Prueba de humo:** suma la caché de Cloudflare.
+- **Estado de las cuentas al 25/10:**
+  - el proyecto de Railway está creado, con `postgis` desplegado y `backend` todavía sin el repo conectado;
+  - la API key de Resend existe;
+  - R2 de producción y el proyecto de Vercel están pendientes.
+
+  Fusionar esta versión en `main` todavía no despliega nada: el primer despliegue sigue siendo DEP-09, a mano.
+- **C4 de despliegue** (`docs/arquitectura/c4-despliegue.md`): suma los dominios de la decisión 3b y el proxy de Cloudflare delante del API.
+
+### Cifras
+| Métrica | v0.7.0 | v0.7.1 |
+|---|---|---|
+| Tests de integración backend (Failsafe `completed`) | 418 | 418 (backend sin cambios) |
+| Tests unitarios backend (Surefire) | 230 | 230 |
+| Violaciones congeladas de ArchUnit | 0 | 0 |
+| Tests frontend (archivos) | 1015 (118) | 1041 (121) |
+| Avisos de capas frontend | 0 | 0 (desde FE-09 son errores) |
+
+Los mínimos de la guarda de la CI no cambian.
+
+**Verificación** (25/10, Windows, sobre el código de esta versión):
+- **Backend:** `git diff v0.7.0 -- backend/` solo muestra el número de versión del `pom.xml`. Se mantiene la verificación de v0.7.0, y en cada PR corrió la CI.
+- **Frontend:**
+  - lint (con las capas en error) y typecheck sin avisos;
+  - `npm test` con 1041 tests en 121 archivos, todos ejecutados;
+  - build con `NEXT_PUBLIC_API_BASE_URL=https://api.ciudadviva.app` OK, con el Service Worker incluido.
+- **Antes, en el PR #105:**
+  - Chrome en modo headed con el viewport de iPhone 15, donde también se comprobó la memoria de desplazamiento al volver;
+  - el usuario probó en su iPhone, por túnel, las versiones intermedias, pero la final no.
+
 ## v0.7.0 — Despliegue del MVP (2026-10-22)
 
 Prepara el MVP para publicarlo según la propuesta aceptada el 21/10 (`project-context/decisions/propuestas/2026-10-21-despliegue-mvp.md`):

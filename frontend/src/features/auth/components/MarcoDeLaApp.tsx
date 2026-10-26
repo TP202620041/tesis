@@ -1,8 +1,9 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import type { ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
 import { useTemaDeLaApp } from '../hooks/useApariencia';
+import { useMemoriaDeDesplazamiento } from '../hooks/useMemoriaDeDesplazamiento';
 import { useUsuarioDelMarco } from '../hooks/useUsuarioDelMarco';
 import { modoDelMarco } from '../model/navegacion';
 import { BarraInferiorDeLaApp, CabeceraDeLaApp } from './NavegacionDelMarco';
@@ -27,32 +28,59 @@ export function MarcoDeLaApp({ children }: { children: ReactNode }) {
   const ruta = usePathname();
   const usuario = useUsuarioDelMarco();
   useTemaDeLaApp();
+  // Al volver a una pantalla, a donde se estaba (no en blanco mientras carga).
+  useMemoriaDeDesplazamiento(ruta);
   const modo = modoDelMarco(ruta);
+  const contenido = useRef<HTMLDivElement>(null);
 
-  if (modo === 'ninguno') return <>{children}</>;
+  if (modo === 'ninguno') {
+    // Sin cabecera, la hora y la batería (en blanco en la PWA instalada en
+    // iPhone) necesitan igual su franja tinta debajo.
+    return (
+      <>
+        <div aria-hidden="true" className="cv-translucida fixed inset-x-0 top-0 z-[1070] h-[env(safe-area-inset-top)]" />
+        {children}
+      </>
+    );
+  }
   const completo = modo === 'completo';
-  const apariencia = <SelectorDeApariencia variante="menu" />;
 
   return (
     <div
       className={[
-        'flex min-h-dvh flex-col [--cv-alto-encabezado:3.5rem] md:[--cv-alto-encabezado:4rem]',
+        // Las medidas incluyen las zonas seguras (la isla arriba, la barra de
+        // inicio abajo): con `viewport-fit=cover` la página llega a los bordes.
+        'flex min-h-dvh flex-col',
+        '[--cv-alto-encabezado:calc(3.5rem+env(safe-area-inset-top))] md:[--cv-alto-encabezado:calc(4rem+env(safe-area-inset-top))]',
         completo
-          ? '[--cv-alto-nav:calc(4rem+env(safe-area-inset-bottom))] md:[--cv-alto-nav:0px]'
-          : '[--cv-alto-nav:0px]',
+          ? '[--cv-alto-nav:calc(4rem+env(safe-area-inset-bottom))] md:[--cv-alto-nav:env(safe-area-inset-bottom)]'
+          : '[--cv-alto-nav:env(safe-area-inset-bottom)]',
       ].join(' ')}
     >
       <a
         href="#contenido"
-        className="sr-only z-[1100] rounded-control bg-primario px-4 py-3 font-semibold text-sobre-primario focus:not-sr-only focus:fixed focus:top-2 focus:left-2"
+        className="sr-only z-[1100] rounded-control bg-primario px-4 py-3 font-semibold text-sobre-primario focus:not-sr-only focus:fixed focus:top-[calc(0.5rem+env(safe-area-inset-top))] focus:left-[calc(0.5rem+env(safe-area-inset-left))]"
       >
         Saltar al contenido
       </a>
-      <CabeceraDeLaApp usuario={usuario} ruta={ruta} conNavegacion={completo} extrasDeCuenta={apariencia} />
-      <div id="contenido" tabIndex={-1} className="flex flex-1 flex-col pb-[var(--cv-alto-nav)]">
+      <CabeceraDeLaApp
+        usuario={usuario}
+        ruta={ruta}
+        conNavegacion={completo}
+        extrasDeCuenta={<SelectorDeApariencia variante="menu" />}
+        contenido={contenido}
+      />
+      {/* Los laterales reservan las zonas seguras (el teléfono girado); la
+          cabecera las suma a su margen interno para que su fondo llegue al borde. */}
+      <div
+        id="contenido"
+        ref={contenido}
+        tabIndex={-1}
+        className="flex flex-1 flex-col pr-[env(safe-area-inset-right)] pb-[var(--cv-alto-nav)] pl-[env(safe-area-inset-left)]"
+      >
         {children}
       </div>
-      {completo && <BarraInferiorDeLaApp usuario={usuario} ruta={ruta} extrasDeCuenta={apariencia} />}
+      {completo && <BarraInferiorDeLaApp usuario={usuario} ruta={ruta} />}
     </div>
   );
 }

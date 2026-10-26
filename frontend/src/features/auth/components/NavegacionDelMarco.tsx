@@ -1,12 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import type { ReactNode } from 'react';
+import { useRef, type ReactNode, type RefObject } from 'react';
 import { clasesDeBoton } from '@/components/ui/Boton';
 import { Icono } from '@/components/ui/Icono';
 import { Logo } from '@/components/ui/Logo';
 import type { Usuario } from '@/lib/types/domain';
-import { esRutaActual, navegacionDe, type ItemNavegacion } from '../model/navegacion';
+import { CUENTA, esRutaActual, navegacionDe, type ItemNavegacion } from '../model/navegacion';
+import { useTituloAlDesplazar } from '../hooks/useTituloAlDesplazar';
 import type { UsuarioDelMarco } from '../hooks/useUsuarioDelMarco';
 import { ETIQUETA_INFERIOR, ICONOS_DE_NAVEGACION } from './iconosDeNavegacion';
 import { MenuCuenta } from './MenuCuenta';
@@ -39,6 +40,8 @@ interface CabeceraProps {
   conNavegacion: boolean;
   /** Lo que va dentro del menú de cuenta antes de «Cerrar sesión» (apariencia). */
   extrasDeCuenta?: ReactNode;
+  /** El contenido de la pantalla, donde está su `<h1>` (`#contenido` del marco). */
+  contenido: RefObject<HTMLElement | null>;
 }
 
 /**
@@ -46,8 +49,16 @@ interface CabeceraProps {
  * navegación del rol, la insignia «Municipalidad de X» del funcionario y el
  * menú de cuenta (o «Iniciar sesión» y «Crear cuenta» para el visitante).
  * Mide `--cv-alto-encabezado`, que `/mapa` descuenta para ocupar el resto.
+ *
+ * Queda fija arriba y empieza bajo la hora y la batería
+ * (`env(safe-area-inset-top)`, PWA instalada en iPhone). En el móvil es la
+ * barra tinta translúcida de iOS (el efecto A que eligió el usuario): la
+ * página se desplaza por debajo, difuminada, y a medida que el `<h1>` de la
+ * pantalla pasa bajo la barra su texto entra centrado y el logo se va,
+ * ligado al dedo (`useTituloAlDesplazar`). En escritorio sigue siendo clara;
+ * solo la franja de la hora (si la hay, en iPad) va en tinta.
  */
-export function CabeceraDeLaApp({ usuario, ruta, conNavegacion, extrasDeCuenta }: CabeceraProps) {
+export function CabeceraDeLaApp({ usuario, ruta, conNavegacion, extrasDeCuenta, contenido }: CabeceraProps) {
   const rol = rolDelMarco(usuario);
   const nav = conNavegacion && rol !== undefined ? navegacionDe(rol) : null;
   const persona = usuarioDe(usuario);
@@ -55,13 +66,65 @@ export function CabeceraDeLaApp({ usuario, ruta, conNavegacion, extrasDeCuenta }
     persona?.rol === 'FUNCIONARIO_MUNICIPAL' && persona.distritoNombre
       ? `Municipalidad de ${persona.distritoNombre}`
       : null;
+  const barra = useRef<HTMLElement>(null);
+  const titulo = useTituloAlDesplazar(ruta, barra, contenido);
 
   return (
-    <header className="h-[var(--cv-alto-encabezado)] shrink-0 border-b border-linea bg-superficie">
-      <div className="mx-auto flex h-full max-w-7xl items-center gap-3 px-4 lg:gap-5 lg:px-6">
-        <Link href="/" className="inline-flex min-h-objetivo shrink-0 items-center rounded-control">
+    <header
+      ref={barra}
+      className={[
+        // `--cv-avance-titulo` (0 a 1) y `data-compacto` los escribe `useTituloAlDesplazar`.
+        'group sticky top-0 z-[1040] h-[var(--cv-alto-encabezado)] shrink-0 pt-[env(safe-area-inset-top)]',
+        // `border-b` (no `md:border-b`): así lo engrosa la regla de alto contraste.
+        'border-b border-linea max-md:border-b-0 md:bg-superficie',
+        // En la barra tinta, el logo y el texto en claro (los tokens del logo
+        // y del texto se redefinen solo aquí).
+        'max-md:[--cv-marca-calle:var(--cv-barra-superior)] max-md:[--cv-marca:var(--cv-sobre-barra-superior)]',
+        'max-md:[--cv-texto:var(--cv-sobre-barra-superior)]',
+      ].join(' ')}
+    >
+      <div aria-hidden="true" className="cv-translucida absolute inset-0 -z-10 md:hidden" />
+      {/* La línea fina de iOS aparece cuando el contenido ya pasa por debajo. */}
+      <div
+        aria-hidden="true"
+        className="absolute inset-x-0 bottom-0 h-px bg-sobre-barra-superior/20 opacity-[var(--cv-avance-titulo,0)] md:hidden"
+      />
+      <div aria-hidden="true" className="absolute inset-x-0 top-0 hidden h-[env(safe-area-inset-top)] bg-barra-superior md:block" />
+      {/* Los márgenes suman las zonas seguras de los lados (el teléfono girado):
+          el fondo de la cabecera sigue llegando a los bordes. */}
+      <div
+        className={[
+          'relative mx-auto flex h-full max-w-7xl items-center gap-3 lg:gap-5',
+          'pr-[max(1rem,env(safe-area-inset-right))] pl-[max(1rem,env(safe-area-inset-left))]',
+          'lg:pr-[max(1.5rem,env(safe-area-inset-right))] lg:pl-[max(1.5rem,env(safe-area-inset-left))]',
+        ].join(' ')}
+      >
+        {/* Se va a medida que entra el título. Con el foco encima se ve entero
+            (el anillo amarillo no se atenúa) y no se esconde hasta que lo
+            suelta; sin foco, con el título ya en la barra, sale del recorrido
+            (`data-compacto`). */}
+        <Link
+          href="/"
+          className={[
+            'inline-flex min-h-objetivo shrink-0 items-center rounded-control',
+            'max-md:opacity-[calc(1_-_var(--cv-avance-titulo,0))] max-md:motion-safe:translate-y-[calc(var(--cv-avance-titulo,0)_*_-6px)]',
+            'max-md:motion-safe:focus-visible:translate-y-0 max-md:focus-visible:opacity-100',
+            'max-md:group-data-[compacto=true]:not-focus-visible:invisible',
+          ].join(' ')}
+        >
           <Logo conNombre />
         </Link>
+        {/* Copia visual del <h1>, que sigue en la página: el lector no la oye dos veces. */}
+        <p
+          aria-hidden="true"
+          data-titulo-compacto=""
+          className={[
+            'pointer-events-none absolute inset-x-4 top-1/2 -translate-y-1/2 truncate text-center font-semibold text-texto md:hidden',
+            'opacity-[var(--cv-avance-titulo,0)] motion-safe:translate-y-[calc(-50%_+_(1_-_var(--cv-avance-titulo,0))_*_8px)]',
+          ].join(' ')}
+        >
+          {titulo}
+        </p>
         {municipalidad && (
           <span className="hidden shrink-0 rounded-control bg-superficie-2 px-2.5 py-1 text-sm font-semibold text-texto-2 xl:inline">
             {municipalidad}
@@ -96,7 +159,7 @@ export function CabeceraDeLaApp({ usuario, ruta, conNavegacion, extrasDeCuenta }
           )}
           {nav && conSesion(usuario) && (
             <div className="hidden md:block">
-              <MenuCuenta usuario={persona} items={nav.cuenta} variante="cabecera" ruta={ruta}>
+              <MenuCuenta usuario={persona} items={nav.cuenta} ruta={ruta}>
                 {extrasDeCuenta}
               </MenuCuenta>
             </div>
@@ -135,17 +198,17 @@ function EnlaceDeCabecera({ item, actual }: { item: ItemNavegacion; actual: bool
 interface BarraInferiorProps {
   usuario: UsuarioDelMarco;
   ruta: string;
-  extrasDeCuenta?: ReactNode;
 }
 
 /**
  * Barra de navegación inferior del móvil (DIS-1): hasta cinco destinos con
- * icono y nombre, «Reportar» destacado al centro para el ciudadano y «Cuenta»
- * al final con el menú. Fija abajo, respeta `env(safe-area-inset-bottom)` y
- * mide `--cv-alto-nav`, que el contenido reserva para no quedar tapado. Desde
- * `md` la reemplaza la cabecera.
+ * icono y nombre, «Reportar» destacado al centro para el ciudadano y, con
+ * sesión, «Cuenta» al final: una pantalla más (`CUENTA`, `/perfil`), no un
+ * menú encima. Fija abajo, respeta `env(safe-area-inset-bottom)` y mide
+ * `--cv-alto-nav`, que el contenido reserva para no quedar tapado. Desde `md`
+ * la reemplaza la cabecera.
  */
-export function BarraInferiorDeLaApp({ usuario, ruta, extrasDeCuenta }: BarraInferiorProps) {
+export function BarraInferiorDeLaApp({ usuario, ruta }: BarraInferiorProps) {
   const rol = rolDelMarco(usuario);
   const clases =
     'fixed inset-x-0 bottom-0 z-[1050] border-t border-linea bg-superficie pb-[env(safe-area-inset-bottom)] md:hidden';
@@ -154,11 +217,11 @@ export function BarraInferiorDeLaApp({ usuario, ruta, extrasDeCuenta }: BarraInf
   if (rol === undefined) return <div aria-hidden="true" className={`${clases} h-[var(--cv-alto-nav)]`} />;
 
   const nav = navegacionDe(rol);
-  const columnas = nav.inferior.length + (conSesion(usuario) ? 1 : 0);
+  const items = conSesion(usuario) ? [...nav.inferior, CUENTA] : nav.inferior;
   return (
     <nav aria-label="Principal" className={clases}>
-      <ul className="grid h-16" style={{ gridTemplateColumns: `repeat(${columnas}, minmax(0, 1fr))` }}>
-        {nav.inferior.map((item) => {
+      <ul className="grid h-16" style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}>
+        {items.map((item) => {
           const actual = esRutaActual(ruta, item);
           return (
             <li key={item.href}>
@@ -185,13 +248,6 @@ export function BarraInferiorDeLaApp({ usuario, ruta, extrasDeCuenta }: BarraInf
             </li>
           );
         })}
-        {conSesion(usuario) && (
-          <li>
-            <MenuCuenta usuario={usuarioDe(usuario)} items={nav.cuenta} variante="inferior" ruta={ruta}>
-              {extrasDeCuenta}
-            </MenuCuenta>
-          </li>
-        )}
       </ul>
     </nav>
   );
