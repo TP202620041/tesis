@@ -1,0 +1,10 @@
+# Dependencias del servicio (imagen Docker y CI). Versiones fijas: el modelo es
+# determinista con las mismas versiones y el mismo número de hilos (D-08).
+fastapi==0.162.0
+uvicorn==0.54.0
+python-multipart==0.0.32
+# La API la usa directamente (pool de hilos con límite); también la trae Starlette.
+anyio==4.15.1
+onnxruntime==1.31.0
+numpy==2.5.4
+pillow==13.0.0

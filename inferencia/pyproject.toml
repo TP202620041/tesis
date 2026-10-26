@@ -1,0 +1,63 @@
+# Servicio de inferencia de Ciudad Viva (NC-03). Las dependencias están fijadas
+# en requirements*.txt (servicio, desarrollo y exportación del modelo); aquí
+# viven los metadatos y la configuración de pytest y de la guarda de capas.
+[project]
+name = "ciudadviva-inferencia"
+version = "0.1.0"
+description = "Detección de daños viales (bache, grieta) con RF-DETR Nano en ONNX, CPU"
+requires-python = ">=3.13"
+# Sin `license`: la licencia del código del proyecto la decide el usuario (el repo no tiene LICENSE).
+# Las de los componentes (pesos, rfdetr, datos) están en el README.
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-ra --strict-markers"
+markers = [
+    "modelo_real: necesita los pesos exportados en modelos/ (se omite si no están)",
+]
+
+# Guarda de capas (ARCHITECTURE.md §6): `lint-imports` desde inferencia/.
+[tool.importlinter]
+root_package = "app"
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Capas: main > api > application | infrastructure > domain"
+type = "layers"
+containers = ["app"]
+layers = [
+    "main",
+    "api",
+    "application | infrastructure",
+    "domain",
+]
+# Ningún otro módulo o paquete bajo app/ (ni utils/ ni helpers/): igual que ARCHITECTURE.md §4.1.
+exhaustive = true
+
+[[tool.importlinter.contracts]]
+name = "La presentación no usa la infraestructura (la recibe armada desde app.main)"
+type = "forbidden"
+source_modules = ["app.api"]
+forbidden_modules = ["app.infrastructure", "onnxruntime", "numpy", "PIL"]
+
+[[tool.importlinter.contracts]]
+name = "Dominio y aplicación sin librerías de terceros"
+type = "forbidden"
+source_modules = ["app.domain", "app.application"]
+# Toda dependencia de terceros del servicio y de sus herramientas: solo la biblioteca estándar.
+forbidden_modules = [
+    "onnxruntime",
+    "onnx",
+    "numpy",
+    "PIL",
+    "fastapi",
+    "starlette",
+    "pydantic",
+    "anyio",
+    "httpx",
+    "httpx2",
+    "uvicorn",
+    "multipart",
+    "python_multipart",
+]

@@ -1,9 +1,10 @@
 # CI de Ciudad Viva (DEP-07). Qué corre, cómo leer el resumen y qué check
 # exigir en la protección de ramas: docs/ci.md.
 #
-# Check obligatorio: solo `ci`. Agrega los resultados de `cambios`, `backend`
-# y `frontend`, así que un job omitido porque su carpeta no cambió cuenta como
-# éxito, y uno que falla, se cancela o se omite sin motivo hace fallar `ci`.
+# Check obligatorio: solo `ci`. Agrega los resultados de `cambios`, `backend`,
+# `frontend` e `inferencia`, así que un job omitido porque su carpeta no cambió
+# cuenta como éxito, y uno que falla, se cancela o se omite sin motivo hace
+# fallar `ci`.
 name: CI
 
 on:
@@ -40,6 +41,7 @@ jobs:
       # Una corrida manual y una versión (push a main) validan todo.
       backend: ${{ github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || steps.filtro.outputs.backend == 'true' }}
       frontend: ${{ github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || steps.filtro.outputs.frontend == 'true' }}
+      inferencia: ${{ github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || steps.filtro.outputs.inferencia == 'true' }}
     steps:
       # En un push, paths-filter usa git: compara con el commit anterior de la
       # misma rama (base = la rama del push). En un PR usa la API.
@@ -64,6 +66,11 @@ jobs:
               - '.github/workflows/ci.yml'
               - '.github/scripts/**'
               - '.claude/skills/verificar/**'
+            # El servicio de inferencia (NC-03) no usa los scripts ni los
+            # contadores de /verificar: solo cuenta su carpeta y el workflow.
+            inferencia:
+              - 'inferencia/**'
+              - '.github/workflows/ci.yml'
 
   backend:
     name: backend
@@ -243,11 +250,58 @@ jobs:
             echo "| Build | ${R_BUILD:-skipped} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
+  inferencia:
+    name: inferencia
+    needs: cambios
+    if: needs.cambios.outputs.inferencia == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      PIP_DISABLE_PIP_VERSION_CHECK: '1'
+      # Mínimo de tests ejecutados (sin contar los omitidos) que exige
+      # inferencia/scripts/verificar_tests.py. Los de tests/test_modelo_real.py
+      # se omiten porque los pesos no se versionan; cualquier otro omitido, o un
+      # archivo test_*.py sin casos en el informe, hace fallar la guarda.
+      MIN_PYTEST_INFERENCIA: 133
+    defaults:
+      run:
+        shell: bash
+        working-directory: inferencia
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+          cache: pip
+          cache-dependency-path: |
+            inferencia/requirements-dev.lock
+      # El lock fija versión y hash de todas las dependencias, también las
+      # transitivas (inferencia/README.md, «Dependencias»).
+      - id: instalar
+        name: pip install (lock con hashes)
+        run: pip install --require-hashes --no-deps -r requirements-dev.lock && pip check
+      # La guarda de capas y los tests corren aunque falle el otro, para ver
+      # todos los errores en una sola corrida.
+      - id: capas
+        name: Guarda de capas (import-linter)
+        if: ${{ !cancelled() && steps.instalar.outcome == 'success' }}
+        run: lint-imports
+      - id: tests
+        name: pytest (sin pesos)
+        if: ${{ !cancelled() && steps.instalar.outcome == 'success' }}
+        run: python -m pytest -rs --junitxml="$RUNNER_TEMP/pytest-inferencia.xml"
+      - id: guarda
+        name: Guarda de completitud
+        if: ${{ !cancelled() && steps.instalar.outcome == 'success' }}
+        run: python scripts/verificar_tests.py "$RUNNER_TEMP/pytest-inferencia.xml" --resumen "$GITHUB_STEP_SUMMARY"
+
   # Único check que se exige en la protección de develop y main.
   ci:
     name: ci
     if: always()
-    needs: [cambios, backend, frontend]
+    needs: [cambios, backend, frontend, inferencia]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -256,8 +310,10 @@ jobs:
           R_CAMBIOS: ${{ needs.cambios.result }}
           R_BACKEND: ${{ needs.backend.result }}
           R_FRONTEND: ${{ needs.frontend.result }}
+          R_INFERENCIA: ${{ needs.inferencia.result }}
           APLICA_BACKEND: ${{ needs.cambios.outputs.backend }}
           APLICA_FRONTEND: ${{ needs.cambios.outputs.frontend }}
+          APLICA_INFERENCIA: ${{ needs.cambios.outputs.inferencia }}
         run: |
           fallo=0
           {
@@ -283,4 +339,5 @@ jobs:
           }
           revisar backend "$APLICA_BACKEND" "$R_BACKEND"
           revisar frontend "$APLICA_FRONTEND" "$R_FRONTEND"
+          revisar inferencia "$APLICA_INFERENCIA" "$R_INFERENCIA"
           exit $fallo
