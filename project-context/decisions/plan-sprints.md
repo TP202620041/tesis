@@ -37,13 +37,51 @@ Hay un carril de backend y uno de frontend en paralelo. En un mismo sprint el fr
 | S4 | US-11 (endpoint de densidad) · BE-06 (incluye `ReincidenciaDetector` → `domain/`) · BE-10 | US-11 (capa de calor) · FE-06 | v0.5.0 |
 | S5 | NC-01 · NC-02 | US-19 · FE-07 · FE-08 | v0.6.0 |
 | Despliegue | DEP-01..DEP-05 · DEP-08 · DEP-11 · DEP-12 · correcciones de QA-1 · CI (DEP-07) | DEP-06 · correcciones de QA-1 · fase 1 del diseño «Cívica» (DIS-1, con US-23) | v0.7.0 |
-| S7 | NC-03a (`inferencia/`) · NC-04 (`clasificacion`) · BE-11 (la foto se sube fuera de la transacción de creación) · BE-12 (refresco asíncrono y coalescido del índice) | NC-04 (vista previa al reportar) · FE-09 (adelantada) · atribución de RDD2022 (CC BY-SA 4.0) y de los pesos RF-DETR (Apache-2.0) en «Acerca de» o en los términos | v0.8.0 |
+| S7 | NC-03a (`inferencia/`) · NC-04 (`clasificacion`) · NC-04b (adaptador HTTP de `clasificacion` al servicio `inferencia/`) · DEP-13 (servicio `inferencia` en Railway, solo por la red privada) · BE-11 (la foto se sube fuera de la transacción de creación) · BE-12 (refresco asíncrono y coalescido del índice) | NC-04 (vista previa al reportar) · FE-09 (adelantada) · atribución de RDD2022 (CC BY-SA 4.0) y de los pesos RF-DETR (Apache-2.0) en «Acerca de» o en los términos · aviso de que la foto se analiza automáticamente (nueva versión de los términos, D-12) | v0.8.0 |
 | S6 | NC-05 · NC-06 · BE-08 | NC-06 (dashboard por periodo, reemplaza US-17 v1) | v0.9.0 |
 | S8 | Ajustes que pida el diseño | **Diseño de la interfaz, fase 2** (mapa con hoja inferior, reporte en pasos, bandeja con panel, portada y desempeño), revisión de cada pantalla y US-24 (guía de uso) | v1.0.0 |
 
 **El S7 va antes que el S6 (decisión del usuario del 25/10).** El S6 está bloqueado por tres decisiones pendientes: las fórmulas de los KPIs, las columnas del OB2 §5 y D-10. El S7 no está bloqueado: las clases y el umbral se decidieron el 21/10. Por eso el S7 sale como v0.8.0 y el S6 como v0.9.0. FE-09 no depende de nada del S6, así que se adelantó y quedó hecha el 25/10. Los nombres S6 y S7 se conservan, para no romper las referencias.
 
 **NC-03 se parte en dos:** NC-03a es el servicio (S7) y NC-03b, la calibración del umbral con al menos 200 fotos de Lima. NC-03b depende de que el equipo tome y etiquete esas fotos, así que no tiene sprint fijo. **La atribución** la pide la revisión de NC-03a (25/10): los datos de RDD2022 son CC BY-SA 4.0 y los pesos, Apache-2.0. Tiene que estar antes de abrir a usuarios. Sigue abierta la pregunta de si el *share-alike* de los datos alcanza a los pesos entrenados con ellos; es parte de la decisión 7 (legal) del índice.
+
+**El modelo real entra al S7 (decisión del usuario del 26/10).** Sin NC-04b, la v0.8.0 publicaba el módulo `clasificacion` solo con el adaptador falso, que en producción está fijado para no sugerir nunca (`application-prod.yml`). Con NC-04b y DEP-13, la v0.8.0 sale sugiriendo con RF-DETR Nano.
+- **NC-04b (backend):** `clasificacion/infra/InferenciaHttpAdapter`, según el handoff `handoffs/2026-10-25-contrato-inferencia-v1.md`. En `prod`, `CLASIFICACION_TIPO` pasa a ser obligatoria (`http`), con la URL del servicio en `CLASIFICACION_URL`. `CLASIFICACION_TIPO=falso` queda como interruptor para apagar la clasificación. Ficha y criterios: `plan-migracion-capas.md`, NC-04b.
+- **DEP-13 (raíz, con el usuario).** El servicio `inferencia` en Railway:
+  - **Servicio:** se construye desde `inferencia/Dockerfile`, con raíz `inferencia` y watch paths `/inferencia/**`. Va sin dominio público, solo por la red privada.
+  - **Recursos y red:**
+    - *Resource Limits* fijos de 2 vCPU y 1 GB, que además acotan el costo;
+    - `INFERENCIA_HILOS=2` y `PORT=8000`, los dos fijos;
+    - comprobar si la red privada es solo IPv6. Si lo es, `INFERENCIA_HOST` va vacío (handoff, «Red»).
+  - **Primera construcción:** `inferencia/` todavía no está en `main`, y el disparador despliega desde `main`.
+    - Antes de fusionar, la primera construcción sale de la rama `release/v0.8.0` con `railway up --service inferencia`. Esa construcción descarga torch y los pesos de Hugging Face, así que hay que comprobar que termina.
+    - Con la release en `main`, el disparador de `main` (con `checkSuites`) toma el relevo.
+  - **Variables del backend**, cargadas antes de fusionar con Alt + Deploy (la v0.7.x las ignora): `CLASIFICACION_TIPO=http` y `CLASIFICACION_URL=http://${{inferencia.RAILWAY_PRIVATE_DOMAIN}}:8000`.
+  - **Medición:**
+    - antes de fusionar: el servicio sano en los logs y la RAM en *Metrics* de Railway;
+    - después de fusionar: la latencia de punta a punta, con la duración que registra el adaptador en cada llamada durante la prueba de humo.
+
+    No se usa `scripts/medir_latencia.py`, porque no está en la imagen final y su RAM sale de `docker stats`. Las cifras van a `inferencia/README.md`.
+  - **Prueba positiva:** como cualquier falla termina en «sin sugerencia» sin avisar, el ML podría quedar apagado sin que nadie lo note. La prueba de humo (runbook §7.3) suma un paso: una foto con un bache conocido da «Bache» en la vista previa, y un reporte nuevo queda con `version_modelo_sugerencia` = `rdd2022-…`.
+  - **Documentos en la misma rama:**
+    - en el runbook, una subsección nueva en §5, el paso de §7.3 y el interruptor `CLASIFICACION_TIPO=falso` en §10;
+    - los diagramas dejan de decir «planificado»: `c4-despliegue.md`, `c4-contenedores.md` y `capas.md`;
+    - el costo real del primer mes, anotado.
+- **Orden:** el servicio y las variables del backend existen **antes** de fusionar la release en `main`, porque el backend con `http` no debe llegar a producción sin el servicio. Si aun así falla, el adaptador degrada a «sin sugerencia» y el reporte se crea igual.
+- **Costo estimado:** Railway cobra US$ 10 por GB de memoria al mes y US$ 20 por vCPU al mes, por uso real medido por minuto.
+  - **El servicio nuevo:** con lo medido en NC-03a (200–480 MiB, y unos 0,4 s de reloj por foto con 2 hilos), suma unos US$ 3–5 al mes.
+  - **Producción actual:** ronda los US$ 6 al mes. Métricas del 26/10: el backend promedia 0,50 GB, PostGIS 0,09 GB y la CPU es casi nula.
+  - **Total esperado:** unos US$ 9–11 al mes.
+- **Umbral sin calibrar:** la v0.8.0 sale con 0,50, que es conservador. NC-03b lo calibra después cambiando `CLASIFICACION_UMBRAL`, sin código nuevo.
+- **Atribución y licencia:** la atribución de la fila del S7 tiene que estar en la v0.8.0. Desde esa versión, la pregunta del *share-alike* (decisión 7) también afecta a producción.
+- **Aviso de privacidad (frontend y textos legales):** desde la v0.8.0 la foto se analiza automáticamente en producción, así que el texto de privacidad tiene que decirlo, y aclarar que la decisión final es del ciudadano (DS 016-2024-JUS, art. 6.1; `backend/README.md`, «Pendiente» de la sugerencia).
+  - Va en la v0.8.0 como nueva versión de `legal/terminos-y-privacidad-v1.md` (D-12).
+  - **Todos vuelven a aceptar (decisión del usuario del 26/10).** Se usa el mecanismo de D-12, sin código nuevo de consentimiento. Al subir la versión vigente, `debeAceptarTerminos` pasa a `true` para quien aceptó la anterior, y la PWA le muestra la pantalla de aceptación en su próximo inicio de sesión.
+  - **Piezas, en la misma release:**
+    - el texto v2 en `project-context/legal/`, a cargo de la sesión de raíz;
+    - la página `/privacidad` de la PWA;
+    - la versión, en dos lugares a la vez: `app.legal.version-terminos` (`LEGAL_VERSION_TERMINOS`) en el backend y `VERSION_TERMINOS` en `frontend/src/features/auth/model/terminos.ts`.
+  - **Ventana de despliegue:** si la PWA y el backend no publican la versión a la vez, el registro responde 409 (`versionTerminos` distinta de la vigente) mientras se despliegan. La tarea de frontend evalúa leer la versión desde el API o acepta esa ventana corta.
 
 **BE-11** sale de la deuda de DEP-12 (`propuestas/2026-10-21-fotos-r2.md`, «La regla de §4.5…»): `ReporteService#crear` sube la foto a R2 **dentro** de su `@Transactional` y retiene una conexión del pool durante la red (~100–500 ms). La propuesta sugería resolverla con NC-04; NC-04 no la tomó (revisión del 25/10) y queda como tarea propia del S7. Va junto con borrar el objeto huérfano en `afterCompletion` cuando la transacción se revierte.
 
@@ -66,6 +104,8 @@ Ya hechas antes de S1: BE-01, BE-02, BE-07, FE-01 y FE-02.
 | S5 | D-10: jurisdicción del funcionario (`distrito_id` o `municipalidad_id`) y las fechas exactas del periodo 2023-2026. |
 | S6 | Fórmulas de los KPIs por periodo; requisitos de recepción por municipalidad (NC-05). |
 | S7 | Clases finales del modelo y umbral (NC-03): **decidido el 21/10** (`propuestas/2026-10-21-ml-clases-modelo.md`: `bache` y `grieta` de RDD2022, umbral 0,50). NC-04 arranca con un adaptador falso. |
+| v0.8.0 | Si la versión sale con el modelo real: **decidido el 26/10**, sí (NC-04b y DEP-13 entran al S7). |
+| v0.8.0 | El aviso del análisis automático de la foto como nueva versión de los términos: si los ciudadanos que ya aceptaron tienen que volver a aceptar (D-12). **Decidido el 26/10:** sí, todos vuelven a aceptar. |
 
 ## Ejecución
 
