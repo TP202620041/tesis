@@ -1,11 +1,11 @@
 # Handoff de contrato: detección de daños `/v1` del servicio de inferencia (NC-03a → NC-04b)
 
-- **Estado:** pendiente <!-- pendiente | atendido -->
+- **Estado:** atendido <!-- pendiente | atendido -->
 - **Fecha:** 2026-10-25
 - **Origen:** inferencia, rama `feature/nc-03-inferencia`, commits `4896277`…`6919553` y las observaciones de la revisión en el commit siguiente (PR por abrir)
 - **Historia o tarea:** NC-03a (fase 1 de la propuesta aceptada `decisions/propuestas/2026-10-21-ml-clases-modelo.md`); lo consume **NC-04b** (`clasificacion/infra/InferenciaHttpAdapter`)
 - **Destinatario:** backend, NC-04b
-- **Atendido por:** _(backend, rama y fecha)_
+- **Atendido por:** backend, rama `feature/nc-04b-inferencia-http`, 2026-10-26 (PR por abrir; lo abre la sesión de raíz). `clasificacion/infra/InferenciaHttpAdapter` con `CLASIFICACION_TIPO=http` y la URL base en `CLASIFICACION_URL`: multipart `imagen` con la foto saneada (nombre fijo `foto.jpg`), HTTP/1.1, 0,5 s de conexión + 2,5 s de lectura, a lo sumo 4 llamadas a la vez sin esperar turno (por debajo del tope de 10 conexiones del servicio), sin reintentos; todo lo distinto de 200 es «sin sugerencia» (4xx en `ERROR`, 5xx/503/timeout en `WARN`, cada llamada con su duración). La respuesta se rechaza solo por su estructura; `caja` y los campos desconocidos se ignoran. Umbral y clase dominante, en `PoliticaDeSugerencia`. Probado contra la imagen `ciudadviva-inferencia:nc03` (`InferenciaHttpAdapterIT`, que solo corre con `CLASIFICACION_TEST_URL`). La comprobación de la red privada de Railway (IPv6, `INFERENCIA_HOST` vacío) no se puede hacer desde el backend: queda en DEP-13. Ver `backend/README.md`, «El adaptador del servicio de inferencia (NC-04b)».
 
 El contrato es el de ARCHITECTURE.md §6 y §7. Lo define `inferencia/` (`app/api/esquemas.py`; OpenAPI en `/openapi.json` del servicio). Un cambio incompatible pasa a `/v2`. Detalle y justificación en `inferencia/README.md`.
 
