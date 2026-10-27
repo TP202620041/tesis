@@ -32,30 +32,44 @@ export type ResultadoRegistro =
  * pedir recargar para leer el texto nuevo (y solo entonces desmarcar la
  * casilla, QA-1 M-2: cualquier otro error, como un correo ya registrado, no
  * invalida la aceptacion).
+ *
+ * NC-08: `captchaToken` es el de reCAPTCHA v2, o `null` si el captcha no
+ * esta configurado. Un 409 o 503 del captcha se muestra como cualquier otro
+ * error (`mensajeDeError`); reiniciar el widget le toca al formulario.
  */
 export function useRegistro() {
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<MensajeDeError | null>(null);
   const [terminosDesactualizados, setTerminosDesactualizados] = useState(false);
 
-  const enviar = useCallback(async (datos: DatosDeRegistro): Promise<ResultadoRegistro> => {
-    setError(null);
-    setTerminosDesactualizados(false);
-    setEnviando(true);
-    try {
-      const sesion = await registrar({ ...datos, aceptaTerminos: true, versionTerminos: VERSION_TERMINOS });
-      return { sesion, terminosDesactualizados: false };
-    } catch (e) {
-      // 409 = correo ya registrado o version de terminos no vigente; 400 =
-      // validacion (`details` trae el detalle por campo de @Valid).
-      const desactualizados = e instanceof ApiError && esVersionDeTerminosNoVigente(e.status, e.message);
-      setError(mensajeDeError(e));
-      setTerminosDesactualizados(desactualizados);
-      return { sesion: null, terminosDesactualizados: desactualizados };
-    } finally {
-      setEnviando(false);
-    }
-  }, []);
+  const enviar = useCallback(
+    async (datos: DatosDeRegistro, captchaToken: string | null = null): Promise<ResultadoRegistro> => {
+      setError(null);
+      setTerminosDesactualizados(false);
+      setEnviando(true);
+      try {
+        const sesion = await registrar({
+          ...datos,
+          aceptaTerminos: true,
+          versionTerminos: VERSION_TERMINOS,
+          // NC-08: solo si el captcha esta configurado; sin el, el backend
+          // local (`CAPTCHA_TIPO=ninguno`) no lo pide.
+          ...(captchaToken ? { captchaToken } : {}),
+        });
+        return { sesion, terminosDesactualizados: false };
+      } catch (e) {
+        // 409 = correo ya registrado o version de terminos no vigente; 400 =
+        // validacion (`details` trae el detalle por campo de @Valid).
+        const desactualizados = e instanceof ApiError && esVersionDeTerminosNoVigente(e.status, e.message);
+        setError(mensajeDeError(e));
+        setTerminosDesactualizados(desactualizados);
+        return { sesion: null, terminosDesactualizados: desactualizados };
+      } finally {
+        setEnviando(false);
+      }
+    },
+    [],
+  );
 
   return { enviando, error, terminosDesactualizados, enviar };
 }

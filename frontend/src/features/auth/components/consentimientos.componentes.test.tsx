@@ -112,12 +112,16 @@ describe('FormularioRegistro (NC-07b)', () => {
     await usuario.click(screen.getByRole('checkbox'));
     await usuario.click(screen.getByRole('button', { name: 'Crear cuenta' }));
 
-    expect(enviar).toHaveBeenCalledWith({
-      nombre: 'Ana',
-      apellido: 'Ruiz',
-      email: 'ana@lima.pe',
-      password: 'secreta123',
-    });
+    // Sin site key de reCAPTCHA (NC-08) el token va como `null`.
+    expect(enviar).toHaveBeenCalledWith(
+      {
+        nombre: 'Ana',
+        apellido: 'Ruiz',
+        email: 'ana@lima.pe',
+        password: 'secreta123',
+      },
+      null,
+    );
     // QA-1 I-2: a «Mis reportes», como el login; nunca a la pantalla de
     // depuración `/sesion`, que ya no existe.
     expect(push).toHaveBeenCalledWith('/mis-reportes');
