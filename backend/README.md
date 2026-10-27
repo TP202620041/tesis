@@ -94,7 +94,7 @@ preferible que no arranque y que el log diga qué falta.
 | `SPRINGDOC_HABILITADO` | no (`false`) | `true` publica `/v3/api-docs` y Swagger UI. |
 | `ADMIN_INICIAL_EMAIL`, `ADMIN_INICIAL_PASSWORD`, `ADMIN_INICIAL_NOMBRE` | solo en el primer arranque | Crean el primer ADMIN en una base sin ninguno. Después se borra `ADMIN_INICIAL_PASSWORD`; las otras dos pueden quedar (ver «Operación en producción»). |
 | `CLASIFICACION_TIPO` | sí | Adaptador del clasificador de fotos (NC-04b): `http` (el servicio `inferencia/` por la red privada) en el despliegue. `falso` es el **interruptor** para apagar la clasificación: en `prod` el falso responde siempre «sin detecciones» (`application-prod.yml`, literal) y no escribe nada. Sin ella no arranca: con el `falso` de desarrollo por defecto la clasificación quedaría apagada sin que nada lo advierta, porque cualquier falla del adaptador también termina en «sin sugerencia». Otro valor tampoco arranca (`clasificacion/infra/ValidacionTipoClasificador`). Ver [Sugerencia de categoría](#sugerencia-de-categoría-por-la-foto-nc-04-fase-0). |
-| `CLASIFICACION_URL` | con `CLASIFICACION_TIPO=http` | URL base del servicio de inferencia, sin la ruta: `http://${{inferencia.RAILWAY_PRIVATE_DOMAIN}}:8000` en Railway. Sin ella, o sin esquema `http(s)` y host, no arranca. No es un secreto. |
+| `CLASIFICACION_URL` | con `CLASIFICACION_TIPO=http` | URL base del servicio de inferencia, sin la ruta: `http://${{inferencia.RAILWAY_PRIVATE_DOMAIN}}:8000` en Railway. Sin ella, sin esquema `http(s)` y host, o con ruta (`…:8000/v1`), query, fragmento o usuario, no arranca: el adaptador agrega `/v1/detecciones`, y una ruta de más daría un 404 en cada llamada que solo se vería en el log. No es un secreto. |
 | `CLASIFICACION_UMBRAL` | no (`0.50`) | Confianza mínima para sugerir, en (0, 1]. Se calibra en NC-03b. |
 | `JWT_EXPIRATION_MINUTES`, `VAPID_*`, `PUSH_*`, `MAIL_*` (solo con `smtp`), `LEGAL_VERSION_TERMINOS`, `ASYNC_*` | no | Las mismas de `application.yml`, con sus valores por defecto. |
 
@@ -2407,11 +2407,12 @@ adaptador de producción desde la v0.8.0 (decisión del usuario del 26/10).
 |---|---|
 | `RestClient` sobre el `HttpClient` del JDK, como `ResendCorreoAdapter` | Sin dependencias nuevas: la imagen está al borde de los 400 MB. |
 | **HTTP/1.1 explícito** | Por defecto el cliente del JDK intenta HTTP/2 y, sobre `http://`, lo negocia con un `Upgrade: h2c` que uvicorn no habla. Con HTTP/1.1 cada conexión lleva una llamada a la vez, así que las conexiones abiertas, también las que quedan en keep-alive, nunca pasan de las llamadas simultáneas. |
+| **Cuerpo en chunks** (`Transfer-Encoding: chunked`, sin `Content-Length`) | El multipart se escribe en streaming. uvicorn lo acepta, y el límite de cuerpo del servicio cuenta los bytes que recibe, no solo el `Content-Length` declarado (`inferencia/app/api/limite_cuerpo.py`). Lo comprueban `InferenciaHttpAdapterTest` con un servidor local e `InferenciaHttpAdapterIT` contra el servicio real. |
 | **0,5 s de conexión + 2,5 s de lectura** (3 s como máximo) | El tope de la vista previa: el ciudadano espera la sugerencia mientras arma el reporte. La conexión es por la red privada y tarda milisegundos; la lectura se lleva casi todo porque incluye la espera en el servicio, que infiere de a una imagen. Spring 6.2 cuenta la lectura desde que sale el pedido hasta cerrar el cuerpo, así que también corta una respuesta que llega a medias. |
-| **Turno (*bulkhead*): 4 llamadas a la vez, sin esperar** | El turno de la vista previa se suelta antes de clasificar, el `HttpClient` del JDK no limita sus conexiones y el servicio responde 503 desde 10 conexiones o tareas abiertas, contando las de keep-alive. Un `Semaphore(4)` con `tryAcquire` sin espera lo mantiene lejos de ese tope: sin turno, «sin sugerencia» al instante. Cuatro alcanza para una vista previa más los hilos del executor asíncrono (`ASYNC_HILOS_MAX`, 4). |
+| **Turno (*bulkhead*): 4 llamadas a la vez, sin esperar** | El `HttpClient` del JDK no limita sus conexiones y el servicio responde 503 desde 10 conexiones o tareas abiertas, contando las de keep-alive. Un `Semaphore(4)` con `tryAcquire` sin espera lo mantiene lejos de ese tope: sin turno, «sin sugerencia» al instante. **La vista previa y la sugerencia oficial compiten por los mismos turnos**: la sugerencia oficial ocupa los hilos del executor asíncrono (en la práctica los 2 de `ASYNC_HILOS_BASE`, porque el pool solo crece hacia `ASYNC_HILOS_MAX` con su cola de 100 tareas llena, y esos hilos también envían correos y avisos), y las vistas previas en curso, el resto. El turno propio de la vista previa solo acota el saneado y se suelta antes de clasificar, así que puede haber varias clasificando a la vez, una por ciudadano con la pantalla abierta. El tope protege al servicio; no reserva turnos para nadie. |
 | **Sin reintentos** | La IA nunca bloquea un reporte (§4.3), y un reintento solo cargaría más a un servicio que ya no respondió. |
 | **Cualquier falla es «sin sugerencia»** | Una respuesta distinta de 200, un timeout o un error de conexión se traducen a `ClasificacionNoDisponibleException`, que `ClasificacionService` convierte en «sin sugerencia» con un WARN. |
-| **La respuesta se valida solo por su estructura** | Se rechaza entera si falta `version_modelo` o `detecciones`, si los tipos no son los del contrato o si `version_modelo` pasa de 40 caracteres (la columna). Se ignoran `caja` y los campos desconocidos. Una clase desconocida o una confianza fuera de [0, 1] **no** la invalidan: las descarta `PoliticaDeSugerencia` y las demás detecciones de la foto siguen valiendo. |
+| **La respuesta se valida solo por su estructura** | Se rechaza entera si falta `version_modelo` o `detecciones`, si los tipos no son los del contrato o si `version_modelo` pasa de 40 caracteres (la columna). Se ignoran `caja` y los campos desconocidos. Una clase desconocida o una confianza fuera de [0, 1] **no** la invalidan: las descarta `PoliticaDeSugerencia` y las demás detecciones de la foto siguen valiendo. El cuerpo de un 200 se lee hasta **256 KiB** (100 detecciones caben en unos 10 KB): uno más grande es «fuera del contrato» y no se carga entero en memoria. |
 | **La foto viaja sin datos del ciudadano** | La parte `imagen` lleva la foto **saneada** (sin EXIF) con el nombre fijo `foto.jpg`, nunca el del archivo original. |
 | **`estaDisponible()` siempre `true`** | Un servicio caído se nota al llamarlo; no se adivina antes. |
 
@@ -2437,19 +2438,22 @@ dos reciben «sin turno» al instante y ninguna llega al 503. Con un servicio
 mudo y los tiempos de producción, la llamada se corta a los 2,6 s. La
 latencia en Railway se mide en DEP-13 con estas mismas líneas.
 
-**Consecuencia aceptada del turno sin espera.** Si coinciden más de cuatro
-llamadas, las que no tienen turno dan «sin sugerencia». En la vista previa el
-ciudadano elige a mano. En la sugerencia oficial las columnas quedan nulas y
-no se reintenta (se escribe una sola vez), así que esa foto cuenta como «sin
-sugerencia» en la evaluación (OE3). A la escala del MVP debería ser raro: las
-líneas `sin turno` del log lo muestran.
+**Consecuencia del turno sin espera.** Si coinciden más de cuatro llamadas,
+las que no tienen turno dan «sin sugerencia», vengan de una vista previa o de
+la sugerencia oficial. En la vista previa el ciudadano elige a mano. **Una
+sugerencia oficial sin turno se pierde**: las columnas quedan nulas y no se
+reintenta (se escribe una sola vez), así que esa foto cuenta como «sin
+sugerencia» en la evaluación del modelo (OE3). A la escala del MVP debería ser
+raro, y las líneas `sin turno` del log lo muestran. Si la sugerencia oficial,
+que es asíncrona, debe esperar su turno en vez de perderse lo está decidiendo
+el usuario (ver «Pendiente»).
 
 ### Configuración
 
 | Propiedad (variable) | Por defecto | Qué es |
 |---|---|---|
 | `app.clasificacion.tipo` (`CLASIFICACION_TIPO`) | `falso`; en `prod`, sin valor por defecto | `http` (`InferenciaHttpAdapter`) o `falso`. Otro valor no arranca. |
-| `app.clasificacion.http.url` (`CLASIFICACION_URL`) | vacía | URL base del servicio, sin la ruta (`http://inferencia.railway.internal:8000`; en local, `http://localhost:8090`). Obligatoria con `http`: sin ella, o sin esquema `http(s)` y host, no arranca. Con `falso` no se mira. |
+| `app.clasificacion.http.url` (`CLASIFICACION_URL`) | vacía | URL base del servicio, sin la ruta (`http://inferencia.railway.internal:8000`; en local, `http://localhost:8090`). Obligatoria con `http`: sin ella, sin esquema `http(s)` y host, o con ruta, query, fragmento o usuario, no arranca. Con `falso` no se mira. |
 | `app.clasificacion.umbral` (`CLASIFICACION_UMBRAL`) | `0.50` | En (0, 1]; fuera de rango no arranca. |
 | `app.clasificacion.falso.respuesta` (`CLASIFICACION_FALSO_RESPUESTA`) | vacía | Lo que el falso «detecta» en cualquier foto. Si está mal escrita, no arranca. |
 | `app.clasificacion.falso.version-modelo` | `falso-0` | Versión que informa el falso. |
@@ -2479,10 +2483,12 @@ líneas `sin turno` del log lo muestran.
   500, 503 y otros estados; timeout; respuestas fuera del contrato, entre
   ellas sin `version_modelo` y con una de 41 caracteres; el nivel de log de
   cada causa; con seis llamadas simultáneas, a lo sumo cuatro llegan al
-  servidor, y los turnos se devuelven también cuando la llamada falla. Con
-  sockets locales: HTTP/1.1 sin `Upgrade`, el corte a menos de 3 s con los
-  tiempos de producción, una respuesta que se corta a medias y una conexión
-  rechazada), `ValidacionTipoClasificadorTest` (con `http`, la URL),
+  servidor, y los turnos se devuelven también cuando la llamada falla; el
+  tope de 256 KiB del cuerpo. Con sockets locales y un `@Timeout` de JUnit
+  para no colgar la CI: HTTP/1.1 sin `Upgrade` y el cuerpo en chunks, que con
+  los tiempos de producción un servicio mudo se corta por la lectura, una
+  respuesta que se corta a medias y una conexión rechazada),
+  `ValidacionTipoClasificadorTest` (con `http`, la URL: solo la base),
   `ClasificacionServiceTest` (la vista previa
   clasifica la foto **saneada**; la oficial no la vuelve a sanear; una vista
   previa a la vez, sin esperar; sin turno de saneado, error inesperado del
@@ -2518,6 +2524,9 @@ líneas `sin turno` del log lo muestran.
 
 ### Pendiente
 
+- **Sugerencia oficial sin turno de inferencia** (revisión de NC-04b, 26/10):
+  hoy se pierde, como una vista previa sin turno. Si debe esperar su turno
+  (es asíncrona y no hace esperar a nadie) lo decide el usuario.
 - **Aviso de privacidad** (frontend y textos legales): decir que la foto se
   analiza automáticamente para sugerir una categoría y que la decisión es del
   ciudadano (DS 016-2024-JUS, art. 6.1).

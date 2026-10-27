@@ -81,6 +81,35 @@ class ValidacionTipoClasificadorTest {
     }
 
     @ParameterizedTest
+    @ValueSource(strings = {"http://inferencia.railway.internal:8000/v1", "http://localhost:8090/v1/detecciones",
+            "http://localhost:8090//", "http://localhost:8090?modelo=nano", "http://localhost:8090/#salud"})
+    void http_conRutaQueryOFragmento_noArranca_paraNoTerminarEn404Silenciosos(String url) {
+        // El adaptador agrega /v1/detecciones: con .../v1 cada llamada iria a /v1/v1/detecciones.
+        assertThatThrownBy(() -> con(http(url)).postProcessBeanFactory(new DefaultListableBeanFactory()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageStartingWith("CLASIFICACION_URL (app.clasificacion.http.url) debe ser solo la base")
+                .hasMessageContaining("/v1/detecciones");
+    }
+
+    @Test
+    void http_conRuta_laNombraEnElMensaje() {
+        assertThatThrownBy(() -> con(http("http://inferencia.railway.internal:8000/v1"))
+                .postProcessBeanFactory(new DefaultListableBeanFactory()))
+                .hasMessageEndingWith("tiene la ruta '/v1'");
+    }
+
+    @Test
+    void http_conUsuario_noArrancaYNoRepiteLaContrasena() {
+        for (String url : new String[] {"http://ana:ClaveSecreta123@inferencia.railway.internal:8000",
+                "ftp://ana:ClaveSecreta123@inferencia.railway.internal:8000"}) {
+            assertThatThrownBy(() -> con(http(url)).postProcessBeanFactory(new DefaultListableBeanFactory()))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageStartingWith("CLASIFICACION_URL (app.clasificacion.http.url)")
+                    .hasMessageNotContaining("ClaveSecreta123");
+        }
+    }
+
+    @ParameterizedTest
     @ValueSource(strings = {"", "falso ", "http ", "onnx", "fake"})
     void otroValor_noArrancaYNombraLaVariable(String valor) {
         MockEnvironment entorno = new MockEnvironment().withProperty("app.clasificacion.tipo", valor);

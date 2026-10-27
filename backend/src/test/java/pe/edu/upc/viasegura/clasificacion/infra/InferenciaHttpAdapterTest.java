@@ -38,6 +38,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.api.Timeout.ThreadMode;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -203,6 +205,26 @@ class InferenciaHttpAdapterTest {
 
         assertThat(adaptador.detectar(FOTO).detecciones())
                 .containsExactly(new Deteccion("bache", 0.9), new Deteccion("grieta", 1.0));
+    }
+
+    @Test
+    void unCuerpoDe200HastaElTope_seLee() {
+        // Un campo desconocido largo: se ignora, siempre que el cuerpo no pase del tope.
+        String relleno = "x".repeat(InferenciaHttpAdapter.MAX_BYTES_RESPUESTA - 200);
+        responde("{\"version_modelo\": \"" + VERSION + "\", \"detecciones\": [], \"relleno\": \"" + relleno + "\"}");
+
+        assertThat(adaptador.detectar(FOTO).detecciones()).isEmpty();
+    }
+
+    @Test
+    void unCuerpoDe200QuePasaDelTope_esFueraDelContrato(CapturedOutput salida) {
+        // 100 detecciones caben en unos 10 KB: un cuerpo de mas de 256 KiB no es del contrato.
+        String relleno = "x".repeat(InferenciaHttpAdapter.MAX_BYTES_RESPUESTA);
+        responde("{\"version_modelo\": \"" + VERSION + "\", \"detecciones\": [], \"relleno\": \"" + relleno + "\"}");
+
+        assertThat(falla().getMessage())
+                .contains("fuera del contrato", String.valueOf(InferenciaHttpAdapter.MAX_BYTES_RESPUESTA));
+        enElLog(salida, "ERROR", "fuera del contrato");
     }
 
     @Test
@@ -451,13 +473,16 @@ class InferenciaHttpAdapterTest {
     // --- Con sockets locales: lo que el mock no ve ----------------------------
 
     @Test
-    void hablaHttp11SinIntentarHttp2() throws IOException {
+    @Timeout(value = 15, unit = TimeUnit.SECONDS, threadMode = ThreadMode.SEPARATE_THREAD)
+    void hablaHttp11SinIntentarHttp2_yEnviaElCuerpoEnChunks() throws IOException {
         Map<String, String> visto = new ConcurrentHashMap<>();
         HttpServer local = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         local.createContext("/v1/detecciones", intercambio -> {
             visto.put("protocolo", intercambio.getProtocol());
             visto.put("upgrade", String.valueOf(intercambio.getRequestHeaders().getFirst("Upgrade")));
             visto.put("tipo", String.valueOf(intercambio.getRequestHeaders().getFirst("Content-Type")));
+            visto.put("transferencia", String.valueOf(intercambio.getRequestHeaders().getFirst("Transfer-Encoding")));
+            visto.put("largo", String.valueOf(intercambio.getRequestHeaders().getFirst("Content-Length")));
             visto.put("cuerpo", new String(intercambio.getRequestBody().readAllBytes(), StandardCharsets.ISO_8859_1));
             byte[] json = DOS_DETECCIONES.getBytes(StandardCharsets.UTF_8);
             intercambio.getResponseHeaders().add("Content-Type", "application/json");
@@ -478,6 +503,9 @@ class InferenciaHttpAdapterTest {
         assertThat(visto.get("protocolo")).isEqualTo("HTTP/1.1");
         assertThat(visto.get("upgrade")).isEqualTo("null");
         assertThat(visto.get("tipo")).startsWith("multipart/form-data;").contains("boundary=");
+        // El multipart se escribe en streaming: sin Content-Length, en chunks (uvicorn los acepta).
+        assertThat(visto.get("transferencia")).isEqualToIgnoringCase("chunked");
+        assertThat(visto.get("largo")).isEqualTo("null");
         assertThat(visto.get("cuerpo")).contains("name=\"imagen\"", "filename=\"foto.jpg\"", "jpeg-saneado-de-prueba");
     }
 
@@ -487,28 +515,35 @@ class InferenciaHttpAdapterTest {
     }
 
     @Test
-    void conLosTiemposDeProduccion_unServicioMudoCortaAntesDe3s() throws IOException {
+    @Timeout(value = 15, unit = TimeUnit.SECONDS, threadMode = ThreadMode.SEPARATE_THREAD)
+    void conLosTiemposDeProduccion_unServicioMudoSeCortaPorLaLectura() throws IOException {
         // Acepta la conexion (la completa el sistema operativo) y nunca responde.
+        // Comprueba que la llamada se corta por el timeout de lectura, no el
+        // presupuesto de 3 s (eso lo fija laConexionYLaLecturaSuman3sComoMaximo):
+        // un runner compartido puede sumar unos cientos de ms.
         try (ServerSocket mudo = new ServerSocket(0, 10, InetAddress.getLoopbackAddress())) {
             InferenciaHttpAdapter produccion = new InferenciaHttpAdapter("http://127.0.0.1:" + mudo.getLocalPort());
 
             long inicio = System.nanoTime();
             ClasificacionNoDisponibleException error = catchThrowableOfType(ClasificacionNoDisponibleException.class,
                     () -> produccion.detectar(FOTO));
-            Duration espera = Duration.ofNanos(System.nanoTime() - inicio);
+            long espera = Duration.ofNanos(System.nanoTime() - inicio).toMillis();
 
             assertThat(error).isNotNull();
             assertThat(error.getMessage()).contains("Timeout");
-            assertThat(espera).isLessThan(Duration.ofSeconds(3));
+            assertThat(espera)
+                    .isBetween(InferenciaHttpAdapter.MS_LECTURA - 100, InferenciaHttpAdapter.MS_LECTURA + 2_000);
         }
     }
 
     @Test
+    @Timeout(value = 15, unit = TimeUnit.SECONDS, threadMode = ThreadMode.SEPARATE_THREAD)
     void unaRespuestaQueSeCortaAMedias_tambienCaeEnElTimeout() throws Exception {
         // Status y cabeceras a tiempo, y el cuerpo nunca termina de llegar.
         CountDownLatch fin = new CountDownLatch(1);
+        ExecutorService hilosDelServidor = Executors.newCachedThreadPool();
         HttpServer local = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
-        local.setExecutor(Executors.newCachedThreadPool());
+        local.setExecutor(hilosDelServidor);
         local.createContext("/v1/detecciones", intercambio -> {
             intercambio.getRequestBody().readAllBytes();
             intercambio.getResponseHeaders().add("Content-Type", "application/json");
@@ -537,10 +572,12 @@ class InferenciaHttpAdapterTest {
         } finally {
             fin.countDown();
             local.stop(0);
+            hilosDelServidor.shutdownNow();
         }
     }
 
     @Test
+    @Timeout(value = 15, unit = TimeUnit.SECONDS, threadMode = ThreadMode.SEPARATE_THREAD)
     void conexionRechazada_esSinSugerencia() throws IOException {
         int puertoCerrado;
         try (ServerSocket libre = new ServerSocket(0, 1, InetAddress.getLoopbackAddress())) {

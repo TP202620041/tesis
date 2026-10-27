@@ -46,7 +46,11 @@ import pe.edu.upc.viasegura.common.port.ArchivoSubido;
  * sobre {@code http://}, lo negocia con un {@code Upgrade: h2c} que uvicorn no
  * habla. Con HTTP/1.1 cada conexion lleva una llamada a la vez, asi que las
  * conexiones abiertas (tambien las que quedan en keep-alive) nunca pasan de
- * las llamadas simultaneas, que acota el turno de abajo.</p>
+ * las llamadas simultaneas, que acota el turno de abajo. El multipart se
+ * escribe en streaming, asi que el pedido va <b>en chunks</b>
+ * ({@code Transfer-Encoding: chunked}, sin {@code Content-Length}): uvicorn
+ * los acepta, y el limite de cuerpo del servicio cuenta los bytes que
+ * recibe, no solo el {@code Content-Length} declarado.</p>
  *
  * <p><b>Tiempos.</b> {@value #MS_CONEXION} ms para conectar y
  * {@value #MS_LECTURA} ms de lectura: suman 3 s como maximo, el tope de la
@@ -61,12 +65,26 @@ import pe.edu.upc.viasegura.common.port.ArchivoSubido;
  *
  * <p><b>Turno ({@code bulkhead}).</b> A lo sumo {@value #LLAMADAS_SIMULTANEAS}
  * llamadas a la vez, con un {@link Semaphore} que <b>no espera</b>: sin turno
- * la respuesta es «sin sugerencia» al instante. Hace falta porque el turno de
- * la vista previa ({@code ClasificacionService}) se suelta antes de llamar
- * aqui, el cliente del JDK no limita sus conexiones y el servicio responde 503
- * desde 10 conexiones o tareas abiertas, contando las de keep-alive. Cuatro
- * deja margen para una vista previa mas los hilos del executor asincrono de
- * la sugerencia oficial ({@code ASYNC_HILOS_MAX}, 4).</p>
+ * la respuesta es «sin sugerencia» al instante. Hace falta porque el cliente
+ * del JDK no limita sus conexiones y el servicio responde 503 desde 10
+ * conexiones o tareas abiertas, contando las de keep-alive. Las llamadas
+ * llegan de dos lados y <b>compiten por los mismos turnos</b>:</p>
+ * <ul>
+ *   <li>la sugerencia oficial, en los hilos del executor asincrono: en la
+ *       practica los {@code ASYNC_HILOS_BASE} (2), porque el pool solo crece
+ *       hacia {@code ASYNC_HILOS_MAX} (4) con su cola de 100 tareas llena, y
+ *       esos hilos tambien envian correos y avisos;</li>
+ *   <li>las vistas previas en curso, una por ciudadano con la pantalla
+ *       abierta: el turno propio de la vista previa
+ *       ({@code ClasificacionService}) solo acota el saneado y se suelta antes
+ *       de llamar aqui, asi que varias pueden estar clasificando a la vez.</li>
+ * </ul>
+ * <p>Con los dos hilos base clasificando quedan dos turnos para vistas
+ * previas. El tope protege al servicio; no reserva turnos para nadie. La
+ * llamada que llega sin turno da «sin sugerencia», sea una vista previa (el
+ * ciudadano elige a mano) o una sugerencia oficial: esa <b>se pierde</b>, porque
+ * las columnas quedan nulas y no se reintenta, y la foto cuenta como «sin
+ * sugerencia» en la evaluacion del modelo (OE3).</p>
  *
  * <p><b>Errores y reintentos.</b> Cualquier respuesta distinta de 200, un
  * timeout o un error de conexion se traducen a
@@ -116,6 +134,11 @@ public class InferenciaHttpAdapter implements ClasificadorDano {
     private static final Pattern CODIGO_DE_ERROR = Pattern.compile("[a-z0-9_]{1,64}");
     /** Lo que se lee del cuerpo de una respuesta de error: basta para el {@code codigo}. */
     private static final int MAX_BYTES_ERROR = 4_096;
+    /**
+     * Tope del cuerpo de un 200: 100 detecciones caben en unos 10 KB. Uno mas
+     * grande no es del contrato y no se carga entero en memoria.
+     */
+    static final int MAX_BYTES_RESPUESTA = 256 * 1_024;
     private static final ObjectMapper JSON = new ObjectMapper()
             .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
 
@@ -216,7 +239,7 @@ public class InferenciaHttpAdapter implements ClasificadorDano {
         long ms = msDesde(inicio);
         int status = respuesta.status();
         if (status == 200) {
-            return interpretar(respuesta.cuerpo(), ms);
+            return interpretar(respuesta, ms);
         }
         String codigo = codigoDeError(respuesta.cuerpo());
         if (status == 503) {
@@ -237,10 +260,13 @@ public class InferenciaHttpAdapter implements ClasificadorDano {
         throw new ClasificacionNoDisponibleException("La inferencia respondio HTTP " + status + ", no 200");
     }
 
-    private ResultadoDeteccion interpretar(byte[] cuerpo, long ms) {
+    private ResultadoDeteccion interpretar(Respuesta respuesta, long ms) {
         ResultadoDeteccion resultado;
         try {
-            resultado = leerContrato(cuerpo);
+            if (respuesta.excedida()) {
+                throw new RespuestaFueraDeContrato("el cuerpo pasa de " + MAX_BYTES_RESPUESTA + " bytes");
+            }
+            resultado = leerContrato(respuesta.cuerpo());
         } catch (RespuestaFueraDeContrato e) {
             log.error("Inferencia: 200 en {} ms fuera del contrato /v1: {}", ms, e.getMessage());
             throw new ClasificacionNoDisponibleException("La inferencia respondio fuera del contrato: "
@@ -318,15 +344,22 @@ public class InferenciaHttpAdapter implements ClasificadorDano {
         return Duration.ofNanos(System.nanoTime() - inicio).toMillis();
     }
 
-    /** Status y cuerpo, leidos dentro del {@code exchange} (que cierra la respuesta al volver). */
-    private record Respuesta(int status, byte[] cuerpo) {
+    /**
+     * Status y cuerpo, leidos dentro del {@code exchange} (que cierra la
+     * respuesta al volver), con un tope: {@code excedida} si un 200 pasa de
+     * {@link #MAX_BYTES_RESPUESTA}.
+     */
+    private record Respuesta(int status, byte[] cuerpo, boolean excedida) {
 
         static Respuesta leer(int status, InputStream cuerpo) throws IOException {
             if (cuerpo == null) {
-                return new Respuesta(status, new byte[0]);
+                return new Respuesta(status, new byte[0], false);
             }
-            byte[] bytes = status == 200 ? cuerpo.readAllBytes() : cuerpo.readNBytes(MAX_BYTES_ERROR);
-            return new Respuesta(status, bytes);
+            if (status != 200) {
+                return new Respuesta(status, cuerpo.readNBytes(MAX_BYTES_ERROR), false);
+            }
+            byte[] bytes = cuerpo.readNBytes(MAX_BYTES_RESPUESTA + 1);
+            return new Respuesta(status, bytes, bytes.length > MAX_BYTES_RESPUESTA);
         }
     }
 

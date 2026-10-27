@@ -234,7 +234,8 @@ class InferenciaHttpAdapterIT extends AbstractPostgisIT {
             assertThat(fila.get("categoria_sugerida_id")).isNotNull();
         }
         // Las dos llamadas (vista previa y sugerencia oficial) llegaron al servicio.
-        assertThat(salida.getOut().lines().filter(l -> l.contains("Inferencia: 200 en"))).hasSizeGreaterThanOrEqualTo(2);
+        assertThat(salida.getOut().lines().filter(l -> l.contains("Inferencia: 200 en")))
+                .hasSizeGreaterThanOrEqualTo(2);
     }
 
     @Test

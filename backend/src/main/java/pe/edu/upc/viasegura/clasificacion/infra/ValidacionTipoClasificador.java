@@ -22,7 +22,12 @@ import org.springframework.stereotype.Component;
  * <p>Con {@code http} exige ademas la URL base del servicio
  * ({@code CLASIFICACION_URL}, {@code app.clasificacion.http.url}): sin ella
  * cada clasificacion fallaria en silencio («sin sugerencia» con un WARN) y
- * nada lo advertiria al desplegar. Con {@code falso} la URL no se mira.</p>
+ * nada lo advertiria al desplegar. Tiene que ser <b>solo la base</b>,
+ * {@code http(s)://host[:puerto]} con o sin {@code /} final: el adaptador le
+ * agrega {@code /v1/detecciones}, y con una ruta ({@code .../v1}) cada llamada
+ * terminaria en un 404 que solo se ve en el log. Tampoco admite query,
+ * fragmento ni usuario; con usuario el mensaje no repite la URL, que podria
+ * llevar una contrasena. Con {@code falso} la URL no se mira.</p>
  *
  * <p>Es un {@link BeanFactoryPostProcessor} para que corra <b>antes</b> de
  * crear cualquier bean (y por lo tanto antes de tocar la base). Compara el
@@ -80,11 +85,31 @@ public class ValidacionTipoClasificador implements BeanFactoryPostProcessor, Env
         if (!esquemaHttp || uri.getHost() == null) {
             throw urlInvalida(url);
         }
+        if (uri.getRawUserInfo() != null) {
+            throw noEsSoloLaBase("tiene usuario o contrasena (no se repite aqui)");
+        }
+        String ruta = uri.getRawPath();
+        if (ruta != null && !ruta.isEmpty() && !"/".equals(ruta)) {
+            throw noEsSoloLaBase("tiene la ruta '" + ruta + "'");
+        }
+        if (uri.getRawQuery() != null) {
+            throw noEsSoloLaBase("tiene query");
+        }
+        if (uri.getRawFragment() != null) {
+            throw noEsSoloLaBase("tiene fragmento");
+        }
     }
 
     private static IllegalStateException urlInvalida(String url) {
+        String mostrada = url.contains("@") ? "(con usuario: no se repite aqui)" : "'" + url + "'";
         return new IllegalStateException(("CLASIFICACION_URL (" + PROPIEDAD_URL + ") no es una URL http(s) con"
-                + " host: '%s'. Use la base del servicio de inferencia, p. ej."
-                + " http://inferencia.railway.internal:8000").formatted(url));
+                + " host: %s. Use la base del servicio de inferencia, p. ej."
+                + " http://inferencia.railway.internal:8000").formatted(mostrada));
+    }
+
+    private static IllegalStateException noEsSoloLaBase(String motivo) {
+        return new IllegalStateException("CLASIFICACION_URL (" + PROPIEDAD_URL + ") debe ser solo la base del"
+                + " servicio, http(s)://host[:puerto], sin ruta, query, fragmento ni usuario (el adaptador agrega "
+                + InferenciaHttpAdapter.RUTA + "): " + motivo);
     }
 }
