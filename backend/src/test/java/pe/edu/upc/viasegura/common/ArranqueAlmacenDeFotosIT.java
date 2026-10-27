@@ -30,9 +30,10 @@ class ArranqueAlmacenDeFotosIT {
 
     /**
      * Todo lo obligatorio del perfil prod menos FOTOS_ALMACEN, incluidas las
-     * variables del correo (DEP-08): sin ellas, el arranque podria fallar
-     * primero por {@code CORREO_TIPO} o {@code NOTIF_FROM}, segun el orden en
-     * que Spring evalue las condiciones.
+     * variables del correo (DEP-08) y de la clasificacion (NC-04b): sin ellas,
+     * el arranque podria fallar primero por {@code CORREO_TIPO},
+     * {@code NOTIF_FROM} o {@code CLASIFICACION_TIPO}, segun el orden en que
+     * Spring evalue las condiciones.
      */
     private static String[] argumentosDeProdSinAlmacen() {
         byte[] clave = new byte[48];
@@ -48,6 +49,7 @@ class ArranqueAlmacenDeFotosIT {
                 "--FOTOS_DIR=" + System.getProperty("java.io.tmpdir") + "/viasegura-test-fotos",
                 "--CORREO_TIPO=smtp",
                 "--NOTIF_FROM=Ciudad Viva <no-reply@ciudadviva.test>",
+                "--CLASIFICACION_TIPO=falso",
         };
     }
 

@@ -10,10 +10,11 @@ import org.springframework.beans.factory.support.DefaultListableBeanFactory;
 import org.springframework.mock.env.MockEnvironment;
 
 /**
- * {@code CLASIFICACION_TIPO} con un valor que no elige ningun adaptador (NC-04):
- * el arranque falla nombrando la variable, no con un generico «No qualifying
- * bean of type ClasificadorDano». Sin contexto de Spring: la validacion corre
- * antes de crear cualquier bean.
+ * {@code CLASIFICACION_TIPO} con un valor que no elige ningun adaptador (NC-04),
+ * o {@code http} sin una {@code CLASIFICACION_URL} usable (NC-04b): el
+ * arranque falla nombrando la variable, no con un generico «No qualifying bean
+ * of type ClasificadorDano» ni con cada clasificacion fallando en silencio.
+ * Sin contexto de Spring: la validacion corre antes de crear cualquier bean.
  */
 class ValidacionTipoClasificadorTest {
 
@@ -23,9 +24,14 @@ class ValidacionTipoClasificadorTest {
         return validacion;
     }
 
+    private static MockEnvironment http(String url) {
+        MockEnvironment entorno = new MockEnvironment().withProperty("app.clasificacion.tipo", "http");
+        return url == null ? entorno : entorno.withProperty("app.clasificacion.http.url", url);
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"falso", "FALSO"})
-    void elFalso_pasa(String valor) {
+    void elFalso_pasa_sinMirarLaUrl(String valor) {
         MockEnvironment entorno = new MockEnvironment().withProperty("app.clasificacion.tipo", valor);
 
         assertThatCode(() -> con(entorno).postProcessBeanFactory(new DefaultListableBeanFactory()))
@@ -38,24 +44,51 @@ class ValidacionTipoClasificadorTest {
                 .doesNotThrowAnyException();
     }
 
-    @Test
-    void http_todaviaNoExiste_yLoDice() {
-        MockEnvironment entorno = new MockEnvironment().withProperty("app.clasificacion.tipo", "http");
+    @ParameterizedTest
+    @ValueSource(strings = {"http://inferencia.railway.internal:8000", "http://localhost:8090/",
+            "https://inferencia.ciudadviva.test", "http://[fd12:3456::1]:8000"})
+    void http_conUnaUrlHttpConHost_pasa(String url) {
+        assertThatCode(() -> con(http(url)).postProcessBeanFactory(new DefaultListableBeanFactory()))
+                .doesNotThrowAnyException();
+    }
 
-        assertThatThrownBy(() -> con(entorno).postProcessBeanFactory(new DefaultListableBeanFactory()))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("CLASIFICACION_TIPO")
-                .hasMessageContaining("NC-04b");
+    @Test
+    void http_enMayusculas_pasaComoLaCondicionDelAdaptador() {
+        MockEnvironment entorno = new MockEnvironment().withProperty("app.clasificacion.tipo", "HTTP")
+                .withProperty("app.clasificacion.http.url", "http://localhost:8090");
+
+        assertThatCode(() -> con(entorno).postProcessBeanFactory(new DefaultListableBeanFactory()))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void http_sinUrl_noArrancaYNombraLaVariable() {
+        for (MockEnvironment entorno : new MockEnvironment[] {http(null), http(""), http("  ")}) {
+            assertThatThrownBy(() -> con(entorno).postProcessBeanFactory(new DefaultListableBeanFactory()))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageStartingWith("Con CLASIFICACION_TIPO=http falta CLASIFICACION_URL");
+        }
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"", "falso ", "onnx", "fake"})
+    @ValueSource(strings = {"inferencia.railway.internal:8000", "ftp://inferencia:8000", "http://", "http:/x",
+            "http://inferencia .railway.internal"})
+    void http_conUnaUrlSinEsquemaHttpOSinHost_noArrancaYLaRepite(String url) {
+        assertThatThrownBy(() -> con(http(url)).postProcessBeanFactory(new DefaultListableBeanFactory()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageStartingWith("CLASIFICACION_URL (app.clasificacion.http.url) no es una URL http(s)")
+                .hasMessageContaining("'" + url + "'");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "falso ", "http ", "onnx", "fake"})
     void otroValor_noArrancaYNombraLaVariable(String valor) {
         MockEnvironment entorno = new MockEnvironment().withProperty("app.clasificacion.tipo", valor);
 
         assertThatThrownBy(() -> con(entorno).postProcessBeanFactory(new DefaultListableBeanFactory()))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("CLASIFICACION_TIPO")
+                .hasMessageContaining("'http'")
                 .hasMessageContaining("'falso'");
     }
 }

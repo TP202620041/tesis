@@ -3,11 +3,13 @@
 # seccion "Configuracion de produccion".
 #
 # Obligatorias y SIN valor por defecto: DB_URL, DB_USERNAME, DB_PASSWORD,
-# CORS_ALLOWED_ORIGINS, FOTOS_ALMACEN, CORREO_TIPO, NOTIF_FROM y JWT_SECRET
-# (este ultimo desde application.yml, SEC-03). Con FOTOS_ALMACEN=s3,
-# tambien FOTOS_S3_* (las valida S3FotoStorageService); con
-# FOTOS_ALMACEN=local, FOTOS_DIR (la imagen ya trae /data/fotos). Con
-# CORREO_TIPO=resend, tambien CORREO_API_KEY (la valida ResendCorreoAdapter).
+# CORS_ALLOWED_ORIGINS, FOTOS_ALMACEN, CORREO_TIPO, NOTIF_FROM,
+# CLASIFICACION_TIPO y JWT_SECRET (este ultimo desde application.yml,
+# SEC-03). Con FOTOS_ALMACEN=s3, tambien FOTOS_S3_* (las valida
+# S3FotoStorageService); con FOTOS_ALMACEN=local, FOTOS_DIR (la imagen ya
+# trae /data/fotos). Con CORREO_TIPO=resend, tambien CORREO_API_KEY (la
+# valida ResendCorreoAdapter). Con CLASIFICACION_TIPO=http, tambien
+# CLASIFICACION_URL (la valida ValidacionTipoClasificador).
 # Un default aqui arrancaria la app apuntando a algo que no es produccion;
 # mejor que no arranque.
 spring:
@@ -42,12 +44,17 @@ app:
     # que nada lo advierta al desplegar.
     tipo: ${CORREO_TIPO}
   clasificacion:
+    # NC-04b: `http` (el servicio inferencia/ por la red privada, en
+    # CLASIFICACION_URL). Sin default: con el `falso` de desarrollo la
+    # clasificacion quedaria apagada sin que nada lo advierta al desplegar
+    # (cualquier falla del adaptador tambien termina en «sin sugerencia»).
+    # `falso` es el interruptor para apagarla a proposito.
+    tipo: ${CLASIFICACION_TIPO}
     falso:
-      # NC-04: hasta el adaptador del servicio de inferencia (NC-04b) la
-      # clasificacion esta apagada en produccion: el falso sin detecciones
-      # nunca sugiere ni escribe nada. Literal y no por entorno: una respuesta
-      # fija aqui llenaria la base de sugerencias inventadas y arruinaria la
-      # evaluacion del modelo (OE3).
+      # Con CLASIFICACION_TIPO=falso, el falso sin detecciones nunca sugiere
+      # ni escribe nada: la clasificacion apagada. Literal y no por entorno:
+      # una respuesta fija aqui llenaria la base de sugerencias inventadas y
+      # arruinaria la evaluacion del modelo (OE3).
       respuesta: ""
   notificaciones:
     # Remitente de todos los correos, de un dominio verificado en Resend

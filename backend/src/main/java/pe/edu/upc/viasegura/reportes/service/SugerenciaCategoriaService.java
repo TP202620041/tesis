@@ -59,8 +59,9 @@ public class SugerenciaCategoriaService {
      */
     @Async(AsyncConfig.EJECUTOR)
     public void sugerir(Long reporteId) {
-        // Con la clasificacion apagada (produccion hasta NC-04b) no se lee la
-        // base ni se descarga la foto para una respuesta que ya se sabe vacia.
+        // Con la clasificacion apagada (CLASIFICACION_TIPO=falso en produccion)
+        // no se lee la base ni se descarga la foto para una respuesta que ya se
+        // sabe vacia.
         if (!clasificacionService.estaDisponible()) {
             return;
         }
