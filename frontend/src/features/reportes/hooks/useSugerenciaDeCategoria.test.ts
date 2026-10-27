@@ -175,6 +175,59 @@ describe('useSugerenciaDeCategoria (NC-04)', () => {
     expect(result.current).toMatchObject({ sugerencia: PISTA });
   });
 
+  it('reanudar (el envío falló) vuelve a pedir la vista previa que se había cancelado', async () => {
+    vi.mocked(clasificarFoto).mockImplementationOnce(hastaQueSeCancele).mockResolvedValueOnce(BACHE);
+    const elegida = foto('bache.jpg');
+    const { result } = renderizar(elegida);
+    act(() => result.current.descartar());
+
+    act(() => result.current.reanudar());
+
+    expect(result.current.estado).toBe('analizando');
+    await waitFor(() => expect(result.current.estado).toBe('lista'));
+    expect(result.current).toMatchObject({ sugerencia: BACHE });
+    expect(clasificarFoto).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(clasificarFoto).mock.calls[1]?.[0]).toBe(elegida);
+  });
+
+  it('reanudar no vuelve a pedir lo que ya había llegado', async () => {
+    vi.mocked(clasificarFoto).mockResolvedValue(BACHE);
+    const { result } = renderizar(foto('bache.jpg'));
+    await waitFor(() => expect(result.current.estado).toBe('lista'));
+
+    act(() => result.current.descartar());
+    act(() => result.current.reanudar());
+
+    expect(result.current).toMatchObject({ estado: 'lista', sugerencia: BACHE });
+    expect(clasificarFoto).toHaveBeenCalledTimes(1);
+  });
+
+  it('reanudar tampoco repite nada si la foto cambió entretanto', () => {
+    vi.mocked(clasificarFoto).mockImplementation(hastaQueSeCancele);
+    const { result, rerender } = renderizar(foto('a.jpg'));
+    act(() => result.current.descartar());
+    rerender({ f: foto('b.jpg') });
+
+    act(() => result.current.reanudar());
+
+    expect(clasificarFoto).toHaveBeenCalledTimes(2);
+    expect(senalDe(1)?.aborted).toBe(false);
+  });
+
+  it('reanudar dos veces pide una sola vez', async () => {
+    vi.mocked(clasificarFoto).mockImplementationOnce(hastaQueSeCancele).mockResolvedValueOnce(null);
+    const { result } = renderizar(foto('bache.jpg'));
+    act(() => result.current.descartar());
+
+    act(() => {
+      result.current.reanudar();
+      result.current.reanudar();
+    });
+
+    await waitFor(() => expect(result.current.estado).toBe('lista'));
+    expect(clasificarFoto).toHaveBeenCalledTimes(2);
+  });
+
   it('si la respuesta no llega a tiempo, se cancela y queda sin sugerencia', async () => {
     vi.useFakeTimers();
     vi.mocked(clasificarFoto).mockImplementation(hastaQueSeCancele);

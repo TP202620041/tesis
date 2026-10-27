@@ -405,4 +405,65 @@ describe('FormularioReporte: la sugerencia por la foto (NC-04)', () => {
     await act(async () => segunda.resolver(null));
     expect(screen.getByRole('status')).toHaveTextContent('No hay una sugerencia para esta foto');
   });
+
+  it('antes de elegir la foto avisa que se analiza y que la decisión es del ciudadano', () => {
+    render(<FormularioReporte usuarioId={7} onCreado={vi.fn()} onEncolado={vi.fn()} />);
+    expect(campoFoto()).toHaveAccessibleDescription(
+      'JPG, PNG o WEBP, de hasta 10 MB. Al elegirla, la analizamos automáticamente para sugerirte el tipo de daño. La decisión es tuya.',
+    );
+    expect(clasificarFoto).not.toHaveBeenCalled();
+  });
+
+  it('si el catálogo no carga, la sugerencia no queda en suspenso: «sin sugerencia»', async () => {
+    vi.mocked(listarCategorias).mockRejectedValue(new NetworkError());
+    vi.mocked(clasificarFoto).mockResolvedValue(BACHE);
+    const usuario = userEvent.setup();
+    render(<FormularioReporte usuarioId={7} onCreado={vi.fn()} onEncolado={vi.fn()} />);
+
+    await usuario.upload(campoFoto(), foto());
+
+    await waitFor(() =>
+      expect(screen.getByRole('status')).toHaveTextContent('No hay una sugerencia para esta foto'),
+    );
+    expect(screen.queryByRole('button', { name: /^Elegir/ })).not.toBeInTheDocument();
+  });
+
+  it('si el envío falla, la vista previa que se canceló al enviar se vuelve a pedir', async () => {
+    const primera = respuestaPendiente();
+    vi.mocked(clasificarFoto).mockResolvedValueOnce(BACHE);
+    vi.mocked(crearReporte).mockRejectedValueOnce(new ApiError(409, 'Ya reportaste este daño'));
+    const usuario = userEvent.setup();
+    render(<FormularioReporte usuarioId={7} onCreado={vi.fn()} onEncolado={vi.fn()} />);
+    const elegida = foto();
+
+    await usuario.upload(campoFoto(), elegida);
+    await llenarYEnviar(usuario);
+
+    expect(await screen.findByText('Ya reportaste este daño')).toBeInTheDocument();
+    expect(primera.cancelada()).toBe(true);
+    // El ciudadano ya eligió «Bache» al llenar: la sugerencia lo confirma.
+    await waitFor(() =>
+      expect(screen.getByRole('status')).toHaveTextContent(
+        'Sugerencia por la foto: Bache, el tipo que elegiste.',
+      ),
+    );
+    expect(clasificarFoto).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(clasificarFoto).mock.calls[1]?.[0]).toBe(elegida);
+  });
+
+  it('si la sugerencia ya había llegado, un envío fallido no la pide otra vez', async () => {
+    vi.mocked(clasificarFoto).mockResolvedValue(BACHE);
+    vi.mocked(crearReporte).mockRejectedValueOnce(new ApiError(409, 'Ya reportaste este daño'));
+    const usuario = userEvent.setup();
+    render(<FormularioReporte usuarioId={7} onCreado={vi.fn()} onEncolado={vi.fn()} />);
+    await screen.findByRole('option', { name: 'Bache' });
+
+    await usuario.upload(campoFoto(), foto());
+    await screen.findByRole('button', { name: 'Elegir «Bache»' });
+    await llenarYEnviar(usuario);
+
+    expect(await screen.findByText('Ya reportaste este daño')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Sugerencia por la foto: Bache');
+    expect(clasificarFoto).toHaveBeenCalledTimes(1);
+  });
 });

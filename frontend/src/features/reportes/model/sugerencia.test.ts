@@ -3,14 +3,18 @@ import {
   avisoDeFotoRechazada,
   sugerenciaDeRespuesta,
   vistaDeSugerencia,
+  type CatalogoDelFormulario,
   type EstadoDeSugerencia,
 } from './sugerencia';
 
-const CATALOGO = [
-  { id: 1, nombre: 'Bache' },
-  { id: 2, nombre: 'Pista deteriorada' },
-  { id: 9, nombre: 'Vereda dañada' },
-];
+const CATALOGO: CatalogoDelFormulario = {
+  estado: 'listo',
+  categorias: [
+    { id: 1, nombre: 'Bache' },
+    { id: 2, nombre: 'Pista deteriorada' },
+    { id: 9, nombre: 'Vereda dañada' },
+  ],
+};
 
 const lista = (categoriaId: number, categoriaNombre = 'Bache'): EstadoDeSugerencia => ({
   estado: 'lista',
@@ -89,14 +93,25 @@ describe('vistaDeSugerencia (NC-04)', () => {
     expect(vistaDeSugerencia(lista(77), CATALOGO, null)).toEqual({ tipo: 'sin-sugerencia' });
   });
 
-  it('con el catálogo recargando se sigue mostrando, pero sin poder elegirla todavía', () => {
-    expect(vistaDeSugerencia(lista(1), [], 1)).toEqual({
+  it('con el catálogo cargando se sigue mostrando, pero sin poder elegirla todavía', () => {
+    const cargando: CatalogoDelFormulario = { estado: 'cargando', categorias: [] };
+    expect(vistaDeSugerencia(lista(1), cargando, 1)).toEqual({
       tipo: 'sugerida',
       categoriaId: 1,
       nombre: 'Bache',
       yaElegida: true,
       seleccionable: false,
     });
+  });
+
+  it('si el catálogo no se pudo traer, queda sin sugerencia (no hay cómo elegirla)', () => {
+    const fallido: CatalogoDelFormulario = { estado: 'fallido', categorias: [] };
+    expect(vistaDeSugerencia(lista(1), fallido, null)).toEqual({ tipo: 'sin-sugerencia' });
+  });
+
+  it('un catálogo cargado y vacío tampoco la deja en suspenso', () => {
+    const vacio: CatalogoDelFormulario = { estado: 'listo', categorias: [] };
+    expect(vistaDeSugerencia(lista(1), vacio, null)).toEqual({ tipo: 'sin-sugerencia' });
   });
 });
 

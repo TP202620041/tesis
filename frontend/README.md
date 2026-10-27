@@ -786,6 +786,17 @@ siempre «sin sugerencia». Con el modelo real (v0.8.0) el contrato no cambia.
   mismo botón. Si eligió la misma, el texto lo dice y no hay botón. Si la
   categoría sugerida no está en el catálogo que tiene la PWA (desfase de
   caché), se ignora y cuenta como «sin sugerencia».
+- **Catálogo que carga o que falla.** `useCategoriasDeReporte` devuelve, además
+  de la lista, si está `cargando`, `listo` o `fallido`: la lista vacía sola no
+  lo distingue. Mientras carga (al montar o tras un cambio de distrito), la
+  sugerencia se sigue mostrando sin el botón y con el mismo texto, para no
+  volver a anunciarla. Si el catálogo no se pudo traer, queda «sin
+  sugerencia»: no hay contra qué validarla ni cómo elegirla.
+- **Aviso antes de elegir.** La foto sale hacia el servidor apenas se elige,
+  así que la ayuda del campo lo dice de antemano: «Al elegirla, la analizamos
+  automáticamente para sugerirte el tipo de daño. La decisión es tuya.» Va
+  junto a «JPG, PNG o WEBP, de hasta 10 MB.» y también describe el campo
+  (`aria-describedby`).
 - **La foto va antes del tipo de daño.** El orden queda ubicación → foto →
   tipo → título → severidad → descripción. Con la foto debajo del selector, la
   sugerencia llegaría a un campo que el ciudadano ya pasó. El prototipo de la
@@ -801,7 +812,11 @@ siempre «sin sugerencia». Con el modelo real (v0.8.0) el contrato no cambia.
 - **Sin carreras.** `useSugerenciaDeCategoria` cancela con `AbortController`
   la petición de la foto anterior al elegir otra, al quitarla, al desmontarse
   el formulario y al enviar el reporte (`descartar()`: si la respuesta no
-  llegó, ya no se muestra). Además, cada resultado queda atado a **su** `File`,
+  llegó, ya no se muestra). Si el envío falla y el ciudadano sigue en el
+  formulario (409 por duplicado o por categoría inactiva, 400), `reanudar()`
+  vuelve a pedir la vista previa de esa foto, solo si `descartar()` la había
+  cancelado: si ya había llegado, o si la foto cambió entretanto, no se pide
+  otra vez. Además, cada resultado queda atado a **su** `File`,
   y el estado se deriva comparándolo con la foto actual, así que una respuesta
   vieja nunca aparece con la foto nueva. No va sobre `useCarga`, por tres
   motivos:

@@ -11,6 +11,15 @@
  * foto»).
  */
 import type { ClasificacionResponse } from '@/lib/types/domain';
+import type { EstadoDelCatalogo } from './tipos';
+
+/**
+ * Se ve junto a la ayuda de la foto ANTES de elegirla: la foto sale hacia el
+ * servidor apenas se elige, así que el ciudadano lo sabe de antemano y no
+ * solo por el «Analizando…» posterior.
+ */
+export const AVISO_DE_ANALISIS_DE_FOTO =
+  'Al elegirla, la analizamos automáticamente para sugerirte el tipo de daño. La decisión es tuya.';
 
 /** Categoría que propone la foto. Siempre una estándar activa (handoff). */
 export interface SugerenciaDeCategoria {
@@ -80,18 +89,26 @@ export type VistaDeSugerencia =
       seleccionable: boolean;
     };
 
+/** El catálogo de categorías que tiene el formulario, con su estado de carga. */
+export interface CatalogoDelFormulario {
+  categorias: readonly { id: number; nombre: string }[];
+  estado: EstadoDelCatalogo;
+}
+
 /**
  * Qué mostrar según el estado de la vista previa, el catálogo que tiene el
  * formulario y la categoría que eligió el ciudadano (`null` si ninguna).
  *
  * - Una sugerencia que no está en el catálogo cargado se ignora (desfase de
- *   caché, handoff): cuenta como «sin sugerencia». Con el catálogo vacío (está
- *   cargando) todavía no se sabe, y se sigue mostrando.
+ *   caché, handoff): cuenta como «sin sugerencia».
+ * - Mientras el catálogo carga todavía no se sabe, y se sigue mostrando (sin
+ *   el botón). Si no se pudo traer, no hay contra qué validarla ni cómo
+ *   elegirla: «sin sugerencia», en vez de proponer algo que no se puede tocar.
  * - La foto rechazada no se muestra aquí: su aviso va junto a la foto.
  */
 export function vistaDeSugerencia(
   vistaPrevia: EstadoDeSugerencia,
-  catalogo: readonly { id: number; nombre: string }[],
+  catalogo: CatalogoDelFormulario,
   categoriaElegida: number | null,
 ): VistaDeSugerencia {
   switch (vistaPrevia.estado) {
@@ -103,8 +120,8 @@ export function vistaDeSugerencia(
     case 'lista': {
       const { sugerencia } = vistaPrevia;
       if (!sugerencia) return { tipo: 'sin-sugerencia' };
-      const enCatalogo = catalogo.find((c) => c.id === sugerencia.categoriaId);
-      if (!enCatalogo && catalogo.length > 0) return { tipo: 'sin-sugerencia' };
+      const enCatalogo = catalogo.categorias.find((c) => c.id === sugerencia.categoriaId);
+      if (!enCatalogo && catalogo.estado !== 'cargando') return { tipo: 'sin-sugerencia' };
       return {
         tipo: 'sugerida',
         categoriaId: sugerencia.categoriaId,

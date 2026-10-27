@@ -6,7 +6,11 @@ import type { Severidad } from '@/lib/types/domain';
 import { useCategoriasDeReporte } from '../hooks/useCategoriasDeReporte';
 import { useCrearReporte } from '../hooks/useCrearReporte';
 import { useSugerenciaDeCategoria } from '../hooks/useSugerenciaDeCategoria';
-import { avisoDeFotoRechazada, vistaDeSugerencia } from '../model/sugerencia';
+import {
+  AVISO_DE_ANALISIS_DE_FOTO,
+  avisoDeFotoRechazada,
+  vistaDeSugerencia,
+} from '../model/sugerencia';
 import { erroresDeTituloYSeveridad } from '../model/titulo';
 import type { ReporteCreado } from '../model/tipos';
 import { CampoSeveridad, CampoTitulo } from './CamposTituloYSeveridad';
@@ -28,7 +32,9 @@ const ID_AYUDA_CATEGORIA = 'categoriaId-ayuda';
  * NC-04: la foto va antes del tipo de daño porque lo puede sugerir. La
  * sugerencia solo se propone (botón «Elegir …»): el selector nunca cambia sin
  * una acción del ciudadano, y la vista previa no bloquea nada (ni el selector
- * ni el envío). Al enviar se descarta si aún no llegó.
+ * ni el envío). Al enviar se descarta si aún no llegó, y si el envío falla y
+ * el ciudadano sigue aquí, se vuelve a pedir. La ayuda de la foto avisa del
+ * análisis antes de elegirla.
  */
 export function FormularioReporte({
   usuarioId,
@@ -61,11 +67,12 @@ export function FormularioReporte({
    * la ubicacion. Si la elegida no es valida en el distrito nuevo, cuenta
    * como no elegida en vez de dejar que el POST falle con 409.
    */
-  const categorias = useCategoriasDeReporte(distritoId);
+  const catalogo = useCategoriasDeReporte(distritoId);
+  const { categorias } = catalogo;
   const categoriaId = categorias.some((c) => c.id === categoriaElegida) ? categoriaElegida : null;
   // Con la elegida tal cual (no la validada): mientras el catalogo recarga por
   // un cambio de distrito, el texto de la sugerencia no cambia ni se re-anuncia.
-  const sugerencia = vistaDeSugerencia(vistaPrevia, categorias, categoriaElegida);
+  const sugerencia = vistaDeSugerencia(vistaPrevia, catalogo, categoriaElegida);
 
   const fueraDeCobertura = ubicacion != null && ubicacion.distrito === null;
   const puedeEnviar = ubicacion != null && !fueraDeCobertura && categoriaId != null && !enviando;
@@ -98,6 +105,9 @@ export function FormularioReporte({
     });
     if (desenlace?.tipo === 'creado') onCreado(desenlace.reporte);
     else if (desenlace?.tipo === 'encolado') onEncolado();
+    // El envío falló (409, 400…) y el ciudadano sigue en el formulario: si la
+    // vista previa se había cancelado al enviar, se vuelve a pedir.
+    else vistaPrevia.reanudar();
   }
 
   return (
@@ -109,6 +119,7 @@ export function FormularioReporte({
       <CampoFoto
         valor={foto}
         onCambiar={setFoto}
+        aviso={AVISO_DE_ANALISIS_DE_FOTO}
         rechazo={
           vistaPrevia.estado === 'foto-rechazada' ? avisoDeFotoRechazada(vistaPrevia.mensaje) : null
         }

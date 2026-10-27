@@ -27,12 +27,15 @@ import { ACEPTA_FOTO, AYUDA_DE_FOTO, errorDeFoto } from '@/lib/types/fotoParaSub
  * elegida (el 409 de la vista previa: no es una imagen valida). Se muestra
  * junto a la foto y el campo queda `aria-invalid`, porque es la que se
  * enviaria y el reporte fallaria igual; el ciudadano la cambia o la quita.
+ * `aviso` es una indicacion que se ve ANTES de elegir (que la foto se analiza
+ * al elegirla): va junto a la ayuda y tambien describe el campo.
  */
 
 const ID = 'foto';
 const ID_AYUDA = `${ID}-ayuda`;
 const ID_ERROR = `${ID}-error`;
 const ID_RECHAZO = `${ID}-rechazo`;
+const ID_AVISO = `${ID}-aviso`;
 
 /** Se agrega al motivo del rechazo cuando la foto ya elegida no cambia. */
 const AVISO_FOTO_ANTERIOR = 'Se mantiene la foto anterior.';
@@ -42,9 +45,11 @@ interface Props {
   onCambiar: (foto: File | null) => void;
   /** NC-04: el servidor rechazo la foto elegida (409), o `null`. */
   rechazo?: string | null;
+  /** NC-04: indicacion previa a la eleccion (el analisis automatico), o nada. */
+  aviso?: string;
 }
 
-export function CampoFoto({ valor, onCambiar, rechazo = null }: Props) {
+export function CampoFoto({ valor, onCambiar, rechazo = null, aviso }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -79,7 +84,12 @@ export function CampoFoto({ valor, onCambiar, rechazo = null }: Props) {
   }
 
   const rechazada = rechazo != null && valor != null;
-  const descripcion = [error ? ID_ERROR : null, rechazada ? ID_RECHAZO : null, ID_AYUDA]
+  const descripcion = [
+    error ? ID_ERROR : null,
+    rechazada ? ID_RECHAZO : null,
+    ID_AYUDA,
+    aviso ? ID_AVISO : null,
+  ]
     .filter(Boolean)
     .join(' ');
   // Con una foto valida conservada, el rechazo fue de la nueva eleccion: lo
@@ -149,6 +159,12 @@ export function CampoFoto({ valor, onCambiar, rechazo = null }: Props) {
       <p id={ID_AYUDA} className="text-xs text-texto-2">
         {AYUDA_DE_FOTO}
       </p>
+
+      {aviso && (
+        <p id={ID_AVISO} className="text-xs text-texto-2">
+          {aviso}
+        </p>
+      )}
 
       {error && (
         <p id={ID_ERROR} role="alert" className="text-sm text-error">

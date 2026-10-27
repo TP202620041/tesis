@@ -35,6 +35,11 @@ interface Resultado {
  *   previa sigue en curso se cancela y no se muestra (el backend calcula la
  *   sugerencia oficial igual, sobre la foto guardada). Si ya había llegado,
  *   no cambia nada.
+ * - `reanudar()`: el formulario la llama si el envío falló y el ciudadano
+ *   sigue en el formulario (409, 400). Si `descartar()` había cancelado la
+ *   vista previa de la foto actual, la vuelve a pedir; si no había nada
+ *   cancelado (la respuesta ya había llegado) o la foto cambió entretanto, no
+ *   hace nada: nunca se pide dos veces lo que ya se tiene.
  *
  * No va sobre `useCarga`: sus dependencias se comparan por JSON (un `File`
  * serializa como `{}`, así que dos fotos distintas serían iguales), no cancela
@@ -42,9 +47,15 @@ interface Resultado {
  */
 export function useSugerenciaDeCategoria(foto: File | null) {
   const [resultado, setResultado] = useState<Resultado | null>(null);
+  // Sube solo con `reanudar()`: vuelve a correr el efecto con la misma foto.
+  const [intento, setIntento] = useState(0);
   const enCurso = useRef<{ foto: File; control: AbortController } | null>(null);
+  // Foto cuya vista previa canceló `descartar()` antes de que llegara.
+  const descartada = useRef<File | null>(null);
 
   useEffect(() => {
+    // Foto nueva (o la misma, reanudada): lo descartado antes ya no aplica.
+    descartada.current = null;
     if (!foto) return;
     const control = new AbortController();
     enCurso.current = { foto, control };
@@ -74,14 +85,23 @@ export function useSugerenciaDeCategoria(foto: File | null) {
       control.abort();
       if (enCurso.current?.control === control) enCurso.current = null;
     };
-  }, [foto]);
+  }, [foto, intento]);
 
   const descartar = useCallback(() => {
     const pendiente = enCurso.current;
     if (!pendiente) return;
     enCurso.current = null;
+    descartada.current = pendiente.foto;
     pendiente.control.abort();
     setResultado({ foto: pendiente.foto, estado: INACTIVA });
+  }, []);
+
+  const reanudar = useCallback(() => {
+    const cancelada = descartada.current;
+    if (!cancelada) return;
+    descartada.current = null;
+    setResultado((actual) => (actual?.foto === cancelada ? null : actual));
+    setIntento((n) => n + 1);
   }, []);
 
   const estado: EstadoDeSugerencia = !foto
@@ -90,5 +110,5 @@ export function useSugerenciaDeCategoria(foto: File | null) {
       ? resultado.estado
       : ANALIZANDO;
 
-  return { ...estado, descartar };
+  return { ...estado, descartar, reanudar };
 }

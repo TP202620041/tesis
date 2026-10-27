@@ -23,7 +23,7 @@ import { useCategoriasDeReporte } from './useCategoriasDeReporte';
  */
 export function useEditarReporte(reporte: ReporteResumen) {
   // Categorias validas para el distrito del reporte (US-29).
-  const categorias = useCategoriasDeReporte(reporte.distritoId ?? null);
+  const { categorias } = useCategoriasDeReporte(reporte.distritoId ?? null);
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<MensajeDeError | null>(null);
 

@@ -182,6 +182,14 @@ describe('CampoFoto: la foto que rechazó el servidor (NC-04)', () => {
     );
   });
 
+  it('el aviso previo (el análisis automático) se ve antes de elegir y describe el campo', () => {
+    render(<CampoFoto valor={null} onCambiar={vi.fn()} aviso="Al elegirla, la analizamos." />);
+    expect(screen.getByText('Al elegirla, la analizamos.')).toBeInTheDocument();
+    expect(screen.getByLabelText('Foto del daño (opcional)')).toHaveAccessibleDescription(
+      'JPG, PNG o WEBP, de hasta 10 MB. Al elegirla, la analizamos.',
+    );
+  });
+
   it('sin foto no hay rechazo que mostrar', () => {
     render(<CampoFoto valor={null} onCambiar={vi.fn()} rechazo={RECHAZO} />);
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
