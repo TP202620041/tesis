@@ -100,6 +100,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/clasificaciones": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["clasificar"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/categorias": {
         parameters: {
             query?: never;
@@ -670,6 +686,11 @@ export interface components {
             /** Format: date-time */
             actualizadaEn?: string;
         };
+        ClasificacionResponse: {
+            /** Format: int64 */
+            categoriaId?: number;
+            categoriaNombre?: string;
+        };
         CrearCategoriaRequest: {
             nombre: string;
             descripcion?: string;
@@ -695,6 +716,7 @@ export interface components {
             apellido: string;
             aceptaTerminos: boolean;
             versionTerminos: string;
+            captchaToken?: string;
         };
         AuthResponse: {
             token?: string;
@@ -853,12 +875,12 @@ export interface components {
             /** Format: int64 */
             offset?: number;
             sort?: components["schemas"]["SortObject"];
+            unpaged?: boolean;
             paged?: boolean;
             /** Format: int32 */
-            pageSize?: number;
-            /** Format: int32 */
             pageNumber?: number;
-            unpaged?: boolean;
+            /** Format: int32 */
+            pageSize?: number;
         };
         SortObject: {
             empty?: boolean;
@@ -1285,6 +1307,33 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    clasificar: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    foto: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ClasificacionResponse"];
+                };
             };
         };
     };
