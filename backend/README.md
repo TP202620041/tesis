@@ -90,6 +90,8 @@ preferible que no arranque y que el log diga qué falta.
 | `CORREO_TIPO` | sí | `resend` (el plan de Railway bloquea el SMTP saliente); `smtp` solo en local y en los tests. Sin ella no arranca (DEP-08, ver «Correo saliente»). Con otro valor tampoco: `common/config/ValidacionCorreoSaliente` lo rechaza antes de crear ningún bean, con un mensaje que nombra la variable y los valores admitidos. |
 | `NOTIF_FROM` | sí | Remitente de todos los correos: `Ciudad Viva <no-reply@<dominio verificado en Resend>>`. Sin ella no arranca. |
 | `CORREO_API_KEY` | con `CORREO_TIPO=resend` | Clave de la API de Resend (secreto). Sin ella el adaptador no arranca. |
+| `CAPTCHA_TIPO` | sí | Captcha del registro de cuenta (NC-08): `recaptcha` (Google reCAPTCHA v2, casilla «No soy un robot») o `ninguno` (no se exige). Sin ella no arranca: con el `ninguno` de desarrollo, un despliegue que la olvidara dejaría el registro sin captcha sin que nada lo advierta. Con otro valor tampoco: `common/config/ValidacionTipoCaptcha` lo rechaza antes de crear ningún bean (ver «Captcha en el registro»). |
+| `CAPTCHA_SECRET` | con `CAPTCHA_TIPO=recaptcha` | Clave secreta del sitio en la consola de reCAPTCHA (secreto). Sin ella el adaptador no arranca. La clave del sitio (pública) la usa el frontend, no el backend. |
 | `PORT` | no (8080) | Lo inyecta la plataforma. |
 | `SPRINGDOC_HABILITADO` | no (`false`) | `true` publica `/v3/api-docs` y Swagger UI. |
 | `ADMIN_INICIAL_EMAIL`, `ADMIN_INICIAL_PASSWORD`, `ADMIN_INICIAL_NOMBRE` | solo en el primer arranque | Crean el primer ADMIN en una base sin ninguno. Después se borra `ADMIN_INICIAL_PASSWORD`; las otras dos pueden quedar (ver «Operación en producción»). |
@@ -1987,6 +1989,78 @@ sin cuenta (58 ms y 14 ms: la diferencia es el conteo y el `INSERT`, no el
 proveedor). El envío corre en `viasegura-async-1`, y la API real de Resend lo
 rechaza con 401 `validation_error` (clave inválida, no el 403 de un
 `User-Agent` faltante), que queda como un WARN con el id del token.
+
+## Captcha en el registro (NC-08)
+
+`POST /api/auth/registro` exige, cuando está activo, la casilla «No soy un
+robot» de **Google reCAPTCHA v2**. El frontend la muestra con la clave del
+sitio (pública) y envía la respuesta en `captchaToken`; el backend la
+comprueba contra `POST https://www.google.com/recaptcha/api/siteverify` con la
+clave secreta (`CAPTCHA_SECRET`). Es I/O externo, así que va detrás del puerto
+`auth/port/VerificadorDeCaptcha`, con dos adaptadores elegidos por
+`app.captcha.tipo` (`CAPTCHA_TIPO`), como los de correo:
+
+| Valor | Adaptador | Uso |
+|---|---|---|
+| `recaptcha` | `auth/infra/RecaptchaV2Adapter` | Producción. |
+| `ninguno` | `auth/infra/SinCaptchaAdapter` | Por defecto fuera de `prod`; fijo en los tests. `captchaToken` se ignora. |
+
+**Por qué v2 de casilla y no v3.** Lo pidió el usuario, y el jurado puede
+verlo y comprobarlo: la casilla aparece en el formulario y sin marcarla el
+registro no pasa. reCAPTCHA v3 es invisible y devuelve un puntaje entre 0 y 1;
+exigiría elegir y calibrar un umbral sin datos de tráfico real, y su efecto no
+se puede demostrar en la sustentación.
+
+**Falla cerrado.** Solo una respuesta `{"success": true}` de Google deja pasar
+el registro. `success: false` es **409** «No pudimos confirmar que no eres un
+robot. Vuelve a intentarlo.» (una precondición del pedido que el ciudadano
+puede corregir marcando la casilla otra vez, la convención de
+`BusinessException`); un token ausente o en blanco es **409** «Confirma que no
+eres un robot». Si Google no responde (3 s de conexión, 5 s de lectura), da
+un error HTTP o un cuerpo ilegible o sin `success` booleano, es **503** «No
+pudimos verificar el captcha en este momento…» (`ServicioNoDisponibleException`):
+no es culpa del ciudadano y puede reintentar en unos minutos, y la PWA lo
+muestra en vez de tomarlo como error de red. Dejar pasar el registro cuando
+Google no responde abriría el registro masivo justo cuando un atacante
+consiga degradar esa llamada. Sin reintentos ni redirecciones.
+
+**Antes que todo lo demás.** `AuthService#registrar` verifica el captcha antes
+de la versión de los términos y del correo duplicado. Si lo hiciera después,
+el 409 «El correo ya está registrado» respondería sin captcha y el endpoint
+serviría para averiguar qué correos tienen cuenta (`RegistroCaptchaIT` lo
+comprueba con un correo existente y un token rechazado).
+
+**Fuera de la transacción.** La llamada a Google puede tardar segundos;
+dentro de una transacción retendría una conexión del pool mientras tanto
+(D-13, ARCHITECTURE.md §4.5). Por eso `registrar` dejó de ser
+`@Transactional`: verifica el captcha y recién entonces llama a
+`RegistroCuentaService#crearCuentaCiudadana`, otro bean de `auth/service`
+cuyo método `@Transactional` pasa por el proxy de Spring (una llamada interna
+a un método del mismo bean no abriría la transacción). Con
+`spring.jpa.open-in-view: false` (application.yml) tampoco hay una sesión de
+Hibernate abierta por la petición que retenga la conexión.
+
+**Sin `remoteip`.** Google lo acepta como opcional; enviarlo cedería a un
+tercero la IP de cada ciudadano que se registra, un dato personal que no hace
+falta para verificar (principio de proporcionalidad o minimización, Ley
+N.° 29733). En el log solo quedan los `error-codes` de Google que tienen forma
+de código (`timeout-or-duplicate`); nunca el token ni el secreto.
+
+**Por qué `ninguno` por defecto fuera de `prod`.** Los IT y el desarrollo local
+corren sin red y sin claves; con `recaptcha` por defecto cada registro de la
+suite llamaría a Google. En `prod`, `CAPTCHA_TIPO` no tiene valor por defecto
+(no arranca sin ella, `ArranqueCaptchaIT`), así que desactivar el captcha en
+producción exige escribir `ninguno` a propósito. Para probar el flujo real en
+local, Google publica claves de prueba que siempre aprueban (anotadas en
+`.env.example`); nunca van a producción.
+
+**Pruebas.** `RecaptchaV2AdapterTest` (`MockRestServiceServer`: formulario
+enviado sin `remoteip`, `success` verdadero y falso, 4xx/5xx, cuerpos
+ilegibles, timeout real contra un socket local y conexión rechazada);
+`RegistroCaptchaIT` (con un `VerificadorDeCaptcha` simulado que exige el
+captcha: sin token, rechazado, Google caído, correo existente y token válido);
+`ValidacionTipoCaptchaTest` y `ArranqueCaptchaIT` (valores no admitidos y
+`prod` sin la variable).
 
 ## Consentimiento (D-12, NC-07b)
 
