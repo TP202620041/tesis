@@ -156,6 +156,22 @@ export type CategoriaDano = Requerido<
 >;
 
 /**
+ * NC-04: respuesta de `POST /api/clasificaciones`, la vista previa de la
+ * categoria que sugiere la foto (handoff `2026-10-25-clasificacion-vista-previa`).
+ * Los dos campos son `null` a la vez cuando no hay sugerencia. A proposito no
+ * trae confianza ni version del modelo: la sugerencia es una señal interna.
+ *
+ * **Escrito a mano**: el `openapi.json` guardado es anterior al endpoint y el
+ * backend no estaba corriendo para `npm run api:sync`. Con el spec nuevo,
+ * pasa a ser un alias de `Schemas['ClasificacionResponse']` con esta misma
+ * nulabilidad (springdoc marcara los campos como opcionales).
+ */
+export interface ClasificacionResponse {
+  categoriaId: number | null;
+  categoriaNombre: string | null;
+}
+
+/**
  * US-22: una fila de la linea de tiempo del reporte (cambio de estado o
  * asignacion). Vive aqui y no en una feature porque la usan `reportes`
  * (vista del ciudadano), `gestion` (vista del funcionario) y el componente
