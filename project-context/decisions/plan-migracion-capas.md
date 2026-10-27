@@ -143,6 +143,30 @@ Decisión del usuario (25/10): opción A de `propuestas/2026-10-22-refresco-indi
 
 Al cerrarla, se decide si el pool de producción vuelve a 10.
 
+### [ ] BE-13 · Las consultas de soporte se borran 3 meses después de respondidas (S7)
+Plazo que fijó el usuario el 26/10 para los términos v2 (§7). Hoy nada borra `ticket_soporte`.
+- Una tarea programada diaria (`@Scheduled`, en el módulo `soporte`) borra los tickets **respondidos** hace más de 3 meses. El plazo es configurable y vale 3 meses por defecto.
+- Los tickets sin responder no se tocan.
+- La fecha de respuesta tiene que ser fiable. Si hoy no se guarda aparte de `updated_at`, se agrega con una migración nueva, y la tarea lo justifica en el README.
+- Si se cambia el contrato de `GET /api/soporte/tickets/mis-tickets`, se usa `/contrato`.
+
+**Aceptación:**
+- un IT con la fecha de respuesta en el pasado (`JdbcTemplate`) borra solo los tickets vencidos y respondidos;
+- la tarea es idempotente y registra cuántos borró;
+- Failsafe igual o mayor y ArchUnit en 0.
+
+### [ ] BE-14 · Cierre de cuenta con anonimización (S7)
+Los términos (v1 y v2, §8) ofrecen cerrar la cuenta a pedido por Soporte, pero hoy no hay cómo hacerlo. El v2 (§7) promete que, al cerrarla, se borran los datos de cuenta y los reportes, adhesiones, comentarios y calificaciones se conservan sin ningún dato que identifique al autor.
+- **Mecanismo:** lo ejecuta el ADMIN. Si alcanza con un script operativo en `backend/scripts/`, como `asignar-funcionario.sql` con el procedimiento en «Operación en producción», o si hace falta un endpoint ADMIN, se decide en la tarea. Si hace falta un endpoint o un cambio de esquema, primero se registra con `/propuesta`.
+- **Abierto, con `/propuesta`:** qué se hace con el historial de consentimientos (D-12). La ley pide poder demostrar el consentimiento, y el titular se borra.
+- **No cambia el índice de desempeño:** los reportes y calificaciones siguen contando.
+
+**Aceptación:**
+- un IT cierra una cuenta con reportes, adhesiones, comentarios y calificaciones;
+- después de cerrarla, los reportes siguen públicos y en el índice, y ninguna respuesta del API ni ninguna fila de `usuario` devuelve el nombre, el apellido, el correo ni la foto de perfil;
+- la cuenta ya no puede iniciar sesión, y su correo puede volver a registrarse;
+- Failsafe igual o mayor y ArchUnit en 0.
+
 ---
 
 ## Frontend

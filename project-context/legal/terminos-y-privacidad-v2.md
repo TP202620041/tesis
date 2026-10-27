@@ -1,10 +1,14 @@
 # Términos de uso y política de privacidad de Ciudad Viva
 
 > **BORRADOR para revisión** (versión `2026-10-v2`, 2026-10-26). Reemplaza a `terminos-y-privacidad-v1.md` (`2026-10-v1`). Lo redactó la sesión coordinadora a partir de lo que hace la aplicación en `develop` con NC-04b (v0.8.0). **No es asesoría legal.** Antes de publicarlo debe revisarlo el usuario (o su asesor), en especial:
-> - lo marcado `[COMPLETAR]` y `[REVISAR]`;
-> - la identidad del titular del banco de datos y su inscripción ante la Autoridad Nacional de Protección de Datos Personales;
-> - los plazos de conservación;
-> - el flujo transfronterizo (§5) y si el *share-alike* de RDD2022 alcanza a los pesos del modelo (§13, decisión 7).
+> - lo marcado `[COMPLETAR]` (el domicilio del titular) y `[REVISAR]` (el flujo transfronterizo en §5 y la cita de RDD2022 en §13);
+> - la inscripción del banco de datos ante la Autoridad Nacional de Protección de Datos Personales;
+> - si el *share-alike* de RDD2022 alcanza a los pesos del modelo (§13, decisión 7).
+>
+> **Datos del usuario (26/10):**
+> - Autores, titular y correo de contacto: los publica el usuario por decisión propia, sabiendo que el repositorio es público.
+> - Plazos (§7): los reportes se conservan mientras opere la plataforma, con el autor anonimizado al cerrar la cuenta; las consultas de soporte, 3 meses después de respondidas. Los cumplen BE-13 y BE-14 (plan del S7).
+> - Sesión: 120 minutos (`JWT_EXPIRATION_MINUTES`, runbook §5.2).
 >
 > **Qué cambia respecto de v1:**
 > - §4 nuevo: el análisis automático de la foto (NC-04 y NC-04b).
@@ -18,9 +22,9 @@
 
 ## 1. Quiénes somos
 
-Ciudad Viva es una plataforma de reporte ciudadano de daños en la infraestructura vial de Lima Metropolitana. La desarrolla [COMPLETAR: nombres de los autores] como parte de una tesis de la Universidad Peruana de Ciencias Aplicadas (UPC).
+Ciudad Viva es una plataforma de reporte ciudadano de daños en la infraestructura vial de Lima Metropolitana. La desarrollan Fabrizio Leon y Mario Lopez como parte de una tesis de la Universidad Peruana de Ciencias Aplicadas (UPC).
 
-El titular del banco de datos personales es [COMPLETAR: persona natural o jurídica responsable, domicilio y correo de contacto]. Para cualquier consulta sobre tus datos puedes escribir a [COMPLETAR: correo de contacto] o usar la sección **Soporte** de la aplicación.
+El titular del banco de datos personales es Fabrizio Leon, con domicilio en [COMPLETAR: domicilio]. Para cualquier consulta sobre tus datos puedes escribir a contacto@ciudadviva.app o usar la sección **Soporte** de la aplicación.
 
 ## 2. Qué datos tratamos
 
@@ -82,10 +86,10 @@ Retirar un consentimiento no invalida lo que hicimos antes con él. Para dejar d
 
 ## 7. Cuánto tiempo guardamos tus datos
 
-- **Cuenta:** mientras esté activa.
-- **Reportes:** forman parte del registro público de daños y del índice de desempeño. [COMPLETAR: plazo, o la anonimización del autor al cerrar la cuenta.]
-- **Sugerencia automática del tipo de daño:** mientras exista el reporte. [REVISAR: si se borra al terminar la evaluación de la tesis.]
-- **Consultas de soporte:** [COMPLETAR: plazo].
+- **Cuenta:** mientras esté activa. Si la cierras (§8), borramos tus datos de cuenta.
+- **Reportes y sus fotos:** mientras la plataforma esté en funcionamiento, porque forman parte del registro público de daños y del índice de desempeño de cada periodo de gestión. Si cierras tu cuenta, tus reportes, adhesiones, comentarios y calificaciones se conservan **sin ningún dato que te identifique** (anonimizados).
+- **Sugerencia automática del tipo de daño:** mientras exista el reporte.
+- **Consultas de soporte:** 3 meses después de que te respondamos. Luego se borran.
 - **Suscripciones push:** hasta que las desactives, cierres sesión en ese navegador o el servicio de push las dé por vencidas.
 
 ## 8. Tus derechos
@@ -93,7 +97,7 @@ Retirar un consentimiento no invalida lo que hicimos antes con él. Para dejar d
 Según la Ley N.° 29733 puedes ejercer tus derechos de **acceso, rectificación, cancelación y oposición** (ARCO), además de **revocar** tus consentimientos.
 
 - Puedes corregir tu nombre y tu foto desde tu **Perfil**.
-- Para lo demás, incluido cerrar tu cuenta, escribe a [COMPLETAR: correo de contacto] o usa **Soporte**. Te responderemos en los plazos que fija la ley.
+- Para lo demás, incluido cerrar tu cuenta, escribe a contacto@ciudadviva.app o usa **Soporte**. Te responderemos en los plazos que fija la ley.
 - Si no quedas conforme, puedes presentar un reclamo ante la Autoridad Nacional de Protección de Datos Personales.
 
 ## 9. Seguridad
@@ -102,7 +106,7 @@ Según la Ley N.° 29733 puedes ejercer tus derechos de **acceso, rectificación
 - Las contraseñas se guardan con un algoritmo de hash.
 - Las fotos de perfil solo se entregan a su dueño.
 - Las notificaciones push van cifradas de extremo a extremo hasta tu navegador.
-- La sesión vence a las [COMPLETAR: confirmar con `JWT_EXPIRATION_MINUTES` de producción; el valor por defecto es 120 minutos] 2 horas.
+- La sesión vence 2 horas después de iniciarla.
 
 Ningún sistema es infalible. Si detectamos un incidente que afecte tus datos, te lo informaremos.
 
