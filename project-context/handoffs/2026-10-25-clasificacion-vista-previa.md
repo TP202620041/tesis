@@ -1,10 +1,10 @@
 # Handoff de contrato: vista previa de la categoría por la foto (NC-04)
 
-- **Estado:** pendiente <!-- pendiente | atendido -->
+- **Estado:** atendido <!-- pendiente | atendido -->
 - **Fecha:** 2026-10-25
 - **Origen:** backend, rama `feature/nc-04-clasificacion`, commit `6106cb8` y las observaciones de la revisión en el commit siguiente (PR por abrir)
 - **Historia o tarea:** NC-04 fase 0 (cambia US-05; propuesta aceptada `decisions/propuestas/2026-10-21-ml-clases-modelo.md`)
-- **Atendido por:** _(frontend, rama y fecha)_
+- **Atendido por:** frontend, rama `feature/nc-04-vista-previa`, 2026-10-26 (propone la categoría con un botón, sin preseleccionarla: `frontend/README.md`, «Sugerencia de la categoría por la foto (NC-04)»)
 
 ## Endpoints afectados
 | Método | Ruta | Cambio |

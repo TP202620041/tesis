@@ -752,6 +752,92 @@ Decisión del usuario (20/10):
   lo envía; un 400 lo conserva; no se purga a los 30 días; completarlo pasadas
   48 h no lo reenvía a ciegas; `completar` sobre uno ya completo no escribe.
 
+### Sugerencia de la categoría por la foto (NC-04)
+
+Al elegir la foto en `/reportar`, la PWA la envía a `POST
+/api/clasificaciones` y muestra el tipo de daño que sugiere, o que no hay
+sugerencia. El servidor no guarda nada, y el reporte se crea con la categoría
+que elija el ciudadano. La sugerencia oficial la recalcula el backend sobre la
+foto guardada (D-08), así que de la vista previa no se reenvía nada. El
+contrato está en `project-context/handoffs/2026-10-25-clasificacion-vista-previa.md`.
+Hasta NC-04b el backend usa el clasificador falso, y en producción responde
+siempre «sin sugerencia». Con el modelo real (v0.8.0) el contrato no cambia.
+
+- **Solo propone; nunca elige sola.** El handoff sugería *preseleccionar* la
+  categoría cuando el selector estuviera vacío. Aquí no se preselecciona: la
+  sugerencia aparece bajo el selector («Sugerencia por la foto: Bache. Es
+  automática: el tipo de daño lo eliges tú.») con un botón **«Elegir
+  «Bache»»**, y el selector solo cambia con ese toque o eligiendo a mano.
+  Hay tres razones:
+  - La decisión tiene que ser del ciudadano, y verse así (DS 016-2024-JUS,
+    art. 6.1). El texto lo dice.
+  - Es el mismo criterio que la severidad sin valor por defecto (NC-02): un
+    valor preseleccionado se envía sin que nadie lo decida y sesga el dato.
+  - La tesis evalúa la IA comparando la categoría sugerida con la confirmada
+    (OE3, por SQL). Una preselección aceptada por inercia contaría como
+    confirmación e inflaría el acierto.
+
+  Cuesta un toque más. Si el usuario prefiere la preselección del handoff, el
+  cambio es local: aplicar la sugerencia cuando el selector esté vacío, en
+  `FormularioReporte` (las reglas de `model/sugerencia.ts` ya distinguen
+  «elegida» de «propuesta»).
+- **No pisa lo elegido.** Si la respuesta llega después de que el ciudadano
+  eligió otra categoría, su elección queda y la sugerencia se ofrece con el
+  mismo botón. Si eligió la misma, el texto lo dice y no hay botón. Si la
+  categoría sugerida no está en el catálogo que tiene la PWA (desfase de
+  caché), se ignora y cuenta como «sin sugerencia».
+- **La foto va antes del tipo de daño.** El orden queda ubicación → foto →
+  tipo → título → severidad → descripción. Con la foto debajo del selector, la
+  sugerencia llegaría a un campo que el ciudadano ya pasó. El prototipo de la
+  fase 2 (`/reportar` en pasos) pone la foto en el paso 3, después del tipo.
+  Con NC-04, el asistente tiene que pedirla antes del tipo o en el mismo paso.
+- **Nunca bloquea.** El selector y «Enviar reporte» siguen habilitados
+  mientras se analiza. Se hace una sola petición por foto elegida, sin
+  reintentos y sin cola offline. Un fallo de red, un 5xx, un 401, el 413 o la
+  espera agotada quedan en «sin sugerencia», que no se distingue de «el modelo
+  no vio un daño claro». El único error que se muestra es el **409**: la foto
+  no es una imagen válida, y el envío fallaría igual. Se avisa junto a la foto,
+  con el campo `aria-invalid`, para que el ciudadano la cambie o la quite.
+- **Sin carreras.** `useSugerenciaDeCategoria` cancela con `AbortController`
+  la petición de la foto anterior al elegir otra, al quitarla, al desmontarse
+  el formulario y al enviar el reporte (`descartar()`: si la respuesta no
+  llegó, ya no se muestra). Además, cada resultado queda atado a **su** `File`,
+  y el estado se deriva comparándolo con la foto actual, así que una respuesta
+  vieja nunca aparece con la foto nueva. No va sobre `useCarga`, por tres
+  motivos:
+  - compara sus dependencias por JSON, y un `File` serializa como `{}`;
+  - no cancela la petición;
+  - traduce los errores a texto, y aquí hace falta el `status`.
+- **Espera máxima de 20 s** (`ESPERA_MAXIMA_DE_SUGERENCIA_MS`), subida
+  incluida. El servidor corta la inferencia a los 3 s, pero en una red móvil
+  la subida de una foto de varios MB puede tardar más. Pasado ese tiempo se
+  cancela y queda «sin sugerencia», en vez de un «Analizando…» que no termina.
+- **`redirigirEn401: false`.** La vista previa es una ayuda que el ciudadano no
+  pidió. Con la sesión vencida, no debe tirar el formulario a medio llenar con
+  una navegación al login, ni con el 403 de términos pendientes. El token se
+  borra igual, y el envío del reporte, que sí es la acción del ciudadano, lleva
+  al login como siempre.
+- **La foto viaja dos veces** (vista previa y reporte). No se reduce en el
+  cliente antes de la vista previa: D-08 se apoya en que la misma foto dé la
+  misma sugerencia que vio el ciudadano, y una foto reescalada podría dar otra.
+- **Accesibilidad.** El texto («Analizando la foto para sugerirte un tipo de
+  daño…», la sugerencia o «No hay una sugerencia para esta foto…») va en una
+  región `role="status"` que existe siempre, también vacía: una región que
+  aparece junto con su texto no la anuncian todos los lectores. El botón queda
+  fuera de la región, para que el anuncio sea solo el texto. El selector la
+  referencia con `aria-describedby`. Al tocar «Elegir …» el botón desaparece y
+  el foco pasa al selector, que anuncia la categoría elegida.
+- **Sin porcentajes.** El API no devuelve confianza ni versión del modelo, a
+  propósito: es una señal interna. La UI tampoco la infiere.
+- **Tipos escritos a mano.** El `openapi.json` guardado es anterior al
+  endpoint, y no había backend corriendo para `npm run api:sync`.
+  `ClasificacionResponse` está en `lib/types/domain.ts`, escrito según el
+  handoff. Con el spec nuevo pasa a ser un alias de
+  `Schemas['ClasificacionResponse']`.
+- **Fuera de alcance aquí:** el aviso de privacidad sobre el análisis
+  automático de la foto (términos v2 y `/privacidad`). Va en otra tarea, con el
+  texto legal.
+
 ### Consentimiento (NC-07b, D-12)
 
 El consentimiento es un **permiso** por finalidad y versión
@@ -1206,6 +1292,13 @@ Verificado end-to-end contra el backend real:
   `/mapa`; completar sin severidad muestra «Elige la severidad del daño»; y,
   tras completarlo, se envió con la MISMA `Idempotency-Key` (reporte #185) y
   salió de la cola.
+- **NC-04** sugerencia de la categoría por la foto en `/reportar` (ver
+  «Sugerencia de la categoría por la foto (NC-04)» en Decisiones técnicas).
+  Cubierta por tests de las reglas (`model/sugerencia.ts`), del hook
+  (cancelación, espera agotada, 409 y fallos), del gateway y del formulario.
+  **Todavía no se verificó contra el backend real**: falta probarla con el
+  clasificador falso del perfil `local` (`CLASIFICACION_FALSO_RESPUESTA` con
+  `bache:0.87`, vacío y `falla`).
 
 ### 404 e ids inválidos (QA-1 M-11)
 
