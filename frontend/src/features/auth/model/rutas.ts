@@ -55,6 +55,21 @@ export const RUTA_CONFIRMAR_CUENTA = '/confirmar-cuenta';
 export const RUTA_LOGIN = '/login';
 
 /**
+ * Pantallas de acceso: las del grupo `(auth)`, con su propio marco centrado
+ * y sin la navegacion de la app (`modoDelMarco`). Tampoco ofrecen «inicia
+ * sesion» para la cola offline (`AvisoPendientesSinSesion`): ya se esta en
+ * eso, y volver a `/confirmar-cuenta` sin el token mostraria un enlace
+ * invalido. Una sola lista para los dos: al agregar una pantalla de acceso,
+ * se agrega aqui.
+ */
+export const RUTAS_DE_ACCESO: readonly string[] = [
+  RUTA_LOGIN,
+  '/registro',
+  '/recuperar-password',
+  RUTA_CONFIRMAR_CUENTA,
+];
+
+/**
  * Destino de una redireccion que viene en la URL (`?redirect=`), o
  * `porDefecto` si no es una ruta interna. Evita un redirect abierto: solo se
  * aceptan rutas relativas de esta app (`/algo`), nunca `//otro-sitio` ni

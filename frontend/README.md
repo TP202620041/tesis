@@ -1003,7 +1003,10 @@ el README del backend («Confirmación del correo»). Lo que cambia en la PWA:
   contraseña correcta, así que no revela qué cuentas existen. El reenvío va
   fuera del `<form>` del login porque tiene el suyo (no se anidan).
 - **`/confirmar-cuenta?token=…`** (grupo `(auth)`, pública; la URL la arma el
-  backend y `RUTA_CONFIRMAR_CUENTA` la fija). La página sigue siendo
+  backend y `RUTA_CONFIRMAR_CUENTA` la fija). Es una pantalla de acceso más
+  (`RUTAS_DE_ACCESO` en `auth/model/rutas.ts`, una sola lista): sin el marco
+  de la app y sin el aviso «inicia sesión» de la cola offline, que al volver
+  la dejaría sin el token. La página sigue siendo
   estática: el token se lee en el cliente con `useSearchParams` dentro de un
   `Suspense` y nunca llega al HTML del servidor. `useConfirmacionDeCorreo`:
   - toma el token **una vez** y lo saca de la URL con `history.replaceState`
