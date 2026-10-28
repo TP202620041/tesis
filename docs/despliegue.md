@@ -314,7 +314,7 @@ Si el plan de Railway incluye respaldos del volumen (en el servicio `postgis` �
 3. **Environment Variables › Production:** `NEXT_PUBLIC_API_BASE_URL` = `https://api.ciudadviva.app` (sin barra final).
    - Se hornea en el build y en la CSP: `next.config.ts` la pone en `connect-src` y en `img-src`, así que las fotos que sirve el API también pasan.
    - Cambiarla exige redesplegar.
-   - `NEXT_PUBLIC_RECAPTCHA_SITE_KEY` = la **clave del sitio** del par de reCAPTCHA v2 de §5.2 (NC-08). También obligatoria en Production: sin ella el build falla, igual que sin la URL del API, para que el registro no salga sin casilla mientras el API la exige. Se hornea en el bundle; `next.config.ts` abre en la CSP `www.google.com` y `www.gstatic.com` solo para el widget.
+   - `NEXT_PUBLIC_RECAPTCHA_SITE_KEY` = la **clave del sitio** del par de reCAPTCHA v2 de §5.2 (NC-08). También obligatoria en Production: sin ella el build falla, igual que sin la URL del API, para que el registro no salga sin casilla mientras el API la exige. Se hornea en el bundle; `next.config.ts` abre en la CSP solo las rutas del widget: `https://www.google.com/recaptcha/` y `https://www.gstatic.com/recaptcha/` en `script-src` y `connect-src`, y `https://www.google.com/recaptcha/` y `https://recaptcha.google.com/recaptcha/` en `frame-src`.
 4. Deploy. La URL `*.vercel.app` queda para depurar.
 5. **Settings › Domains:**
    - agregar `ciudadviva.app` como dominio de producción (`$PWA`);
