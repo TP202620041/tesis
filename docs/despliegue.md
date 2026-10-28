@@ -208,6 +208,8 @@ railway connect postgis               # abre psql por túnel SSH (requiere psql 
    | `NOTIF_FROM` | `Ciudad Viva <no-reply@ciudadviva.app>` (**obligatoria** en `prod` con cualquier tipo de correo) |
    | `CORREO_TIPO` | `resend` (decisión del 21/10). **Obligatoria** en `prod`: sin ella, o con un valor distinto de `smtp` o `resend`, la app no arranca. |
    | `CORREO_API_KEY` | §3 |
+   | `CAPTCHA_TIPO` | `recaptcha` (NC-08, 27/10). **Obligatoria** en `prod`: sin ella, o con un valor distinto de `recaptcha` o `ninguno`, la app no arranca. `ninguno` apaga a propósito el captcha del registro. |
+   | `CAPTCHA_SECRET` | **Clave secreta** del sitio reCAPTCHA v2; obligatoria con `CAPTCHA_TIPO=recaptcha`. El sitio se crea en la consola de reCAPTCHA de Google (`https://www.google.com/recaptcha/admin`): tipo «Desafío (v2)» › casilla «No soy un robot», dominios `ciudadviva.app` y `localhost`. La **clave del sitio** del mismo par va al frontend (§6, `NEXT_PUBLIC_RECAPTCHA_SITE_KEY`). Las claves de prueba de Google (`backend/.env.example`) aprueban siempre: nunca en producción. |
    | `FOTOS_ALMACEN` | `s3` |
    | `FOTOS_S3_ENDPOINT` | endpoint de §2 |
    | `FOTOS_S3_REGION` | `auto` |
@@ -312,6 +314,7 @@ Si el plan de Railway incluye respaldos del volumen (en el servicio `postgis` �
 3. **Environment Variables › Production:** `NEXT_PUBLIC_API_BASE_URL` = `https://api.ciudadviva.app` (sin barra final).
    - Se hornea en el build y en la CSP: `next.config.ts` la pone en `connect-src` y en `img-src`, así que las fotos que sirve el API también pasan.
    - Cambiarla exige redesplegar.
+   - `NEXT_PUBLIC_RECAPTCHA_SITE_KEY` = la **clave del sitio** del par de reCAPTCHA v2 de §5.2 (NC-08). También obligatoria en Production: sin ella el build falla, igual que sin la URL del API, para que el registro no salga sin casilla mientras el API la exige. Se hornea en el bundle; `next.config.ts` abre en la CSP solo las rutas del widget: `https://www.google.com/recaptcha/` y `https://www.gstatic.com/recaptcha/` en `script-src` y `connect-src`, y `https://www.google.com/recaptcha/` y `https://recaptcha.google.com/recaptcha/` en `frame-src`.
 4. Deploy. La URL `*.vercel.app` queda para depurar.
 5. **Settings › Domains:**
    - agregar `ciudadviva.app` como dominio de producción (`$PWA`);

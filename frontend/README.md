@@ -74,6 +74,11 @@ la ignoraba: en un clon limpio el `cp` de arriba fallaba.
   `VERCEL=1` (con `VERCEL_ENV=development`) en `.env.local` y la guarda
   rompería el desarrollo local. En local y en la CI no se exige y vale el
   respaldo `http://localhost:8080`. Ver `.env.example`.
+- **Variable** `NEXT_PUBLIC_RECAPTCHA_SITE_KEY` (Production y Preview): la
+  site key **pública** de reCAPTCHA v2 del dominio (NC-08). También se hornea
+  en el build y, si falta o está vacía, **el build de Vercel falla**: el
+  backend desplegado exige el captcha y sin widget ningún registro pasaría.
+  En local puede faltar (ver «Captcha en el registro (NC-08)»).
 - **CORS**: el backend debe aceptar el dominio de Vercel
   (`app.cors.allowed-origins`). Las *Preview* tienen una URL por despliegue,
   así que contra el API de producción solo funcionan si se agrega su origen.
@@ -921,6 +926,58 @@ queda bloqueado sin los términos.
 Los avisos opcionales llevan su propia versión de texto
 (`push-2026-10-v1`, `correo-2026-10-v1`, en `model/consentimientos.ts`): el
 backend la guarda tal cual para saber qué texto vio el usuario.
+
+### Captcha en el registro (NC-08)
+
+El registro pide la casilla «No soy un robot» de **Google reCAPTCHA v2**. El
+backend verifica el token con la clave secreta; la PWA solo pinta el widget
+y manda `captchaToken` en `POST /api/auth/registro`.
+
+- **Sin librería** (`react-google-recaptcha` y similares): es una sola
+  pantalla y bastan tres llamadas (`ready`, `render`, `reset`). Así no se
+  suma peso ni una dependencia más que auditar, y quedan bajo control propio
+  la carga del script (una sola vez por documento, aunque StrictMode monte
+  el efecto dos veces: `hooks/useCaptcha.ts`), el momento del reset y los
+  hosts de la CSP. La lógica pura (site key, URL del script, tamaño del
+  widget, mensajes) está en `model/captcha.ts`.
+- **Sin site key no hay widget.** `NEXT_PUBLIC_RECAPTCHA_SITE_KEY` es
+  opcional en local: sin ella el formulario no muestra la casilla ni manda
+  token, porque el backend local corre con `CAPTCHA_TIPO=ninguno` y lo
+  ignora. Así el desarrollo y los tests no dependen de Google. Para ver el
+  widget en local está la site key de prueba de Google (en `.env.example`),
+  que siempre aprueba y nunca va a producción. En Vercel la variable es
+  obligatoria (ver «Despliegue en Vercel»).
+- **Reset tras cada error.** El token de reCAPTCHA es de un solo uso: el
+  backend lo gasta al verificarlo, aunque después el registro falle por otra
+  causa (correo duplicado, validación). Por eso, tras **cualquier** error
+  del registro, el formulario borra el token y sube un contador
+  (`reinicios`) que hace `grecaptcha.reset`; reenviar exige marcar la casilla
+  de nuevo. Se eligió un contador como prop y no una ref imperativa porque el
+  formulario ya reacciona al error cambiando estado. La casilla de términos
+  conserva su regla (QA-1 M-2). Los 409 y 503 del captcha se muestran con
+  `mensajeDeError`, como cualquier otro error: la PWA no decide nada por el
+  texto del mensaje.
+- **Móvil.** El widget normal mide 304 px fijos; si el contenedor es más
+  angosto se pinta el `compact` (164 × 144 px), y el contenedor lleva
+  `overflow-x-auto` como red de seguridad para que nunca desborde el
+  formulario.
+- **Sin red.** Si el script no carga se muestra «No se pudo cargar la
+  verificación. Revisa tu conexión y recarga.» (`role="alert"`) en lugar de
+  un hueco vacío.
+- **CSP** (`next.config.ts`), limitada **por ruta** como recomienda la guía
+  de CSP de reCAPTCHA: `script-src` suma `https://www.google.com/recaptcha/`
+  (`api.js`) y `https://www.gstatic.com/recaptcha/` (el resto del widget, en
+  `/recaptcha/releases/<versión>/…`); la nueva directiva `frame-src
+  https://www.google.com/recaptcha/ https://recaptcha.google.com/recaptcha/`
+  deja pasar los iframes de la casilla y del desafío (`/recaptcha/api2/anchor`
+  y `/recaptcha/api2/bframe`; sin ella regía `default-src 'self'`;
+  `recaptcha.google.com` lo lista la guía para el desafío y se incluye para
+  que nunca quede en blanco en producción); y `connect-src` repite las dos
+  rutas de script porque el Service Worker vuelve a pedir con `fetch()` los
+  scripts de otro origen (lo mismo que pasó con los tiles del mapa). No se
+  abre `www.google.com` entero: en `script-src` eso es un rodeo conocido de
+  la CSP (endpoints JSONP de Google), y la CSP es la mitigación declarada del
+  JWT en `localStorage` (ver «Seguridad: dónde vive el JWT»).
 
 ### Notificaciones push (US-21)
 

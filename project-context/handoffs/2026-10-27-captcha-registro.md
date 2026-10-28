@@ -1,10 +1,10 @@
 # Handoff de contrato: captcha reCAPTCHA v2 en el registro (NC-08)
 
-- **Estado:** pendiente <!-- pendiente | atendido -->
+- **Estado:** atendido <!-- pendiente | atendido -->
 - **Fecha:** 2026-10-27
-- **Origen:** backend, rama `feature/nc-08-captcha-registro` (PR por abrir)
+- **Origen:** backend, rama `feature/nc-08-captcha-registro` (PR #119, fusionado en `develop`)
 - **Historia o tarea:** NC-08 (cambia US-01)
-- **Atendido por:** _(frontend, rama y fecha)_
+- **Atendido por:** frontend, rama `feature/nc-08-captcha-registro-pwa`, PR #120, 2026-10-28. La PWA pinta la casilla de reCAPTCHA v2 sin librería, manda `captchaToken` y reinicia la casilla tras cualquier error del registro; la CSP suma las rutas de reCAPTCHA en `script-src`, `frame-src` y `connect-src` (`frontend/README.md`, «Captcha en el registro (NC-08)»). Los tipos se regeneraron con `npm run api:sync` (`captchaToken?: string` en `RegistroRequest`). Sin `NEXT_PUBLIC_RECAPTCHA_SITE_KEY` no se muestra la casilla ni se manda token, como corresponde al backend local con `CAPTCHA_TIPO=ninguno`; en Vercel la variable es obligatoria.
 
 ## Endpoints afectados
 | Método | Ruta | Cambio |

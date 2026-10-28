@@ -1,13 +1,15 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useState, type ReactNode } from 'react';
+import { useCallback, useState, type ReactNode } from 'react';
 import { EnlaceConDialogo } from '@/components/ui/dialogo';
 import { AlertaError, Boton, Campo } from '@/components/ui/form';
 import { useRegistro } from '../hooks/useRegistro';
+import { captchaConfigurado, MENSAJE_FALTA_CAPTCHA, siteKeyDelCaptcha } from '../model/captcha';
 import { AYUDA_PASSWORD, errorDeLargoDePassword, PASSWORD_MAX, PASSWORD_MIN } from '../model/password';
 import { destinoTrasAcceso, RUTA_PRIVACIDAD } from '../model/rutas';
 import { TITULO_TERMINOS } from '../model/terminos';
+import { CampoCaptcha } from './CampoCaptcha';
 
 /**
  * US-01: registro de cuenta ciudadana.
@@ -24,6 +26,12 @@ import { TITULO_TERMINOS } from '../model/terminos';
  * El texto se lee en un dialogo sobre el mismo formulario, no en otra
  * pestana ni navegando a `/privacidad`: asi no se pierde lo ya escrito.
  * `textoLegal` lo compone la pagina porque es de la feature `legal`.
+ *
+ * NC-08: con site key configurada, la casilla «No soy un robot» de
+ * reCAPTCHA v2 tambien es obligatoria (sin token no se envia nada) y tras
+ * CUALQUIER error del registro se reinicia: el token es de un solo uso y el
+ * backend ya lo consumio al verificarlo. Sin site key (local, backend con
+ * `CAPTCHA_TIPO=ninguno`) no se muestra el widget ni se envia token.
  */
 export function FormularioRegistro({ textoLegal }: { textoLegal: ReactNode }) {
   const router = useRouter();
@@ -36,6 +44,15 @@ export function FormularioRegistro({ textoLegal }: { textoLegal: ReactNode }) {
   // aparece tras el primer intento y desde ahi se recalcula al escribir.
   const [intentoEnviar, setIntentoEnviar] = useState(false);
   const errorPassword = intentoEnviar ? errorDeLargoDePassword(campos.password) : null;
+  const conCaptcha = captchaConfigurado();
+  const siteKey = siteKeyDelCaptcha();
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [faltaCaptcha, setFaltaCaptcha] = useState(false);
+  const [reiniciosCaptcha, setReiniciosCaptcha] = useState(0);
+  const alTokenDelCaptcha = useCallback((token: string | null) => {
+    setCaptchaToken(token);
+    if (token) setFaltaCaptcha(false);
+  }, []);
 
   function actualizar(clave: keyof typeof campos) {
     return (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -46,8 +63,15 @@ export function FormularioRegistro({ textoLegal }: { textoLegal: ReactNode }) {
     evento.preventDefault();
     setIntentoEnviar(true);
     if (!acepta) setFaltaAceptar(true);
-    if (!acepta || errorDeLargoDePassword(campos.password)) return;
-    const { sesion, terminosDesactualizados: textoViejo } = await enviar(campos);
+    const sinCaptcha = conCaptcha && !captchaToken;
+    if (sinCaptcha) setFaltaCaptcha(true);
+    if (!acepta || sinCaptcha || errorDeLargoDePassword(campos.password)) return;
+    const { sesion, terminosDesactualizados: textoViejo } = await enviar(campos, conCaptcha ? captchaToken : null);
+    if (!sesion && conCaptcha) {
+      // NC-08: el token ya se gasto (o lo rechazo Google): casilla nueva.
+      setCaptchaToken(null);
+      setReiniciosCaptcha((n) => n + 1);
+    }
     if (sesion) {
       // QA-1 I-2: al mismo lugar que el login (antes iba a `/sesion`, una
       // pantalla de depuracion): al `?redirect=` si es interno, si no a
@@ -119,6 +143,22 @@ export function FormularioRegistro({ textoLegal }: { textoLegal: ReactNode }) {
         value={campos.password}
         onChange={actualizar('password')}
       />
+
+      {conCaptcha && siteKey && (
+        <div className="flex flex-col gap-1">
+          <CampoCaptcha
+            siteKey={siteKey}
+            onToken={alTokenDelCaptcha}
+            reinicios={reiniciosCaptcha}
+            idError={faltaCaptcha && !captchaToken ? 'captcha-error' : undefined}
+          />
+          {faltaCaptcha && !captchaToken && (
+            <p id="captcha-error" role="alert" className="text-sm text-error">
+              {MENSAJE_FALTA_CAPTCHA}
+            </p>
+          )}
+        </div>
+      )}
 
       <div className="flex flex-col gap-1">
         <label className="flex items-start gap-2 text-sm text-texto">
