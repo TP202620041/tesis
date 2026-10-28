@@ -48,6 +48,7 @@ class ArranqueAlmacenDeFotosIT {
                 "--FOTOS_DIR=" + System.getProperty("java.io.tmpdir") + "/viasegura-test-fotos",
                 "--CORREO_TIPO=smtp",
                 "--NOTIF_FROM=Ciudad Viva <no-reply@ciudadviva.test>",
+                "--CAPTCHA_TIPO=ninguno",
         };
     }
 

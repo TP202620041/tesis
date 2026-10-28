@@ -4,18 +4,17 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import pe.edu.upc.viasegura.auth.domain.PreferenciaNotificacion;
-import pe.edu.upc.viasegura.auth.domain.Rol;
 import pe.edu.upc.viasegura.auth.domain.Usuario;
 import pe.edu.upc.viasegura.auth.dto.AuthResponse;
 import pe.edu.upc.viasegura.auth.dto.LoginRequest;
 import pe.edu.upc.viasegura.auth.dto.RegistroRequest;
 import pe.edu.upc.viasegura.auth.dto.UsuarioResponse;
 import pe.edu.upc.viasegura.auth.event.FotoDePerfilReemplazadaEvent;
+import pe.edu.upc.viasegura.auth.port.VerificadorDeCaptcha;
 import pe.edu.upc.viasegura.auth.repository.UsuarioRepository;
 import pe.edu.upc.viasegura.common.exception.BusinessException;
 import pe.edu.upc.viasegura.common.exception.ResourceNotFoundException;
@@ -34,8 +33,12 @@ public class AuthService {
     /** Largo de las columnas {@code usuario.nombre} y {@code usuario.apellido}, como en {@code RegistroRequest}. */
     static final int LARGO_MAXIMO_NOMBRE = 100;
 
+    /** NC-08: con el captcha activo, un registro sin token. */
+    static final String MENSAJE_FALTA_CAPTCHA = "Confirma que no eres un robot";
+
     private final UsuarioRepository usuarioRepository;
-    private final PasswordEncoder passwordEncoder;
+    private final RegistroCuentaService registroCuentaService;
+    private final VerificadorDeCaptcha verificadorDeCaptcha;
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
     private final DistritoService distritoService;
@@ -45,28 +48,24 @@ public class AuthService {
 
     /**
      * US-01: registra una cuenta ciudadana y devuelve un token de sesion.
-     * D-12: la aceptacion de los terminos vigentes se guarda en la misma
-     * transaccion; si la version no es la vigente, 409 y no se crea nada.
+     *
+     * <p>NC-08: si el captcha esta activo ({@code CAPTCHA_TIPO=recaptcha}),
+     * se verifica <b>primero</b>, antes que la version de los terminos y que
+     * el correo duplicado: si no, el endpoint serviria para averiguar sin
+     * captcha que correos tienen cuenta. Y se verifica <b>sin transaccion</b>
+     * (por eso este metodo no es {@code @Transactional}): la llamada HTTP a
+     * Google no debe retener una conexion del pool (D-13). La cuenta la crea
+     * despues {@link RegistroCuentaService}, en su propia transaccion, con
+     * las reglas de D-12.</p>
      */
-    @Transactional
     public AuthResponse registrar(RegistroRequest request) {
-        consentimientoService.exigirVersionVigenteDeTerminos(request.versionTerminos());
-        if (usuarioRepository.existsByEmail(request.email())) {
-            throw new BusinessException("El correo ya está registrado");
+        if (verificadorDeCaptcha.exigido()) {
+            if (!StringUtils.hasText(request.captchaToken())) {
+                throw new BusinessException(MENSAJE_FALTA_CAPTCHA);
+            }
+            verificadorDeCaptcha.verificar(request.captchaToken());
         }
-
-        Usuario usuario = Usuario.builder()
-                .email(request.email())
-                .passwordHash(passwordEncoder.encode(request.password()))
-                .nombre(request.nombre())
-                .apellido(request.apellido())
-                .rol(Rol.CIUDADANO)
-                .preferenciaNotificacion(PreferenciaNotificacion.AMBAS)
-                .activo(true)
-                .build();
-
-        Usuario guardado = usuarioRepository.save(usuario);
-        consentimientoService.registrarAceptacionDeTerminos(guardado, request.versionTerminos());
+        Usuario guardado = registroCuentaService.crearCuentaCiudadana(request);
         return construirRespuesta(guardado);
     }
 

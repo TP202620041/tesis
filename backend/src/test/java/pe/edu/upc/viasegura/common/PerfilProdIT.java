@@ -52,7 +52,9 @@ import pe.edu.upc.viasegura.support.AbstractPostgisIT;
         // DEP-08: obligatorias en prod. `smtp` para que los correos sigan
         // yendo a GreenMail y no a un proveedor real.
         "CORREO_TIPO=smtp",
-        "NOTIF_FROM=Ciudad Viva <no-reply@ciudadviva.test>"})
+        "NOTIF_FROM=Ciudad Viva <no-reply@ciudadviva.test>",
+        // NC-08: obligatoria en prod. `ninguno` para no llamar a Google.
+        "CAPTCHA_TIPO=ninguno"})
 class PerfilProdIT extends AbstractPostgisIT {
 
     private static final String SECRETO_PROPIO = secretoAleatorio();
@@ -106,6 +108,8 @@ class PerfilProdIT extends AbstractPostgisIT {
         assertThat(environment.getProperty("app.correo.tipo")).isEqualTo("smtp");
         assertThat(environment.getProperty("app.notificaciones.email-remitente"))
                 .isEqualTo("Ciudad Viva <no-reply@ciudadviva.test>");
+        // NC-08: en prod el captcha sale de CAPTCHA_TIPO, sin default.
+        assertThat(environment.getProperty("app.captcha.tipo")).isEqualTo("ninguno");
     }
 
     @Test

@@ -96,6 +96,22 @@ app:
       # la peticion, asi que esperar mas a Resend no demora a nadie.
       timeout-conexion-segundos: 3
       timeout-lectura-segundos: 10
+  # Captcha del registro de cuenta (NC-08): puerto auth/port/VerificadorDeCaptcha,
+  # la casilla «No soy un robot» de Google reCAPTCHA v2:
+  #   ninguno   -> SinCaptchaAdapter, no se exige ni verifica (desarrollo, tests)
+  #   recaptcha -> RecaptchaV2Adapter, POST https://www.google.com/recaptcha/api/siteverify
+  # En prod CAPTCHA_TIPO es obligatoria (application-prod.yml).
+  captcha:
+    tipo: ${CAPTCHA_TIPO:ninguno}
+    # Solo `recaptcha`: clave secreta del sitio, SOLO por entorno y nunca en
+    # el repo. Con tipo=recaptcha y sin secreto, la aplicacion no arranca.
+    secret: ${CAPTCHA_SECRET:}
+    recaptcha:
+      # La verificacion corre en el hilo de la peticion (fuera de la
+      # transaccion): el ciudadano espera, asi que la lectura es mas corta
+      # que la de Resend. Sin reintentos.
+      timeout-conexion-segundos: 3
+      timeout-lectura-segundos: 5
   # Notificaciones al ciudadano (US-16/US-21). El remitente es el de todos
   # los correos (NOTIF_FROM); con Resend, de un dominio verificado.
   notificaciones:
