@@ -1,15 +1,25 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { AlertaError, Boton } from '@/components/ui/form';
 import type { Severidad } from '@/lib/types/domain';
 import { useCategoriasDeReporte } from '../hooks/useCategoriasDeReporte';
 import { useCrearReporte } from '../hooks/useCrearReporte';
+import { useSugerenciaDeCategoria } from '../hooks/useSugerenciaDeCategoria';
+import {
+  AVISO_DE_ANALISIS_DE_FOTO,
+  avisoDeFotoRechazada,
+  vistaDeSugerencia,
+} from '../model/sugerencia';
 import { erroresDeTituloYSeveridad } from '../model/titulo';
 import type { ReporteCreado } from '../model/tipos';
 import { CampoSeveridad, CampoTitulo } from './CamposTituloYSeveridad';
 import { CampoFoto } from './CampoFoto';
 import { CampoUbicacion, type UbicacionElegida } from './CampoUbicacion';
+import { SugerenciaDeCategoria } from './SugerenciaDeCategoria';
+
+const ID_SUGERENCIA = 'categoriaId-sugerencia';
+const ID_AYUDA_CATEGORIA = 'categoriaId-ayuda';
 
 /**
  * US-05: crear un reporte con foto, categoría y GPS. NC-02: con título
@@ -18,6 +28,13 @@ import { CampoUbicacion, type UbicacionElegida } from './CampoUbicacion';
  * US-06: sin conexión, el reporte se guarda en el dispositivo con su
  * `Idempotency-Key` (`onEncolado`) y se envía solo al volver la señal. La
  * clave y el envío los lleva `useCrearReporte`.
+ *
+ * NC-04: la foto va antes del tipo de daño porque lo puede sugerir. La
+ * sugerencia solo se propone (botón «Elegir …»): el selector nunca cambia sin
+ * una acción del ciudadano, y la vista previa no bloquea nada (ni el selector
+ * ni el envío). Al enviar se descarta si aún no llegó, y si el envío falla y
+ * el ciudadano sigue aquí, se vuelve a pedir. La ayuda de la foto avisa del
+ * análisis antes de elegirla.
  */
 export function FormularioReporte({
   usuarioId,
@@ -40,6 +57,8 @@ export function FormularioReporte({
     ? erroresDeTituloYSeveridad(titulo, severidad)
     : { titulo: null, severidad: null };
   const [foto, setFoto] = useState<File | null>(null);
+  const vistaPrevia = useSugerenciaDeCategoria(foto);
+  const selectorDeCategoria = useRef<HTMLSelectElement>(null);
 
   const distritoId = ubicacion?.distrito?.id ?? null;
 
@@ -48,8 +67,12 @@ export function FormularioReporte({
    * la ubicacion. Si la elegida no es valida en el distrito nuevo, cuenta
    * como no elegida en vez de dejar que el POST falle con 409.
    */
-  const categorias = useCategoriasDeReporte(distritoId);
+  const catalogo = useCategoriasDeReporte(distritoId);
+  const { categorias } = catalogo;
   const categoriaId = categorias.some((c) => c.id === categoriaElegida) ? categoriaElegida : null;
+  // Con la elegida tal cual (no la validada): mientras el catalogo recarga por
+  // un cambio de distrito, el texto de la sugerencia no cambia ni se re-anuncia.
+  const sugerencia = vistaDeSugerencia(vistaPrevia, catalogo, categoriaElegida);
 
   const fueraDeCobertura = ubicacion != null && ubicacion.distrito === null;
   const puedeEnviar = ubicacion != null && !fueraDeCobertura && categoriaId != null && !enviando;
@@ -65,6 +88,9 @@ export function FormularioReporte({
       limpiarError();
       return;
     }
+    // NC-04: si la vista previa no llegó, ya no hace falta (el backend
+    // calcula la sugerencia oficial sobre la foto guardada).
+    vistaPrevia.descartar();
     const desenlace = await enviarReporte({
       ubicacion: ubicacion && {
         latitud: ubicacion.coordenadas.latitud,
@@ -79,6 +105,9 @@ export function FormularioReporte({
     });
     if (desenlace?.tipo === 'creado') onCreado(desenlace.reporte);
     else if (desenlace?.tipo === 'encolado') onEncolado();
+    // El envío falló (409, 400…) y el ciudadano sigue en el formulario: si la
+    // vista previa se había cancelado al enviar, se vuelve a pedir.
+    else vistaPrevia.reanudar();
   }
 
   return (
@@ -86,6 +115,15 @@ export function FormularioReporte({
       {error && <AlertaError mensaje={error.mensaje} detalles={error.detalles} />}
 
       <CampoUbicacion valor={ubicacion} onCambiar={setUbicacion} />
+
+      <CampoFoto
+        valor={foto}
+        onCambiar={setFoto}
+        aviso={AVISO_DE_ANALISIS_DE_FOTO}
+        rechazo={
+          vistaPrevia.estado === 'foto-rechazada' ? avisoDeFotoRechazada(vistaPrevia.mensaje) : null
+        }
+      />
 
       <div className="flex flex-col gap-1.5">
         <label
@@ -95,8 +133,10 @@ export function FormularioReporte({
           Tipo de daño
         </label>
         <select
+          ref={selectorDeCategoria}
           id="categoriaId"
           required
+          aria-describedby={distritoId ? ID_SUGERENCIA : `${ID_SUGERENCIA} ${ID_AYUDA_CATEGORIA}`}
           value={categoriaId ?? ''}
           onChange={(e) => setCategoriaElegida(e.target.value ? Number(e.target.value) : null)}
           className="min-h-objetivo rounded-control border border-linea-campo bg-superficie px-3 py-2 text-texto focus:border-primario"
@@ -109,8 +149,18 @@ export function FormularioReporte({
             </option>
           ))}
         </select>
+        <SugerenciaDeCategoria
+          id={ID_SUGERENCIA}
+          vista={sugerencia}
+          onElegir={(id) => {
+            setCategoriaElegida(id);
+            // El boton desaparece al elegir: el foco pasa al selector, que
+            // anuncia la categoria ya elegida.
+            selectorDeCategoria.current?.focus();
+          }}
+        />
         {!distritoId && (
-          <p className="text-xs text-texto-2">
+          <p id={ID_AYUDA_CATEGORIA} className="text-xs text-texto-2">
             Al indicar la ubicación podrían aparecer categorías propias de tu distrito.
           </p>
         )}
@@ -124,8 +174,6 @@ export function FormularioReporte({
         onCambiar={setSeveridad}
         error={errores.severidad}
       />
-
-      <CampoFoto valor={foto} onCambiar={setFoto} />
 
       <div className="flex flex-col gap-1.5">
         <label

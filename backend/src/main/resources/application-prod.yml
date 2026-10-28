@@ -3,13 +3,14 @@
 # seccion "Configuracion de produccion".
 #
 # Obligatorias y SIN valor por defecto: DB_URL, DB_USERNAME, DB_PASSWORD,
-# CORS_ALLOWED_ORIGINS, FOTOS_ALMACEN, CORREO_TIPO, NOTIF_FROM,
+# CORS_ALLOWED_ORIGINS, FOTOS_ALMACEN, CORREO_TIPO, NOTIF_FROM, CAPTCHA_TIPO,
 # CLASIFICACION_TIPO y JWT_SECRET (este ultimo desde application.yml,
 # SEC-03). Con FOTOS_ALMACEN=s3, tambien FOTOS_S3_* (las valida
 # S3FotoStorageService); con FOTOS_ALMACEN=local, FOTOS_DIR (la imagen ya
 # trae /data/fotos). Con CORREO_TIPO=resend, tambien CORREO_API_KEY (la
-# valida ResendCorreoAdapter). Con CLASIFICACION_TIPO=http, tambien
-# CLASIFICACION_URL (la valida ValidacionTipoClasificador).
+# valida ResendCorreoAdapter). Con CAPTCHA_TIPO=recaptcha, tambien
+# CAPTCHA_SECRET (la valida RecaptchaV2Adapter). Con CLASIFICACION_TIPO=http,
+# tambien CLASIFICACION_URL (la valida ValidacionTipoClasificador).
 # Un default aqui arrancaria la app apuntando a algo que no es produccion;
 # mejor que no arranque.
 spring:
@@ -43,6 +44,11 @@ app:
     # `smtp` de desarrollo, cada correo fallaria contra localhost:1025 sin
     # que nada lo advierta al desplegar.
     tipo: ${CORREO_TIPO}
+  captcha:
+    # NC-08: `recaptcha`. Sin default: con el `ninguno` de desarrollo, un
+    # despliegue que olvidara la variable dejaria el registro sin captcha sin
+    # que nada lo advierta. Para desactivarlo hay que escribir `ninguno`.
+    tipo: ${CAPTCHA_TIPO}
   clasificacion:
     # NC-04b: `http` (el servicio inferencia/ por la red privada, en
     # CLASIFICACION_URL). Sin default: con el `falso` de desarrollo la

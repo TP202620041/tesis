@@ -60,6 +60,8 @@ import pe.edu.upc.viasegura.support.AbstractPostgisIT;
         // yendo a GreenMail y no a un proveedor real.
         "CORREO_TIPO=smtp",
         "NOTIF_FROM=Ciudad Viva <no-reply@ciudadviva.test>",
+        // NC-08: obligatoria en prod. `ninguno` para no llamar a Google.
+        "CAPTCHA_TIPO=ninguno",
         // NC-04b: obligatoria en prod; con `http`, tambien la URL.
         "CLASIFICACION_TIPO=http",
         "CLASIFICACION_URL=http://127.0.0.1:1"})
@@ -118,6 +120,8 @@ class PerfilProdIT extends AbstractPostgisIT {
         assertThat(environment.getProperty("app.correo.tipo")).isEqualTo("smtp");
         assertThat(environment.getProperty("app.notificaciones.email-remitente"))
                 .isEqualTo("Ciudad Viva <no-reply@ciudadviva.test>");
+        // NC-08: en prod el captcha sale de CAPTCHA_TIPO, sin default.
+        assertThat(environment.getProperty("app.captcha.tipo")).isEqualTo("ninguno");
         // NC-04b: en prod la clasificacion sale de CLASIFICACION_TIPO, sin default.
         assertThat(environment.getProperty("app.clasificacion.tipo")).isEqualTo("http");
         assertThat(environment.getProperty("app.clasificacion.http.url")).isEqualTo("http://127.0.0.1:1");

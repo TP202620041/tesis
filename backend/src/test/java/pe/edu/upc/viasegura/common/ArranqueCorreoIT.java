@@ -31,8 +31,9 @@ import pe.edu.upc.viasegura.ViaSeguraApplication;
  * {@code app.correo.tipo}) y las validaciones se evaluan al leer la
  * configuracion, antes de abrir una conexion. El resto de lo obligatorio en
  * prod se pasa por argumento, incluidos {@code FOTOS_ALMACEN} (valido para
- * {@code ValidacionAlmacenDeFotos}) y {@code CLASIFICACION_TIPO} (NC-04b),
- * para que el fallo sea el del correo.</p>
+ * {@code ValidacionAlmacenDeFotos}), {@code CAPTCHA_TIPO} (NC-08) y
+ * {@code CLASIFICACION_TIPO} (NC-04b), para que el fallo sea el del
+ * correo.</p>
  */
 class ArranqueCorreoIT {
 
@@ -55,6 +56,7 @@ class ArranqueCorreoIT {
                 "--FOTOS_DIR=" + System.getProperty("java.io.tmpdir") + "/viasegura-test-fotos",
                 "--FOTOS_ALMACEN=local",
                 "--NOTIF_FROM=Ciudad Viva <no-reply@ciudadviva.test>",
+                "--CAPTCHA_TIPO=ninguno",
                 "--CLASIFICACION_TIPO=falso",
         };
     }
