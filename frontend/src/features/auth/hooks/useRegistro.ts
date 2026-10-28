@@ -2,8 +2,9 @@
 
 import { useCallback, useState } from 'react';
 import { ApiError, mensajeDeError, type MensajeDeError } from '@/lib/api/errors';
-import type { SesionIniciada } from '@/lib/types/domain';
+import type { CuentaPorConfirmar } from '@/lib/types/domain';
 import { registrar } from '../api';
+import { esCorreoRechazado } from '../model/confirmacion';
 import { esVersionDeTerminosNoVigente, VERSION_TERMINOS } from '../model/terminos';
 
 export interface DatosDeRegistro {
@@ -19,11 +20,12 @@ export interface DatosDeRegistro {
  * el mismo momento: el estado se actualiza despues del render.
  */
 export type ResultadoRegistro =
-  | { sesion: SesionIniciada; terminosDesactualizados: false }
-  | { sesion: null; terminosDesactualizados: boolean };
+  | { cuenta: CuentaPorConfirmar; terminosDesactualizados: false }
+  | { cuenta: null; terminosDesactualizados: boolean };
 
 /**
- * US-01 + NC-07b: registra la cuenta con la aceptacion de los terminos.
+ * US-01 + NC-07b + NC-09: registra la cuenta con la aceptacion de los
+ * terminos.
  *
  * El formulario no deja enviar sin la casilla marcada; aqui se agrega la
  * version que el usuario vio ({@link VERSION_TERMINOS}, la misma que muestra
@@ -36,19 +38,26 @@ export type ResultadoRegistro =
  * NC-08: `captchaToken` es el de reCAPTCHA v2, o `null` si el captcha no
  * esta configurado. Un 409 o 503 del captcha se muestra como cualquier otro
  * error (`mensajeDeError`); reiniciar el widget le toca al formulario.
+ *
+ * NC-09: si sale bien NO hay sesion: devuelve la {@link CuentaPorConfirmar}
+ * (correo y vigencia del enlace) para la pantalla «Revisa tu correo». Los
+ * 409 del dominio del correo (`CORREO_DESECHABLE`, `DOMINIO_SIN_CORREO`) van
+ * en `errorDelCorreo`, para mostrarlos en el campo, y no en `error`.
  */
 export function useRegistro() {
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<MensajeDeError | null>(null);
+  const [errorDelCorreo, setErrorDelCorreo] = useState<string | null>(null);
   const [terminosDesactualizados, setTerminosDesactualizados] = useState(false);
 
   const enviar = useCallback(
     async (datos: DatosDeRegistro, captchaToken: string | null = null): Promise<ResultadoRegistro> => {
       setError(null);
+      setErrorDelCorreo(null);
       setTerminosDesactualizados(false);
       setEnviando(true);
       try {
-        const sesion = await registrar({
+        const cuenta = await registrar({
           ...datos,
           aceptaTerminos: true,
           versionTerminos: VERSION_TERMINOS,
@@ -56,14 +65,19 @@ export function useRegistro() {
           // local (`CAPTCHA_TIPO=ninguno`) no lo pide.
           ...(captchaToken ? { captchaToken } : {}),
         });
-        return { sesion, terminosDesactualizados: false };
+        return { cuenta, terminosDesactualizados: false };
       } catch (e) {
-        // 409 = correo ya registrado o version de terminos no vigente; 400 =
-        // validacion (`details` trae el detalle por campo de @Valid).
+        // 409 = correo ya registrado, version de terminos no vigente o (NC-09)
+        // dominio del correo rechazado; 400 = validacion (`details` trae el
+        // detalle por campo de @Valid).
+        if (e instanceof ApiError && esCorreoRechazado(e.status, e.codigo)) {
+          setErrorDelCorreo(e.message);
+          return { cuenta: null, terminosDesactualizados: false };
+        }
         const desactualizados = e instanceof ApiError && esVersionDeTerminosNoVigente(e.status, e.message);
         setError(mensajeDeError(e));
         setTerminosDesactualizados(desactualizados);
-        return { sesion: null, terminosDesactualizados: desactualizados };
+        return { cuenta: null, terminosDesactualizados: desactualizados };
       } finally {
         setEnviando(false);
       }
@@ -71,5 +85,5 @@ export function useRegistro() {
     [],
   );
 
-  return { enviando, error, terminosDesactualizados, enviar };
+  return { enviando, error, errorDelCorreo, terminosDesactualizados, enviar };
 }
