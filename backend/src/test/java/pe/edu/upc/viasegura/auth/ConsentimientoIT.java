@@ -13,7 +13,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.util.List;
 import java.util.ArrayList;
@@ -32,7 +31,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
 import pe.edu.upc.viasegura.auth.domain.Consentimiento;
 import pe.edu.upc.viasegura.auth.domain.FinalidadConsentimiento;
 import pe.edu.upc.viasegura.auth.domain.Rol;
@@ -58,8 +56,6 @@ class ConsentimientoIT extends AbstractPostgisIT {
 
     @Autowired
     MockMvc mockMvc;
-    @Autowired
-    ObjectMapper objectMapper;
     @Autowired
     JwtService jwtService;
     @Autowired
@@ -164,14 +160,13 @@ class ConsentimientoIT extends AbstractPostgisIT {
     @Test
     void registro_conTerminos_creaLaFilaYNoDebeAceptar() throws Exception {
         String email = correo();
-        MvcResult res = mockMvc.perform(post("/api/auth/registro")
+        mockMvc.perform(post("/api/auth/registro")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(registro(email,
                                 ",\"aceptaTerminos\":true,\"versionTerminos\":\"" + versionVigente + "\"")))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.usuario.debeAceptarTerminos", is(false)))
-                .andReturn();
-        String token = objectMapper.readTree(res.getResponse().getContentAsString()).get("token").asText();
+                .andExpect(status().isCreated());
+        // NC-09: el registro ya no inicia sesion; el login va despues de confirmar.
+        String token = confirmarEIniciarSesion(email, "secreta123");
 
         Usuario u = usuarioRepository.findByEmail(email).orElseThrow();
         List<Consentimiento> filas = consentimientoRepository.findByUsuarioIdOrderByAceptadoEnDescIdDesc(u.getId());

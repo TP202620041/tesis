@@ -12,6 +12,7 @@ import pe.edu.upc.viasegura.auth.domain.Usuario;
 import pe.edu.upc.viasegura.auth.dto.AuthResponse;
 import pe.edu.upc.viasegura.auth.dto.LoginRequest;
 import pe.edu.upc.viasegura.auth.dto.RegistroRequest;
+import pe.edu.upc.viasegura.auth.dto.RegistroResponse;
 import pe.edu.upc.viasegura.auth.dto.UsuarioResponse;
 import pe.edu.upc.viasegura.auth.event.FotoDePerfilReemplazadaEvent;
 import pe.edu.upc.viasegura.auth.port.VerificadorDeCaptcha;
@@ -25,6 +26,9 @@ import pe.edu.upc.viasegura.distritos.service.DistritoService;
 
 /**
  * Casos de uso de acceso: registro (US-01) e inicio de sesion (US-02).
+ *
+ * <p>NC-09: el registro crea la cuenta sin confirmar y ya no inicia sesion;
+ * el login exige el correo confirmado ({@link ConfirmacionCorreoService}).</p>
  */
 @Service
 @RequiredArgsConstructor
@@ -39,6 +43,7 @@ public class AuthService {
     private final UsuarioRepository usuarioRepository;
     private final RegistroCuentaService registroCuentaService;
     private final VerificadorDeCaptcha verificadorDeCaptcha;
+    private final DominioCorreoService dominioCorreoService;
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
     private final DistritoService distritoService;
@@ -47,29 +52,48 @@ public class AuthService {
     private final ApplicationEventPublisher eventPublisher;
 
     /**
-     * US-01: registra una cuenta ciudadana y devuelve un token de sesion.
+     * US-01: registra una cuenta ciudadana, sin confirmar (NC-09), y pide el
+     * enlace de confirmacion. No inicia sesion ni devuelve token: la persona
+     * entra despues de abrir el enlace que recibe por correo.
      *
-     * <p>NC-08: si el captcha esta activo ({@code CAPTCHA_TIPO=recaptcha}),
-     * se verifica <b>primero</b>, antes que la version de los terminos y que
-     * el correo duplicado: si no, el endpoint serviria para averiguar sin
-     * captcha que correos tienen cuenta. Y se verifica <b>sin transaccion</b>
-     * (por eso este metodo no es {@code @Transactional}): la llamada HTTP a
-     * Google no debe retener una conexion del pool (D-13). La cuenta la crea
-     * despues {@link RegistroCuentaService}, en su propia transaccion, con
-     * las reglas de D-12.</p>
+     * <p>Orden, todo antes de crear nada:</p>
+     * <ol>
+     *   <li><b>Captcha</b> (NC-08), si esta activo ({@code CAPTCHA_TIPO=recaptcha}):
+     *       primero, antes que los terminos y el correo duplicado; si no, el
+     *       endpoint serviria para averiguar sin captcha que correos tienen
+     *       cuenta.</li>
+     *   <li><b>Dominio del correo</b> (NC-09): ni desechable ni sin MX
+     *       ({@link DominioCorreoService}). No revela nada de las cuentas.</li>
+     *   <li><b>Terminos vigentes y correo duplicado</b>, y la cuenta con su
+     *       primer enlace, en {@link RegistroCuentaService} (D-12).</li>
+     * </ol>
+     *
+     * <p>Los dos primeros pasos son I/O (Google, el DNS) y corren <b>sin
+     * transaccion</b> (por eso este metodo no es {@code @Transactional}): la
+     * espera no debe retener una conexion del pool (D-13). La cuenta la crea
+     * despues {@link RegistroCuentaService}, en su propia transaccion.</p>
      */
-    public AuthResponse registrar(RegistroRequest request) {
+    public RegistroResponse registrar(RegistroRequest request) {
         if (verificadorDeCaptcha.exigido()) {
             if (!StringUtils.hasText(request.captchaToken())) {
                 throw new BusinessException(MENSAJE_FALTA_CAPTCHA);
             }
             verificadorDeCaptcha.verificar(request.captchaToken());
         }
+        dominioCorreoService.exigirQueRecibaCorreo(request.email());
         Usuario guardado = registroCuentaService.crearCuentaCiudadana(request);
-        return construirRespuesta(guardado);
+        return new RegistroResponse(guardado.getEmail(), ConfirmacionCorreoService.VIGENCIA.toHours());
     }
 
-    /** US-02: valida credenciales y devuelve un token de sesion. */
+    /**
+     * US-02: valida credenciales y devuelve un token de sesion.
+     *
+     * <p>NC-09: con la contrasena correcta y el correo sin confirmar, 409 con
+     * el codigo {@code CORREO_NO_CONFIRMADO}, para que la PWA ofrezca reenviar
+     * el enlace. Se comprueba <b>despues</b> de la contrasena: con una
+     * contrasena incorrecta la respuesta sigue siendo el 401 de siempre, asi
+     * que el login no revela si una cuenta existe ni si esta confirmada.</p>
+     */
     @Transactional(readOnly = true)
     public AuthResponse login(LoginRequest request) {
         // Lanza BadCredentialsException (=> HTTP 401) si son invalidas.
@@ -78,6 +102,10 @@ public class AuthService {
 
         Usuario usuario = usuarioRepository.findByEmail(request.email())
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+        if (!usuario.isCorreoConfirmado()) {
+            throw new BusinessException(ConfirmacionCorreoService.MENSAJE_CORREO_NO_CONFIRMADO,
+                    ConfirmacionCorreoService.CODIGO_CORREO_NO_CONFIRMADO);
+        }
 
         return construirRespuesta(usuario);
     }

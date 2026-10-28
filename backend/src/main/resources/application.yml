@@ -112,6 +112,25 @@ app:
       # que la de Resend. Sin reintentos.
       timeout-conexion-segundos: 3
       timeout-lectura-segundos: 5
+  # Dominio del correo al registrarse (NC-09): puerto
+  # auth/port/VerificadorDeDominioDeCorreo, si el dominio tiene MX:
+  #   ninguno -> SinVerificacionDeDominioAdapter, no consulta el DNS (por
+  #              defecto fuera de prod; fijo en los tests, sin red)
+  #   dns     -> DnsVerificadorDeDominioAdapter, consulta el MX (por defecto
+  #              en prod, application-prod.yml)
+  # Falla abierto: si el DNS falla o no responde en el plazo, se acepta. La
+  # lista de dominios desechables (resources/data/dominios-desechables.txt)
+  # se aplica siempre: no necesita red.
+  dominio-correo:
+    tipo: ${DOMINIO_CORREO_TIPO:ninguno}
+    dns:
+      # Lo que la peticion del registro espera al DNS, como maximo.
+      plazo-milisegundos: 3000
+  # Origen de la PWA para armar los enlaces de los correos (NC-09:
+  # <origen>/confirmar-cuenta?token=...). Vacio = el primer origen de
+  # app.cors.allowed-origins, que es el de la PWA en todos los entornos.
+  frontend:
+    url: ${FRONTEND_URL:}
   # Notificaciones al ciudadano (US-16/US-21). El remitente es el de todos
   # los correos (NOTIF_FROM); con Resend, de un dominio verificado.
   notificaciones:

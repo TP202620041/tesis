@@ -9,9 +9,12 @@
 -- devuelve a CIUDADANO.
 --
 -- ANTES DE ASIGNAR
---   El registro no verifica la propiedad del correo: cualquiera pudo
---   registrarse antes con el correo de la persona. Asigne solo si la persona
---   confirma que el registro le funciono a ella (entra con su contrasena). Si
+--   Cualquiera pudo registrarse antes con el correo de la persona. Desde NC-09
+--   una cuenta no inicia sesion sin confirmar su correo con el enlace que
+--   recibe, asi que entrar con la contrasena prueba que el correo es suyo
+--   (las cuentas anteriores a NC-09 se dieron por confirmadas). Asigne solo si
+--   la persona confirma que el registro le funciono a ella (entra con su
+--   contrasena). Si
 --   al registrarse vio "El correo ya esta registrado", NO asigne: primero que
 --   recupere la cuenta con "Olvidaste tu contrasena" (cuando funcione DEP-08)
 --   o revise la cuenta con ella. El script muestra la fecha de registro de la

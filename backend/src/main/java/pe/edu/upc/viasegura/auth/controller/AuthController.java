@@ -19,12 +19,16 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import pe.edu.upc.viasegura.auth.dto.ActualizarPreferenciaRequest;
 import pe.edu.upc.viasegura.auth.dto.AuthResponse;
+import pe.edu.upc.viasegura.auth.dto.ConfirmarCorreoRequest;
 import pe.edu.upc.viasegura.auth.dto.LoginRequest;
 import pe.edu.upc.viasegura.auth.dto.RecuperarPasswordRequest;
+import pe.edu.upc.viasegura.auth.dto.ReenviarConfirmacionRequest;
 import pe.edu.upc.viasegura.auth.dto.RegistroRequest;
+import pe.edu.upc.viasegura.auth.dto.RegistroResponse;
 import pe.edu.upc.viasegura.auth.dto.RestablecerPasswordRequest;
 import pe.edu.upc.viasegura.auth.dto.UsuarioResponse;
 import pe.edu.upc.viasegura.auth.service.AuthService;
+import pe.edu.upc.viasegura.auth.service.ConfirmacionCorreoService;
 import pe.edu.upc.viasegura.auth.service.PasswordResetService;
 import pe.edu.upc.viasegura.common.exception.BusinessException;
 import pe.edu.upc.viasegura.common.port.ArchivoSubido;
@@ -32,7 +36,8 @@ import pe.edu.upc.viasegura.common.port.ArchivoSubido;
 /**
  * API de acceso y autenticacion.
  *
- * <p>Endpoints publicos: registro y login. {@code /me} requiere token.</p>
+ * <p>Endpoints publicos: registro, login, recuperacion de contrasena y
+ * confirmacion del correo (NC-09). {@code /me} requiere token.</p>
  */
 @RestController
 @RequestMapping("/api/auth")
@@ -41,11 +46,39 @@ public class AuthController {
 
     private final AuthService authService;
     private final PasswordResetService passwordResetService;
+    private final ConfirmacionCorreoService confirmacionCorreoService;
 
-    /** US-01: registro de cuenta ciudadana. */
+    /**
+     * US-01: registro de cuenta ciudadana. Desde NC-09 la cuenta nace sin
+     * confirmar y la respuesta no trae token: la persona confirma su correo
+     * con el enlace que recibe y despues inicia sesion.
+     */
     @PostMapping("/registro")
-    public ResponseEntity<AuthResponse> registrar(@Valid @RequestBody RegistroRequest request) {
+    public ResponseEntity<RegistroResponse> registrar(@Valid @RequestBody RegistroRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(authService.registrar(request));
+    }
+
+    /**
+     * NC-09: confirma el correo con el token del enlace. No inicia sesion
+     * (204 sin cuerpo); un token desconocido, vencido, reemplazado o de una
+     * cuenta ya confirmada es 409 con {@code codigo}.
+     */
+    @PostMapping("/confirmar-correo")
+    public ResponseEntity<Void> confirmarCorreo(@Valid @RequestBody ConfirmarCorreoRequest request) {
+        confirmacionCorreoService.confirmar(request.token());
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * NC-09: pide un enlace de confirmacion nuevo. Responde 202 siempre
+     * (exista o no la cuenta, este o no confirmada, o se haya alcanzado el
+     * tope), igual que la recuperacion de contrasena: no revela que correos
+     * tienen cuenta.
+     */
+    @PostMapping("/reenviar-confirmacion")
+    public ResponseEntity<Void> reenviarConfirmacion(@Valid @RequestBody ReenviarConfirmacionRequest request) {
+        confirmacionCorreoService.reenviar(request.email());
+        return ResponseEntity.accepted().build();
     }
 
     /** US-02: inicio de sesion. */

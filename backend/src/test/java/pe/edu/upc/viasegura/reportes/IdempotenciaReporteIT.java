@@ -71,14 +71,13 @@ class IdempotenciaReporteIT extends AbstractPostgisIT {
 
     private String tokenCiudadano() throws Exception {
         String correo = "idem-" + UUID.randomUUID() + "@lima.pe";
-        MvcResult res = mockMvc.perform(post("/api/auth/registro")
+        mockMvc.perform(post("/api/auth/registro")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"email":"%s","password":"secreta123","nombre":"Ciro","apellido":"Vecino","aceptaTerminos":true,"versionTerminos":"%s"}
                                 """.formatted(correo, versionTerminos)))
-                .andExpect(status().isCreated())
-                .andReturn();
-        return objectMapper.readTree(res.getResponse().getContentAsString()).get("token").asText();
+                .andExpect(status().isCreated());
+        return confirmarEIniciarSesion(correo, "secreta123");
     }
 
     private ResultActions crearReporte(String token, String idempotencyKey, long categoriaId) throws Exception {
