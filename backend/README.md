@@ -378,10 +378,12 @@ ADMIN.
    desde NC-09b el script no asigna una cuenta sin confirmar. Si al
    registrarse vio «El correo ya está registrado», alguien pudo registrarse
    antes con su correo, y asignar le daría el rol a esa cuenta. En ese caso
-   no se asigna hasta que ella recupere la cuenta: pide el enlace con
-   «Reenviar», la confirma y cambia la contraseña con «¿Olvidaste tu
-   contraseña?», que solo funciona con la cuenta confirmada (ver «Cuentas
-   sin confirmar (NC-09b)»). El script muestra la fecha de registro de la
+   no se asigna hasta que ella recupere la cuenta: abre el enlace del correo
+   de confirmación que recibió cuando el otro se registró (si venció, la
+   página del enlace le deja pedir otro), y después cambia la contraseña con
+   «¿Olvidaste tu contraseña?», que solo funciona con la cuenta confirmada
+   (ver «Cuentas sin confirmar (NC-09b)», también si ya no tiene ese correo).
+   El script muestra la fecha de registro de la
    cuenta (`created_at`, hora de Lima) y si confirmó su correo, para
    compararlo con lo que la persona recuerda.
 3. Un operador con acceso a la base corre `backend/scripts/asignar-funcionario.sql`
@@ -2322,13 +2324,28 @@ El usuario los decidió el 28/10:
    baja de funcionarios»).
 
 **La dueña de un correo que otro registró** ve «El correo ya está
-registrado» y no puede usar «¿Olvidaste tu contraseña?». Recupera la cuenta
-así: pide el enlace con «Reenviar» en el inicio de sesión, la confirma (con
-la contraseña que puso el otro, que no conoce) y después cambia la
-contraseña con «¿Olvidaste tu contraseña?», que ya funciona. Son tres pasos
-en vez de dos, pero el enlace de confirmación sigue siendo la única prueba de
-que el correo es suyo, como decidió el usuario. La otra salida es esperar la
-purga de BE-15 y registrarse de nuevo. Riesgo que queda: entre la
+registrado», y «¿Olvidaste tu contraseña?» no le envía nada. Recupera la
+cuenta con el correo de confirmación que le llegó cuando el otro se
+registró: abre el enlace, que confirma la cuenta (con la contraseña que
+puso el otro, que no conoce), y después cambia la contraseña con
+«¿Olvidaste tu contraseña?», que ya funciona. Si el enlace venció, la página
+a la que lleva (`/confirmar-cuenta`) le deja pedir otro escribiendo su
+correo. El enlace de confirmación sigue siendo la única prueba de que el
+correo es suyo, como decidió el usuario.
+
+**Hueco de la PWA (revisión del 28/10).** Si ya no tiene ese correo, la
+PWA no le muestra dónde pedir el enlace sin la contraseña: el «Reenviar el
+enlace» del inicio de sesión solo aparece con el 409
+`CORREO_NO_CONFIRMADO`, que exige la contraseña correcta, y a
+`/confirmar-cuenta` (que sin token también ofrece pedir uno) no lleva ningún
+enlace. Antes de NC-09b la sacaba de ahí «¿Olvidaste tu contraseña?». El
+backend ya lo permite: `POST /api/auth/reenviar-confirmacion` solo pide el
+correo. Cómo mostrarlo en la PWA lo decide el usuario en
+`project-context/decisions/propuestas/2026-10-28-reenviar-confirmacion-sin-contrasena.md`.
+Mientras tanto, la otra salida es esperar la purga de BE-15 y registrarse de
+nuevo.
+
+Riesgo que queda: entre la
 confirmación y el cambio de contraseña, quien registró la cuenta puede
 entrar con su contraseña, y su JWT sigue valiendo hasta que vence (120
 minutos como máximo: no hay blacklist de tokens, ver «Decisiones de

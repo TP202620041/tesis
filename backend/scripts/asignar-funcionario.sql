@@ -17,9 +17,12 @@
 --   Igual, asigne solo si la persona confirma que el registro le funciono a
 --   ella (entra con su contrasena). Si al registrarse vio "El correo ya esta
 --   registrado", NO asigne: alguien pudo registrarse antes con su correo.
---   Para recuperarla, ella pide el enlace ("Reenviar" en el inicio de
---   sesion), confirma la cuenta y cambia la contrasena con "Olvidaste tu
---   contrasena", que solo funciona con la cuenta confirmada (NC-09b). El
+--   Para recuperarla, ella abre el enlace del correo de confirmacion que
+--   recibio cuando el otro se registro (si vencio, la pagina del enlace le
+--   deja pedir otro), y despues cambia la contrasena con "Olvidaste tu
+--   contrasena", que solo funciona con la cuenta confirmada (NC-09b). Si ya
+--   no tiene ese correo, ver "Cuentas sin confirmar (NC-09b)" en
+--   backend/README.md. El
 --   script muestra la fecha de registro de la cuenta (created_at) y si
 --   confirmo su correo, para compararlo con lo que la persona recuerda.
 --
