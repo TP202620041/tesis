@@ -17,6 +17,20 @@ public interface TokenConfirmacionCorreoRepository extends JpaRepository<TokenCo
     long countByUsuarioIdAndCreatedAtAfter(Long usuarioId, Instant desde);
 
     /**
+     * Guarda el hash del token recien generado, solo si la fila sigue
+     * pendiente de emitir: sin hash, sin usar, sin anular y sin vencer.
+     * Devuelve 1 si la emitio y 0 si no (un reenvio la anulo mientras el envio
+     * esperaba en la cola, o ya se emitio). Condicional y no con
+     * {@code save} sobre la entidad leida, para no pisar un
+     * {@code invalidated_at} escrito en el medio (NC-09).
+     */
+    @Modifying
+    @Query("UPDATE TokenConfirmacionCorreo t SET t.tokenHash = :hash "
+            + "WHERE t.id = :id AND t.tokenHash IS NULL AND t.usedAt IS NULL AND t.invalidatedAt IS NULL "
+            + "AND t.expiresAt > :ahora")
+    int emitir(@Param("id") Long id, @Param("hash") String hash, @Param("ahora") Instant ahora);
+
+    /**
      * Anula los enlaces de la cuenta que siguen sin usar ni anular, salvo
      * {@code excepto} (el que se acaba de usar, o {@code -1} para ninguno): al
      * pedir uno nuevo o al confirmar la cuenta, los anteriores dejan de servir.

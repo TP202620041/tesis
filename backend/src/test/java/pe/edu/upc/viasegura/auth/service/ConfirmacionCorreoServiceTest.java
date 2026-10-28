@@ -57,13 +57,15 @@ class ConfirmacionCorreoServiceTest {
     @Test
     void elToken_seEmiteUnaSolaVez_ySoloSiSigueVigente() {
         Instant ahora = Instant.now();
-        TokenConfirmacionCorreo token = TokenConfirmacionCorreo.builder()
-                .expiresAt(ahora.plus(24, ChronoUnit.HOURS)).build();
+        Instant manana = ahora.plus(24, ChronoUnit.HOURS);
 
-        assertThat(token.puedeEmitirse(ahora)).isTrue();
-        token.emitir("hash");
-        assertThat(token.puedeEmitirse(ahora)).isFalse();
-        assertThatThrownBy(() -> token.emitir("otro")).isInstanceOf(IllegalStateException.class);
+        assertThat(TokenConfirmacionCorreo.builder().expiresAt(manana).build().puedeEmitirse(ahora)).isTrue();
+        assertThat(TokenConfirmacionCorreo.builder().expiresAt(manana).tokenHash("hash").build()
+                .puedeEmitirse(ahora)).isFalse();
+        assertThat(TokenConfirmacionCorreo.builder().expiresAt(manana).invalidatedAt(ahora).build()
+                .puedeEmitirse(ahora)).isFalse();
+        assertThat(TokenConfirmacionCorreo.builder().expiresAt(manana).usedAt(ahora).build()
+                .puedeEmitirse(ahora)).isFalse();
 
         TokenConfirmacionCorreo vencido = TokenConfirmacionCorreo.builder().expiresAt(ahora).build();
         assertThat(vencido.puedeEmitirse(ahora)).isFalse();

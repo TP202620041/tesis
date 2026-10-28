@@ -372,6 +372,57 @@ class ConfirmacionCorreoIT extends AbstractPostgisMailIT {
     }
 
     @Test
+    void reenviar_topeDiario_yLosDeHaceMasDeUnDiaNoCuentan() throws Exception {
+        String email = correo();
+        registrar(email).andExpect(status().isCreated());
+        Usuario usuario = usuario(email);
+        // Con el del registro, diez enlaces en el ultimo dia y ninguno en la ultima hora.
+        for (int i = 0; i < 9; i++) {
+            tokenRepository.save(TokenConfirmacionCorreo.builder()
+                    .usuario(usuario)
+                    .expiresAt(Instant.now().plus(1, ChronoUnit.HOURS))
+                    .build());
+        }
+        enlacesPedidosHace(usuario, 120);
+        int antes = greenMail.getReceivedMessages().length;
+
+        reenviar(email).andExpect(status().isAccepted());
+        assertThat(enlacesDe(usuario)).isEqualTo(10);
+        assertThat(greenMail.getReceivedMessages()).hasSize(antes);
+
+        enlacesPedidosHace(usuario, 25 * 60);
+        reenviar(email).andExpect(status().isAccepted());
+        assertThat(enlacesDe(usuario)).isEqualTo(11);
+        assertThat(greenMail.waitForIncomingEmail(3000, antes + 1)).isTrue();
+    }
+
+    @Test
+    void emitirMensaje_soloUnaVez_yNuncaUnaFilaAnulada() throws Exception {
+        // Revision del 28/10: el hash se escribe con un UPDATE condicional, asi
+        // que un reenvio que anula la fila mientras el envio espera en la cola
+        // gana, y la fila no se emite dos veces.
+        String email = correo();
+        registrar(email).andExpect(status().isCreated());
+        Usuario usuario = usuario(email);
+        TokenConfirmacionCorreo pendiente = tokenRepository.save(TokenConfirmacionCorreo.builder()
+                .usuario(usuario).expiresAt(Instant.now().plus(1, ChronoUnit.HOURS)).build());
+        TokenConfirmacionCorreo anulada = tokenRepository.save(TokenConfirmacionCorreo.builder()
+                .usuario(usuario).expiresAt(Instant.now().plus(1, ChronoUnit.HOURS)).build());
+        jdbcTemplate.update("UPDATE token_confirmacion_correo SET invalidated_at = now() WHERE id = ?",
+                anulada.getId());
+
+        assertThat(confirmacionCorreoService.emitirMensaje(pendiente.getId())).isPresent();
+        assertThat(confirmacionCorreoService.emitirMensaje(pendiente.getId())).isEmpty();
+        assertThat(confirmacionCorreoService.emitirMensaje(anulada.getId())).isEmpty();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT token_hash FROM token_confirmacion_correo WHERE id = ?", String.class, anulada.getId()))
+                .isNull();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT invalidated_at IS NOT NULL FROM token_confirmacion_correo WHERE id = ?", Boolean.class,
+                anulada.getId())).isTrue();
+    }
+
+    @Test
     void reenviosSimultaneos_deLaMismaCuenta_creanUnSoloEnlace() throws Exception {
         String email = correo();
         registrar(email).andExpect(status().isCreated());

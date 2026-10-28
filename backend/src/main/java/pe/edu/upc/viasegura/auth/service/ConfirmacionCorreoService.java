@@ -54,12 +54,18 @@ public class ConfirmacionCorreoService {
     static final Duration ESPERA_ENTRE_ENVIOS = Duration.ofMinutes(1);
 
     /**
-     * Y como maximo {@value #MAXIMO_POR_HORA} por hora. Sin este tope, un bucle
-     * que respete el minuto gastaria igual la cuota diaria del proveedor de
-     * correo (100 en Resend Free) con una sola cuenta.
+     * Y como maximo {@value #MAXIMO_POR_HORA} por hora y
+     * {@value #MAXIMO_POR_DIA} por dia. Con solo el minuto, un bucle sobre una
+     * cuenta pediria 1440 enlaces al dia; con solo el tope por hora, 120, que
+     * igual superan la cuota diaria del proveedor de correo (100 en Resend
+     * Free) y dejarian sin correo a todos. Con el diario, una cuenta gasta a lo
+     * sumo {@value #MAXIMO_POR_DIA}; agotar la cuota exige muchas cuentas, y
+     * cada una, resolver el captcha del registro.
      */
     static final int MAXIMO_POR_HORA = 5;
     static final Duration VENTANA_TOPE = Duration.ofHours(1);
+    static final int MAXIMO_POR_DIA = 10;
+    static final Duration VENTANA_DIARIA = Duration.ofHours(24);
 
     static final String ASUNTO = "Ciudad Viva: confirma tu correo";
     static final String ETIQUETA = "confirmacion-correo";
@@ -148,8 +154,8 @@ public class ConfirmacionCorreoService {
      * el endpoint responde lo mismo si la cuenta no existe, si ya esta
      * confirmada, si se alcanzo un tope o si se pidio el enlace (no permite
      * averiguar que correos tienen cuenta). Topes por cuenta: un enlace por
-     * minuto (el del registro cuenta) y {@value #MAXIMO_POR_HORA} por hora. Un
-     * enlace nuevo anula los anteriores.
+     * minuto (el del registro cuenta), {@value #MAXIMO_POR_HORA} por hora y
+     * {@value #MAXIMO_POR_DIA} por dia. Un enlace nuevo anula los anteriores.
      */
     @Transactional
     public void reenviar(String email) {
@@ -175,6 +181,13 @@ public class ConfirmacionCorreoService {
                     usuario.getId(), enLaUltimaHora);
             return;
         }
+        long enElUltimoDia = tokenRepository.countByUsuarioIdAndCreatedAtAfter(
+                usuario.getId(), ahora.minus(VENTANA_DIARIA));
+        if (enElUltimoDia >= MAXIMO_POR_DIA) {
+            log.info("Confirmacion de correo: el usuario {} ya pidio {} enlaces en el ultimo dia; no se crea otro",
+                    usuario.getId(), enElUltimoDia);
+            return;
+        }
         tokenRepository.anularPendientes(usuario.getId(), -1L, ahora);
         crearSolicitud(usuario, ahora);
     }
@@ -196,6 +209,14 @@ public class ConfirmacionCorreoService {
      * <p>Genera aqui el token (256 bits de {@link SecureRandom}) y guarda solo
      * su hash, en una transaccion corta. La llama el listener en el hilo
      * asincrono, y el envio ocurre despues, fuera de esta transaccion.</p>
+     *
+     * <p><b>Sin carreras con un reenvio.</b> El hash se escribe con un
+     * {@code UPDATE} condicional ({@code TokenConfirmacionCorreoRepository#emitir})
+     * y no guardando la entidad leida: si un reenvio anula esta fila entre la
+     * lectura y la escritura, el {@code UPDATE} no la toca (PostgreSQL vuelve a
+     * evaluar la condicion tras esperar el candado de la fila) y no se envia.
+     * Guardar la entidad reescribiria {@code invalidated_at} con el valor
+     * leido y dejaria dos enlaces validos.</p>
      */
     @Transactional
     public Optional<MensajeCorreo> emitirMensaje(Long tokenId) {
@@ -207,8 +228,9 @@ public class ConfirmacionCorreoService {
         }
         TokenConfirmacionCorreo token = encontrado.get();
         String tokenPlano = nuevoToken();
-        token.emitir(TokenConfirmacionCorreo.hashDe(tokenPlano));
-        tokenRepository.save(token);
+        if (tokenRepository.emitir(token.getId(), TokenConfirmacionCorreo.hashDe(tokenPlano), ahora) != 1) {
+            return Optional.empty();
+        }
 
         Usuario usuario = token.getUsuario();
         return Optional.of(new MensajeCorreo(usuario.getEmail(), ASUNTO,

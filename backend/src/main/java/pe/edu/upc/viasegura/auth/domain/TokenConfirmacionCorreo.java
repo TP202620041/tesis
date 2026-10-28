@@ -19,6 +19,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.DynamicUpdate;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
@@ -30,16 +31,20 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
  * token que viaja en el enlace. Quien lea la base, o un respaldo, no puede
  * confirmar cuentas con lo que encuentre. El hash queda {@code null} desde
  * que se pide el correo hasta que el hilo que lo envia genera el token
- * ({@link #emitir}): el valor nunca pasa por la peticion, por un evento ni
+ * ({@code TokenConfirmacionCorreoRepository#emitir}): el valor nunca pasa por la peticion, por un evento ni
  * por la base.</p>
  *
  * <p>Ciclo: pendiente de emitir &rarr; emitido &rarr; usado. Pedir un enlace
  * nuevo o confirmar la cuenta anula ({@link #invalidatedAt}) los que siguen
- * sin usar.</p>
+ * sin usar. El hash lo escribe un {@code UPDATE} condicional del repositorio
+ * ({@code emitir}), y {@link DynamicUpdate} hace que guardar la entidad solo
+ * escriba las columnas que cambiaron: ninguna de las dos escrituras pisa un
+ * {@code invalidated_at} que otra transaccion puso en el medio.</p>
  */
 @Entity
 @Table(name = "token_confirmacion_correo")
 @EntityListeners(AuditingEntityListener.class)
+@DynamicUpdate
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
@@ -78,14 +83,6 @@ public class TokenConfirmacionCorreo {
      */
     public boolean puedeEmitirse(Instant ahora) {
         return tokenHash == null && usedAt == null && invalidatedAt == null && expiresAt.isAfter(ahora);
-    }
-
-    /** Guarda el hash del token recien generado. Solo una vez. */
-    public void emitir(String hash) {
-        if (tokenHash != null) {
-            throw new IllegalStateException("El token de confirmacion ya fue emitido");
-        }
-        this.tokenHash = hash;
     }
 
     public boolean vencio(Instant ahora) {

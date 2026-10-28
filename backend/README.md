@@ -2147,17 +2147,28 @@ diferencias:
 **Pedir uno nuevo anula los anteriores** (`invalidated_at`), y confirmar
 anula los demás pendientes. Si mientras un envío esperaba en la cola la
 persona pidió otro, ya confirmó o el enlace venció, `emitirMensaje` devuelve
-vacío y no se envía nada.
+vacío y no se envía nada. El hash se escribe con un `UPDATE` condicional
+(`TokenConfirmacionCorreoRepository#emitir`: solo si la fila sigue sin hash,
+sin usar, sin anular y vigente), no guardando la entidad leída: si un reenvío
+anula la fila entre la lectura y la escritura, PostgreSQL vuelve a evaluar la
+condición tras esperar el candado de la fila y no la emite. Guardar la
+entidad reescribiría `invalidated_at` con el valor leído y dejaría dos
+enlaces válidos (hallazgo de la revisión del 28/10). Por lo mismo la entidad
+lleva `@DynamicUpdate`: confirmar solo escribe `used_at`.
 
-**Topes del reenvío, por cuenta:** uno por minuto (el del registro cuenta) y
-5 por hora. El endpoint responde igual exista o no la cuenta, esté o no
-confirmada y se alcance o no un tope: no sirve para averiguar qué correos
-tienen cuenta. Sin el tope por hora, un bucle que respete el minuto gastaría
-igual la cuota diaria de Resend (100) con una sola cuenta. Los pedidos
-simultáneos de una cuenta se serializan con un candado consultivo
-(`pg_advisory_xact_lock` sobre `confirmacion-correo:<id>`), como la
-recuperación. La PWA debe deshabilitar el botón «reenviar» un minuto: la
-respuesta no dice si se envió.
+**Topes del reenvío, por cuenta:** uno por minuto (el del registro cuenta),
+5 por hora y 10 por día. El endpoint responde igual exista o no la cuenta,
+esté o no confirmada y se alcance o no un tope: no sirve para averiguar qué
+correos tienen cuenta. Con solo el minuto, un bucle sobre una cuenta pediría
+1440 enlaces al día; con solo el tope por hora, 120, que igual superan la
+cuota diaria de Resend Free (100) y dejarían sin correo a todos. Con el tope
+diario una cuenta gasta a lo sumo 10, y agotar la cuota exige muchas
+cuentas, cada una con su captcha. (La recuperación de contraseña, 3 por hora
+y sin tope diario, sigue como en DEP-08.) Los pedidos simultáneos de una
+cuenta se serializan con un candado consultivo (`pg_advisory_xact_lock`
+sobre `confirmacion-correo:<id>`), como la recuperación. La PWA debe
+deshabilitar el botón «reenviar» un minuto: la respuesta no dice si se
+envió.
 
 **El enlace apunta a la PWA** con la URL de `FRONTEND_URL` o, sin ella, el
 primer origen de `CORS_ALLOWED_ORIGINS`, que en todos los entornos es el de
@@ -2165,6 +2176,13 @@ la PWA y en `prod` ya es obligatorio: así no se suma una variable
 obligatoria. La recuperación de contraseña no arma enlaces (el correo trae un
 token para pegar), así que no había una propiedad que reutilizar. Una URL que
 no sea un origen `http(s)://host[:puerto]` sin ruta no arranca.
+
+**El token va en la query (`?token=`)**, como pidió la tarea, y por eso
+llega al servidor de la PWA y puede quedar en sus registros de acceso
+(Vercel). Se acepta porque el token es de un solo uso, vence en 24 horas y
+deja de servir al confirmar. La alternativa, un fragmento
+(`/confirmar-cuenta#token=…`), que el navegador no envía, queda anotada como
+endurecimiento posible: cambia el contrato con la PWA.
 
 ### El correo tiene que ser verídico: dominio desechable o sin MX
 
@@ -2200,7 +2218,7 @@ para recibir correo ajeno.
 
 | Valor | Adaptador | Uso |
 |---|---|---|
-| `dns` | `auth/infra/DnsVerificadorDeDominioAdapter` | Por defecto en `prod` (literal en `application-prod.yml`, con la variable solo para apagarlo). |
+| `dns` | `auth/infra/DnsVerificadorDeDominioAdapter` | Por defecto en `prod`: `application-prod.yml` dice `${DOMINIO_CORREO_TIPO:dns}`, así que no hace falta definir la variable; solo sirve para apagarlo. |
 | `ninguno` | `auth/infra/SinVerificacionDeDominioAdapter` | Por defecto fuera de `prod` (en local se registran cuentas `@viasegura.test`, sin MX) y fijo en los tests, sin red. |
 
 El adaptador DNS usa el proveedor DNS de JNDI que trae el JDK (sin
@@ -2268,7 +2286,8 @@ contrario.
   siempre; confirmar y entrar; confirmar dos veces; enlace vencido,
   desconocido y reemplazado; reenvío que no enumera (cuenta inexistente,
   confirmada y sin confirmar: misma respuesta, un solo correo), uno por
-  minuto, tope por hora y seis reenvíos simultáneos que crean un solo enlace.
+  minuto, topes por hora y por día, seis reenvíos simultáneos que crean un
+  solo enlace, y que una fila anulada o ya emitida no se emite.
 - `RegistroDominioCorreoIT` (el puerto del DNS simulado): sin MX → 409 sin
   crear la cuenta; desechable (y subdominio con mayúsculas) → 409 sin
   consultar el DNS; DNS caído → registra; el dominio va antes del correo
