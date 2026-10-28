@@ -37,7 +37,7 @@ Hay un carril de backend y uno de frontend en paralelo. En un mismo sprint el fr
 | S4 | US-11 (endpoint de densidad) · BE-06 (incluye `ReincidenciaDetector` → `domain/`) · BE-10 | US-11 (capa de calor) · FE-06 | v0.5.0 |
 | S5 | NC-01 · NC-02 | US-19 · FE-07 · FE-08 | v0.6.0 |
 | Despliegue | DEP-01..DEP-05 · DEP-08 · DEP-11 · DEP-12 · correcciones de QA-1 · CI (DEP-07) | DEP-06 · correcciones de QA-1 · fase 1 del diseño «Cívica» (DIS-1, con US-23) | v0.7.0 |
-| S7 | NC-03a (`inferencia/`) · NC-04 (`clasificacion`) · NC-04b (adaptador HTTP de `clasificacion` al servicio `inferencia/`) · DEP-13 (servicio `inferencia` en Railway, solo por la red privada) · BE-11 (la foto se sube fuera de la transacción de creación) · BE-12 (refresco asíncrono y coalescido del índice) · BE-15 (las cuentas sin confirmar se borran a los 30 días) · NC-09 (confirmación del correo, #122) · NC-10a (`inferencia/`: moderación de la foto, `/v1/moderacion`) · NC-10b (módulo `moderacion`: foto y texto) · NC-11a (ocultar y denunciar) | NC-04 (vista previa al reportar) · FE-09 (adelantada) · atribución de RDD2022 (CC BY-SA 4.0) y de los pesos RF-DETR (Apache-2.0) en «Acerca de» o en los términos · aviso de que la foto se analiza automáticamente (nueva versión de los términos, D-12) · NC-09 (confirmación del correo en la PWA, #123) · NC-10c (avisos de moderación) · NC-11b (denunciar y bandeja de moderación del ADMIN) | v0.8.0 |
+| S7 | NC-03a (`inferencia/`) · NC-04 (`clasificacion`) · NC-04b (adaptador HTTP de `clasificacion` al servicio `inferencia/`) · DEP-13 (servicio `inferencia` en Railway, solo por la red privada) · BE-11 (la foto se sube fuera de la transacción de creación) · BE-12 (refresco asíncrono y coalescido del índice) · BE-13 (las consultas de soporte se borran 3 meses después de respondidas) · BE-14 (cierre de cuenta con anonimización) · BE-15 (las cuentas sin confirmar se borran a los 30 días) · NC-09 (confirmación del correo, #122) · NC-10a (`inferencia/`: moderación de la foto, `/v1/moderacion`) · NC-10b (módulo `moderacion`: foto y texto) · NC-11a (ocultar y denunciar) | NC-04 (vista previa al reportar) · FE-09 (adelantada) · atribución de RDD2022 (CC BY-SA 4.0) y de los pesos RF-DETR (Apache-2.0) en «Acerca de» o en los términos · aviso de que la foto se analiza automáticamente (nueva versión de los términos, D-12) · NC-09 (confirmación del correo en la PWA, #123) · NC-10c (avisos de moderación) · NC-11b (denunciar y bandeja de moderación del ADMIN) | v0.8.0 |
 | S6 | NC-05 · NC-06 · BE-08 | NC-06 (dashboard por periodo, reemplaza US-17 v1) | v0.9.0 |
 | S8 | Ajustes que pida el diseño | **Diseño de la interfaz, fase 2** (mapa con hoja inferior, reporte en pasos, bandeja con panel, portada y desempeño), revisión de cada pantalla y US-24 (guía de uso) | v1.0.0 |
 
@@ -102,6 +102,12 @@ Hay un carril de backend y uno de frontend en paralelo. En un mismo sprint el fr
 
 **BE-11** sale de la deuda de DEP-12 (`propuestas/2026-10-21-fotos-r2.md`, «La regla de §4.5…»): `ReporteService#crear` sube la foto a R2 **dentro** de su `@Transactional` y retiene una conexión del pool durante la red (~100–500 ms). La propuesta sugería resolverla con NC-04; NC-04 no la tomó (revisión del 25/10) y queda como tarea propia del S7. Va junto con borrar el objeto huérfano en `afterCompletion` cuando la transacción se revierte.
 
+**BE-13 y BE-14** salen de los plazos de conservación que fijó el usuario el 26/10 para los términos v2 (`legal/terminos-y-privacidad-v2.md` §8). Lo que prometen los términos el sistema tiene que cumplirlo:
+- **BE-13:** hoy nada borra las consultas de soporte.
+- **BE-14:** hoy no existe forma de cerrar una cuenta (`backend/README.md`, «inactivo»), aunque los términos v1 ya lo ofrecían por soporte.
+
+Van en la v0.8.0, junto con los términos v2. Fichas: `plan-migracion-capas.md`.
+
 **BE-12** es la opción A de `propuestas/2026-10-22-refresco-indice-asincrono.md`, aceptada por el usuario el 25/10.
 - **Qué hace:** `IndiceDesempenoRefreshListener` deja de refrescar en el hilo de la petición. Marca el índice como sucio y encola una tarea `@Async` en el executor acotado, que refresca mientras la marca siga puesta. Una ráfaga de eventos produce pocos `REFRESH` y siempre uno final.
 - **Por qué va con BE-11:** las dos tocan la creación del reporte, así que conviene probarlas juntas.
@@ -114,7 +120,7 @@ Hay un carril de backend y uno de frontend en paralelo. En un mismo sprint el fr
   - Backend en #122, ya en `develop`; PWA en #123.
   - El registro deja de devolver sesión, así que **las dos partes salen en la misma versión**.
 - **BE-15:** borra las cuentas que nunca se confirman, 30 días después de crearlas (`propuestas/2026-10-28-cuentas-sin-confirmar.md`). Una cuenta sin confirmar tampoco puede restablecer la contraseña. La ficha la escribe el agente de backend en `plan-migracion-capas.md`.
-- Los términos v2 prometen las dos (§2 y §8). Por eso van en la v0.8.0, junto con los plazos de los mismos términos que cubren BE-13 y BE-14 (sus fichas llegan con el PR #116).
+- Los términos v2 prometen las dos (§2 y §8). Por eso van en la v0.8.0, junto con BE-13 y BE-14, que cumplen los otros plazos de los mismos términos.
 
 **La moderación entra al S7 (decisión del usuario del 28/10).** Propuesta `propuestas/2026-10-28-moderacion-de-contenido.md` (decidida) y D-15 en ARCHITECTURE.md. Fichas y criterios: `plan-migracion-capas.md`, NC-10 y NC-11.
 - **Qué entra:**
