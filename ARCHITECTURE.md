@@ -1,7 +1,7 @@
 # Arquitectura de software — Ciudad Viva
 
 > **Documento normativo.** Define las capas, qué va en cada una y qué puede depender de qué, igual para `backend/`, `frontend/` y el futuro `inferencia/`. Los agentes de cada carpeta lo siguen; no lo modifican salvo pedido explícito (ver §10).
-> Versión 1.5 · 2026-10-20 (D-13 y D-14 decididas) · Plan de migración: `project-context/decisions/plan-migracion-capas.md`.
+> Versión 1.6 · 2026-10-28 (D-15: moderación de contenido) · Plan de migración: `project-context/decisions/plan-migracion-capas.md`.
 
 ## 1. Principios
 
@@ -79,19 +79,26 @@ De otro módulo solo se usa su **API pública**: `service`, `domain`, `event`, `
 | `common` | Seguridad JWT, errores, configuración web, utilitarios geo, almacenamiento de fotos (`port/FotoStorageService` con `infra/LocalFotoStorageService` y `infra/S3FotoStorageService`, más `port/SaneadorDeImagen`; D-11, DEP-12) y correo saliente (`port/CorreoSaliente` con `infra/SmtpCorreoAdapter` y `infra/ResendCorreoAdapter`; DEP-08: lo usan `auth`, `soporte` y `notificaciones`). | — | — | existe |
 | `distritos` | 43 distritos y sus polígonos; resolución por coordenadas. | (geometría de MUNICIPALIDAD) | common | existe |
 | `municipalidades` | Canal oficial, periodos de gestión y requisitos de recepción. Cada municipalidad referencia a su distrito (D-09). | MUNICIPALIDAD, GESTION_MUNICIPAL, PERIODO_GESTION, REQUISITO_RECEPCION | distritos | **nuevo** |
-| `auth` | Cuentas, credenciales, perfil y consentimiento. | USUARIO, CONSENTIMIENTO | distritos, municipalidades | existe + CONSENTIMIENTO |
-| `clasificacion` | Sugerir la categoría de una foto: puerto al servicio de inferencia, umbral y clase dominante. | (escribe `categoria_sugerida_id`, `confianza_sugerencia` y `version_modelo_sugerencia` vía reportes) | — | **nuevo** |
-| `reportes` | Ciclo del reporte: creación, adhesión, gestión, historial, categorías, fotos, idempotencia, confirmación. | REPORTE, CIUDADANO_AFECTADO, HISTORIAL_ESTADO, CATEGORIA_DANO | auth, distritos, municipalidades, clasificacion | existe |
+| `auth` | Cuentas, credenciales, perfil y consentimiento. | USUARIO, CONSENTIMIENTO | distritos, municipalidades, moderacion | existe + CONSENTIMIENTO |
+| `moderacion` | Revisión automática del contenido antes de publicar (D-15). Rechaza una foto con contenido sexual u obsceno, con el puerto `ModeradorDeImagen` al servicio de inferencia (`/v1/moderacion`) y `PoliticaDeModeracion` (umbral). Rechaza un texto con groserías, con `FiltroDeGroserias`, una regla pura sobre una lista versionada. No guarda nada. | — | — (solo `common`) | **nuevo** |
+| `clasificacion` | Sugerir la categoría de una foto: puerto al servicio de inferencia, umbral y clase dominante. | (escribe `categoria_sugerida_id`, `confianza_sugerencia` y `version_modelo_sugerencia` vía reportes) | moderacion (vista previa) | **nuevo** |
+| `reportes` | Ciclo del reporte: creación, adhesión, gestión, historial, categorías, fotos, idempotencia, confirmación. También el ocultamiento por el ADMIN y las denuncias (D-15). | REPORTE, CIUDADANO_AFECTADO, HISTORIAL_ESTADO, CATEGORIA_DANO (+ DENUNCIA_REPORTE, fuera del OB2) | auth, distritos, municipalidades, clasificacion, moderacion | existe |
 | `notificaciones` | Avisos al ciudadano (push o email) y **correo formal a la municipalidad**. | SUSCRIPCION_PUSH, ENVIO_CORREO | auth, municipalidades, reportes (event) | existe + 2 entidades |
 | `desempeno` | KPIs por municipalidad y periodo de gestión (dashboard RF-09). | (vista materializada) | municipalidades, reportes (event) | existe; se rehace por periodo |
 | `soporte` | Tickets de soporte. | — | auth | existe |
 
-Grafo, sin ciclos: `common ← distritos ← municipalidades ← auth ← reportes ← {notificaciones, desempeno}`, `clasificacion ← reportes`, `auth ← soporte`.
+Grafo, sin ciclos: `common ← distritos ← municipalidades ← auth ← reportes ← {notificaciones, desempeno}`, `clasificacion ← reportes`, `auth ← soporte`, `moderacion ← {auth, clasificacion, reportes}`. `moderacion` solo usa `common`. Por eso ocultar y denunciar viven en `reportes`: si vivieran en `moderacion`, ese módulo usaría `reportes` y habría un ciclo.
 
 **Flujo del núcleo nuevo** (para ubicar cada pieza):
 
-1. **Vista previa (solo UX, W-07/W-08).** `clasificacion.controller` recibe la foto (`POST /api/clasificaciones`). `ClasificacionService` llama a `port/ClasificadorDano`, que implementa `infra/InferenciaHttpAdapter` (RestClient a `inferencia/`, con timeout). Luego aplica `domain/PoliticaDeSugerencia` (umbral y clase dominante) y devuelve la sugerencia o “sin sugerencia”. **No guarda nada.** Si el servicio falla, la respuesta es “sin sugerencia” y el ciudadano elige la categoría a mano.
+1. **Vista previa (solo UX, W-07/W-08).** `clasificacion.controller` recibe la foto (`POST /api/clasificaciones`).
+   - `ClasificacionService` la sanea y primero la pasa por `moderacion.service.ModeracionService` (D-15). Si la foto se rechaza, responde `fotoRechazada: true` y no clasifica.
+   - Si pasa, llama a `port/ClasificadorDano`, que implementa `infra/InferenciaHttpAdapter` (RestClient a `inferencia/`, con timeout). Luego aplica `domain/PoliticaDeSugerencia` (umbral y clase dominante) y devuelve la sugerencia o “sin sugerencia”.
+   - **No guarda nada.** Si el servicio falla, la respuesta es “sin sugerencia” y el ciudadano elige la categoría a mano. Si la moderación no responde, la vista previa sigue sin avisar: el veredicto oficial es el de la creación.
 2. **Creación.** `reportes.service` crea el reporte solo con la categoría que **confirmó** el ciudadano. `CrearReporteRequest` no tiene campos de sugerencia, y si el cliente los envía se ignoran (D-08).
+   - **Antes de abrir la transacción** se revisan el texto (`FiltroDeGroserias`: 400 `TEXTO_NO_PERMITIDO`) y la foto, ya saneada una sola vez (`ModeradorDeImagen`: 400 `FOTO_NO_PERMITIDA`).
+   - Si la moderación no responde, la creación **falla cerrada**: 503 `MODERACION_NO_DISPONIBLE`, y la PWA ofrece la cola sin conexión o «Enviar sin foto» (D-15).
+   - Una foto rechazada nunca se guarda.
 3. **Sugerencia oficial (D-08).** `reportes.listener.SugerenciaCategoriaListener` escucha `ReporteCreadoEvent` (solo reportes nuevos con foto, no adhesiones) con `AFTER_COMMIT`. Sigue el patrón de D-13, porque hay E/S externa (§4.5): el listener solo encola. Después:
    - `reportes.service.SugerenciaCategoriaService` (`@Async` en el executor acotado de `AsyncConfig`, **sin transacción**) lee la foto guardada por `common.port.FotoStorageService` (D-11) y la clasifica con `clasificacion.service.ClasificacionService`.
    - Una transacción corta escribe `categoria_sugerida_id`, `confianza_sugerencia` y `version_modelo_sugerencia` con un `UPDATE` que solo actúa **si siguen nulos** (idempotente).
@@ -101,7 +108,7 @@ Grafo, sin ciclos: `common ← distritos ← municipalidades ← auth ← report
    Para no crear un ciclo entre módulos (`reportes` ya depende de `clasificacion`), las categorías que se pueden sugerir llegan por el puerto `clasificacion.port.CategoriasClasificables`, que implementa `reportes.infra.JpaCategoriasClasificablesAdapter` (NC-04, 25/10).
 4. `reportes.service.ConfirmacionReporteService` evalúa la regla “reporte confirmado” (campos completos, municipalidad asignada y requisitos de `municipalidades`) y publica `event/ReporteConfirmadoEvent`.
 5. `notificaciones.listener.ReporteConfirmadoListener` crea ENVIO_CORREO (como máximo uno por reporte) y envía por `common/port/CorreoSaliente` (desde DEP-08 vive en `common`, porque también lo usan `auth` y `soporte`; adaptadores `common/infra/SmtpCorreoAdapter` y `common/infra/ResendCorreoAdapter`, elegidos con `CORREO_TIPO`). Los reintentos se registran en `intentos`.
-6. `desempeno.listener` refresca los KPIs. Un reporte cuenta en el periodo de su `fecha_creacion`.
+6. `desempeno.listener` refresca los KPIs. Un reporte cuenta en el periodo de su `fecha_creacion`. Un reporte **oculto por el ADMIN** (`reporte.oculto`) no cuenta, y ocultarlo o restablecerlo publica `ReporteVisibilidadCambiadaEvent`, que refresca el índice (D-15).
 
 ### 4.4 Cómo se verifica
 
@@ -216,6 +223,13 @@ inferencia/
 `POST /v1/detecciones` (multipart `imagen`) → `{ "version_modelo": str, "detecciones": [{ "clase": str, "confianza": float, "caja": [x1, y1, x2, y2] }] }`.
 El servicio **solo detecta**. El umbral y la clase dominante se aplican en la API (`clasificacion/domain/PoliticaDeSugerencia`).
 
+**Moderación** (D-15; la consume `moderacion/infra`):
+- `POST /v1/moderacion` (multipart `imagen`) → `{ "version_modelo": str, "puntaje": float }`, con los mismos errores, la misma validación previa y el mismo tope de conexiones que `/v1/detecciones`.
+- `puntaje` es la probabilidad de contenido sexual explícito. Es el máximo de dos recortes de 384 px que cubren toda la foto, y siempre se devuelve: no hay piso.
+- El servicio **solo mide**. El umbral (0,70 inicial, `MODERACION_UMBRAL`) lo aplica `moderacion/domain/PoliticaDeModeracion`.
+- La moderación tiene su propio limitador y su propio candado de modelo, y corre con 1 hilo fijo.
+- **Modelo:** Marqo `nsfw-image-detection-384`, revisión `0c26ec2` (Apache-2.0, ViT-Tiny, ~22 MB en ONNX). Se exporta en el `Dockerfile` con el hash registrado, como RF-DETR.
+
 **Modelo y vocabulario** (decisión del usuario del 21/10, `project-context/decisions/propuestas/2026-10-21-ml-clases-modelo.md`):
 - Pesos RF-DETR entrenados en RDD2022 (Apache-2.0), exportados a ONNX, con base `dronefreak/rdd2022-rfdetr-nano`. Si la latencia en 2 vCPU pasa de 1 s, la propuesta permite otra resolución o el tamaño S; el cambio se registra en NC-03a. No se usan los YOLO de Ultralytics, que son AGPL.
 - Los valores de `clase` son **`bache`** (D40) y **`grieta`** (D00, D10 y D20). Las demás clases del modelo se descartan en el servicio.
@@ -227,6 +241,7 @@ El servicio **solo detecta**. El umbral y la clase dominante se aplican en la AP
 |---|---|---|---|
 | API REST (OpenAPI en `/v3/api-docs`) | backend | frontend | El backend cambia `dto/` y hace commit; después el frontend corre `npm run api:sync` y ajusta `model/`. |
 | Detección de daños | inferencia | backend (`clasificacion/infra`) | Versión en la ruta (`/v1`). Un cambio incompatible pasa a `/v2`. |
+| Moderación de imágenes (D-15) | inferencia | backend (`moderacion/infra`) | Igual: `/v1/moderacion`, con su handoff. |
 
 Un agente **nunca** supone un campo que el otro lado todavía no publicó.
 
@@ -235,7 +250,8 @@ Un agente **nunca** supone un campo que el otro lado todavía no publicó.
 | Entidad | Módulo / paquete | Tabla actual | Acción |
 |---|---|---|---|
 | USUARIO | `auth.domain.Usuario` | `usuario` | Jurisdicción del funcionario: **pendiente (D-10)**. Con D-09 la relación es 1:1, así que `distrito_id` y `municipalidad_id` son equivalentes. |
-| REPORTE | `reportes.domain.Reporte` | `reporte` | + `titulo`, `severidad`, `categoria_sugerida_id`, `confianza_sugerencia`, `version_modelo_sugerencia`, `periodo_gestion_id`. La sugerencia (NC-04) la escribe una vez `SugerenciaCategoriaListener`; es una señal interna y no va en ningún DTO público ni del ciudadano. |
+| REPORTE | `reportes.domain.Reporte` | `reporte` | + `titulo`, `severidad`, `categoria_sugerida_id`, `confianza_sugerencia`, `version_modelo_sugerencia`, `periodo_gestion_id`. La sugerencia (NC-04) la escribe una vez `SugerenciaCategoriaListener`; es una señal interna y no va en ningún DTO público ni del ciudadano. + `oculto` y `foto_oculta` (NC-11, D-15): los cambia solo el ADMIN y no van en ningún DTO público; un reporte oculto sale del índice. |
+| DENUNCIA_REPORTE (fuera del OB2) | `reportes.domain.DenunciaReporte` | `denuncia_reporte` | Migración nueva (NC-11). Una por ciudadano y reporte. Solo la ven los DTO del ADMIN. Entra en `limpiezaFkSafe()`. |
 | CIUDADANO_AFECTADO | `reportes.domain.AdhesionReporte` | `adhesion_reporte` | Mantener la tabla; decidir si `total_adhesiones` se elimina (contradicción 1 del análisis). |
 | HISTORIAL_ESTADO | `reportes.domain.HistorialEstadoReporte` | `historial_estado_reporte` | Sin cambio. |
 | CATEGORIA_DANO | `reportes.domain.CategoriaDano` | `categoria_dano` | + `icono`, `clase_modelo` (único si no es nulo; Bache → `bache`, Pista deteriorada → `grieta`). La categoría estándar «Hueco en calzada» se desactiva: en una foto no se distingue de «Bache» (decisión del 21/10, migración de NC-04). |
@@ -260,6 +276,7 @@ Un agente **nunca** supone un campo que el otro lado todavía no publicó.
 | D-12 | **El consentimiento es un historial por finalidad y versión**: tabla `consentimiento` en `auth` (`usuario_id`, `finalidad` = `TERMINOS_Y_PRIVACIDAD` \| `NOTIFICACIONES_PUSH` \| `NOTIFICACIONES_CORREO`, `version_documento`, `aceptado_en`, `revocado_en`). Cada aceptación es una fila nueva y revocar llena `revocado_en`. El registro (US-01) exige aceptar los términos vigentes. Los usuarios existentes ven una pantalla de aceptación en su próximo inicio de sesión, sin que se los dé por aceptados. Suscribirse a push (US-21) exige el consentimiento `NOTIFICACIONES_PUSH` vigente. `preferencia_notificacion` sigue siendo una **preferencia**; el consentimiento es el **permiso** (decisión del usuario, 13/10; propuesta `decisions/propuestas/2026-10-13-consentimiento.md`; se implementa en S3 como NC-07b). | Solo términos en dos columnas de `usuario`: no distingue finalidades ni guarda la revocación, que pide la Ley N.° 29733. Esperar el OB2: US-21 quedaría sin un consentimiento explícito para push. |
 | D-13 | **Las notificaciones hacen su I/O fuera de la transacción** (decisión del usuario, 20/10; propuesta `decisions/propuestas/2026-10-20-notificaciones-fuera-de-transaccion.md`). El listener `AFTER_COMMIT` solo encola en el executor acotado de `AsyncConfig` (2–4 hilos, cola 100, con la cola llena descarta y registra el aviso perdido); `NotificacionService.notificarCambioEstado` es `@Async` y no transaccional: envía por correo/push y luego guarda cada `notificacion` en una transacción corta. Así ni el funcionario espera al servicio de push ni se retienen conexiones del pool durante HTTP/SMTP. | `REQUIRES_NEW` alrededor del envío: con un servicio de push lento retiene dos conexiones por cambio de estado y puede agotar el pool. `TransactionTemplate` dentro del servicio: el mismo efecto con más código. |
 | D-14 | **La coordinación del cierre de sesión vive en `src/lib/sesion/`** (decisión del usuario, 20/10; propuesta `decisions/propuestas/2026-10-20-coordinacion-cierre-sesion.md`): capa de aplicación compartida para pasos que una feature registra y `auth` ejecuta antes de cerrar (p. ej. la pregunta por los reportes sin enviar de US-06), sin que `auth` conozca a esa feature. | Dejarlo en `lib/hooks/`: no es un hook, y esa carpeta queda reservada al patrón de carga. Un contexto de React en `app/`: obliga a envolver la app y a pasar el registro por props. |
+| D-15 | **Moderación de contenido antes de publicar** (decisión del usuario, 28/10; propuesta `decisions/propuestas/2026-10-28-moderacion-de-contenido.md`; tareas NC-10 y NC-11, v0.8.0). (1) **Módulo `moderacion`**, que solo usa `common` y lo usan `reportes`, `clasificacion` y `auth`. Una foto pasa por el puerto `ModeradorDeImagen` → `POST /v1/moderacion` de `inferencia/`: modelo Marqo `nsfw-image-detection-384` (Apache-2.0), umbral 0,70 en `PoliticaDeModeracion`, sin APIs de terceros. Un texto (título, descripción, comentario y nombre del perfil) pasa por `FiltroDeGroserias`: una lista propia y versionada, comparada por token entero y sin plegar la ñ. Lo rechazado no se guarda. (2) **Falla cerrada:** si la moderación no responde, un reporte con foto recibe 503 `MODERACION_NO_DISPONIBLE` y la PWA ofrece la cola sin conexión o «Enviar sin foto». `MODERACION_TIPO=ninguna` es el interruptor de emergencia. (3) **Ocultar y denunciar viven en `reportes`.** Solo el ADMIN oculta el reporte o su foto, con un motivo que queda en `historial_estado_reporte`. Un reporte oculto sale de lo público, de la bandeja, de la exportación **y del índice**: es la única salida además de `CANCELADO`, y está en manos de un actor que no se mide, así que se mantiene SEC-01. Ocultar solo la foto no mueve el índice. Ocultar o restablecer el reporte publica un evento que refresca el índice. Las denuncias no tienen efecto automático. (4) `/media/fotos/reportes/**` pregunta a la base por el puerto `common/port/VisibilidadDeFotosDeReporte` y la foto lleva `s-maxage=3600`. | Una API de terceros para la foto: los términos prometen que no sale a terceros. NudeNet: AGPL-3.0 sobre YOLOv8, el mismo criterio que en NC-03. Una ViT-base: no cabe en 1 GB junto a RF-DETR. Fallar abierto: rompe «nunca se guarda ni se publica» justo cuando el servicio cae. Ocultar y denunciar en `moderacion`: ciclo con `reportes`. Que el reporte oculto siga contando en el índice: lo que recomendaba la propuesta; el usuario prefirió excluirlo. |
 
 ## 10. Trabajo con varios agentes
 

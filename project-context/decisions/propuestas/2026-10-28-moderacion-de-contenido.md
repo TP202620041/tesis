@@ -1,9 +1,11 @@
 # Propuesta: moderación de contenido al crear un reporte (NC-10 y NC-11)
 
-- **Estado:** abierta en parte. El 28/10 el usuario tomó las 4 decisiones del encargo y, sobre esta propuesta, 4 más: el modelo, la falla, el índice y los términos (ver «Decisiones del usuario sobre esta propuesta»). Quedan abiertas solo las de «Qué decide el usuario».
+- **Estado:** decidida (2026-10-28). El usuario tomó todas las decisiones: las 4 del encargo (1 a 4), 4 más sobre esta propuesta (5 a 8) y las respuestas a las 10 preguntas abiertas (9 a 18). Solo falta que el usuario confirme con su asesor el procedimiento ante material ilegal (decisión 16).
 - **Fecha:** 2026-10-28
 - **Origen:** subagente arquitecto, encargo del coordinador: diseñar la moderación de contenido y dejarla lista para implementar.
-- **Decide:** el usuario. Si se acepta, la sesión de raíz actualiza ARCHITECTURE.md (§4.3, §6, §7, §8 y una fila D-15), el plan de sprints y los términos. Las fichas NC-10 y NC-11 ya están en `plan-migracion-capas.md`.
+- **Decide:** el usuario.
+  - **Ya registrado:** ARCHITECTURE.md (módulo `moderacion`, contrato `/v1/moderacion`, entidades y la fila **D-15**) y las fichas NC-10 y NC-11 de `plan-migracion-capas.md`.
+  - **Falta:** la fila del sprint (§10), que el coordinador pasa a `plan-sprints.md`.
 
 > Licencias, tamaños y precios consultados el **28/10/2026** en las fuentes citadas. Las cifras de RAM y latencia se midieron ese día en el portátil de desarrollo (i7-13620H, Windows, onnxruntime 1.31.1), fuera del repo, y en Railway hay que volver a medirlas. Lo marcado **SUPUESTO** no se verificó. Esto no es asesoría legal.
 
@@ -29,6 +31,27 @@
    - IT que lo prueben;
    - que quede claro en la línea de tiempo.
 8. **Términos:** la moderación va **dentro de la v2**, que todavía no se publicó. No hay v3 (§7).
+
+## Respuestas del usuario a las preguntas abiertas (28/10)
+
+El usuario respondió «Me parece bien» a las 10 recomendaciones:
+
+9. **Calibración del umbral:** solo con fotos negativas (pistas y calles de Lima), con la regla de §1. El equipo no junta material explícito.
+10. **El nombre del perfil también se filtra,** además del título, la descripción y los comentarios. Se filtra al registrarse y al editar el perfil, así que `auth` usa `moderacion`.
+11. **La lista inicial la arma el agente de backend** con los criterios de §5, y el usuario la aprueba en el PR de NC-10b.
+12. **El reporte y la foto se ocultan por separado,** y la foto oculta se conserva en privado hasta restablecerla, sin borrarla. **Ocultar solo la foto no saca al reporte del índice.**
+13. **El reporte oculto sale también de la bandeja municipal** (y de su detalle de gestión). `ReporteGestionResponse` no gana ningún campo.
+14. **Caché:** `s-maxage=3600` en la foto de reporte, más la purga manual en el panel de Cloudflare para los casos urgentes. No hay token de purga.
+15. **Denuncias:** los motivos propuestos (`CONTENIDO_SEXUAL`, `OFENSIVO`, `DATOS_PERSONALES`, `FALSO`, `OTRO`), un máximo de 10 por ciudadano al día, y se conservan mientras exista el reporte. Al cerrar la cuenta se anonimizan (BE-14).
+16. **Material ilegal** (una foto oculta que resulta ser abuso sexual infantil). El ADMIN:
+    - oculta de inmediato el reporte;
+    - no lo borra, no lo descarga ni lo reenvía;
+    - lo conserva en privado;
+    - lo denuncia ante la Policía Nacional (DIVINDAT, División de Investigación de Delitos de Alta Tecnología) o el Ministerio Público.
+
+    **El usuario lo confirma con su asesor** antes de abrir a usuarios reales. Va al runbook.
+17. **Versión:** NC-10 y NC-11 entran en la **v0.8.0**, junto con los términos v2. La fila del sprint queda propuesta en §10.
+18. **ARCHITECTURE.md:** sí al módulo `moderacion` y a la fila **D-15**.
 
 ## Contexto
 
@@ -108,7 +131,7 @@ Fuentes, consultadas el 28/10/2026:
 - Según la gráfica del autor, a 0,7 la cobertura de NSFW es de ~0,96 y la precisión de ~0,99.
 - Como el modelo usa *label smoothing*, la salida queda entre ~0,05 y ~0,95, así que un umbral por encima de 0,9 deja pasar casi todo.
 
-**Calibración (en NC-10a, con el script nuevo `scripts/calibrar_moderacion.py`; pregunta abierta 1).**
+**Calibración (en NC-10a, con el script nuevo `scripts/calibrar_moderacion.py`; decisión 9).**
 - **Conjunto negativo, fuera del repo:**
   - ≥ 300 fotos de RDD2022;
   - las ≥ 200 fotos de Lima de NC-03b, cuando existan;
@@ -126,7 +149,7 @@ Fuentes, consultadas el 28/10/2026:
 | **A. `POST /v1/moderacion` nuevo** | Una responsabilidad por endpoint. La creación (síncrona) llama solo a moderación, y la sugerencia oficial (asíncrona, D-08) solo a detección. Agregar una ruta a `/v1` es compatible. Cada modelo tiene su propia versión, su propio límite y su propio log | La vista previa hace dos llamadas internas en vez de una, por la red privada y con la foto ya saneada |
 | B. Sumar `moderacion` a la respuesta de `/v1/detecciones` | Una sola llamada en la vista previa | La creación correría RF-DETR (~0,4 s) solo para moderar, y la sugerencia oficial correría la moderación sin usarla. Cambia la forma de un contrato ya publicado. Mezcla un modelo de UX con uno de seguridad, que tienen tolerancias distintas |
 
-**Recomendación: A.**
+**Decidido (D-15, 28/10): A.**
 
 ### Contrato propuesto (lo publica `inferencia/` en NC-10a, con su handoff)
 
@@ -164,7 +187,7 @@ GET /salud                     200 { "estado": "ok", "version_modelo": "…", "v
 | B. Dentro de `clasificacion` | Reutiliza la URL y la configuración de NC-04b | Mezcla «sugerir la categoría» (UX, nunca bloquea) con «rechazar contenido» (seguridad, bloquea). El filtro de texto no tiene nada que ver con fotos |
 | C. Dentro de `reportes` | Sin módulo nuevo | La vista previa (`clasificacion`) tendría que depender de `reportes`, y `reportes` ya depende de `clasificacion`: **ciclo** |
 
-**Recomendación: A.** Ocultar y denunciar (NC-11) **no** van en `moderacion`, sino en `reportes`. Si fueran a `moderacion`, ese módulo dependería de `reportes`, y `reportes` de él: otro ciclo.
+**Decidido (D-15, 28/10): A**, con `auth` como tercer usuario del módulo por el nombre del perfil (decisión 10). Grafo: `moderacion ← auth`, `moderacion ← clasificacion` y `moderacion ← reportes`, sin ciclos, porque `moderacion` solo depende de `common`. Ocultar y denunciar (NC-11) **no** van en `moderacion`, sino en `reportes`. Si fueran a `moderacion`, ese módulo dependería de `reportes`, y `reportes` de él: otro ciclo.
 
 **El adaptador HTTP** (`MODERACION_TIPO=http`) sigue el patrón de `InferenciaHttpAdapter`:
 - `RestClient` sobre el `HttpClient` del JDK, con HTTP/1.1 explícito y sin dependencias nuevas;
@@ -247,7 +270,7 @@ El 400 con `codigo` y el campo en `details` necesita `common/exception/Contenido
 | [LDNOOBW](https://github.com/LDNOOBW/List-of-Dirty-Naughty-Obscene-and-Otherwise-Bad-Words), archivo `es` (68 entradas) | CC BY-4.0, que exige atribución | Es de España y mezcla temas que no son groserías: violencia («asesinato»), drogas («heroína», «drogas»), palabras comunes («martillo», «infierno», «concha», «sexo»). En un reporte vial («casi hay un asesinato por este hueco») daría falsos positivos |
 | **Lista propia, versionada** | La del repositorio. No copia ninguna lista de terceros | La tiene que armar y revisar el equipo, que habla español peruano |
 
-**Recomendación: lista propia** en `backend/src/main/resources/moderacion/groserias-es-pe.txt`, con una cabecera que dice la versión, la fecha y los criterios. **El usuario aprueba la versión inicial** en el PR de NC-10b.
+**Decidido (28/10, decisión 11): lista propia** en `backend/src/main/resources/moderacion/groserias-es-pe.txt`, con una cabecera que dice la versión, la fecha y los criterios. La arma el agente de backend y **el usuario aprueba la versión inicial** en el PR de NC-10b.
 
 **Qué entra:**
 - insultos y vulgaridades sexuales **inequívocos** en el uso peruano, con sus formas comunes: plural, femenino, aumentativo y abreviaturas como «ctm», «csm» o «ptm»;
@@ -267,8 +290,8 @@ Lo que la lista no atrapa lo atrapa la denuncia (NC-11).
 | Campo | ¿Se filtra? | Por qué |
 |---|---|---|
 | Título y descripción, al crear y al editar | **Sí** (decisión 3 y su par natural: el título también es público) | Se publican en el mapa y en el detalle |
-| Comentario público (US-27) | **Sí, recomendado** | Es público y es el sitio más probable para un insulto |
-| Nombre del perfil (registro y edición) | **Pregunta abierta 2; recomendado sí** | Se muestra junto a cada comentario. Llevaría el filtro también a `auth` (`moderacion ← auth`, sin ciclo) |
+| Comentario público (US-27) | **Sí** (decisión 10) | Es público y es el sitio más probable para un insulto |
+| Nombre del perfil (registro y edición) | **Sí** (decisión 10) | Se muestra junto a cada comentario. Llevaría el filtro también a `auth` (`moderacion ← auth`, sin ciclo) |
 | Tickets de soporte, responsable asignado, categorías de distrito | No | Son privados o los escribe el personal municipal |
 
 ### Normalización y comparación
@@ -362,7 +385,7 @@ Detalles:
 | | Público (mapa, búsqueda, detalle, densidad, comentarios) | Creador | Adheridos | Funcionario (bandeja, detalle, exportación) | ADMIN |
 |---|---|---|---|---|---|
 | **Foto oculta** | El reporte sigue visible, con `fotoUrl` en `null`, y la URL de la foto da 404 | Igual, más el evento con el motivo en su línea de tiempo | Igual que el público | El reporte sin foto, en la bandeja y en la exportación. **Sigue contando en el índice** | Todo, y la foto por su endpoint |
-| **Reporte oculto** | Fuera: 404 en el detalle y en los comentarios; no aparece en la búsqueda, el área, la densidad ni en `mis-adhesiones` | Lo sigue viendo en «Mis reportes» (sin foto), con el evento, el motivo y el aviso de que no cuenta en el índice. No puede comentar ni recibir comentarios | Desaparece de su lista | **Sale del índice y de la exportación** (decisión 7). La bandeja es la pregunta abierta 5: se recomienda que salga también. Si se queda, lleva `ocultoPorModeracion: true` en `ReporteGestionResponse` (DTO interno, como `posibleReincidencia`) | Todo |
+| **Reporte oculto** | Fuera: 404 en el detalle y en los comentarios; no aparece en la búsqueda, el área, la densidad ni en `mis-adhesiones` | Lo sigue viendo en «Mis reportes» (sin foto), con el evento, el motivo y el aviso de que no cuenta en el índice. No puede comentar ni recibir comentarios | Desaparece de su lista | **Sale del índice, de la exportación** (decisión 7) **y de la bandeja**, junto con su detalle de gestión (decisión 13). El funcionario no puede cambiarle el estado mientras esté oculto (404) | Todo |
 
 - **Deduplicación (US-09):** `findReporteActivoCercano` ignora los reportes ocultos. Si no lo hiciera, un reporte nuevo y legítimo en el mismo lugar se convertiría en una adhesión invisible. Con solo la foto oculta, la deduplicación sigue igual.
 - **Calificación (US-26):** mientras el reporte esté oculto, su calificación no cuenta en el índice, porque la vista la une a través del reporte. Al restablecerlo vuelve a contar.
@@ -375,7 +398,7 @@ Detalles:
 | **A. El resolver pregunta a la base** | `WebMvcConfig` consulta un puerto nuevo, `common/port/VisibilidadDeFotosDeReporte#esPublica(nombre)`, que implementa `reportes/infra/JpaVisibilidadDeFotosAdapter`. Es el mismo patrón que `clasificacion.port.CategoriasClasificables`. Responde 404 si la foto no pertenece a un reporte con `NOT oculto AND NOT foto_oculta` | Atómico con la transacción que oculta. Restablecer es cambiar un booleano. Una foto huérfana (sin reporte) deja de servirse, y se ahorra la llamada a R2 en un 404 | Una consulta indexada por cada foto que llega al origen. Es poco frente a la lectura de R2 que ya se hace |
 | B. Mover el objeto | Pasar `<uuid>.jpg` a `ocultas/<uuid>.jpg` en el mismo bucket, que el resolver nunca resuelve | No consulta la base | No es atómico con la base (necesita compensación). Suma tres métodos al puerto, implementados en los dos adaptadores |
 
-**Recomendación: A.**
+**Decidido (D-15, 28/10): A.**
 
 **La caché.** Hoy la foto sale con `max-age` de 30 días, `immutable`, y Cloudflare puede guardarla en el borde. Ocultarla no la borra de ahí.
 
@@ -385,9 +408,14 @@ Detalles:
 | 2. Purga por URL desde el backend | Inmediata | Un secreto nuevo (token de Cloudflare con permiso *Cache Purge*) y un adaptador. La purga por URL existe en el plan Free ([docs](https://developers.cloudflare.com/cache/how-to/purge-cache/purge-by-single-file/), 28/10/2026) |
 | 3. Purga manual | El ADMIN purga la URL en el panel de Cloudflare | Un paso del runbook |
 
-**Recomendación: 1, más 3 para los casos urgentes.** Lo que un navegador ya descargó no se puede retirar: queda en su caché hasta 30 días.
+**Decidido (28/10, decisión 14): 1, más 3 para los casos urgentes.** Lo que un navegador ya descargó no se puede retirar: queda en su caché hasta 30 días.
 
-Si la foto oculta fuera material de abuso sexual infantil, el ADMIN sigue un procedimiento legal que no es técnico (a quién avisar y qué conservar). El runbook debería decirlo; **lo define el usuario**.
+**Material ilegal (decisión 16).** Si la foto oculta fuera material de abuso sexual infantil, el ADMIN:
+- oculta el reporte de inmediato;
+- no lo borra, no lo descarga ni lo reenvía, y lo conserva en privado;
+- lo denuncia ante la Policía Nacional (DIVINDAT) o el Ministerio Público.
+
+**El usuario lo confirma con su asesor** antes de abrir a usuarios reales. El procedimiento va al runbook (`docs/despliegue.md`).
 
 ### Línea de tiempo
 
@@ -463,58 +491,54 @@ La imagen de `inferencia` crece unos 22 MB (de 637 a ~660 MB), lo que no tiene c
 
 | Dónde | Cambio |
 |---|---|
-| **Normas** (sesión de raíz, si se acepta) | `ARCHITECTURE.md` §4.3 suma la fila del módulo `moderacion` y el grafo; §6 y §7, el contrato `/v1/moderacion`; §8, `reporte.oculto` y `foto_oculta` y la entidad DENUNCIA_REPORTE en `reportes`; §9, la fila **D-15** con el módulo, la falla cerrada y el resolver de fotos |
+| **Normas** (hecho el 28/10, en la rama de esta propuesta) | `ARCHITECTURE.md` versión 1.6: §4.3 suma la fila del módulo `moderacion`, el grafo y el paso de la moderación en el flujo del núcleo; §6 y §7, el contrato `/v1/moderacion`; §8, `reporte.oculto` y `foto_oculta` y la entidad DENUNCIA_REPORTE en `reportes`; §9, la fila **D-15** |
 | **Contrato `inferencia` → backend** | `POST /v1/moderacion` y `version_moderacion` en `/salud`, los dos compatibles. Handoff en NC-10a |
-| **Contrato backend → PWA** | `fotoRechazada` en `ClasificacionResponse`; los códigos `FOTO_NO_PERMITIDA`, `TEXTO_NO_PERMITIDO` y `MODERACION_NO_DISPONIBLE`; las rutas de denuncia y de moderación del ADMIN; los 4 tipos de evento del historial; `ocultoPorModeracion` en `ReporteGestionResponse`, solo si el reporte oculto se queda en la bandeja (pregunta 5). Cada uno con su `/contrato` |
+| **Contrato backend → PWA** | `fotoRechazada` en `ClasificacionResponse`; los códigos `FOTO_NO_PERMITIDA`, `TEXTO_NO_PERMITIDO` y `MODERACION_NO_DISPONIBLE`; las rutas de denuncia y de moderación del ADMIN; los 4 tipos de evento del historial. `ReporteGestionResponse` no cambia, porque el reporte oculto sale de la bandeja (decisión 13). Cada uno con su `/contrato` |
 | **Migraciones** | NC-10: ninguna. NC-11: una, con las columnas, el historial, `denuncia_reporte` y la vista del índice creada de nuevo sin los reportes ocultos |
 | **Índice** | Evento `ReporteVisibilidadCambiadaEvent` y un manejador más en `IndiceDesempenoRefreshListener` (decisión 7) |
 | **Tests** | Los de cada ficha. **Nunca hay imágenes explícitas en el repo ni en la CI.** Los mínimos de la CI (`MIN_PYTEST_INFERENCIA`, `MIN_SUREFIRE`, `MIN_IT_FAILSAFE`) los sube la sesión de raíz al fusionar |
 | **Despliegue** | Variables `MODERACION_TIPO`, `MODERACION_URL` y `MODERACION_UMBRAL` en el backend, e `INFERENCIA_MODERACION_HILOS=1` en `inferencia`. Healthcheck `/salud` en Railway. Runbook: el interruptor `ninguna` (§10), la purga manual de una URL y el procedimiento ante material ilegal. Orden: NC-10a desplegado antes que el backend con `http` |
 | **Otras tareas** | BE-11 (la foto sin transacción) va antes que NC-10b. BE-12 (el refresco asíncrono) también cubre el evento nuevo. BE-14 anonimiza `denuncia_reporte`. NC-06 (índice por periodo), cuando rehaga la vista, conserva el filtro `NOT r.oculto` |
 
-## 10. Plan de sprints (fila propuesta, no editada)
+## 10. Plan de sprints (fila propuesta, que el coordinador pasa a `plan-sprints.md`)
+
+Decisión 17: NC-10 y NC-11 entran en la **v0.8.0**, junto con los términos v2. Por eso no se abre un sprint aparte: se suman al S7, que es el de esa versión.
 
 | Sprint | Backend | Frontend | Versión |
 |---|---|---|---|
-| Moderación (después de NC-09) | NC-10a (`inferencia/`) · NC-10b · NC-11a | NC-10c · NC-11b | la que decida el usuario: v0.9.0 si va antes del S6 (y el S6 pasa a v0.10.0), o junto a otra |
+| S7 (sumar a la fila actual) | … · NC-10a (`inferencia/`: `/v1/moderacion`) · NC-10b (módulo `moderacion`) · NC-11a (ocultar y denunciar) | … · NC-10c (avisos de moderación) · NC-11b (denunciar y bandeja del ADMIN) | v0.8.0 |
 
-Va **antes de abrir la plataforma a usuarios reales** (v1.0.0) y **después de DEP-13** en producción.
+**Orden dentro del S7:**
+- **Carril de backend:** NC-09 (ya fusionado), después NC-10a y NC-10b (con BE-11 antes) y por último NC-11a.
+- **Carril de frontend:** NC-10c cuando NC-10b esté en `develop`, y NC-11b cuando lo esté NC-11a.
+- **Producción:** DEP-13, con el modelo de moderación de NC-10a, va antes que el backend con `MODERACION_TIPO=http`.
 
-## Resumen (decidido y recomendado)
+## Resumen de lo decidido (28/10)
 
-1. **Modelo** (decidido el 28/10): Marqo `nsfw-image-detection-384`, revisión `0c26ec2` (Apache-2.0, 22,4 MB, +63 MiB de RAM, ~0,1 s por recorte). Se usan dos recortes y se toma el máximo, con umbral inicial de 0,70.
-2. **Contrato** (recomendado): `POST /v1/moderacion` aparte, con los mismos errores, la misma validación y el mismo tope de 10 conexiones; un limitador propio y sin piso. El umbral es del backend.
-3. **Backend** (recomendado): módulo nuevo `moderacion`, con el puerto y un adaptador HTTP que admite 4 llamadas a la vez y espera hasta 1 s por un turno. La foto se analiza antes de guardar y sin transacción, saneada una sola vez. La vista previa avisa con `fotoRechazada`.
-4. **Ante una caída** (decidido el 28/10): **fallar cerrado** con 503 `MODERACION_NO_DISPONIBLE`, la cola de la PWA o «Enviar sin foto», y el interruptor `MODERACION_TIPO=ninguna` para emergencias.
-5. **Texto** (recomendado): lista propia y versionada que aprueba el usuario. Se compara por token entero, sin plegar la ñ, con un corpus legítimo en los tests. Cubre título, descripción y comentarios.
-6. **Red de seguridad:**
-   - ocultar el reporte o la foto (ADMIN, con motivo y línea de tiempo) y denunciar (CIUDADANO, una vez por reporte y hasta 10 por día), en `reportes`;
-   - el resolver de `/media` consulta la base y la foto lleva `s-maxage=3600`;
-   - sin ocultamiento automático;
-   - **el reporte oculto sale del índice y de la exportación** (decidido el 28/10), con el refresco por evento.
-7. **Términos** (decidido el 28/10): dentro de la v2.
+1. **Modelo:** Marqo `nsfw-image-detection-384`, revisión `0c26ec2` (Apache-2.0, 22,4 MB, +63 MiB de RAM, ~0,1 s por recorte), con dos recortes y el máximo.
+   - **Umbral inicial:** 0,70.
+   - **Calibración:** solo con fotos negativas.
+2. **Contrato:** `POST /v1/moderacion` aparte, con los mismos errores, la misma validación y el mismo tope de 10 conexiones; un limitador propio y sin piso. El umbral es del backend (D-15).
+3. **Backend:** módulo nuevo `moderacion` (D-15), que usan `reportes`, `clasificacion` y `auth`.
+   - Su adaptador HTTP admite 4 llamadas a la vez y espera hasta 1 s por un turno.
+   - La foto se analiza antes de guardar y sin transacción, saneada una sola vez.
+   - La vista previa avisa con `fotoRechazada`.
+4. **Ante una caída: fallar cerrado,** con 503 `MODERACION_NO_DISPONIBLE`, la cola de la PWA o «Enviar sin foto». El interruptor de emergencia es `MODERACION_TIPO=ninguna`.
+5. **Texto:**
+   - una lista propia y versionada, que arma el agente de backend y aprueba el usuario;
+   - se compara por token entero, sin plegar la ñ, con un corpus legítimo en los tests;
+   - cubre título, descripción, comentarios y el nombre del perfil.
+6. **Red de seguridad** (en `reportes`):
+   - el ADMIN oculta el reporte o la foto por separado, con motivo y línea de tiempo, y conserva la foto oculta en privado;
+   - el CIUDADANO denuncia una vez por reporte y hasta 10 por día;
+   - el resolver de `/media` consulta la base, y la foto lleva `s-maxage=3600`, con purga manual para los casos urgentes;
+   - no hay ocultamiento automático;
+   - **el reporte oculto sale del índice, de la exportación y de la bandeja municipal,** con el refresco por evento. Ocultar solo la foto no lo saca del índice.
+7. **Material ilegal:** ocultar, conservar en privado sin borrar, descargar ni reenviar, y denunciar ante la DIVINDAT o el Ministerio Público. Lo confirma el usuario con su asesor.
+8. **Términos:** van dentro de la v2, que sale en la v0.8.0.
 
-## Qué decide el usuario
+## Qué queda pendiente
 
-Quedan abiertas solo estas:
-
-1. **Calibración del umbral:** se recomienda usar solo fotos negativas (pistas y calles de Lima), con la regla de §1, y que el equipo no junte material explícito.
-2. **Nombre del perfil en el filtro de texto,** además del título, la descripción y los comentarios. Se recomienda que sí.
-3. **Quién arma la versión inicial de la lista.** Se recomienda que la arme el agente de backend con los criterios de §5 y que el usuario la apruebe en el PR.
-4. **Alcance y conservación del ocultamiento.** Se recomienda ocultar el reporte y la foto por separado, y conservar la foto oculta en privado hasta restablecerla, sin borrarla.
-5. **¿El reporte oculto sale también de la bandeja municipal?** Se recomienda que sí, para que coincida con el índice y la exportación. Si el daño es real, el ADMIN oculta solo la foto y el reporte sigue en la bandeja. Si se queda, va con `ocultoPorModeracion` en `ReporteGestionResponse`.
-6. **Caché de la foto.** Se recomienda `s-maxage=3600` más la purga manual en los casos urgentes, en vez de un token de purga nuevo.
-7. **Denuncias.** Se recomiendan los motivos propuestos, el límite de 10 por día y conservarlas mientras exista el reporte, anonimizadas al cerrar la cuenta (BE-14).
-8. **Material ilegal.** El procedimiento del runbook si una foto oculta es abuso sexual infantil. Se recomienda que el usuario lo defina antes de abrir a usuarios reales.
-9. **Sprint y versión** de la fila de §10. Se recomienda ponerla después de NC-09 y de DEP-13, y antes de la v1.0.0. Como la v2 de los términos ahora incluye la moderación (decisión 8), NC-10 y NC-11 tienen que salir en la misma versión que la v2, o el texto se recorta (§7).
-10. **ARCHITECTURE.md:** el módulo `moderacion` y la fila D-15. Se recomienda que sí.
-
-## Qué queda bloqueado mientras no se decida
-
-- **NC-10a** espera las preguntas 1 y 10.
-- **NC-10b** espera las preguntas 2, 3 y 10.
-- **NC-10c** no espera nada más que NC-10b.
-- **NC-11a** espera las preguntas 4 a 7.
-- La 8 hace falta antes de abrir a usuarios.
-- La 9 fija la versión.
-- No bloquea nada en curso: NC-09, BE-11 a BE-14 y DEP-13 siguen igual. BE-11 conviene que entre antes que NC-10b.
+- **Confirmación del asesor** sobre el procedimiento ante material ilegal (decisión 16). Hace falta antes de abrir a usuarios reales. No bloquea la implementación.
+- **La fila del S7 en `plan-sprints.md`:** la agrega el coordinador (§10).
+- **Nada bloquea NC-10 ni NC-11:** las fichas están desbloqueadas. BE-11 conviene que entre antes que NC-10b.

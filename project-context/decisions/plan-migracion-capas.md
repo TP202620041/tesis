@@ -377,10 +377,10 @@ No es migración, es funcionalidad. Se lista aquí para fijar **dónde** va cada
 | NC-07 | CONSENTIMIENTO y SUSCRIPCION_PUSH | §8 | — |
 | NC-08 | **Captcha en el registro (Google reCAPTCHA v2, casilla «No soy un robot»)**, pedido por el usuario el 27/10. **Backend:** puerto `auth/port/VerificadorDeCaptcha` (`boolean exigido()` y `void verificar(String token)`), con dos adaptadores elegidos por `app.captcha.tipo` (`CAPTCHA_TIPO`): `auth/infra/RecaptchaV2Adapter` (`recaptcha`: `POST https://www.google.com/recaptcha/api/siteverify`, `application/x-www-form-urlencoded` con `secret` y `response`, sin `remoteip` por minimización de datos; `RestClient` sobre el `HttpClient` del JDK como `ResendCorreoAdapter`, 3 s de conexión y 5 s de lectura, sin reintentos) y `auth/infra/SinCaptchaAdapter` (`ninguno`: por defecto fuera de `prod` y fijo en los tests). `auth/infra/ValidacionTipoCaptcha` rechaza otro valor al arrancar, como `ValidacionCorreoSaliente` (vive en `auth` y no en `common` porque solo ese módulo usa el captcha); con `recaptcha` el adaptador exige `CAPTCHA_SECRET`. En `prod`, `tipo: ${CAPTCHA_TIPO}` **sin valor por defecto**. `RegistroRequest` suma `captchaToken` (`@Size(max = 2048)`, opcional en Bean Validation porque con `ninguno` se ignora). `AuthService.registrar` verifica el captcha **antes** que la versión de los términos y que el correo duplicado (si no, el registro serviría para enumerar correos sin captcha) y **fuera de la transacción** (D-13): la llamada HTTP no retiene una conexión del pool; la persistencia queda en `RegistroCuentaService`, transaccional. Falla cerrado: token ausente o rechazado por Google (`success=false`) → 409 `BusinessException` con un mensaje para el ciudadano; Google no responde o responde 5xx → 503 `ServicioNoDisponibleException`. Nunca se registran el token ni el secreto; sí los `error-codes` de Google. **Tests:** el adaptador con `MockRestServiceServer`; `RegistroCaptchaIT` con `@MockitoBean` del puerto (sin token 409, rechazado 409 sin crear la cuenta, correo ya registrado con token rechazado responde el mensaje del captcha y no el del correo, Google caído 503, token válido 201); `ArranqueCaptchaIT` (`prod` sin `CAPTCHA_TIPO` y un valor no admitido); `AuthControllerIT` sigue con `ninguno`; `PerfilProdIT` con `CAPTCHA_TIPO=ninguno`. Handoff `handoffs/2026-10-27-captcha-registro.md`. README del backend: variables y sección «Captcha en el registro». **Frontend (rama propia, se fusiona después del backend):** `NEXT_PUBLIC_RECAPTCHA_SITE_KEY` (obligatoria en un despliegue de Vercel, como `NEXT_PUBLIC_API_BASE_URL`); sin ella en local el formulario no muestra el widget ni envía token. Sin dependencia nueva: `features/auth/components/CampoCaptcha` carga `https://www.google.com/recaptcha/api.js?render=explicit&hl=es` una sola vez y usa `grecaptcha.render`; `useRegistro` envía `captchaToken` y, tras cualquier error del registro, reinicia el widget (el token es de un solo uso). Sin casilla resuelta no se envía nada y se muestra un error en línea, como con los términos. CSP limitada por ruta (revisión del 27/10): `script-src` y `connect-src` suman `https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/`, y se agrega `frame-src https://www.google.com/recaptcha/ https://recaptcha.google.com/recaptcha/`. Fuera de alcance: el captcha en el inicio de sesión y en la recuperación de contraseña. | §4.1 (`auth/port`, `auth/infra`), §4.5, §5.1, D-13 | — |
 | NC-09 | **El correo es verídico al crear la cuenta y la cuenta se confirma por correo**, pedido por el usuario el 28/10. Decisiones del usuario (28/10): (1) **una cuenta sin confirmar no puede iniciar sesión** hasta abrir el enlace del correo; (2) **las cuentas que ya existen se dan por confirmadas** (la migración las marca así: en producción hay usuarios reales y ninguno debe quedar fuera); (3) **el registro rechaza el correo** si su dominio no recibe correo (sin MX en el DNS) o es un desechable conocido, según una lista fija versionada. **Backend:** V20 (`usuario.correo_confirmado`, existentes `true` y nuevas `false`, y `correo_confirmado_en`; tabla `token_confirmacion_correo` con el SHA-256 del token, un solo uso, 24 h, `invalidated_at`). El registro ya no devuelve sesión (201 `RegistroResponse`); `POST /api/auth/confirmar-correo` (204, no inicia sesión) y `POST /api/auth/reenviar-confirmacion` (202 siempre; uno por minuto, 5 por hora y 10 por día por cuenta, con candado consultivo); el login con contraseña correcta y sin confirmar da 409 `CORREO_NO_CONFIRMADO` (`BusinessException` suma un `codigo` opcional). Correo por `CorreoSaliente` con evento y listener `AFTER_COMMIT` asíncrono (D-13); el token lo genera el hilo que envía y solo se guarda su hash. Dominio: puerto `auth/port/VerificadorDeDominioDeCorreo` con `auth/infra/DnsVerificadorDeDominioAdapter` (JNDI, plazo de 3 s, falla abierto; `dns` por defecto en `prod`, sin variable obligatoria nueva) y `SinVerificacionDeDominioAdapter` (`ninguno`, fuera de `prod` y en los tests); lista CC0 `disposable-email-domains` en `resources/data/` (regla pura en `auth/domain/DominiosDesechables`, subdominios incluidos). El ADMIN inicial y el seed de desarrollo nacen confirmados. **Frontend:** handoff `handoffs/2026-10-28-confirmacion-correo.md` (pantalla «revisa tu correo», `/confirmar-cuenta`, reenviar en el login); se fusiona con el backend en la misma versión. | §4.1 (`auth/port`, `auth/infra`, `auth/listener`), §4.5, D-13 | NC-08 |
-| NC-10a | **Moderación de la foto en `inferencia/`:** `POST /v1/moderacion` con Marqo `nsfw-image-detection-384` en ONNX (Apache-2.0). Ficha abajo. | §6, §7 | NC-09 (orden del carril). Modelo y umbral decididos el 28/10. Faltan las preguntas abiertas 1 y 10 de `propuestas/2026-10-28-moderacion-de-contenido.md` |
-| NC-10b | **Moderación en el backend:** módulo `moderacion` (puerto de foto y filtro de groserías). Rechaza la foto y el texto al crear y editar, y avisa en la vista previa. Falla cerrado (decidido el 28/10). Ficha abajo. | §4.1, §4.3, §4.5, D-13, D-08 | NC-10a en `develop`, BE-11 y las preguntas abiertas 2, 3 y 10 |
+| NC-10a | **Moderación de la foto en `inferencia/`:** `POST /v1/moderacion` con Marqo `nsfw-image-detection-384` en ONNX (Apache-2.0). Ficha abajo. | §6, §7, D-15 | NC-09 (hecha). Decidida el 28/10 (`propuestas/2026-10-28-moderacion-de-contenido.md`); entra en la v0.8.0 |
+| NC-10b | **Moderación en el backend:** módulo `moderacion` (puerto de foto y filtro de groserías). Rechaza la foto y el texto al crear y editar, y avisa en la vista previa. Falla cerrado (decidido el 28/10). Ficha abajo. | §4.1, §4.3, §4.5, D-13, D-08, D-15 | NC-10a en `develop` y BE-11 |
 | NC-10c | **Moderación en la PWA:** los avisos de foto y texto, el 503 con la cola y la vista previa. Ficha abajo. | §5 | NC-10b en `develop` (handoff) |
-| NC-11a | **Ocultar y denunciar, en el backend** (`reportes`): migración, rutas del ADMIN y del CIUDADANO, y la visibilidad de lo oculto. El reporte oculto sale del índice y de la exportación (decidido el 28/10). Ficha abajo. | §4.3, §8 | NC-10b (mismo carril) y las preguntas abiertas 4 a 7 |
+| NC-11a | **Ocultar y denunciar, en el backend** (`reportes`): migración, rutas del ADMIN y del CIUDADANO, y la visibilidad de lo oculto. El reporte oculto sale del índice, de la exportación y de la bandeja (decidido el 28/10). Ficha abajo. | §4.3, §8, D-15 | NC-10b (mismo carril) |
 | NC-11b | **Ocultar y denunciar, en la PWA:** el botón «Denunciar contenido» y la bandeja del ADMIN. Ficha abajo. | §5 | NC-11a en `develop` (handoff) |
 
 **NC-01, hecha (2026-10-20, PR #70, `c5d2e55`):** módulo `municipalidades` con MUNICIPALIDAD (`distrito_id NOT NULL UNIQUE`, `nombre NOT NULL UNIQUE`, `correo_contacto` nulable) y PERIODO_GESTION (fechas inclusivas, sin solape; seed 2023-01-01 → 2026-12-31), en V15 y V16. Las 43 municipalidades las siembra `municipalidades/infra/MunicipalidadSeeder` después de `DistritoSeeder`, no una migración (en una base vacía los distritos no existen al correr Flyway). API pública: `MunicipalidadService#deDistrito` y `#periodoVigente`. GESTION_MUNICIPAL y REQUISITO_RECEPCION quedan para NC-06 y NC-05 (propuesta `propuestas/2026-10-20-columnas-gestion-y-requisitos.md`, aceptada con la opción A). Failsafe `completed` 284 → 295, Surefire 57 → 59, ArchUnit 0 → 0.
@@ -389,7 +389,7 @@ No es migración, es funcionalidad. Se lista aquí para fijar **dónde** va cada
 
 **NC-09 backend, hecha (2026-10-28, rama `feature/nc-09-confirmacion-correo`, PR pendiente):** lo descrito en la fila NC-09. Revisión del 28/10 (`revisor-arquitectura`): APTO con observaciones, atendidas en la misma rama (emisión del token con un `UPDATE` condicional para que un reenvío simultáneo no deje dos enlaces válidos, `@DynamicUpdate`, tope diario de 10 reenvíos por cuenta, el token en la query documentado como riesgo aceptado). Queda abierta la propuesta `propuestas/2026-10-28-cuentas-sin-confirmar.md` (recuperar la contraseña también confirma, purga de cuentas sin confirmar, comprobación en `asignar-funcionario.sql`). Falta la parte del frontend (handoff `handoffs/2026-10-28-confirmacion-correo.md`), que debe salir en la misma versión: el registro ya no devuelve sesión. Failsafe `completed` 462 → 486 (13 skipped en local), Surefire 390 → 445, ArchUnit 0 → 0 (almacén sin cambios), JaCoCo líneas 93,3 %.
 
-### [ ] NC-10 · Moderación automática de la foto y del texto (decidida en parte el 28/10)
+### [ ] NC-10 · Moderación automática de la foto y del texto (decidida el 28/10, v0.8.0)
 
 **Decisiones del usuario (28/10):**
 - una foto obscena o sexual se rechaza al subirla, con el aviso «La foto no está permitida», y nunca se guarda ni se publica;
@@ -403,12 +403,18 @@ No es migración, es funcionalidad. Se lista aquí para fijar **dónde** va cada
   - la PWA ofrece la cola sin conexión o «Enviar sin foto»;
   - `MODERACION_TIPO=ninguna` queda como interruptor.
 - **Términos:** la moderación va dentro de la v2 (no hay v3), en la rama `feature/doc-terminos-v2-moderacion`.
+- **Respuestas a las preguntas abiertas** (el usuario respondió «Me parece bien» a todas):
+  - la calibración usa solo fotos negativas;
+  - el nombre del perfil también se filtra;
+  - la lista la arma el agente de backend y la aprueba el usuario;
+  - el módulo `moderacion` entra en ARCHITECTURE.md como **D-15**;
+  - **NC-10 y NC-11 entran en la v0.8.0,** junto con los términos v2.
 
-**Diseño y preguntas abiertas:** `propuestas/2026-10-28-moderacion-de-contenido.md`. **No se empieza hasta que el usuario decida** las preguntas abiertas 1, 2, 3 y 10 de esa propuesta. Si decide algo distinto de lo recomendado, la sesión de raíz ajusta esta ficha.
+**Diseño:** `propuestas/2026-10-28-moderacion-de-contenido.md`, en estado decidida, y ARCHITECTURE.md §4.3, §6 y D-15. **Desbloqueada:** no espera ninguna decisión.
 
-**La v2 de los términos promete la moderación,** así que NC-10 tiene que salir en la misma versión que la v2. Si no llega, la sesión de raíz recorta el párrafo antes de publicar.
+**La v2 de los términos promete la moderación,** así que NC-10 tiene que salir en la misma versión que la v2 (la v0.8.0). Si no llega, la sesión de raíz recorta el párrafo antes de publicar.
 
-**Orden:** va **después de NC-09** (confirmación del correo, en curso en el carril de backend). Las piezas van en este orden de dependencia: NC-10a → NC-10b → NC-10c. NC-10b necesita además BE-11 (la foto se sube fuera de la transacción). En producción, el backend con `MODERACION_TIPO=http` se despliega solo después de DEP-13 y de NC-10a.
+**Orden:** va **después de NC-09** (confirmación del correo, ya fusionada en `develop`). Las piezas van en este orden de dependencia: NC-10a → NC-10b → NC-10c. NC-10b necesita además BE-11 (la foto se sube fuera de la transacción). En producción, el backend con `MODERACION_TIPO=http` se despliega solo después de DEP-13 y de NC-10a.
 
 #### NC-10a · `inferencia/`: `POST /v1/moderacion`
 - **Modelo:**
@@ -428,7 +434,7 @@ No es migración, es funcionalidad. Se lista aquí para fijar **dónde** va cada
   - `INFERENCIA_MODERACION_HILOS=1`, fijo;
   - `--limit-concurrency` (10) sigue contando los dos endpoints.
 - **Capas (§6):** `domain` (`ModeloDeModeracion`, `PuntajeModeracion`), `application/ModerarImagen` (comparte la validación con `DetectarDanos`), `infrastructure/OnnxModeracion` y `api/moderacion.py`. La guarda de import-linter no cambia.
-- **Calibración** (pregunta abierta 1; esto es lo recomendado):
+- **Calibración** (decidida el 28/10):
   - `scripts/calibrar_moderacion.py` lee una carpeta **fuera del repo** y da la distribución de puntajes y el umbral sugerido;
   - la regla es el valor más bajo sin ningún rechazo en el conjunto negativo, más 0,15, siempre entre 0,5 y 0,9;
   - el conjunto negativo son ≥ 300 fotos de RDD2022, las fotos de Lima de NC-03b cuando existan y ≥ 50 de calles con gente.
@@ -457,7 +463,7 @@ No es migración, es funcionalidad. Se lista aquí para fijar **dónde** va cada
   - `domain/FiltroDeGroserias` (regla pura);
   - `infra/InferenciaModeracionHttpAdapter`, `infra/SinModeracionAdapter`, `infra/ValidacionTipoModeracion` e `infra/ListaDeGroseriasConfig`;
   - `service/ModeracionService`.
-  - Lo usan `reportes` y `clasificacion`.
+  - Lo usan `reportes`, `clasificacion` y `auth` (el nombre del perfil).
 - **Adaptador HTTP:**
   - sigue el patrón de `InferenciaHttpAdapter`: `RestClient` sobre el `HttpClient` del JDK con HTTP/1.1, 500 + 2 500 ms, sin reintentos y validación solo de la estructura;
   - un `puntaje` fuera de [0, 1] o una `version_modelo` de más de 40 caracteres dejan la respuesta fuera de contrato;
@@ -484,7 +490,7 @@ No es migración, es funcionalidad. Se lista aquí para fijar **dónde** va cada
   - Hacen falta `common/exception/ContenidoNoPermitidoException` y un `codigo` en `ServicioNoDisponibleException`.
 - **Texto:**
   - se revisan el título y la descripción al crear y al editar, y el contenido del comentario (US-27);
-  - el nombre del perfil, solo si el usuario lo decide (pregunta abierta 2 de la propuesta).
+  - el nombre del perfil, al registrarse y al editar el perfil (decidido el 28/10): `auth` usa `moderacion`.
   - La lista va en `src/main/resources/moderacion/groserias-es-pe.txt`, con una cabecera de versión y criterios. **El usuario aprueba su contenido en el PR.**
   - La normalización es la de la propuesta, §5: NFKC, minúsculas, tildes fuera **sin plegar la ñ**, *leetspeak* (el 1 vale como i y como l), comodín `*` o `#`, unión de letras sueltas y rachas reducidas a 2 y a 1. La comparación es por token entero o por expresiones de 2 a 4 tokens.
 - **Vista previa:** `ClasificacionResponse` suma `fotoRechazada: boolean`.
@@ -509,7 +515,8 @@ No es migración, es funcionalidad. Se lista aquí para fijar **dónde** va cada
   - 503 `MODERACION_NO_DISPONIBLE`, sin nada creado;
   - el reenvío con una `Idempotency-Key` ya registrada devuelve la respuesta guardada aunque el servicio esté caído.
 - **Sin foto,** el moderador no se llama.
-- **Texto ofensivo** en el título, la descripción (al crear y al editar) o el comentario: 400 `TEXTO_NO_PERMITIDO` sin la palabra en el cuerpo.
+- **Texto ofensivo** en el título, la descripción (al crear y al editar), el comentario o el nombre del perfil (al registrarse y al editarlo): 400 `TEXTO_NO_PERMITIDO` sin la palabra en el cuerpo.
+- **En el registro**, el filtro del nombre corre después del captcha, como las demás validaciones (orden de NC-08 y NC-09).
 - **Vista previa:**
   - una foto rechazada da `fotoRechazada: true` y ninguna categoría;
   - sin servicio, `false` y la sugerencia de siempre.
@@ -538,17 +545,20 @@ No es migración, es funcionalidad. Se lista aquí para fijar **dónde** va cada
   - con 400 `FOTO_NO_PERMITIDA`, o con `fotoRechazada: true` en la vista previa, `FormularioReporte` muestra «La foto no está permitida. Toma otra.» junto a la foto;
   - quita la foto y no deja enviar con ella;
   - **conserva el resto del formulario**.
-- **Texto rechazado:** con 400 `TEXTO_NO_PERMITIDO`, el error va en el campo de `details` (título, descripción, o el comentario en `Comentarios` y `EditarReporte`). Nunca se muestra la palabra.
+- **Texto rechazado:** con 400 `TEXTO_NO_PERMITIDO`, el error va en el campo que indica `details`. Nunca se muestra la palabra. Aplica a:
+  - el título y la descripción;
+  - el comentario, en `Comentarios` y `EditarReporte`;
+  - el nombre, en `FormularioRegistro` y `EditarPerfil`.
 - **Sin servicio:** con 503 `MODERACION_NO_DISPONIBLE`, el formulario ofrece «Guardar para enviar después» (la cola de US-06 con la **misma** `Idempotency-Key`, que ya reintenta los 5xx) y «Enviar sin foto».
 - **Cola:** un reenvío que recibe `FOTO_NO_PERMITIDA` o `TEXTO_NO_PERMITIDO` queda `rechazado` con ese motivo, como cualquier 4xx.
 - **Tipos y contrato:** `npm run api:sync` y los tipos en `model/`; el handoff de NC-10b pasa a «atendido».
 
 **Aceptación:**
-- Tests de `FormularioReporte`, `useCrearReporte`, `useSugerenciaDeCategoria`, `useColaOffline`, `EditarReporte` y `Comentarios` para cada código.
+- Tests de `FormularioReporte`, `useCrearReporte`, `useSugerenciaDeCategoria`, `useColaOffline`, `EditarReporte`, `Comentarios`, `FormularioRegistro` y `EditarPerfil` para cada código.
 - `npm run typecheck`, `npm test` y `npm run lint` en verde.
 - Verificación en vivo con el backend en `MODERACION_TIPO=ninguna` y con un doble que rechaza.
 
-### [ ] NC-11 · Ocultar y denunciar (decidida en parte el 28/10)
+### [ ] NC-11 · Ocultar y denunciar (decidida el 28/10, v0.8.0)
 
 **Decisión del usuario (28/10):**
 - el ADMIN puede ocultar un reporte, o solo su foto, ya publicados, con un motivo y un registro en la línea de tiempo;
@@ -560,11 +570,21 @@ No es migración, es funcionalidad. Se lista aquí para fijar **dónde** va cada
 - IT que lo prueben;
 - que quede claro en la línea de tiempo.
 
-Ocultar **solo la foto** no cambia el índice: el reporte sigue público.
+**Respuestas a las preguntas abiertas (28/10;** el usuario respondió «Me parece bien» a todas**):**
+- el reporte y la foto se ocultan por separado, y la foto oculta se conserva en privado;
+- **ocultar solo la foto no saca al reporte del índice:** el reporte sigue público;
+- **el reporte oculto sale también de la bandeja municipal;**
+- la foto lleva `s-maxage=3600`, con purga manual para los casos urgentes;
+- denuncias:
+  - con los motivos `CONTENIDO_SEXUAL`, `OFENSIVO`, `DATOS_PERSONALES`, `FALSO` y `OTRO`;
+  - hasta 10 por día por ciudadano;
+  - se conservan mientras exista el reporte y se anonimizan con BE-14;
+- **material ilegal:** el ADMIN lo oculta de inmediato; no lo borra, ni lo descarga ni lo reenvía; lo conserva en privado y lo denuncia a la Policía (DIVINDAT) o al Ministerio Público. El usuario lo confirma con su asesor. Va al runbook;
+- entra en la **v0.8.0**.
 
-**Diseño y preguntas abiertas** (4 a 7): `propuestas/2026-10-28-moderacion-de-contenido.md`, §6. **No se empieza hasta que el usuario las decida.**
+**Diseño:** `propuestas/2026-10-28-moderacion-de-contenido.md` §6, en estado decidida, y ARCHITECTURE.md §8 y D-15. **Desbloqueada:** no espera ninguna decisión.
 
-**Orden:** después de NC-09 y de NC-10b, en el mismo carril de backend. NC-11a → NC-11b.
+**Orden:** después de NC-09 (ya fusionada) y de NC-10b, en el mismo carril de backend. NC-11a → NC-11b.
 
 #### NC-11a · Backend (`reportes`)
 - **Migración** (la siguiente versión libre; NC-09 toma V20):
@@ -586,12 +606,13 @@ Ocultar **solo la foto** no cambia el índice: el reporte sigue público.
   - **reporte oculto:**
     - sale de la búsqueda, del área, de la densidad, del detalle público (404), de los comentarios (404), de `mis-adhesiones`, del índice y de la exportación;
     - sigue en `mis-reportes` del creador;
-    - en la bandeja municipal, según la pregunta abierta 5: lo recomendado es que también salga. Si se queda, lleva `ocultoPorModeracion` en `ReporteGestionResponse`;
+    - **sale de la bandeja municipal y de su detalle de gestión**, y el funcionario recibe 404 si intenta cambiarle el estado o asignarlo. `ReporteGestionResponse` no gana ningún campo;
   - **foto oculta:** `fotoUrl` en `null` en todos los DTO que no son del ADMIN;
   - `findReporteActivoCercano` ignora los reportes ocultos.
 - **Fotos:**
   - `WebMvcConfig` consulta el puerto nuevo `common/port/VisibilidadDeFotosDeReporte`, que implementa `reportes/infra/JpaVisibilidadDeFotosAdapter`, y responde 404 si la foto no es de un reporte visible;
-  - la foto de reporte suma `s-maxage=3600` (si el usuario elige esa opción, pregunta abierta 6).
+  - la foto de reporte suma `s-maxage=3600`; el navegador conserva sus 30 días. Hay que comprobar con `curl -sI` que Cloudflare respeta `s-maxage`;
+  - el runbook (`docs/despliegue.md`) suma dos procedimientos: la purga manual de una URL en Cloudflare y el de material ilegal. Este último lo agrega la sesión de raíz cuando el usuario lo confirme con su asesor.
 - **Línea de tiempo** (`SeguimientoReporteService`):
   - el motivo lo ven el creador, el funcionario y el ADMIN; los adheridos ven un texto fijo, y el autor solo lo ve el ADMIN;
   - `REPORTE_OCULTO` agrega, para todos, el texto fijo «Mientras esté oculto, este reporte no cuenta en el índice de desempeño.» y `REPORTE_RESTABLECIDO`, «Vuelve a contar en el índice de desempeño.». Los arma el servidor y no el ADMIN.
@@ -612,7 +633,12 @@ Ocultar **solo la foto** no cambia el índice: el reporte sigue público.
   - 409 por repetida, por propia y por el límite diario;
   - 404 si el reporte está oculto, cancelado o no existe;
   - 401 anónimo y 403 funcionario.
-- `OcultamientoReporteIT`: cada fila de la tabla de visibilidad, `/media/...` con 404, el historial con su redacción y el texto del índice, restablecer, y 403 para quien no es ADMIN.
+- `OcultamientoReporteIT`:
+  - cada fila de la tabla de visibilidad, incluida la salida de la bandeja y el 404 del funcionario;
+  - `/media/...` con 404;
+  - el historial, con su redacción y el texto del índice;
+  - restablecer;
+  - 403 para quien no es ADMIN.
 - **`IndiceSinOcultosIT`** (decisión del 28/10):
   - ocultar el reporte baja `total_reportes` del distrito y de su categoría después del refresco, y también `total_resueltos` y las calificaciones si estaba resuelto y calificado;
   - restablecerlo devuelve los valores de antes;
