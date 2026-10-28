@@ -51,8 +51,17 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.NOT_FOUND, ex.getMessage(), req, List.of());
     }
 
+    /**
+     * 409. Si la excepcion trae un codigo (NC-09: {@code CORREO_NO_CONFIRMADO}
+     * en el login), va en {@code codigo} para que el cliente reaccione sin
+     * comparar el texto del mensaje.
+     */
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiError> handleBusiness(BusinessException ex, HttpServletRequest req) {
+        if (ex.getCodigo() != null) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiError.conCodigo(HttpStatus.CONFLICT.value(),
+                    HttpStatus.CONFLICT.getReasonPhrase(), ex.getMessage(), req.getRequestURI(), ex.getCodigo()));
+        }
         return build(HttpStatus.CONFLICT, ex.getMessage(), req, List.of());
     }
 

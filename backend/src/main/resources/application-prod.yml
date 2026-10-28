@@ -62,6 +62,12 @@ app:
       # una respuesta fija aqui llenaria la base de sugerencias inventadas y
       # arruinaria la evaluacion del modelo (OE3).
       respuesta: ""
+  dominio-correo:
+    # NC-09: el registro consulta el MX del dominio del correo. Con valor por
+    # defecto a proposito (no es una variable obligatoria nueva): `dns` es lo
+    # que corresponde a produccion y no depende de ninguna clave. Falla
+    # abierto si el DNS no responde. DOMINIO_CORREO_TIPO=ninguno la apaga.
+    tipo: ${DOMINIO_CORREO_TIPO:dns}
   notificaciones:
     # Remitente de todos los correos, de un dominio verificado en Resend
     # (p. ej. "Ciudad Viva <no-reply@<dominio>>"). Sin default: el de

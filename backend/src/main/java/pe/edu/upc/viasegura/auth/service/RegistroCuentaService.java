@@ -29,11 +29,16 @@ public class RegistroCuentaService {
     private final UsuarioRepository usuarioRepository;
     private final PasswordEncoder passwordEncoder;
     private final ConsentimientoService consentimientoService;
+    private final ConfirmacionCorreoService confirmacionCorreoService;
 
     /**
      * Crea la cuenta ciudadana. D-12: la aceptacion de los terminos vigentes
      * se guarda en la misma transaccion; si la version no es la vigente, 409
      * y no se crea nada. Un correo ya registrado tambien es 409.
+     *
+     * <p>NC-09: la cuenta nace <b>sin confirmar</b> y, en la misma
+     * transaccion, se pide su primer enlace de confirmacion; el correo sale
+     * despues del commit.</p>
      */
     @Transactional
     public Usuario crearCuentaCiudadana(RegistroRequest request) {
@@ -50,10 +55,12 @@ public class RegistroCuentaService {
                 .rol(Rol.CIUDADANO)
                 .preferenciaNotificacion(PreferenciaNotificacion.AMBAS)
                 .activo(true)
+                .correoConfirmado(false)
                 .build();
 
         Usuario guardado = usuarioRepository.save(usuario);
         consentimientoService.registrarAceptacionDeTerminos(guardado, request.versionTerminos());
+        confirmacionCorreoService.solicitarParaCuentaNueva(guardado);
         return guardado;
     }
 }
