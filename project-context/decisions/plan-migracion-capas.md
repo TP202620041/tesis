@@ -376,24 +376,34 @@ No es migración, es funcionalidad. Se lista aquí para fijar **dónde** va cada
 | NC-06 | Dashboard por periodo (`desempeno`) + `app/(municipal)/dashboard` | §4.3 paso 5 | NC-01, fórmulas de los KPIs |
 | NC-07 | CONSENTIMIENTO y SUSCRIPCION_PUSH | §8 | — |
 | NC-08 | **Captcha en el registro (Google reCAPTCHA v2, casilla «No soy un robot»)**, pedido por el usuario el 27/10. **Backend:** puerto `auth/port/VerificadorDeCaptcha` (`boolean exigido()` y `void verificar(String token)`), con dos adaptadores elegidos por `app.captcha.tipo` (`CAPTCHA_TIPO`): `auth/infra/RecaptchaV2Adapter` (`recaptcha`: `POST https://www.google.com/recaptcha/api/siteverify`, `application/x-www-form-urlencoded` con `secret` y `response`, sin `remoteip` por minimización de datos; `RestClient` sobre el `HttpClient` del JDK como `ResendCorreoAdapter`, 3 s de conexión y 5 s de lectura, sin reintentos) y `auth/infra/SinCaptchaAdapter` (`ninguno`: por defecto fuera de `prod` y fijo en los tests). `auth/infra/ValidacionTipoCaptcha` rechaza otro valor al arrancar, como `ValidacionCorreoSaliente` (vive en `auth` y no en `common` porque solo ese módulo usa el captcha); con `recaptcha` el adaptador exige `CAPTCHA_SECRET`. En `prod`, `tipo: ${CAPTCHA_TIPO}` **sin valor por defecto**. `RegistroRequest` suma `captchaToken` (`@Size(max = 2048)`, opcional en Bean Validation porque con `ninguno` se ignora). `AuthService.registrar` verifica el captcha **antes** que la versión de los términos y que el correo duplicado (si no, el registro serviría para enumerar correos sin captcha) y **fuera de la transacción** (D-13): la llamada HTTP no retiene una conexión del pool; la persistencia queda en `RegistroCuentaService`, transaccional. Falla cerrado: token ausente o rechazado por Google (`success=false`) → 409 `BusinessException` con un mensaje para el ciudadano; Google no responde o responde 5xx → 503 `ServicioNoDisponibleException`. Nunca se registran el token ni el secreto; sí los `error-codes` de Google. **Tests:** el adaptador con `MockRestServiceServer`; `RegistroCaptchaIT` con `@MockitoBean` del puerto (sin token 409, rechazado 409 sin crear la cuenta, correo ya registrado con token rechazado responde el mensaje del captcha y no el del correo, Google caído 503, token válido 201); `ArranqueCaptchaIT` (`prod` sin `CAPTCHA_TIPO` y un valor no admitido); `AuthControllerIT` sigue con `ninguno`; `PerfilProdIT` con `CAPTCHA_TIPO=ninguno`. Handoff `handoffs/2026-10-27-captcha-registro.md`. README del backend: variables y sección «Captcha en el registro». **Frontend (rama propia, se fusiona después del backend):** `NEXT_PUBLIC_RECAPTCHA_SITE_KEY` (obligatoria en un despliegue de Vercel, como `NEXT_PUBLIC_API_BASE_URL`); sin ella en local el formulario no muestra el widget ni envía token. Sin dependencia nueva: `features/auth/components/CampoCaptcha` carga `https://www.google.com/recaptcha/api.js?render=explicit&hl=es` una sola vez y usa `grecaptcha.render`; `useRegistro` envía `captchaToken` y, tras cualquier error del registro, reinicia el widget (el token es de un solo uso). Sin casilla resuelta no se envía nada y se muestra un error en línea, como con los términos. CSP limitada por ruta (revisión del 27/10): `script-src` y `connect-src` suman `https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/`, y se agrega `frame-src https://www.google.com/recaptcha/ https://recaptcha.google.com/recaptcha/`. Fuera de alcance: el captcha en el inicio de sesión y en la recuperación de contraseña. | §4.1 (`auth/port`, `auth/infra`), §4.5, §5.1, D-13 | — |
-| NC-10a | **Moderación de la foto en `inferencia/`:** `POST /v1/moderacion` con Marqo `nsfw-image-detection-384` en ONNX (Apache-2.0). Ficha abajo. | §6, §7 | NC-09 (orden del carril) y las decisiones 1, 2 y 13 de `propuestas/2026-10-28-moderacion-de-contenido.md` |
-| NC-10b | **Moderación en el backend:** módulo `moderacion` (puerto de foto y filtro de groserías). Rechaza la foto y el texto al crear y editar, y avisa en la vista previa. Falla cerrado. Ficha abajo. | §4.1, §4.3, §4.5, D-13, D-08 | NC-10a en `develop`, BE-11 y las decisiones 1 a 5 y 13 |
+| NC-10a | **Moderación de la foto en `inferencia/`:** `POST /v1/moderacion` con Marqo `nsfw-image-detection-384` en ONNX (Apache-2.0). Ficha abajo. | §6, §7 | NC-09 (orden del carril). Modelo y umbral decididos el 28/10. Faltan las preguntas abiertas 1 y 10 de `propuestas/2026-10-28-moderacion-de-contenido.md` |
+| NC-10b | **Moderación en el backend:** módulo `moderacion` (puerto de foto y filtro de groserías). Rechaza la foto y el texto al crear y editar, y avisa en la vista previa. Falla cerrado (decidido el 28/10). Ficha abajo. | §4.1, §4.3, §4.5, D-13, D-08 | NC-10a en `develop`, BE-11 y las preguntas abiertas 2, 3 y 10 |
 | NC-10c | **Moderación en la PWA:** los avisos de foto y texto, el 503 con la cola y la vista previa. Ficha abajo. | §5 | NC-10b en `develop` (handoff) |
-| NC-11a | **Ocultar y denunciar, en el backend** (`reportes`): migración, rutas del ADMIN y del CIUDADANO, y la visibilidad de lo oculto. Ficha abajo. | §4.3, §8 | NC-10b (mismo carril) y las decisiones 6 a 9 |
+| NC-11a | **Ocultar y denunciar, en el backend** (`reportes`): migración, rutas del ADMIN y del CIUDADANO, y la visibilidad de lo oculto. El reporte oculto sale del índice y de la exportación (decidido el 28/10). Ficha abajo. | §4.3, §8 | NC-10b (mismo carril) y las preguntas abiertas 4 a 7 |
 | NC-11b | **Ocultar y denunciar, en la PWA:** el botón «Denunciar contenido» y la bandeja del ADMIN. Ficha abajo. | §5 | NC-11a en `develop` (handoff) |
 
 **NC-01, hecha (2026-10-20, PR #70, `c5d2e55`):** módulo `municipalidades` con MUNICIPALIDAD (`distrito_id NOT NULL UNIQUE`, `nombre NOT NULL UNIQUE`, `correo_contacto` nulable) y PERIODO_GESTION (fechas inclusivas, sin solape; seed 2023-01-01 → 2026-12-31), en V15 y V16. Las 43 municipalidades las siembra `municipalidades/infra/MunicipalidadSeeder` después de `DistritoSeeder`, no una migración (en una base vacía los distritos no existen al correr Flyway). API pública: `MunicipalidadService#deDistrito` y `#periodoVigente`. GESTION_MUNICIPAL y REQUISITO_RECEPCION quedan para NC-06 y NC-05 (propuesta `propuestas/2026-10-20-columnas-gestion-y-requisitos.md`, aceptada con la opción A). Failsafe `completed` 284 → 295, Surefire 57 → 59, ArchUnit 0 → 0.
 
 **NC-02 backend, hecha (2026-10-21, PR #74):** `reporte` suma `titulo` (5–120 code points tras el trim), `severidad` (`BAJA < MEDIA < ALTA`, la fija el ciudadano y es pública) y `periodo_gestion_id` (asignado al crear con `MunicipalidadService#periodoVigente`, no expuesto), en V17 con relleno de los reportes existentes. La `Idempotency-Key` ya registrada se resuelve antes de validar los campos nuevos (cola offline). Falta la parte del frontend (handoff `handoffs/2026-10-20-titulo-severidad-reporte.md`). Failsafe `completed` 295 → 309, Surefire 59 → 62, ArchUnit 0 → 0.
 
-### [ ] NC-10 · Moderación automática de la foto y del texto (propuesta abierta)
+### [ ] NC-10 · Moderación automática de la foto y del texto (decidida en parte el 28/10)
 
 **Decisiones del usuario (28/10):**
 - una foto obscena o sexual se rechaza al subirla, con el aviso «La foto no está permitida», y nunca se guarda ni se publica;
 - el análisis corre en `inferencia/`, con un modelo abierto y sin APIs de terceros;
 - una descripción con palabras ofensivas se rechaza con un aviso que no repite la palabra, usando una lista fija de groserías del español peruano, normalizada.
 
-**Diseño y preguntas abiertas:** `propuestas/2026-10-28-moderacion-de-contenido.md`. **No se empieza hasta que el usuario decida** las preguntas 1 a 5 y la 13 de esa propuesta. Si decide algo distinto de lo recomendado, la sesión de raíz ajusta esta ficha.
+**Decisiones del usuario sobre la propuesta (28/10):**
+- **Modelo:** Marqo `nsfw-image-detection-384`, revisión `0c26ec2`, con umbral inicial de 0,70.
+- **Si el servicio no responde, se falla cerrado:**
+  - el reporte con foto recibe un 503;
+  - la PWA ofrece la cola sin conexión o «Enviar sin foto»;
+  - `MODERACION_TIPO=ninguna` queda como interruptor.
+- **Términos:** la moderación va dentro de la v2 (no hay v3), en la rama `feature/doc-terminos-v2-moderacion`.
+
+**Diseño y preguntas abiertas:** `propuestas/2026-10-28-moderacion-de-contenido.md`. **No se empieza hasta que el usuario decida** las preguntas abiertas 1, 2, 3 y 10 de esa propuesta. Si decide algo distinto de lo recomendado, la sesión de raíz ajusta esta ficha.
+
+**La v2 de los términos promete la moderación,** así que NC-10 tiene que salir en la misma versión que la v2. Si no llega, la sesión de raíz recorta el párrafo antes de publicar.
 
 **Orden:** va **después de NC-09** (confirmación del correo, en curso en el carril de backend). Las piezas van en este orden de dependencia: NC-10a → NC-10b → NC-10c. NC-10b necesita además BE-11 (la foto se sube fuera de la transacción). En producción, el backend con `MODERACION_TIPO=http` se despliega solo después de DEP-13 y de NC-10a.
 
@@ -415,7 +425,7 @@ No es migración, es funcionalidad. Se lista aquí para fijar **dónde** va cada
   - `INFERENCIA_MODERACION_HILOS=1`, fijo;
   - `--limit-concurrency` (10) sigue contando los dos endpoints.
 - **Capas (§6):** `domain` (`ModeloDeModeracion`, `PuntajeModeracion`), `application/ModerarImagen` (comparte la validación con `DetectarDanos`), `infrastructure/OnnxModeracion` y `api/moderacion.py`. La guarda de import-linter no cambia.
-- **Calibración:**
+- **Calibración** (pregunta abierta 1; esto es lo recomendado):
   - `scripts/calibrar_moderacion.py` lee una carpeta **fuera del repo** y da la distribución de puntajes y el umbral sugerido;
   - la regla es el valor más bajo sin ningún rechazo en el conjunto negativo, más 0,15, siempre entre 0,5 y 0,9;
   - el conjunto negativo son ≥ 300 fotos de RDD2022, las fotos de Lima de NC-03b cuando existan y ≥ 50 de calles con gente.
@@ -467,11 +477,11 @@ No es migración, es funcionalidad. Se lista aquí para fijar **dónde** va cada
 - **Errores:**
   - **400** `FOTO_NO_PERMITIDA` («La foto no está permitida. Toma otra.»);
   - **400** `TEXTO_NO_PERMITIDO` con el campo en `details` y un mensaje que **no** repite la palabra;
-  - **503** `MODERACION_NO_DISPONIBLE` ante un timeout, un error del servicio o la falta de turno (falla cerrada).
+  - **503** `MODERACION_NO_DISPONIBLE` ante un timeout, un error del servicio o la falta de turno (falla cerrada, decidida el 28/10).
   - Hacen falta `common/exception/ContenidoNoPermitidoException` y un `codigo` en `ServicioNoDisponibleException`.
 - **Texto:**
   - se revisan el título y la descripción al crear y al editar, y el contenido del comentario (US-27);
-  - el nombre del perfil, solo si el usuario lo decide (pregunta 4 de la propuesta).
+  - el nombre del perfil, solo si el usuario lo decide (pregunta abierta 2 de la propuesta).
   - La lista va en `src/main/resources/moderacion/groserias-es-pe.txt`, con una cabecera de versión y criterios. **El usuario aprueba su contenido en el PR.**
   - La normalización es la de la propuesta, §5: NFKC, minúsculas, tildes fuera **sin plegar la ñ**, *leetspeak* (el 1 vale como i y como l), comodín `*` o `#`, unión de letras sueltas y rachas reducidas a 2 y a 1. La comparación es por token entero o por expresiones de 2 a 4 tokens.
 - **Vista previa:** `ClasificacionResponse` suma `fotoRechazada: boolean`.
@@ -535,40 +545,59 @@ No es migración, es funcionalidad. Se lista aquí para fijar **dónde** va cada
 - `npm run typecheck`, `npm test` y `npm run lint` en verde.
 - Verificación en vivo con el backend en `MODERACION_TIPO=ninguna` y con un doble que rechaza.
 
-### [ ] NC-11 · Ocultar y denunciar (propuesta abierta)
+### [ ] NC-11 · Ocultar y denunciar (decidida en parte el 28/10)
 
 **Decisión del usuario (28/10):**
 - el ADMIN puede ocultar un reporte, o solo su foto, ya publicados, con un motivo y un registro en la línea de tiempo;
 - los ciudadanos pueden denunciar un reporte público con el botón «Denunciar contenido», y la denuncia llega a una bandeja del ADMIN.
 
-**Diseño y preguntas abiertas** (6 a 9): `propuestas/2026-10-28-moderacion-de-contenido.md`, §6. **No se empieza hasta que el usuario las decida.**
+**Decisión del usuario sobre la propuesta (28/10): un reporte oculto por el ADMIN se excluye del índice de desempeño.** Es lo contrario de lo que recomendaba la propuesta. SEC-01 se mantiene porque solo el ADMIN (la plataforma) oculta y la municipalidad nunca: nadie mueve sus propias métricas. Hace falta:
+- que la vista del índice y la exportación excluyan lo oculto;
+- que ocultar y restablecer disparen el `REFRESH`;
+- IT que lo prueben;
+- que quede claro en la línea de tiempo.
+
+Ocultar **solo la foto** no cambia el índice: el reporte sigue público.
+
+**Diseño y preguntas abiertas** (4 a 7): `propuestas/2026-10-28-moderacion-de-contenido.md`, §6. **No se empieza hasta que el usuario las decida.**
 
 **Orden:** después de NC-09 y de NC-10b, en el mismo carril de backend. NC-11a → NC-11b.
 
 #### NC-11a · Backend (`reportes`)
-- **Migración** (la siguiente versión libre):
+- **Migración** (la siguiente versión libre; NC-09 toma V20):
   - `reporte.oculto` y `reporte.foto_oculta` (`BOOLEAN NOT NULL DEFAULT FALSE`), con un índice en `reporte.foto_url`;
   - cuatro tipos de evento nuevos en `historial_estado_reporte` (`FOTO_OCULTA`, `REPORTE_OCULTO`, `FOTO_RESTABLECIDA`, `REPORTE_RESTABLECIDO`), sin estados y con el motivo obligatorio (se reemplazan los dos CHECK de V4);
-  - la tabla `denuncia_reporte`, con `UNIQUE (reporte_id, denunciante_id)` y el estado `PENDIENTE` | `ATENDIDA` | `DESESTIMADA`.
+  - la tabla `denuncia_reporte`, con `UNIQUE (reporte_id, denunciante_id)` y el estado `PENDIENTE` | `ATENDIDA` | `DESESTIMADA`;
+  - **la vista `mv_indice_desempeno_distrital`, creada de nuevo como en V7**, con `AND NOT r.oculto` en el `LEFT JOIN` de `reporte` y su índice único `ux_mv_indice_desempeno_id`. Las calificaciones de un reporte oculto tampoco cuentan.
   - `denuncia_reporte` entra en `AbstractPostgisIT.limpiezaFkSafe()`.
+- **Índice:**
+  - al ocultar o restablecer **el reporte** (no la foto), el servicio publica `reportes/event/ReporteVisibilidadCambiadaEvent`;
+  - `desempeno/listener/IndiceDesempenoRefreshListener` suma un manejador `AFTER_COMMIT` que refresca, igual que los cuatro que ya tiene. Si BE-12 ya entró, el refresco es asíncrono y coalescido como el resto;
+  - la exportación (`buscarParaExportar`) excluye los reportes ocultos.
 - **Rutas:**
   - `POST /api/reportes/{id}/denuncias` (CIUDADANO): una por reporte, 10 por día y nunca sobre el propio reporte;
   - `GET /api/admin/moderacion/reportes`, `GET /api/admin/moderacion/reportes/{id}` y `GET /api/admin/moderacion/reportes/{id}/foto`, con `Cache-Control: private, no-store`;
   - `POST /api/admin/moderacion/reportes/{id}/ocultamiento`, `/restablecimiento` y `/desestimacion` (ADMIN), con `alcance` `REPORTE` | `FOTO` y un motivo de 10 a 500 caracteres.
   - Ninguna ruta es pública.
 - **Visibilidad** (la tabla de la propuesta, §6):
-  - **reporte oculto:** sale de la búsqueda, del área, de la densidad, del detalle público (404), de los comentarios (404) y de `mis-adhesiones`. Sigue en `mis-reportes` del creador y en la bandeja, con `ocultoPorModeracion` en `ReporteGestionResponse`. En la exportación sale con el título «Oculto por moderación»;
+  - **reporte oculto:**
+    - sale de la búsqueda, del área, de la densidad, del detalle público (404), de los comentarios (404), de `mis-adhesiones`, del índice y de la exportación;
+    - sigue en `mis-reportes` del creador;
+    - en la bandeja municipal, según la pregunta abierta 5: lo recomendado es que también salga. Si se queda, lleva `ocultoPorModeracion` en `ReporteGestionResponse`;
   - **foto oculta:** `fotoUrl` en `null` en todos los DTO que no son del ADMIN;
   - `findReporteActivoCercano` ignora los reportes ocultos.
 - **Fotos:**
   - `WebMvcConfig` consulta el puerto nuevo `common/port/VisibilidadDeFotosDeReporte`, que implementa `reportes/infra/JpaVisibilidadDeFotosAdapter`, y responde 404 si la foto no es de un reporte visible;
-  - la foto de reporte suma `s-maxage=3600` (si el usuario elige esa opción, pregunta 8).
-- **Línea de tiempo:** el motivo lo ven el creador, el funcionario y el ADMIN; los adheridos ven un texto fijo, y el autor solo lo ve el ADMIN (`SeguimientoReporteService`).
+  - la foto de reporte suma `s-maxage=3600` (si el usuario elige esa opción, pregunta abierta 6).
+- **Línea de tiempo** (`SeguimientoReporteService`):
+  - el motivo lo ven el creador, el funcionario y el ADMIN; los adheridos ven un texto fijo, y el autor solo lo ve el ADMIN;
+  - `REPORTE_OCULTO` agrega, para todos, el texto fijo «Mientras esté oculto, este reporte no cuenta en el índice de desempeño.» y `REPORTE_RESTABLECIDO`, «Vuelve a contar en el índice de desempeño.». Los arma el servidor y no el ADMIN.
 - **SEC-01 y señales internas:**
-  - no hay ocultamiento automático;
+  - solo el ADMIN oculta; el FUNCIONARIO_MUNICIPAL y el CIUDADANO reciben 403 en toda ruta de moderación;
+  - no hay ocultamiento automático por denuncias;
   - `ReporteResumenResponse` y `ReporteResponse` no ganan campos;
   - las denuncias solo aparecen en los DTO del ADMIN.
-  - El índice no cambia, salvo que el usuario elija la opción B (pregunta 7): en ese caso, la migración de la vista y un evento de refresco.
+  - La sección SEC-01 de `backend/README.md` suma la salida del índice por moderación: la única fuera de `CANCELADO`, en manos de un actor que no se mide.
 - **Fuera de alcance:**
   - la notificación al creador cuando se oculta;
   - ocultar un comentario suelto;
@@ -580,7 +609,13 @@ No es migración, es funcionalidad. Se lista aquí para fijar **dónde** va cada
   - 409 por repetida, por propia y por el límite diario;
   - 404 si el reporte está oculto, cancelado o no existe;
   - 401 anónimo y 403 funcionario.
-- `OcultamientoReporteIT`: cada fila de la tabla de visibilidad, `/media/...` con 404, el historial con su redacción, restablecer, 403 para quien no es ADMIN, y el índice sin cambios.
+- `OcultamientoReporteIT`: cada fila de la tabla de visibilidad, `/media/...` con 404, el historial con su redacción y el texto del índice, restablecer, y 403 para quien no es ADMIN.
+- **`IndiceSinOcultosIT`** (decisión del 28/10):
+  - ocultar el reporte baja `total_reportes` del distrito y de su categoría después del refresco, y también `total_resueltos` y las calificaciones si estaba resuelto y calificado;
+  - restablecerlo devuelve los valores de antes;
+  - ocultar solo la foto no cambia nada;
+  - el refresco ocurre por el evento, sin llamarlo a mano (con sondeo acotado si BE-12 ya entró);
+  - la exportación no trae el reporte oculto.
 - Un IT de componentes de los DTO públicos: la misma lista que antes.
 - La deduplicación ignora los reportes ocultos.
 - Failsafe igual o mayor, ArchUnit en 0 y el handoff `handoffs/AAAA-MM-DD-ocultar-y-denunciar.md` en estado `pendiente`.
@@ -596,7 +631,8 @@ No es migración, es funcionalidad. Se lista aquí para fijar **dónde** va cada
   - la foto se trae con `apiFetch` y se muestra como `blob:`, como la foto de perfil;
   - ocultar, restablecer y desestimar piden el motivo;
   - `GuardiaDeRol` con `ADMIN`.
-- **Línea de tiempo:** `LineaDeTiempo` muestra los cuatro tipos nuevos (`lib/types/domain.ts` suma las uniones).
+- **Línea de tiempo:** `LineaDeTiempo` muestra los cuatro tipos nuevos, con el texto del índice que manda el servidor (`lib/types/domain.ts` suma las uniones).
+- **Diálogo de ocultar del ADMIN:** con alcance `REPORTE`, avisa que el reporte saldrá del índice de desempeño del distrito; con `FOTO`, que el índice no cambia.
 
 **Aceptación:**
 - Tests del diálogo, del hook, de la bandeja y del detalle (sin mapa), y de las etiquetas de `LineaDeTiempo`.

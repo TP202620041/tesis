@@ -1,6 +1,6 @@
 # Propuesta: moderación de contenido al crear un reporte (NC-10 y NC-11)
 
-- **Estado:** abierta. Las cuatro decisiones del usuario del 28/10 ya están tomadas y no se discuten aquí. Quedan abiertas las de «Qué decide el usuario».
+- **Estado:** abierta en parte. El 28/10 el usuario tomó las 4 decisiones del encargo y, sobre esta propuesta, 4 más: el modelo, la falla, el índice y los términos (ver «Decisiones del usuario sobre esta propuesta»). Quedan abiertas solo las de «Qué decide el usuario».
 - **Fecha:** 2026-10-28
 - **Origen:** subagente arquitecto, encargo del coordinador: diseñar la moderación de contenido y dejarla lista para implementar.
 - **Decide:** el usuario. Si se acepta, la sesión de raíz actualiza ARCHITECTURE.md (§4.3, §6, §7, §8 y una fila D-15), el plan de sprints y los términos. Las fichas NC-10 y NC-11 ya están en `plan-migracion-capas.md`.
@@ -15,6 +15,20 @@
 4. **Red de seguridad:**
    - el ADMIN puede ocultar un reporte, o solo su foto, ya publicados, con un motivo y un registro en la línea de tiempo;
    - un ciudadano puede denunciar un reporte público con el botón «Denunciar contenido», y la denuncia llega a una bandeja del ADMIN.
+
+## Decisiones del usuario sobre esta propuesta (28/10)
+
+5. **Modelo aprobado:** Marqo `nsfw-image-detection-384`, revisión `0c26ec2`, con **umbral inicial 0,70** (§1).
+6. **Si el servicio no responde, se falla cerrado** (§4, opción B):
+   - el reporte con foto recibe un 503;
+   - la PWA ofrece la cola sin conexión o «Enviar sin foto»;
+   - `MODERACION_TIPO=ninguna` queda como interruptor de emergencia.
+7. **Un reporte oculto por el ADMIN se excluye del índice de desempeño** (§6, opción B). Es lo contrario de lo que recomendaba esta propuesta. SEC-01 se mantiene porque solo el ADMIN (la plataforma) oculta y la municipalidad nunca: nadie mueve sus propias métricas. Hace falta:
+   - que la vista materializada del índice y la exportación excluyan lo oculto;
+   - que ocultar y restablecer disparen el `REFRESH`, como `IndiceDesempenoRefreshListener`;
+   - IT que lo prueben;
+   - que quede claro en la línea de tiempo.
+8. **Términos:** la moderación va **dentro de la v2**, que todavía no se publicó. No hay v3 (§7).
 
 ## Contexto
 
@@ -76,7 +90,7 @@ Fuentes, consultadas el 28/10/2026:
 - Hay un indicio a favor: el modelo se entrenó con *label smoothing* 0,1, y en las fotos de pistas el puntaje quedó pegado al piso esperable de ~0,05.
 - Las fotos de RDD2022 (CC BY-SA 4.0) se usaron fuera del repo, como en NC-03a.
 
-### Recomendación: Marqo `nsfw-image-detection-384`
+### Recomendación: Marqo `nsfw-image-detection-384` (aprobada por el usuario el 28/10, decisión 5)
 
 - **Licencia Apache-2.0**, compatible con un repo público. La atribución va en §13 de los términos, junto a RF-DETR.
 - **Cabe con holgura:** +63 MiB, frente a los 1 GB del servicio con RF-DETR.
@@ -88,13 +102,13 @@ Fuentes, consultadas el 28/10/2026:
 - **Se proponen dos recortes de 384 que cubren todo el lado mayor, y se toma el máximo.** Así nada queda fuera del análisis.
 - En las 120 fotos de pistas, el máximo no cambió (0,105) y el costo se duplica a ~0,2 s.
 
-**Umbral inicial: 0,70.**
+**Umbral inicial: 0,70** (decidido el 28/10).
 - `MODERACION_UMBRAL` en el backend, igual que `CLASIFICACION_UMBRAL`.
 - El servicio solo mide; la regla «rechazar si el puntaje ≥ umbral» vive en `moderacion/domain/PoliticaDeModeracion`.
 - Según la gráfica del autor, a 0,7 la cobertura de NSFW es de ~0,96 y la precisión de ~0,99.
 - Como el modelo usa *label smoothing*, la salida queda entre ~0,05 y ~0,95, así que un umbral por encima de 0,9 deja pasar casi todo.
 
-**Calibración (en NC-10a, con el script nuevo `scripts/calibrar_moderacion.py`).**
+**Calibración (en NC-10a, con el script nuevo `scripts/calibrar_moderacion.py`; pregunta abierta 1).**
 - **Conjunto negativo, fuera del repo:**
   - ≥ 300 fotos de RDD2022;
   - las ≥ 200 fotos de Lima de NC-03b, cuando existan;
@@ -219,7 +233,7 @@ El 400 con `codigo` y el campo en `details` necesita `common/exception/Contenido
 | **B. Fallar cerrado, con la cola de la PWA** | Sin respuesta, el reporte con foto recibe un 503 `MODERACION_NO_DISPONIBLE`. La PWA ofrece «Guardar para enviar después» (cola de US-06, misma `Idempotency-Key`), que ya reintenta los 5xx, o «Enviar sin foto». Los reportes sin foto no cambian | Cumple «nunca se guarda ni se publica». No se pierde ningún reporte: queda en el teléfono y sale cuando el servicio vuelve. El texto no depende del servicio | El servicio `inferencia` pasa a ser **crítico** para los reportes con foto: su disponibilidad importa, y **NC-10b no puede llegar a producción antes que DEP-13 y NC-10a** |
 | C. Cuarentena | Sin respuesta, el reporte se crea, la foto se guarda en privado y un trabajo la publica o la borra cuando el servicio vuelve | No bloquea y no publica nada sin revisar | La foto **sí se guarda** (en contra de la decisión 1). Necesita un estado de la foto, reintentos programados y un aviso posterior al ciudadano. Es lo más caro de construir y probar |
 
-**Recomendación: B**, con tres resguardos:
+**Decidido por el usuario el 28/10: B** (decisión 6), con estos tres resguardos:
 1. **Interruptor:** `MODERACION_TIPO=ninguna` (abierto y explícito) es la salida de emergencia ante una caída larga. Se registra en el runbook (§10) con su advertencia: mientras está puesto se publican fotos sin revisar.
 2. **Despliegues sin corte:** en DEP-13, el servicio `inferencia` configura en Railway el *healthcheck* `/salud`, para que un redespliegue no deje el servicio sin responder (Railway activa la nueva versión cuando pasa el healthcheck; **SUPUESTO** a comprobar en DEP-13).
 3. **Orden de despliegue:** primero el servicio con el modelo de moderación (NC-10a) y después el backend con `MODERACION_TIPO=http`. Mientras el servicio no exista, producción corre con `ninguna` y la red de seguridad (NC-11) es lo único activo.
@@ -254,7 +268,7 @@ Lo que la lista no atrapa lo atrapa la denuncia (NC-11).
 |---|---|---|
 | Título y descripción, al crear y al editar | **Sí** (decisión 3 y su par natural: el título también es público) | Se publican en el mapa y en el detalle |
 | Comentario público (US-27) | **Sí, recomendado** | Es público y es el sitio más probable para un insulto |
-| Nombre del perfil (registro y edición) | **Pregunta abierta; recomendado sí** | Se muestra junto a cada comentario. Llevaría el filtro también a `auth` (`moderacion ← auth`, sin ciclo) |
+| Nombre del perfil (registro y edición) | **Pregunta abierta 2; recomendado sí** | Se muestra junto a cada comentario. Llevaría el filtro también a `auth` (`moderacion ← auth`, sin ciclo) |
 | Tickets de soporte, responsable asignado, categorías de distrito | No | Son privados o los escribe el personal municipal |
 
 ### Normalización y comparación
@@ -288,13 +302,18 @@ No hace falta un puerto: no hay E/S externa en tiempo de ejecución (D-04). **La
 
 ### Modelo de datos (una migración, con la siguiente versión libre)
 
-Hoy la siguiente es V20, pero NC-09 probablemente la tome.
+NC-09 toma V20 (PR #122), así que probablemente sea V21.
 
 ```sql
 ALTER TABLE reporte
-    ADD COLUMN oculto      BOOLEAN NOT NULL DEFAULT FALSE,   -- todo el reporte fuera de lo público
-    ADD COLUMN foto_oculta BOOLEAN NOT NULL DEFAULT FALSE;   -- solo la foto
+    ADD COLUMN oculto      BOOLEAN NOT NULL DEFAULT FALSE,   -- todo el reporte fuera de lo público y del índice
+    ADD COLUMN foto_oculta BOOLEAN NOT NULL DEFAULT FALSE;   -- solo la foto; el reporte sigue contando
 CREATE INDEX ix_reporte_foto_url ON reporte (foto_url);      -- resolver de /media (abajo)
+
+-- índice de desempeño (decisión 7): se vuelve a crear la vista, como en V7, con un filtro más
+--   LEFT JOIN reporte r ON r.distrito_id = d.id AND r.estado <> 'CANCELADO' AND NOT r.oculto
+-- y su índice único ux_mv_indice_desempeno_id. Las calificaciones de un reporte oculto
+-- tampoco cuentan, porque se unen a través de r.
 
 -- historial: cuatro tipos nuevos, sin estados y con el motivo obligatorio
 --   FOTO_OCULTA | REPORTE_OCULTO | FOTO_RESTABLECIDA | REPORTE_RESTABLECIDO   (≤ 20 caracteres, cabe en VARCHAR(20))
@@ -335,18 +354,19 @@ CREATE INDEX ix_denuncia_denunciante_fecha ON denuncia_reporte (denunciante_id, 
 
 Detalles:
 - Ninguna ruta nueva es pública (`SecurityConfig` no cambia). El FUNCIONARIO_MUNICIPAL no puede denunciar ni moderar (403).
-- **No hay ocultamiento automático por número de denuncias:** si lo hubiera, cualquiera que juntara cuentas podría sacar un reporte del mapa (ver SEC-01 abajo). La denuncia solo pone el reporte en la bandeja.
+- **No hay ocultamiento automático por número de denuncias:** si lo hubiera, cualquiera que juntara cuentas podría sacar un reporte del mapa y, desde la decisión 7, también del índice (ver SEC-01 abajo). La denuncia solo pone el reporte en la bandeja.
 - «¿Ya denuncié?» no va en ningún DTO. La PWA muestra el botón siempre y, si recibe 409, el mensaje «Ya denunciaste este reporte».
 
 ### Qué ve cada quien
 
 | | Público (mapa, búsqueda, detalle, densidad, comentarios) | Creador | Adheridos | Funcionario (bandeja, detalle, exportación) | ADMIN |
 |---|---|---|---|---|---|
-| **Foto oculta** | El reporte sigue visible, con `fotoUrl` en `null`, y la URL de la foto da 404 | Igual, más el evento con el motivo en su línea de tiempo | Igual que el público | El reporte sin foto | Todo, y la foto por su endpoint |
-| **Reporte oculto** | Fuera: 404 en el detalle y en los comentarios; no aparece en la búsqueda, el área, la densidad ni en `mis-adhesiones` | Lo sigue viendo en «Mis reportes» (sin foto), con el evento y el motivo. No puede comentar ni recibir comentarios | Desaparece de su lista | Sigue en la bandeja con `ocultoPorModeracion: true` (DTO interno, como `posibleReincidencia`). Puede gestionarlo o rechazarlo. En la exportación sale con el título «Oculto por moderación» | Todo |
+| **Foto oculta** | El reporte sigue visible, con `fotoUrl` en `null`, y la URL de la foto da 404 | Igual, más el evento con el motivo en su línea de tiempo | Igual que el público | El reporte sin foto, en la bandeja y en la exportación. **Sigue contando en el índice** | Todo, y la foto por su endpoint |
+| **Reporte oculto** | Fuera: 404 en el detalle y en los comentarios; no aparece en la búsqueda, el área, la densidad ni en `mis-adhesiones` | Lo sigue viendo en «Mis reportes» (sin foto), con el evento, el motivo y el aviso de que no cuenta en el índice. No puede comentar ni recibir comentarios | Desaparece de su lista | **Sale del índice y de la exportación** (decisión 7). La bandeja es la pregunta abierta 5: se recomienda que salga también. Si se queda, lleva `ocultoPorModeracion: true` en `ReporteGestionResponse` (DTO interno, como `posibleReincidencia`) | Todo |
 
 - **Deduplicación (US-09):** `findReporteActivoCercano` ignora los reportes ocultos. Si no lo hiciera, un reporte nuevo y legítimo en el mismo lugar se convertiría en una adhesión invisible. Con solo la foto oculta, la deduplicación sigue igual.
-- **Calificación (US-26):** el creador puede calificar su reporte oculto, porque sigue contando (recomendación de abajo).
+- **Calificación (US-26):** mientras el reporte esté oculto, su calificación no cuenta en el índice, porque la vista la une a través del reporte. Al restablecerlo vuelve a contar.
+- **Solo la foto oculta no mueve el índice.** El reporte sigue público y el daño sigue registrado. Por eso, si el daño es real y solo la foto incumple, el ADMIN oculta la foto y no el reporte.
 
 ### La foto en `/media/fotos/reportes/**`
 
@@ -377,61 +397,53 @@ Si la foto oculta fuera material de abuso sexual infantil, el ADMIN sigue un pro
 
 Lo aplica `SeguimientoReporteService`, igual que la redacción de las asignaciones.
 
+**Que quede claro el efecto en el índice** (decisión 7). Para todos los que ven la línea de tiempo, la entrada lleva un texto fijo, además del motivo, que arma el servidor y que el ADMIN no escribe:
+- `REPORTE_OCULTO`: «Mientras esté oculto, este reporte no cuenta en el índice de desempeño.»
+- `REPORTE_RESTABLECIDO`: «Vuelve a contar en el índice de desempeño.»
+- `FOTO_OCULTA` y `FOTO_RESTABLECIDA` no lo llevan, porque no cambian el índice.
+
+Así el creador sabe por qué su reporte dejó de pesar en la métrica, y el ADMIN deja la traza auditable de cada salida del índice.
+
 ### Señales internas y SEC-01
 
 - **`ReporteResumenResponse` y `ReporteResponse` no ganan ningún campo.** Lo oculto se nota porque `fotoUrl` es `null` o porque el reporte no aparece. Un IT compara la lista de componentes del record antes y después.
 - El conteo de denuncias y los motivos solo aparecen en los DTO del ADMIN. Tampoco los ve el funcionario: no debe saber quién o cuántos denunciaron su distrito.
-- **Nadie mueve sus propias métricas:**
-  - solo el ADMIN (el equipo de la plataforma, que no se mide) oculta;
-  - las denuncias no tienen efecto automático;
-  - con la recomendación de abajo, ocultar no cambia el índice.
+- **Nadie mueve sus propias métricas** (SEC-01, con la decisión 7):
+  - ocultar el reporte saca al reporte del índice, pero **solo lo hace el ADMIN** (la plataforma, que no se mide), y cada vez deja un motivo y una entrada en la línea de tiempo;
+  - **la municipalidad nunca oculta.** El FUNCIONARIO_MUNICIPAL no tiene ninguna ruta de moderación ni de denuncia (403), y su única vía para descartar sigue siendo `RECHAZADO`, que cuenta;
+  - las denuncias no tienen efecto automático, así que juntar cuentas no saca nada del índice.
 
-### ¿Un reporte oculto cuenta para el índice de desempeño? (pregunta abierta)
+### El reporte oculto sale del índice de desempeño (decisión del usuario, 28/10)
 
-| Opción | Qué implica |
+Se tomó la opción B, la contraria a la que recomendaba esta propuesta: un reporte oculto no cuenta, igual que uno `CANCELADO`. Lo que implica:
+
+| Pieza | Cambio |
 |---|---|
-| **A. Sí cuenta** (recomendada) | La vista materializada no cambia y no hace falta ningún evento. El ADMIN modera **contenido**, no el **daño**: el bache sigue ahí aunque la foto fuera obscena. Si el reporte es falso, la vía ya existe: el funcionario lo `RECHAZA` con su motivo (público, SEC-01). Así ni una ola de denuncias ni una decisión del ADMIN mueven la métrica de un distrito |
-| B. No cuenta (como `CANCELADO`) | Migración de la vista con `AND NOT r.oculto` y un evento `ReporteVisibilidadCambiadaEvent` que la refresque al ocultar y al restablecer (regla «todo lo que cambia un KPI publica un evento»). Un reporte falso oculto deja de bajar la tasa del distrito, pero la métrica pasa a depender de una decisión de moderación, y las denuncias se vuelven una palanca para presionar en esa dirección |
+| **Vista materializada** | En la migración de NC-11a se vuelve a crear `mv_indice_desempeno_distrital` con `AND NOT r.oculto` en el `LEFT JOIN` de `reporte` (bloque SQL de arriba). `foto_oculta` no la toca |
+| **Evento y refresco** | `ModeracionReporteService` publica `ReporteVisibilidadCambiadaEvent(reporteId, distritoId)` al ocultar y al restablecer **el reporte** (no la foto). `desempeno/listener/IndiceDesempenoRefreshListener` suma un manejador `AFTER_COMMIT`, igual que los cuatro que ya tiene. Cumple la regla «toda operación que cambie un KPI publica un evento». Si BE-12 ya entró, el refresco es asíncrono y coalescido, como el resto |
+| **Exportación** | `buscarParaExportar` excluye los reportes ocultos. Así, lo que exporta la municipalidad coincide con lo que mide el índice |
+| **Línea de tiempo** | El texto fijo de la subsección anterior |
+| **IT** | Ocultar el reporte baja `total_reportes`, y `total_resueltos` si estaba resuelto, del distrito y de su categoría, después del refresco. Restablecerlo los devuelve. Ocultar solo la foto no cambia el índice. La exportación no trae el reporte oculto. El FUNCIONARIO_MUNICIPAL y el CIUDADANO reciben 403 en las rutas de moderación |
+
+**Riesgo que queda.** El índice ahora depende también de una decisión de moderación. Lo acota que la toma solo el ADMIN, con motivo, de forma visible en la línea de tiempo y reversible. Si el reporte es real y solo la foto incumple, se oculta la foto, que no mueve el índice.
 
 ## 7. Privacidad: cambios a los términos v2
 
-No se edita la rama `feature/doc-terminos-v2`. **Cuándo entran** es una pregunta abierta:
-- si NC-10 y NC-11 salen después de la v0.8.0 (lo esperable, porque van después de NC-09), es una **v3** con su propia aceptación (D-12);
-- si salen en la misma versión que la v2, se funden en ella.
+**Decidido por el usuario el 28/10 (decisión 8): la moderación va dentro de la v2**, que todavía no se publicó. No hay v3.
 
-En ningún caso se publica la promesa antes de que el código la cumpla. Texto sugerido:
+El texto está en la rama `feature/doc-terminos-v2-moderacion`, que sale de `feature/doc-terminos-v2` (PR #116). Esa rama también suma la confirmación del correo de NC-09 (PR #122). Qué cambia:
+- **§2:** filas de las denuncias y de la confirmación del correo.
+- **§5 nueva, «Revisión del contenido antes de publicar»:**
+  - la foto se revisa en el servicio propio para rechazar contenido sexual u obsceno, sin terceros y sin guardar nada si se rechaza;
+  - si el servicio no responde, la foto no se acepta: el reporte queda en el teléfono o se envía sin foto;
+  - el título, la descripción y los comentarios se comparan con una lista de palabras;
+  - el ADMIN puede ocultar un reporte o su foto, con un motivo, y un reporte oculto sale del índice;
+  - un ciudadano puede denunciar.
+- **§8, retención:** se suman las denuncias. Las secciones 5 a 13 de la v2 pasan a ser 6 a 14.
+- **§12:** se cambia la frase «Ciudad Viva no revisa las fotos antes de publicarlas».
+- **§14:** se suma la atribución del modelo de Marqo.
 
-**§2, filas nuevas de la tabla:**
-
-| Dato | Cuándo lo recogemos | Para qué |
-|---|---|---|
-| Tus denuncias (reporte, motivo, detalle opcional y fecha) | Si usas «Denunciar contenido» | Revisar el contenido denunciado y evitar abusos (una denuncia por reporte y un máximo por día) |
-
-**§4, sección nueva «4 bis. Revisión del contenido antes de publicar»** (o §5 si se renumera):
-
-> Antes de publicar tu reporte revisamos automáticamente:
-> - **La foto**, para detectar contenido sexual. La revisión la hace el mismo servicio propio que sugiere el tipo de daño (§4), sin enviar la foto a terceros. Si detecta ese contenido, la foto **se rechaza y no se guarda**, y puedes tomar otra. Si el servicio no está disponible en ese momento, no podemos aceptar la foto: tu reporte queda guardado en tu dispositivo y se envía cuando el servicio vuelva, o puedes enviarlo sin foto.
-> - **El título, la descripción y los comentarios**, comparándolos con una lista de palabras ofensivas. Si encontramos una, te pedimos cambiarla antes de publicar. No guardamos el texto rechazado.
->
-> No guardamos el resultado de estas revisiones. Son automáticas y pueden equivocarse: si crees que rechazamos algo por error, escríbenos por Soporte.
-
-**§7, viñeta nueva:**
-
-> - **Denuncias que haces:** mientras exista el reporte denunciado. Si cierras tu cuenta, se conservan sin ningún dato que te identifique.
-
-**§10, al final, reemplaza «Podemos rechazar o retirar contenido que incumpla estas reglas»:**
-
-> Si ves un reporte que incumple estas reglas, usa **«Denunciar contenido»**. El equipo de Ciudad Viva revisa cada denuncia y puede ocultar el reporte o su foto; el autor ve el motivo en la línea de tiempo de su reporte. Quien hizo el reporte no sabe quién lo denunció.
-
-**§11, reemplaza «Ciudad Viva no revisa las fotos antes de publicarlas.»:**
-
-> Una revisión automática rechaza las fotos con contenido sexual y los textos con palabras ofensivas (§4 bis), pero no es infalible ni revisa todo lo demás.
-
-**§12, en la nota de la versión:** «se agregó la revisión automática del contenido y las denuncias (§4 bis, §10)».
-
-**§13, viñeta nueva:**
-
-> - **Revisión de fotos:** modelo `nsfw-image-detection-384` de Marqo ([huggingface.co/Marqo/nsfw-image-detection-384](https://huggingface.co/Marqo/nsfw-image-detection-384)), afinado a partir de ViT-Tiny de `timm`, bajo licencia [Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0). Ciudad Viva lo usa sin reentrenarlo, exportado a ONNX.
+**El texto no puede adelantarse al código.** La v2 se publica en la versión en que salgan NC-09, NC-10 y NC-11. Si alguna no llega a esa versión, la sesión de raíz quita su párrafo antes de publicar.
 
 ## 8. Costo en Railway
 
@@ -453,11 +465,12 @@ La imagen de `inferencia` crece unos 22 MB (de 637 a ~660 MB), lo que no tiene c
 |---|---|
 | **Normas** (sesión de raíz, si se acepta) | `ARCHITECTURE.md` §4.3 suma la fila del módulo `moderacion` y el grafo; §6 y §7, el contrato `/v1/moderacion`; §8, `reporte.oculto` y `foto_oculta` y la entidad DENUNCIA_REPORTE en `reportes`; §9, la fila **D-15** con el módulo, la falla cerrada y el resolver de fotos |
 | **Contrato `inferencia` → backend** | `POST /v1/moderacion` y `version_moderacion` en `/salud`, los dos compatibles. Handoff en NC-10a |
-| **Contrato backend → PWA** | `fotoRechazada` en `ClasificacionResponse`; los códigos `FOTO_NO_PERMITIDA`, `TEXTO_NO_PERMITIDO` y `MODERACION_NO_DISPONIBLE`; las rutas de denuncia y de moderación del ADMIN; los 4 tipos de evento del historial; `ocultoPorModeracion` en `ReporteGestionResponse`. Cada uno con su `/contrato` |
-| **Migraciones** | NC-10: ninguna. NC-11: una (arriba) |
+| **Contrato backend → PWA** | `fotoRechazada` en `ClasificacionResponse`; los códigos `FOTO_NO_PERMITIDA`, `TEXTO_NO_PERMITIDO` y `MODERACION_NO_DISPONIBLE`; las rutas de denuncia y de moderación del ADMIN; los 4 tipos de evento del historial; `ocultoPorModeracion` en `ReporteGestionResponse`, solo si el reporte oculto se queda en la bandeja (pregunta 5). Cada uno con su `/contrato` |
+| **Migraciones** | NC-10: ninguna. NC-11: una, con las columnas, el historial, `denuncia_reporte` y la vista del índice creada de nuevo sin los reportes ocultos |
+| **Índice** | Evento `ReporteVisibilidadCambiadaEvent` y un manejador más en `IndiceDesempenoRefreshListener` (decisión 7) |
 | **Tests** | Los de cada ficha. **Nunca hay imágenes explícitas en el repo ni en la CI.** Los mínimos de la CI (`MIN_PYTEST_INFERENCIA`, `MIN_SUREFIRE`, `MIN_IT_FAILSAFE`) los sube la sesión de raíz al fusionar |
 | **Despliegue** | Variables `MODERACION_TIPO`, `MODERACION_URL` y `MODERACION_UMBRAL` en el backend, e `INFERENCIA_MODERACION_HILOS=1` en `inferencia`. Healthcheck `/salud` en Railway. Runbook: el interruptor `ninguna` (§10), la purga manual de una URL y el procedimiento ante material ilegal. Orden: NC-10a desplegado antes que el backend con `http` |
-| **Otras tareas** | BE-11 (la foto sin transacción) va antes que NC-10b. BE-14 anonimiza `denuncia_reporte` |
+| **Otras tareas** | BE-11 (la foto sin transacción) va antes que NC-10b. BE-12 (el refresco asíncrono) también cubre el evento nuevo. BE-14 anonimiza `denuncia_reporte`. NC-06 (índice por periodo), cuando rehaga la vista, conserva el filtro `NOT r.oculto` |
 
 ## 10. Plan de sprints (fila propuesta, no editada)
 
@@ -467,34 +480,41 @@ La imagen de `inferencia` crece unos 22 MB (de 637 a ~660 MB), lo que no tiene c
 
 Va **antes de abrir la plataforma a usuarios reales** (v1.0.0) y **después de DEP-13** en producción.
 
-## Recomendación (resumen)
+## Resumen (decidido y recomendado)
 
-1. **Modelo:** Marqo `nsfw-image-detection-384` (Apache-2.0, 22,4 MB, +63 MiB de RAM, ~0,1 s por recorte), con dos recortes y el máximo. Umbral inicial de 0,70, que se calibra contra fotos de pistas y calles de Lima.
-2. **Contrato:** `POST /v1/moderacion` aparte, con los mismos errores, la misma validación y el mismo tope de 10 conexiones; un limitador propio y sin piso. El umbral es del backend.
-3. **Backend:** módulo nuevo `moderacion` (puerto y adaptador HTTP con un turno de 4 que espera hasta 1 s). Se analiza antes de guardar y sin transacción, sobre la foto saneada una sola vez. La vista previa avisa con `fotoRechazada`.
-4. **Ante una caída: fallar cerrado** con 503 `MODERACION_NO_DISPONIBLE`, la cola de la PWA y el interruptor `MODERACION_TIPO=ninguna` para emergencias.
-5. **Texto:** lista propia y versionada que aprueba el usuario. Se compara por token entero, sin plegar la ñ, con un corpus legítimo en los tests. Cubre título, descripción y comentarios.
-6. **Red de seguridad:** ocultar el reporte o la foto (ADMIN, con motivo y línea de tiempo) y denunciar (CIUDADANO, una por reporte y 10 por día), en `reportes`. El resolver de `/media` consulta la base y la foto lleva `s-maxage=3600`. Sin ocultamiento automático. El reporte oculto **sigue contando** en el índice.
+1. **Modelo** (decidido el 28/10): Marqo `nsfw-image-detection-384`, revisión `0c26ec2` (Apache-2.0, 22,4 MB, +63 MiB de RAM, ~0,1 s por recorte). Se usan dos recortes y se toma el máximo, con umbral inicial de 0,70.
+2. **Contrato** (recomendado): `POST /v1/moderacion` aparte, con los mismos errores, la misma validación y el mismo tope de 10 conexiones; un limitador propio y sin piso. El umbral es del backend.
+3. **Backend** (recomendado): módulo nuevo `moderacion`, con el puerto y un adaptador HTTP que admite 4 llamadas a la vez y espera hasta 1 s por un turno. La foto se analiza antes de guardar y sin transacción, saneada una sola vez. La vista previa avisa con `fotoRechazada`.
+4. **Ante una caída** (decidido el 28/10): **fallar cerrado** con 503 `MODERACION_NO_DISPONIBLE`, la cola de la PWA o «Enviar sin foto», y el interruptor `MODERACION_TIPO=ninguna` para emergencias.
+5. **Texto** (recomendado): lista propia y versionada que aprueba el usuario. Se compara por token entero, sin plegar la ñ, con un corpus legítimo en los tests. Cubre título, descripción y comentarios.
+6. **Red de seguridad:**
+   - ocultar el reporte o la foto (ADMIN, con motivo y línea de tiempo) y denunciar (CIUDADANO, una vez por reporte y hasta 10 por día), en `reportes`;
+   - el resolver de `/media` consulta la base y la foto lleva `s-maxage=3600`;
+   - sin ocultamiento automático;
+   - **el reporte oculto sale del índice y de la exportación** (decidido el 28/10), con el refresco por evento.
+7. **Términos** (decidido el 28/10): dentro de la v2.
 
 ## Qué decide el usuario
 
-1. **Modelo:** Marqo `nsfw-image-detection-384` (recomendado), OpenNSFW2, o una ViT-base cuantizada.
-2. **Umbral y calibración:** 0,70 inicial, con calibración solo sobre fotos negativas y sin juntar material explícito.
-3. **Falla:** cerrada con la cola de la PWA (recomendada), abierta o cuarentena.
-4. **Campos del filtro de texto:** título, descripción y comentarios (recomendado). ¿También el nombre del perfil? Se recomienda que sí.
-5. **Lista:** propia (recomendada). ¿Quién arma la versión inicial: el agente de backend con los criterios de §5 y la revisión del usuario, o el equipo?
-6. **Alcance del ocultamiento:** reporte y foto por separado (recomendado). La foto oculta se conserva en privado hasta restablecerla (recomendado) o se borra.
-7. **Índice:** ¿el reporte oculto cuenta? Se recomienda que sí (opción A).
-8. **Caché de la foto:** `s-maxage=3600` con purga manual (recomendado), o purga por API con un token nuevo.
-9. **Denuncias:** los motivos propuestos, el límite de 10 por día y la conservación «mientras exista el reporte».
-10. **Términos:** ¿v3 con su propia aceptación cuando salgan NC-10 y NC-11 (recomendado), o fundirlos en la v2 si coinciden en la misma versión?
-11. **Material ilegal:** el procedimiento del runbook si una foto oculta resulta ser abuso sexual infantil.
-12. **Sprint y versión** de la fila propuesta en §10.
-13. **ARCHITECTURE.md:** el módulo `moderacion` y la fila D-15.
+Quedan abiertas solo estas:
+
+1. **Calibración del umbral:** se recomienda usar solo fotos negativas (pistas y calles de Lima), con la regla de §1, y que el equipo no junte material explícito.
+2. **Nombre del perfil en el filtro de texto,** además del título, la descripción y los comentarios. Se recomienda que sí.
+3. **Quién arma la versión inicial de la lista.** Se recomienda que la arme el agente de backend con los criterios de §5 y que el usuario la apruebe en el PR.
+4. **Alcance y conservación del ocultamiento.** Se recomienda ocultar el reporte y la foto por separado, y conservar la foto oculta en privado hasta restablecerla, sin borrarla.
+5. **¿El reporte oculto sale también de la bandeja municipal?** Se recomienda que sí, para que coincida con el índice y la exportación. Si el daño es real, el ADMIN oculta solo la foto y el reporte sigue en la bandeja. Si se queda, va con `ocultoPorModeracion` en `ReporteGestionResponse`.
+6. **Caché de la foto.** Se recomienda `s-maxage=3600` más la purga manual en los casos urgentes, en vez de un token de purga nuevo.
+7. **Denuncias.** Se recomiendan los motivos propuestos, el límite de 10 por día y conservarlas mientras exista el reporte, anonimizadas al cerrar la cuenta (BE-14).
+8. **Material ilegal.** El procedimiento del runbook si una foto oculta es abuso sexual infantil. Se recomienda que el usuario lo defina antes de abrir a usuarios reales.
+9. **Sprint y versión** de la fila de §10. Se recomienda ponerla después de NC-09 y de DEP-13, y antes de la v1.0.0. Como la v2 de los términos ahora incluye la moderación (decisión 8), NC-10 y NC-11 tienen que salir en la misma versión que la v2, o el texto se recorta (§7).
+10. **ARCHITECTURE.md:** el módulo `moderacion` y la fila D-15. Se recomienda que sí.
 
 ## Qué queda bloqueado mientras no se decida
 
-- **NC-10a**, NC-10b y NC-10c esperan las decisiones 1 a 5 y la 13.
-- **NC-11a** y NC-11b esperan las decisiones 6 a 9.
-- La **v3 de los términos** (o el cambio en la v2) espera la decisión 10.
+- **NC-10a** espera las preguntas 1 y 10.
+- **NC-10b** espera las preguntas 2, 3 y 10.
+- **NC-10c** no espera nada más que NC-10b.
+- **NC-11a** espera las preguntas 4 a 7.
+- La 8 hace falta antes de abrir a usuarios.
+- La 9 fija la versión.
 - No bloquea nada en curso: NC-09, BE-11 a BE-14 y DEP-13 siguen igual. BE-11 conviene que entre antes que NC-10b.
