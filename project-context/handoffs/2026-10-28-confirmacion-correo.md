@@ -1,10 +1,10 @@
 # Handoff de contrato: confirmación del correo al crear la cuenta (NC-09)
 
-- **Estado:** pendiente <!-- pendiente | atendido -->
+- **Estado:** atendido <!-- pendiente | atendido -->
 - **Fecha:** 2026-10-28
-- **Origen:** backend, rama `feature/nc-09-confirmacion-correo` (PR pendiente)
+- **Origen:** backend, rama `feature/nc-09-confirmacion-correo` (PR #122)
 - **Historia o tarea:** NC-09 (cambia US-01 y US-02)
-- **Atendido por:** _(frontend, rama y fecha)_
+- **Atendido por:** frontend, rama `feature/nc-09-confirmacion-correo-pwa`, PR #123, 2026-10-28. El registro ya no guarda token: muestra «Revisa tu correo» con el `email` y la vigencia de la respuesta y «Reenviar el enlace» (60 s de espera desde el registro y tras cada reenvío). `CORREO_DESECHABLE` y `DOMINIO_SIN_CORREO` van en el campo del correo y reinician el captcha. El login muestra el 409 `CORREO_NO_CONFIRMADO` con «Reenviar el enlace» al correo con el que se intentó entrar. `/confirmar-cuenta` (grupo `(auth)`, estática) lee el token en el cliente, lo saca de la URL con `history.replaceState` antes de llamar una sola vez al API (también con StrictMode), trata `CORREO_YA_CONFIRMADO` como éxito y, sin token o con más de 100 caracteres, muestra lo de `CONFIRMACION_INVALIDA` sin llamar. Con `CONFIRMACION_REEMPLAZADA` también ofrece pedir otro enlace (pedido del coordinador), además del mensaje. El Service Worker no guarda esa página en caché (la URL lleva el token). Tipos regenerados desde el OpenAPI de esta rama. Detalle: `frontend/README.md`, «Confirmación del correo (NC-09)».
 
 Decisiones del usuario (28/10): una cuenta sin confirmar **no puede iniciar sesión** hasta abrir el enlace del correo; las cuentas que ya existían quedan confirmadas; el registro rechaza los correos de dominios desechables o sin MX. Detalle en `backend/README.md`, «Confirmación del correo (NC-09)».
 

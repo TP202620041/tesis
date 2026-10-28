@@ -1,15 +1,17 @@
 'use client';
 
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { useCallback, useState, type ReactNode } from 'react';
 import { EnlaceConDialogo } from '@/components/ui/dialogo';
 import { AlertaError, Boton, Campo } from '@/components/ui/form';
+import type { CuentaPorConfirmar } from '@/lib/types/domain';
 import { useRegistro } from '../hooks/useRegistro';
 import { captchaConfigurado, MENSAJE_FALTA_CAPTCHA, siteKeyDelCaptcha } from '../model/captcha';
 import { AYUDA_PASSWORD, errorDeLargoDePassword, PASSWORD_MAX, PASSWORD_MIN } from '../model/password';
-import { destinoTrasAcceso, RUTA_PRIVACIDAD } from '../model/rutas';
+import { conRedirect, RUTA_LOGIN, RUTA_PRIVACIDAD } from '../model/rutas';
 import { TITULO_TERMINOS } from '../model/terminos';
 import { CampoCaptcha } from './CampoCaptcha';
+import { RegistroEnviado } from './RegistroEnviado';
 
 /**
  * US-01: registro de cuenta ciudadana.
@@ -32,12 +34,21 @@ import { CampoCaptcha } from './CampoCaptcha';
  * CUALQUIER error del registro se reinicia: el token es de un solo uso y el
  * backend ya lo consumio al verificarlo. Sin site key (local, backend con
  * `CAPTCHA_TIPO=ninguno`) no se muestra el widget ni se envia token.
+ *
+ * NC-09: crear la cuenta NO inicia sesion. Si sale bien, el formulario se
+ * reemplaza por «Revisa tu correo» ({@link RegistroEnviado}); el enlace al
+ * login conserva el `?redirect=`, para volver a donde iba tras confirmar.
+ * Los 409 del dominio del correo (desechable, sin MX) se muestran en el
+ * campo del correo mientras no se cambie lo escrito.
  */
 export function FormularioRegistro({ textoLegal }: { textoLegal: ReactNode }) {
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const { enviando, error, terminosDesactualizados, enviar } = useRegistro();
+  const { enviando, error, errorDelCorreo, terminosDesactualizados, enviar } = useRegistro();
+  const [cuenta, setCuenta] = useState<CuentaPorConfirmar | null>(null);
   const [campos, setCampos] = useState({ nombre: '', apellido: '', email: '', password: '' });
+  // Correo del ultimo envio: el error del dominio se refiere a ese texto y
+  // deja de mostrarse en cuanto se corrige.
+  const [emailEnviado, setEmailEnviado] = useState<string | null>(null);
   const [acepta, setAcepta] = useState(false);
   const [faltaAceptar, setFaltaAceptar] = useState(false);
   // QA-1 M-2: el largo de la contraseña se valida antes de enviar. El error
@@ -66,18 +77,18 @@ export function FormularioRegistro({ textoLegal }: { textoLegal: ReactNode }) {
     const sinCaptcha = conCaptcha && !captchaToken;
     if (sinCaptcha) setFaltaCaptcha(true);
     if (!acepta || sinCaptcha || errorDeLargoDePassword(campos.password)) return;
-    const { sesion, terminosDesactualizados: textoViejo } = await enviar(campos, conCaptcha ? captchaToken : null);
-    if (!sesion && conCaptcha) {
+    setEmailEnviado(campos.email);
+    const { cuenta: creada, terminosDesactualizados: textoViejo } = await enviar(
+      campos,
+      conCaptcha ? captchaToken : null,
+    );
+    if (!creada && conCaptcha) {
       // NC-08: el token ya se gasto (o lo rechazo Google): casilla nueva.
       setCaptchaToken(null);
       setReiniciosCaptcha((n) => n + 1);
     }
-    if (sesion) {
-      // QA-1 I-2: al mismo lugar que el login (antes iba a `/sesion`, una
-      // pantalla de depuracion): al `?redirect=` si es interno, si no a
-      // «Mis reportes».
-      router.push(destinoTrasAcceso(sesion.usuario, searchParams.get('redirect')));
-      router.refresh();
+    if (creada) {
+      setCuenta(creada);
     } else if (textoViejo) {
       // Si el texto quedo viejo, la aceptacion ya no vale: debe releerlo.
       // Ante cualquier otro error (correo ya registrado, validacion, red) la
@@ -85,6 +96,12 @@ export function FormularioRegistro({ textoLegal }: { textoLegal: ReactNode }) {
       setAcepta(false);
     }
   }
+
+  if (cuenta) {
+    return <RegistroEnviado cuenta={cuenta} rutaLogin={conRedirect(RUTA_LOGIN, searchParams.get('redirect'))} />;
+  }
+
+  const errorEmail = errorDelCorreo && campos.email === emailEnviado ? errorDelCorreo : undefined;
 
   return (
     <form onSubmit={alEnviar} className="flex flex-col gap-4" noValidate>
@@ -127,6 +144,7 @@ export function FormularioRegistro({ textoLegal }: { textoLegal: ReactNode }) {
         type="email"
         autoComplete="email"
         required
+        error={errorEmail}
         value={campos.email}
         onChange={actualizar('email')}
       />

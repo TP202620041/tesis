@@ -33,9 +33,10 @@ afterEach(() => {
 describe('useRegistro (US-01 + NC-07b)', () => {
   const DATOS = { nombre: 'Ana', apellido: 'Ruiz', email: 'ana@lima.pe', password: 'secreta123' };
 
-  it('envía la aceptación con la versión de los términos que muestra la app y devuelve la sesión', async () => {
-    const sesion = { token: 't' } as never;
-    vi.mocked(registrar).mockResolvedValue(sesion);
+  it('envía la aceptación con la versión de los términos que muestra la app y devuelve la cuenta por confirmar', async () => {
+    // NC-09: el registro ya no trae sesión, solo el correo y la vigencia del enlace.
+    const cuenta = { email: 'ana@lima.pe', vigenciaEnlaceHoras: 24 };
+    vi.mocked(registrar).mockResolvedValue(cuenta);
     const { result } = renderHook(() => useRegistro());
 
     let resultado: unknown = 'sin llamar';
@@ -48,7 +49,7 @@ describe('useRegistro (US-01 + NC-07b)', () => {
       aceptaTerminos: true,
       versionTerminos: VERSION_TERMINOS,
     });
-    expect(resultado).toEqual({ sesion, terminosDesactualizados: false });
+    expect(resultado).toEqual({ cuenta, terminosDesactualizados: false });
   });
 
   it('un 409 por versión no vigente marca los términos como desactualizados, también en el resultado', async () => {
@@ -64,7 +65,7 @@ describe('useRegistro (US-01 + NC-07b)', () => {
 
     // QA-1 M-2: quien envía lo sabe en el mismo momento (el estado del hook
     // llega en el render siguiente) y solo entonces desmarca la casilla.
-    expect(resultado).toEqual({ sesion: null, terminosDesactualizados: true });
+    expect(resultado).toEqual({ cuenta: null, terminosDesactualizados: true });
     expect(result.current.terminosDesactualizados).toBe(true);
     expect(result.current.error?.mensaje).toMatch(/no es la vigente/);
   });
@@ -76,7 +77,7 @@ describe('useRegistro (US-01 + NC-07b)', () => {
     await act(async () => {
       resultado = await result.current.enviar(DATOS);
     });
-    expect(resultado).toEqual({ sesion: null, terminosDesactualizados: false });
+    expect(resultado).toEqual({ cuenta: null, terminosDesactualizados: false });
     expect(result.current.terminosDesactualizados).toBe(false);
   });
 });

@@ -34,6 +34,11 @@ describe('AvisoPendientesSinSesion', () => {
     rerender(<AvisoPendientesSinSesion cantidad={0} ruta="/mapa" />);
     expect(container).toBeEmptyDOMElement();
   });
+
+  it('tampoco en /confirmar-cuenta: tras entrar volvería ahí sin el token (NC-09)', () => {
+    const { container } = render(<AvisoPendientesSinSesion cantidad={1} ruta="/confirmar-cuenta" />);
+    expect(container).toBeEmptyDOMElement();
+  });
 });
 
 describe('AvisoReportesIncompletos (NC-02)', () => {
