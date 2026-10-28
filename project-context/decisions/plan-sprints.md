@@ -37,7 +37,7 @@ Hay un carril de backend y uno de frontend en paralelo. En un mismo sprint el fr
 | S4 | US-11 (endpoint de densidad) · BE-06 (incluye `ReincidenciaDetector` → `domain/`) · BE-10 | US-11 (capa de calor) · FE-06 | v0.5.0 |
 | S5 | NC-01 · NC-02 | US-19 · FE-07 · FE-08 | v0.6.0 |
 | Despliegue | DEP-01..DEP-05 · DEP-08 · DEP-11 · DEP-12 · correcciones de QA-1 · CI (DEP-07) | DEP-06 · correcciones de QA-1 · fase 1 del diseño «Cívica» (DIS-1, con US-23) | v0.7.0 |
-| S7 | NC-03a (`inferencia/`) · NC-04 (`clasificacion`) · NC-04b (adaptador HTTP de `clasificacion` al servicio `inferencia/`) · DEP-13 (servicio `inferencia` en Railway, solo por la red privada) · BE-11 (la foto se sube fuera de la transacción de creación) · BE-12 (refresco asíncrono y coalescido del índice) | NC-04 (vista previa al reportar) · FE-09 (adelantada) · atribución de RDD2022 (CC BY-SA 4.0) y de los pesos RF-DETR (Apache-2.0) en «Acerca de» o en los términos · aviso de que la foto se analiza automáticamente (nueva versión de los términos, D-12) | v0.8.0 |
+| S7 | NC-03a (`inferencia/`) · NC-04 (`clasificacion`) · NC-04b (adaptador HTTP de `clasificacion` al servicio `inferencia/`) · DEP-13 (servicio `inferencia` en Railway, solo por la red privada) · BE-11 (la foto se sube fuera de la transacción de creación) · BE-12 (refresco asíncrono y coalescido del índice) · BE-15 (las cuentas sin confirmar se borran a los 30 días) · NC-09 (confirmación del correo, #122) · NC-10a (`inferencia/`: moderación de la foto, `/v1/moderacion`) · NC-10b (módulo `moderacion`: foto y texto) · NC-11a (ocultar y denunciar) | NC-04 (vista previa al reportar) · FE-09 (adelantada) · atribución de RDD2022 (CC BY-SA 4.0) y de los pesos RF-DETR (Apache-2.0) en «Acerca de» o en los términos · aviso de que la foto se analiza automáticamente (nueva versión de los términos, D-12) · NC-09 (confirmación del correo en la PWA, #123) · NC-10c (avisos de moderación) · NC-11b (denunciar y bandeja de moderación del ADMIN) | v0.8.0 |
 | S6 | NC-05 · NC-06 · BE-08 | NC-06 (dashboard por periodo, reemplaza US-17 v1) | v0.9.0 |
 | S8 | Ajustes que pida el diseño | **Diseño de la interfaz, fase 2** (mapa con hoja inferior, reporte en pasos, bandeja con panel, portada y desempeño), revisión de cada pantalla y US-24 (guía de uso) | v1.0.0 |
 
@@ -48,26 +48,43 @@ Hay un carril de backend y uno de frontend en paralelo. En un mismo sprint el fr
 **El modelo real entra al S7 (decisión del usuario del 26/10).** Sin NC-04b, la v0.8.0 publicaba el módulo `clasificacion` solo con el adaptador falso, que en producción está fijado para no sugerir nunca (`application-prod.yml`). Con NC-04b y DEP-13, la v0.8.0 sale sugiriendo con RF-DETR Nano.
 - **NC-04b (backend):** `clasificacion/infra/InferenciaHttpAdapter`, según el handoff `handoffs/2026-10-25-contrato-inferencia-v1.md`. En `prod`, `CLASIFICACION_TIPO` pasa a ser obligatoria (`http`), con la URL del servicio en `CLASIFICACION_URL`. `CLASIFICACION_TIPO=falso` queda como interruptor para apagar la clasificación. Ficha y criterios: `plan-migracion-capas.md`, NC-04b.
 - **DEP-13 (raíz, con el usuario).** El servicio `inferencia` en Railway:
+  - **Estado (28/10):** el servicio `inferencia` (id `19412ffb-4448-4902-a6e0-cada163ebf75`) ya está en Railway.
+    - Corre con el código de `develop` subido con `railway up`, sin repo conectado.
+    - Tiene 2 vCPU y 1 GB. `/salud` responde 200 y en reposo usa 223 MiB.
+    - La red privada es doble pila: `0.0.0.0` alcanza y no hace falta `INFERENCIA_HOST`. La URL privada es `inferencia.railway.internal`.
+    - El repo se conecta a `main` en la release.
   - **Servicio:** se construye desde `inferencia/Dockerfile`, con raíz `inferencia` y watch paths `/inferencia/**`. Va sin dominio público, solo por la red privada.
-  - **Recursos y red:**
+  - **Recursos, red y healthcheck:**
     - *Resource Limits* fijos de 2 vCPU y 1 GB, que además acotan el costo;
-    - `INFERENCIA_HILOS=2` y `PORT=8000`, los dos fijos;
-    - comprobar si la red privada es solo IPv6. Si lo es, `INFERENCIA_HOST` va vacío (handoff, «Red»).
-  - **Primera construcción:** `inferencia/` todavía no está en `main`, y el disparador despliega desde `main`.
-    - Antes de fusionar, la primera construcción sale de la rama `release/v0.8.0` con `railway up --service inferencia`. Esa construcción descarga torch y los pesos de Hugging Face, así que hay que comprobar que termina.
-    - Con la release en `main`, el disparador de `main` (con `checkSuites`) toma el relevo.
-  - **Variables del backend**, cargadas antes de fusionar con Alt + Deploy (la v0.7.x las ignora): `CLASIFICACION_TIPO=http` y `CLASIFICACION_URL=http://${{inferencia.RAILWAY_PRIVATE_DOMAIN}}:8000`.
+    - `INFERENCIA_HILOS=2` y `PORT=8000`, los dos fijos. Con NC-10a se suma `INFERENCIA_MODERACION_HILOS=1`, también fijo;
+    - red privada de doble pila (comprobado el 28/10): `INFERENCIA_HOST` queda en `0.0.0.0`, su valor del `Dockerfile`;
+    - **healthcheck** `/salud` en Railway (Settings › Deploy), configurado desde el 28/10. Con la falla cerrada de la moderación (D-15), un redespliegue sin healthcheck dejaría sin entrar los reportes con foto mientras arranca el servicio.
+  - **Construcción:**
+    - La primera se hizo el 28/10 con `railway up --service inferencia` desde `develop`. Antes de la release se vuelve a subir con NC-10a, para que la imagen traiga el modelo de moderación. Cada construcción descarga torch y los pesos de Hugging Face, así que hay que comprobar que termina.
+    - Con la release en `main`, se conecta el repo a `main` y el disparador (con `checkSuites`) toma el relevo.
+  - **Variables del backend**, cargadas antes de fusionar con Alt + Deploy (la v0.7.x las ignora):
+    - `CLASIFICACION_TIPO=http` y `CLASIFICACION_URL=http://${{inferencia.RAILWAY_PRIVATE_DOMAIN}}:8000`;
+    - **`MODERACION_TIPO=http`**, obligatoria en `prod` y **sin valor por defecto**: sin ella, la v0.8.0 no arranca. Vale `ninguna` solo si el servicio con NC-10a no está listo, y con la condición de los términos que explica el párrafo de la moderación;
+    - `MODERACION_URL=http://${{inferencia.RAILWAY_PRIVATE_DOMAIN}}:8000`;
+    - `MODERACION_UMBRAL`, opcional (0,70 por defecto).
   - **Medición:**
     - antes de fusionar: el servicio sano en los logs y la RAM en *Metrics* de Railway;
     - después de fusionar: la latencia de punta a punta, con la duración que registra el adaptador en cada llamada durante la prueba de humo.
 
     No se usa `scripts/medir_latencia.py`, porque no está en la imagen final y su RAM sale de `docker stats`. Las cifras van a `inferencia/README.md`.
   - **Prueba positiva:** como cualquier falla termina en «sin sugerencia» sin avisar, el ML podría quedar apagado sin que nadie lo note. La prueba de humo (runbook §7.3) suma un paso: una foto con un bache conocido da «Bache» en la vista previa, y un reporte nuevo queda con `version_modelo_sugerencia` = `rdd2022-…`.
+  - **Prueba de la moderación:**
+    - `/salud` del servicio devuelve `version_moderacion` (`nsfw-vit-tiny-384-…`). Como no tiene dominio público, se consulta desde dentro, con `railway ssh --service inferencia` y `python -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8000/salud').read())"` (verificar el comando de la CLI);
+    - un reporte con una foto normal de una pista se crea (201), y el log del backend muestra la llamada a `/v1/moderacion` con su duración.
   - **Documentos en la misma rama:**
     - en el runbook, una subsección nueva en §5, el paso de §7.3 y el interruptor `CLASIFICACION_TIPO=falso` en §10;
     - los diagramas dejan de decir «planificado»: `c4-despliegue.md`, `c4-contenedores.md` y `capas.md`;
     - el costo real del primer mes, anotado.
-- **Orden:** el servicio y las variables del backend existen **antes** de fusionar la release en `main`, porque el backend con `http` no debe llegar a producción sin el servicio. Si aun así falla, el adaptador degrada a «sin sugerencia» y el reporte se crea igual.
+- **Orden:** el servicio y las variables del backend existen **antes** de fusionar la release en `main`, porque el backend con `http` no debe llegar a producción sin el servicio.
+- **Si el servicio falla en producción:**
+  - **la sugerencia** degrada a «sin sugerencia» y no bloquea nada;
+  - **la moderación falla cerrada (D-15):** un reporte **con foto no se crea**. Recibe un 503 `MODERACION_NO_DISPONIBLE`, y la PWA ofrece guardarlo en la cola sin conexión o enviarlo sin foto. Los reportes sin foto se crean igual;
+  - ante una caída larga, el interruptor es `MODERACION_TIPO=ninguna`, con la advertencia del runbook: mientras está puesto, se publican fotos sin revisar.
 - **Costo estimado:** Railway cobra US$ 10 por GB de memoria al mes y US$ 20 por vCPU al mes, por uso real medido por minuto.
   - **El servicio nuevo:** con lo medido en NC-03a (200–480 MiB, y unos 0,4 s de reloj por foto con 2 hilos), suma unos US$ 3–5 al mes.
   - **Producción actual:** ronda los US$ 6 al mes. Métricas del 26/10: el backend promedia 0,50 GB, PostGIS 0,09 GB y la CPU es casi nula.
@@ -92,6 +109,39 @@ Hay un carril de backend y uno de frontend en paralelo. En un mismo sprint el fr
 - **Ficha y criterios:** `plan-migracion-capas.md`, BE-12.
 - **Mientras tanto:** producción corre con el pool en 20 (`SPRING_DATASOURCE_HIKARI_MAXIMUMPOOLSIZE`, runbook §5.2).
 
+**NC-09 y BE-15 entran al S7 (decisiones del usuario del 28/10).**
+- **NC-09:** confirmación del correo al crear la cuenta.
+  - Backend en #122, ya en `develop`; PWA en #123.
+  - El registro deja de devolver sesión, así que **las dos partes salen en la misma versión**.
+- **BE-15:** borra las cuentas que nunca se confirman, 30 días después de crearlas (`propuestas/2026-10-28-cuentas-sin-confirmar.md`). Una cuenta sin confirmar tampoco puede restablecer la contraseña. La ficha la escribe el agente de backend en `plan-migracion-capas.md`.
+- Los términos v2 prometen las dos (§2 y §8). Por eso van en la v0.8.0, junto con los plazos de los mismos términos que cubren BE-13 y BE-14 (sus fichas llegan con el PR #116).
+
+**La moderación entra al S7 (decisión del usuario del 28/10).** Propuesta `propuestas/2026-10-28-moderacion-de-contenido.md` (decidida) y D-15 en ARCHITECTURE.md. Fichas y criterios: `plan-migracion-capas.md`, NC-10 y NC-11.
+- **Qué entra:**
+  - **NC-10:** la foto se revisa en `inferencia/` (`/v1/moderacion`, con Marqo `nsfw-image-detection-384`, Apache-2.0, umbral inicial 0,70). Una foto sexual u obscena se rechaza al subirla y nunca se guarda. Una lista propia de groserías filtra el título, la descripción, los comentarios y el nombre del perfil;
+  - **NC-11:** el ADMIN oculta un reporte o solo su foto, con motivo y registro en la línea de tiempo. Los ciudadanos denuncian con «Denunciar contenido», una vez por reporte y hasta 10 por día.
+- **Decisiones del 28/10:**
+  - **falla cerrada:** sin servicio de moderación, un reporte con foto recibe 503 y la PWA ofrece la cola sin conexión o «Enviar sin foto». `MODERACION_TIPO=ninguna` es el interruptor de emergencia;
+  - **un reporte oculto sale del índice, de la exportación y de la bandeja municipal.** SEC-01 se mantiene, porque solo el ADMIN oculta y la municipalidad nunca. Ocultar solo la foto no saca al reporte del índice;
+  - la foto de reporte lleva `s-maxage=3600`, con purga manual en Cloudflare para los casos urgentes;
+  - la moderación va **dentro de los términos v2**, que la prometen. Si NC-10 o NC-11 no llegan a la v0.8.0, la sesión de raíz recorta su párrafo antes de publicar;
+  - **si la v0.8.0 sale con `MODERACION_TIPO=ninguna`** (porque DEP-13 o NC-10a no están listos), la v2, §5, prometería una revisión automática que no corre. En ese caso, una de dos:
+    - se recorta de la v2 el párrafo de la revisión de la foto antes de publicarla;
+    - o se retrasa la publicación de la v2 (la versión de los términos en el backend y en la PWA) hasta que la moderación esté en `http`.
+
+    Lo que no se hace es publicar la v2 completa con la moderación apagada;
+  - el procedimiento ante material ilegal lo confirma el usuario con su asesor antes de abrir a usuarios reales.
+- **Orden dentro del S7:**
+  - **carril de backend:** NC-10a (`inferencia/`), BE-11, NC-10b y NC-11a. NC-10b necesita BE-11, porque la foto se sanea y se modera sin transacción;
+  - **carril de frontend:** NC-10c cuando NC-10b esté en `develop`, y NC-11b cuando lo esté NC-11a;
+  - cada contrato nuevo con su handoff (`/contrato`).
+- **Producción:**
+  - DEP-13 se despliega con el modelo de moderación de NC-10a. Después se cargan en el backend `MODERACION_TIPO=http` y `MODERACION_URL` (con Alt + Deploy, antes de fusionar la release), igual que `CLASIFICACION_*`;
+  - el backend con `http` no llega a producción sin el servicio, porque con la falla cerrada ningún reporte con foto entraría;
+  - **`MODERACION_TIPO` es obligatoria en `prod`, sin valor por defecto:** sin ella, la v0.8.0 no arranca. Se carga junto con las demás variables de DEP-13;
+  - el healthcheck `/salud` de `inferencia` ya está configurado en Railway desde el 28/10, para que un redespliegue no corte la moderación.
+- **Costo:** unos **US$ 1 más al mes**: unos 65 MiB de RAM del modelo, CPU despreciable y algo de egreso por `s-maxage`. El total esperado pasa de unos US$ 9–11 a unos **US$ 10–12** al mes.
+
 El sprint «Despliegue» se intercaló el 21/10 por decisión del usuario, así que S6 y S7 se corren una versión (y el 25/10 se intercambian, ver arriba). v0.7.0 es el MVP listo para desplegar: el primer despliegue (DEP-09) y su prueba de humo (DEP-10) esperan las cuentas del usuario, y lo que exijan corregir sale como hotfix `v0.7.x`. El sistema visual y US-23 del S8 se adelantaron en ese sprint con la dirección «Cívica» (`docs/diseno/`); en el S8 quedan la fase 2 del rediseño y US-24.
 
 Ya hechas antes de S1: BE-01, BE-02, BE-07, FE-01 y FE-02.
@@ -106,6 +156,8 @@ Ya hechas antes de S1: BE-01, BE-02, BE-07, FE-01 y FE-02.
 | S7 | Clases finales del modelo y umbral (NC-03): **decidido el 21/10** (`propuestas/2026-10-21-ml-clases-modelo.md`: `bache` y `grieta` de RDD2022, umbral 0,50). NC-04 arranca con un adaptador falso. |
 | v0.8.0 | Si la versión sale con el modelo real: **decidido el 26/10**, sí (NC-04b y DEP-13 entran al S7). |
 | v0.8.0 | El aviso del análisis automático de la foto como nueva versión de los términos: si los ciudadanos que ya aceptaron tienen que volver a aceptar (D-12). **Decidido el 26/10:** sí, todos vuelven a aceptar. |
+| v0.8.0 | Confirmación del correo (NC-09) y purga de las cuentas sin confirmar (BE-15). **Decidido el 28/10:** una cuenta sin confirmar no inicia sesión ni restablece la contraseña, y se borra a los 30 días. |
+| v0.8.0 | Moderación de contenido (NC-10 y NC-11). **Decidido el 28/10:** entra en la v0.8.0, dentro de los términos v2 (`propuestas/2026-10-28-moderacion-de-contenido.md`, D-15). Antes de abrir a usuarios reales falta la confirmación del asesor sobre el procedimiento ante material ilegal. Eso no bloquea el sprint. |
 
 ## Ejecución
 
