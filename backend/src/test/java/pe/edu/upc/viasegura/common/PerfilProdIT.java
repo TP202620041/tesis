@@ -1,12 +1,13 @@
 package pe.edu.upc.viasegura.common;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
@@ -17,6 +18,7 @@ import java.util.Base64;
 import java.util.Date;
 import java.util.Map;
 import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.env.Environment;
@@ -25,8 +27,13 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
+import pe.edu.upc.viasegura.auth.port.RecepcionDeCorreo;
+import pe.edu.upc.viasegura.auth.port.VerificadorDeDominioDeCorreo;
+import pe.edu.upc.viasegura.clasificacion.infra.InferenciaHttpAdapter;
+import pe.edu.upc.viasegura.clasificacion.port.ClasificadorDano;
 import pe.edu.upc.viasegura.support.AbstractPostgisIT;
 
 /**
@@ -43,6 +50,16 @@ import pe.edu.upc.viasegura.support.AbstractPostgisIT;
  * conservan su mensaje, que es lo que lee el frontend
  * ({@code frontend/src/lib/api/errors.ts}); este IT lo comprueba con un 409
  * conocido.</p>
+ *
+ * <p>La clasificacion va como en el despliegue (NC-04b): {@code http}, con
+ * una {@code CLASIFICACION_URL} que aqui no responde. Ningun test de esta
+ * clase crea un reporte con foto, asi que nunca se la llama; si se la
+ * llamara, el resultado seria «sin sugerencia».</p>
+ *
+ * <p>NC-09: en prod el dominio del correo se verifica por DNS sin que haga
+ * falta una variable. El puerto se simula ({@code lima.pe}, el dominio de los
+ * correos de los IT, no existe en el DNS), y el registro ya no devuelve
+ * sesion: los tests confirman la cuenta y entran por el login.</p>
  */
 @ActiveProfiles("prod")
 @TestPropertySource(properties = {
@@ -52,7 +69,12 @@ import pe.edu.upc.viasegura.support.AbstractPostgisIT;
         // DEP-08: obligatorias en prod. `smtp` para que los correos sigan
         // yendo a GreenMail y no a un proveedor real.
         "CORREO_TIPO=smtp",
-        "NOTIF_FROM=Ciudad Viva <no-reply@ciudadviva.test>"})
+        "NOTIF_FROM=Ciudad Viva <no-reply@ciudadviva.test>",
+        // NC-08: obligatoria en prod. `ninguno` para no llamar a Google.
+        "CAPTCHA_TIPO=ninguno",
+        // NC-04b: obligatoria en prod; con `http`, tambien la URL.
+        "CLASIFICACION_TIPO=http",
+        "CLASIFICACION_URL=http://127.0.0.1:1"})
 class PerfilProdIT extends AbstractPostgisIT {
 
     private static final String SECRETO_PROPIO = secretoAleatorio();
@@ -64,9 +86,22 @@ class PerfilProdIT extends AbstractPostgisIT {
     @Autowired
     MockMvc mockMvc;
     @Autowired
-    ObjectMapper objectMapper;
-    @Autowired
     Environment environment;
+    @Autowired
+    ClasificadorDano clasificador;
+
+    /**
+     * NC-09: en prod el adaptador del dominio es el de DNS. Se simula para
+     * que la suite no dependa de la red ni de los registros MX de lima.pe; el
+     * adaptador real lo prueba {@code DnsVerificadorDeDominioAdapterTest}.
+     */
+    @MockitoBean
+    VerificadorDeDominioDeCorreo verificadorDeDominio;
+
+    @BeforeEach
+    void dominioQueRecibeCorreo() {
+        when(verificadorDeDominio.verificar(anyString())).thenReturn(RecepcionDeCorreo.RECIBE);
+    }
 
     private static String secretoAleatorio() {
         byte[] clave = new byte[48];
@@ -106,6 +141,23 @@ class PerfilProdIT extends AbstractPostgisIT {
         assertThat(environment.getProperty("app.correo.tipo")).isEqualTo("smtp");
         assertThat(environment.getProperty("app.notificaciones.email-remitente"))
                 .isEqualTo("Ciudad Viva <no-reply@ciudadviva.test>");
+        // NC-08: en prod el captcha sale de CAPTCHA_TIPO, sin default.
+        assertThat(environment.getProperty("app.captcha.tipo")).isEqualTo("ninguno");
+        // NC-04b: en prod la clasificacion sale de CLASIFICACION_TIPO, sin default.
+        assertThat(environment.getProperty("app.clasificacion.tipo")).isEqualTo("http");
+        assertThat(environment.getProperty("app.clasificacion.http.url")).isEqualTo("http://127.0.0.1:1");
+        // ...y la respuesta del falso sigue literal y vacia, aunque el perfil test
+        // diga otra: CLASIFICACION_TIPO=falso apaga la clasificacion.
+        assertThat(environment.getProperty("app.clasificacion.falso.respuesta")).isEmpty();
+        // NC-09: en prod el registro consulta el MX sin que haga falta una
+        // variable nueva (el perfil test dice `ninguno`; prod gana).
+        assertThat(environment.getProperty("app.dominio-correo.tipo")).isEqualTo("dns");
+    }
+
+    @Test
+    void conClasificacionHttp_elClasificadorEsElDelServicioDeInferencia() {
+        assertThat(clasificador).isInstanceOf(InferenciaHttpAdapter.class);
+        assertThat(clasificador.estaDisponible()).isTrue();
     }
 
     @Test
@@ -123,10 +175,8 @@ class PerfilProdIT extends AbstractPostgisIT {
     @Test
     void elTokenFirmadoConElSecretoPropio_autentica() throws Exception {
         String email = "prod-" + UUID.randomUUID() + "@lima.pe";
-        String respuesta = registrar(email)
-                .andExpect(status().isCreated())
-                .andReturn().getResponse().getContentAsString();
-        String token = objectMapper.readTree(respuesta).get("token").asText();
+        registrar(email).andExpect(status().isCreated());
+        String token = confirmarEIniciarSesion(email, "secreta123");
 
         mockMvc.perform(get("/api/auth/me").header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())

@@ -12,11 +12,11 @@ import pe.edu.upc.viasegura.common.port.ArchivoSubido;
  * ({@code CLASIFICACION_TIPO}):</p>
  * <ul>
  *   <li>{@code falso} ({@code infra/FalsoClasificadorAdapter}): respuestas
- *       fijas por configuracion, incluido un modo que falla. Es el unico
- *       hasta NC-04b.</li>
+ *       fijas por configuracion, incluido un modo que falla (local y tests;
+ *       en produccion, la clasificacion apagada).</li>
  *   <li>{@code http} (NC-04b, {@code infra/InferenciaHttpAdapter}):
  *       {@code POST /v1/detecciones} del servicio {@code inferencia/} por la
- *       red privada, con timeout de 3 s.</li>
+ *       red privada, con 3 s como maximo entre conexion y lectura.</li>
  * </ul>
  */
 public interface ClasificadorDano {
@@ -28,11 +28,11 @@ public interface ClasificadorDano {
      * «sin sugerencia».
      *
      * <p>Es el falso sin respuesta configurada, que es como corre produccion
-     * hasta NC-04b (la clasificacion apagada). Lo decide el adaptador y no una
-     * propiedad aparte: asi no puede haber una «habilitada» que diga si
-     * mientras el adaptador no detecta nada, o al reves. El adaptador HTTP
-     * (NC-04b) respondera {@code true}: si el servicio esta caido, eso se ve
-     * al llamarlo.</p>
+     * con {@code CLASIFICACION_TIPO=falso} (la clasificacion apagada). Lo
+     * decide el adaptador y no una propiedad aparte: asi no puede haber una
+     * «habilitada» que diga si mientras el adaptador no detecta nada, o al
+     * reves. El adaptador HTTP (NC-04b) responde {@code true}: si el servicio
+     * esta caido, eso se ve al llamarlo.</p>
      */
     boolean estaDisponible();
 

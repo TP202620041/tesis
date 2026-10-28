@@ -1,6 +1,12 @@
 import { apiFetch, api, conFotoAbsoluta, urlDeFoto } from '@/lib/api/client';
 import { ApiError } from '@/lib/api/errors';
-import { esSeveridad, type HistorialEntrada, type Severidad } from '@/lib/types/domain';
+import {
+  esSeveridad,
+  type ClasificacionResponse,
+  type HistorialEntrada,
+  type Severidad,
+} from '@/lib/types/domain';
+import { sugerenciaDeRespuesta, type SugerenciaDeCategoria } from './model/sugerencia';
 import type {
   Calificacion,
   ComentarioPublico,
@@ -246,4 +252,37 @@ export async function crearReporte(
     titulo: creado.titulo ?? null,
     severidad: esSeveridad(creado.severidad) ? creado.severidad : null,
   };
+}
+
+/**
+ * NC-04: vista previa de la categoría que sugiere la foto, mientras el
+ * ciudadano arma el reporte. El servidor **no guarda nada** y responde 200
+ * aun sin sugerencia (devuelve `null`); el reporte se crea después con la
+ * categoría que el ciudadano elija, y la sugerencia oficial la recalcula el
+ * backend sobre la foto guardada (D-08), así que aquí no se reenvía nada.
+ *
+ * - `signal`: la cancela el hook cuando cambia la foto, se envía el reporte o
+ *   se agota la espera. Una petición cancelada llega como `NetworkError`.
+ * - `redirigirEn401: false`: es una ayuda que el ciudadano no pidió. Con la
+ *   sesión vencida, no debe tirar el formulario a medio llenar con una
+ *   navegación al login (ni con el 403 de términos pendientes); el token se
+ *   borra igual y el envío del reporte, que sí es la acción del ciudadano,
+ *   lleva al login como siempre.
+ * - Errores: 409 = la foto no es una imagen válida (el mismo mensaje que al
+ *   crear el reporte). Los demás los traduce el hook a «sin sugerencia».
+ */
+export async function clasificarFoto(
+  foto: File,
+  signal?: AbortSignal,
+): Promise<SugerenciaDeCategoria | null> {
+  const cuerpo = new FormData();
+  cuerpo.append('foto', foto);
+  // Sin `json`: el navegador fija el Content-Type con el boundary del multipart.
+  const respuesta = await apiFetch<ClasificacionResponse | undefined>('/api/clasificaciones', {
+    method: 'POST',
+    body: cuerpo,
+    signal,
+    redirigirEn401: false,
+  });
+  return sugerenciaDeRespuesta(respuesta);
 }

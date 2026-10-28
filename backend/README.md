@@ -90,10 +90,15 @@ preferible que no arranque y que el log diga qué falta.
 | `CORREO_TIPO` | sí | `resend` (el plan de Railway bloquea el SMTP saliente); `smtp` solo en local y en los tests. Sin ella no arranca (DEP-08, ver «Correo saliente»). Con otro valor tampoco: `common/config/ValidacionCorreoSaliente` lo rechaza antes de crear ningún bean, con un mensaje que nombra la variable y los valores admitidos. |
 | `NOTIF_FROM` | sí | Remitente de todos los correos: `Ciudad Viva <no-reply@<dominio verificado en Resend>>`. Sin ella no arranca. |
 | `CORREO_API_KEY` | con `CORREO_TIPO=resend` | Clave de la API de Resend (secreto). Sin ella el adaptador no arranca. |
+| `CAPTCHA_TIPO` | sí | Captcha del registro de cuenta (NC-08): `recaptcha` (Google reCAPTCHA v2, casilla «No soy un robot») o `ninguno` (no se exige). Sin ella no arranca: con el `ninguno` de desarrollo, un despliegue que la olvidara dejaría el registro sin captcha sin que nada lo advierta. Con otro valor tampoco: `auth/infra/ValidacionTipoCaptcha` lo rechaza antes de crear ningún bean (ver «Captcha en el registro»). |
+| `CAPTCHA_SECRET` | con `CAPTCHA_TIPO=recaptcha` | Clave secreta del sitio en la consola de reCAPTCHA (secreto). Sin ella el adaptador no arranca. La clave del sitio (pública) la usa el frontend, no el backend. |
+| `DOMINIO_CORREO_TIPO` | no (`dns` en `prod`) | Verificación del dominio del correo al registrarse (NC-09): `dns` consulta el MX; `ninguno` la apaga (la lista de desechables se aplica igual). Con valor por defecto **a propósito**: no es una variable obligatoria nueva, porque `dns` no necesita ninguna clave y falla abierto si el DNS no responde. Otro valor no arranca (`auth/infra/ValidacionTipoDominioCorreo`). Ver «Confirmación del correo». |
+| `FRONTEND_URL` | no (el primer origen de `CORS_ALLOWED_ORIGINS`) | Origen de la PWA para el enlace de confirmación (`<origen>/confirmar-cuenta?token=…`), sin ruta. Sin ella se usa el primer origen de `CORS_ALLOWED_ORIGINS`, que es el de la PWA (`https://ciudadviva.app`); solo hace falta si ese primer origen no lo es (por ejemplo, si la lista empieza por `https://www.…`: funcionaría por la redirección 308, pero con un salto de más). Una URL que no es un origen `http(s)` no arranca. |
 | `PORT` | no (8080) | Lo inyecta la plataforma. |
 | `SPRINGDOC_HABILITADO` | no (`false`) | `true` publica `/v3/api-docs` y Swagger UI. |
 | `ADMIN_INICIAL_EMAIL`, `ADMIN_INICIAL_PASSWORD`, `ADMIN_INICIAL_NOMBRE` | solo en el primer arranque | Crean el primer ADMIN en una base sin ninguno. Después se borra `ADMIN_INICIAL_PASSWORD`; las otras dos pueden quedar (ver «Operación en producción»). |
-| `CLASIFICACION_TIPO` | no (`falso`) | Adaptador del clasificador de fotos (NC-04). Hoy solo `falso`; `http` (servicio `inferencia/`) llega con NC-04b, que la volverá obligatoria. Otro valor no arranca (`clasificacion/infra/ValidacionTipoClasificador`). En `prod` el falso responde siempre «sin detecciones» (`application-prod.yml`, literal): la clasificación está apagada y no escribe nada (ver [Sugerencia de categoría](#sugerencia-de-categoría-por-la-foto-nc-04-fase-0)). |
+| `CLASIFICACION_TIPO` | sí | Adaptador del clasificador de fotos (NC-04b): `http` (el servicio `inferencia/` por la red privada) en el despliegue. `falso` es el **interruptor** para apagar la clasificación: en `prod` el falso responde siempre «sin detecciones» (`application-prod.yml`, literal) y no escribe nada. Sin ella no arranca: con el `falso` de desarrollo por defecto la clasificación quedaría apagada sin que nada lo advierta, porque cualquier falla del adaptador también termina en «sin sugerencia». Otro valor tampoco arranca (`clasificacion/infra/ValidacionTipoClasificador`). Ver [Sugerencia de categoría](#sugerencia-de-categoría-por-la-foto-nc-04-fase-0). |
+| `CLASIFICACION_URL` | con `CLASIFICACION_TIPO=http` | URL base del servicio de inferencia, sin la ruta: `http://${{inferencia.RAILWAY_PRIVATE_DOMAIN}}:8000` en Railway. Sin ella, sin esquema `http(s)` y host, o con ruta (`…:8000/v1`), query, fragmento o usuario, no arranca: el adaptador agrega `/v1/detecciones`, y una ruta de más daría un 404 en cada llamada que solo se vería en el log. No es un secreto. |
 | `CLASIFICACION_UMBRAL` | no (`0.50`) | Confianza mínima para sugerir, en (0, 1]. Se calibra en NC-03b. |
 | `JWT_EXPIRATION_MINUTES`, `VAPID_*`, `PUSH_*`, `MAIL_*` (solo con `smtp`), `LEGAL_VERSION_TERMINOS`, `ASYNC_*` | no | Las mismas de `application.yml`, con sus valores por defecto. |
 
@@ -138,6 +143,11 @@ preferible que no arranque y que el log diga qué falta.
   y 10 s de lectura. Desde DEP-08 ningún correo se envía dentro de una
   petición: un proveedor lento ocupa un hilo del executor asíncrono, no la
   respuesta al usuario ni una conexión de la base.
+- **Inferencia con timeouts** (NC-04b): 0,5 s de conexión y 2,5 s de lectura,
+  3 s en total, y nunca con una conexión de la base tomada. El health **no
+  incluye la inferencia**: un servicio de inferencia caído deja los reportes
+  sin sugerencia, no deja sin API, y no debe marcarla como caída ni hacer
+  fallar un despliegue.
 
 ### Imagen (`backend/Dockerfile`)
 
@@ -278,16 +288,17 @@ Los ADMIN siguientes se gestionan aparte (decisión del usuario, 22/10).
 |---|---|
 | `ADMIN_INICIAL_EMAIL` ausente o en blanco | Nada (log `INFO`). Es el caso de todo arranque normal. |
 | Ya hay algún `ADMIN` (sea o no la cuenta de la variable) | Nada (log `INFO`, sin repetir el correo ni la contraseña). No valida las variables, no crea un segundo ADMIN aunque el correo sea nuevo y **nunca** cambia la contraseña ni el nombre de un ADMIN. |
-| Sin ADMIN y sin cuenta con ese correo | La crea: `ADMIN`, activa, sin distrito, con la contraseña hasheada por el `PasswordEncoder` de la aplicación. |
+| Sin ADMIN y sin cuenta con ese correo | La crea: `ADMIN`, activa, sin distrito, con el correo confirmado (NC-09: lo dio el operador, no un registro público) y la contraseña hasheada por el `PasswordEncoder` de la aplicación. |
 | Sin ADMIN y el correo ya tiene cuenta (con otro rol, por fuerza) | **No arranca** («…nunca se promueve…»). |
 | Sin ADMIN, y falta la contraseña, tiene menos de 12 caracteres o más de 72 bytes, o el correo no cumple las reglas del registro (`@Email`, 150 caracteres como máximo) | **No arranca**, sin crear nada y sin repetir el valor en el mensaje. |
 
 Decisiones:
 
-- **Crea, nunca promueve** (decisión del usuario, 22/10). El registro no
-  verifica la propiedad del correo: cualquiera puede registrarse con un
-  correo ajeno. Si el seeder promoviera una cuenta existente, quien se
-  registrara primero con ese correo quedaría como ADMIN. Promover una cuenta
+- **Crea, nunca promueve** (decisión del usuario, 22/10). Cualquiera puede
+  registrarse con un correo ajeno (hasta NC-09 el registro no verificaba la
+  propiedad del correo, y una cuenta sin confirmar sigue sin probarla). Si el
+  seeder promoviera una cuenta existente, quien se registrara primero con ese
+  correo quedaría como ADMIN. Promover una cuenta
   ya registrada fue la primera versión de la propuesta de despliegue y
   dependía del orden de los pasos: registrar la cuenta *antes* de definir la
   variable. Creándola, el orden deja de importar y el caso peligroso se
@@ -362,9 +373,10 @@ ADMIN.
    contraseña queda con el hash de la aplicación y su aceptación de los
    términos, registrada (D-12).
 2. **Antes de asignar, la persona confirma que el registro le funcionó a
-   ella** (entra con su contraseña). El registro no verifica la propiedad
-   del correo: si al registrarse vio «El correo ya está registrado», alguien
-   pudo registrarse antes con su correo, y asignar le daría el rol a esa
+   ella** (entra con su contraseña). Desde NC-09 una cuenta no inicia sesión
+   sin confirmar su correo, así que entrar prueba que el correo es suyo. Si
+   al registrarse vio «El correo ya está registrado», alguien pudo
+   registrarse antes con su correo, y asignar le daría el rol a esa
    cuenta. En ese caso no se asigna hasta que recupere la cuenta con
    «¿Olvidaste tu contraseña?» (cuando funcione DEP-08) o se revise con ella.
    El script muestra la fecha de registro de la cuenta (`created_at`, hora
@@ -523,8 +535,10 @@ bucket. Además crea un bucket de Railway que no se usa. Decisión del usuario
 
 | Método | Ruta                | Auth | Historia | Descripción |
 |--------|---------------------|------|----------|-------------|
-| POST   | `/api/auth/registro`| No   | US-01    | Registrar cuenta ciudadana (exige aceptar los términos vigentes, D-12) |
-| POST   | `/api/auth/login`   | No   | US-02    | Iniciar sesión (devuelve JWT) |
+| POST   | `/api/auth/registro`| No   | US-01    | Registrar cuenta ciudadana (exige aceptar los términos vigentes, D-12). Desde NC-09 la cuenta nace sin confirmar y la respuesta no trae token |
+| POST   | `/api/auth/confirmar-correo` | No | NC-09 | Confirmar el correo con el token del enlace (204; no inicia sesión) |
+| POST   | `/api/auth/reenviar-confirmacion` | No | NC-09 | Pedir otro enlace (202 siempre) |
+| POST   | `/api/auth/login`   | No   | US-02    | Iniciar sesión (devuelve JWT). Sin el correo confirmado, 409 `CORREO_NO_CONFIRMADO` |
 | GET    | `/api/auth/me`      | Sí   | US-02    | Datos del usuario autenticado (con `debeAceptarTerminos`) |
 | GET/POST | `/api/auth/me/consentimientos` | Sí | NC-07b | Consentimientos propios: listar y aceptar (ver [Consentimiento](#consentimiento-d-12-nc-07b)) |
 | DELETE | `/api/auth/me/consentimientos/{finalidad}` | Sí | NC-07b | Revocar un consentimiento propio |
@@ -532,10 +546,16 @@ bucket. Además crea un bucket de Railway que no se usa. Decisión del usuario
 ### Ejemplo rápido
 
 ```bash
-# Registro
+# Registro (201 con {"email", "vigenciaEnlaceHoras"}; sin token desde NC-09)
 curl -X POST http://localhost:8080/api/auth/registro \
   -H "Content-Type: application/json" \
   -d '{"email":"vecino@lima.pe","password":"secreta123","nombre":"Ana","apellido":"Ruiz","aceptaTerminos":true,"versionTerminos":"2026-10-v1"}'
+
+# Confirmar el correo: el enlace llega a Mailhog (http://localhost:8025),
+# http://localhost:3000/confirmar-cuenta?token=<TOKEN_DEL_ENLACE>
+curl -X POST http://localhost:8080/api/auth/confirmar-correo \
+  -H "Content-Type: application/json" \
+  -d '{"token":"<TOKEN_DEL_ENLACE>"}'
 
 # Login
 curl -X POST http://localhost:8080/api/auth/login \
@@ -562,7 +582,8 @@ src/main/java/pe/edu/upc/viasegura/
 ├── distritos/         # Distrito (límites GEOGRAPHY, base de asignación)
 ├── municipalidades/   # Municipalidad (1:1 con distrito, D-09) y PeriodoGestion (NC-01)
 ├── clasificacion/     # Sugerencia de categoría por la foto (NC-04): port/ClasificadorDano,
-│                      #   infra/FalsoClasificadorAdapter, domain/PoliticaDeSugerencia
+│                      #   infra/InferenciaHttpAdapter (NC-04b) y FalsoClasificadorAdapter,
+│                      #   domain/PoliticaDeSugerencia
 ├── reportes/          # Reporte + CategoriaDano, Adhesion, Historial, Asignacion,
 │                      #   Calificacion, ComentarioPublico  (+ port/ + infra/ para Strategy geo)
 ├── notificaciones/    # Notificacion  (+ port/ + infra/ para Strategy push/email)
@@ -1848,7 +1869,8 @@ con `app.correo.tipo` (`CORREO_TIPO`):
 **Por qué un puerto, y por qué en `common`.** El plan de Railway bloquea el
 SMTP saliente, así que en producción el correo va por HTTP, y cambiar de
 proveedor tiene que ser solo configuración. El correo lo usan tres módulos
-(`auth`: recuperación de contraseña, US-03; `soporte`: respuesta a un ticket,
+(`auth`: recuperación de contraseña, US-03, y desde NC-09 el enlace de
+confirmación de la cuenta; `soporte`: respuesta a un ticket,
 US-25; `notificaciones`: aviso de cambio de estado, US-16), y D-11 reserva
 `common/port` para la E/S que usan dos o más. En `notificaciones` crearía el
 ciclo `auth` → `notificaciones` → `auth`. Ninguna clase fuera de
@@ -1858,7 +1880,7 @@ eligió el usuario; la comparación está en
 `project-context/decisions/propuestas/2026-10-21-correo-saliente-http.md`.
 
 **El mensaje.** `MensajeCorreo` lleva destinatario, asunto, texto y una
-etiqueta (`recuperacion`, `soporte` o `aviso-reporte`), pero no el remitente:
+etiqueta (`recuperacion`, `confirmacion-correo`, `soporte` o `aviso-reporte`), pero no el remitente:
 lo fija el adaptador desde `NOTIF_FROM`. La etiqueta viaja a Resend como
 `tags: [{"name": "categoria", "value": …}]`, para filtrar en su panel, y nunca
 es un dato personal. Su `toString` solo muestra la etiqueta, porque el texto
@@ -1988,6 +2010,296 @@ proveedor). El envío corre en `viasegura-async-1`, y la API real de Resend lo
 rechaza con 401 `validation_error` (clave inválida, no el 403 de un
 `User-Agent` faltante), que queda como un WARN con el id del token.
 
+## Captcha en el registro (NC-08)
+
+`POST /api/auth/registro` exige, cuando está activo, la casilla «No soy un
+robot» de **Google reCAPTCHA v2**. El frontend la muestra con la clave del
+sitio (pública) y envía la respuesta en `captchaToken`; el backend la
+comprueba contra `POST https://www.google.com/recaptcha/api/siteverify` con la
+clave secreta (`CAPTCHA_SECRET`). Es I/O externo, así que va detrás del puerto
+`auth/port/VerificadorDeCaptcha`, con dos adaptadores elegidos por
+`app.captcha.tipo` (`CAPTCHA_TIPO`), como los de correo:
+
+| Valor | Adaptador | Uso |
+|---|---|---|
+| `recaptcha` | `auth/infra/RecaptchaV2Adapter` | Producción. |
+| `ninguno` | `auth/infra/SinCaptchaAdapter` | Por defecto fuera de `prod`; fijo en los tests. `captchaToken` se ignora. |
+
+**Por qué v2 de casilla y no v3.** Lo pidió el usuario, y el jurado puede
+verlo y comprobarlo: la casilla aparece en el formulario y sin marcarla el
+registro no pasa. reCAPTCHA v3 es invisible y devuelve un puntaje entre 0 y 1;
+exigiría elegir y calibrar un umbral sin datos de tráfico real, y su efecto no
+se puede demostrar en la sustentación.
+
+**Falla cerrado.** Solo una respuesta `{"success": true}` de Google deja pasar
+el registro. `success: false` es **409** «No pudimos confirmar que no eres un
+robot. Vuelve a intentarlo.» (una precondición del pedido que el ciudadano
+puede corregir marcando la casilla otra vez, la convención de
+`BusinessException`); un token ausente o en blanco es **409** «Confirma que no
+eres un robot». Si Google no responde (3 s de conexión, 5 s de lectura), da
+un error HTTP o un cuerpo ilegible o sin `success` booleano, es **503** «No
+pudimos verificar el captcha en este momento…» (`ServicioNoDisponibleException`):
+no es culpa del ciudadano y puede reintentar en unos minutos, y la PWA lo
+muestra en vez de tomarlo como error de red. Dejar pasar el registro cuando
+Google no responde abriría el registro masivo justo cuando un atacante
+consiga degradar esa llamada. Sin reintentos ni redirecciones.
+
+**Antes que todo lo demás.** `AuthService#registrar` verifica el captcha antes
+de la versión de los términos y del correo duplicado. Si lo hiciera después,
+el 409 «El correo ya está registrado» respondería sin captcha y el endpoint
+serviría para averiguar qué correos tienen cuenta (`RegistroCaptchaIT` lo
+comprueba con un correo existente y un token rechazado).
+
+**Fuera de la transacción.** La llamada a Google puede tardar segundos;
+dentro de una transacción retendría una conexión del pool mientras tanto
+(D-13, ARCHITECTURE.md §4.5). Por eso `registrar` dejó de ser
+`@Transactional`: verifica el captcha y recién entonces llama a
+`RegistroCuentaService#crearCuentaCiudadana`, otro bean de `auth/service`
+cuyo método `@Transactional` pasa por el proxy de Spring (una llamada interna
+a un método del mismo bean no abriría la transacción). Con
+`spring.jpa.open-in-view: false` (application.yml) tampoco hay una sesión de
+Hibernate abierta por la petición que retenga la conexión.
+
+**Sin `remoteip`.** Google lo acepta como opcional; enviarlo cedería a un
+tercero la IP de cada ciudadano que se registra, un dato personal que no hace
+falta para verificar (principio de proporcionalidad o minimización, Ley
+N.° 29733). En el log solo quedan los `error-codes` de Google que tienen forma
+de código (`timeout-or-duplicate`); nunca el token ni el secreto.
+
+**Por qué `ninguno` por defecto fuera de `prod`.** Los IT y el desarrollo local
+corren sin red y sin claves; con `recaptcha` por defecto cada registro de la
+suite llamaría a Google. En `prod`, `CAPTCHA_TIPO` no tiene valor por defecto
+(no arranca sin ella, `ArranqueCaptchaIT`), así que desactivar el captcha en
+producción exige escribir `ninguno` a propósito. Para probar el flujo real en
+local, Google publica claves de prueba que siempre aprueban (anotadas en
+`.env.example`); nunca van a producción.
+
+**Pruebas.** `RecaptchaV2AdapterTest` (`MockRestServiceServer`: formulario
+enviado sin `remoteip`, `success` verdadero y falso, 4xx/5xx, cuerpos
+ilegibles, timeout real contra un socket local y conexión rechazada);
+`RegistroCaptchaIT` (con un `VerificadorDeCaptcha` simulado que exige el
+captcha: sin token, rechazado, Google caído, correo existente y token válido);
+`ValidacionTipoCaptchaTest` y `ArranqueCaptchaIT` (valores no admitidos y
+`prod` sin la variable).
+
+## Confirmación del correo (NC-09)
+
+Desde NC-09 el correo de una cuenta tiene que ser verídico. Tres decisiones
+del usuario (28/10):
+
+1. **Una cuenta sin confirmar no puede iniciar sesión** hasta abrir el
+   enlace que recibe por correo.
+2. **Las cuentas que ya existían se dan por confirmadas** (la migración V20):
+   en producción ya hay usuarios reales y ninguno debe quedar fuera.
+3. **El registro rechaza el correo** si su dominio no recibe correo (sin
+   registro MX en el DNS) o si es un dominio desechable conocido (temp-mail,
+   10minutemail, mailinator…), según una lista fija versionada.
+
+### El flujo
+
+| Paso | Endpoint | Respuesta |
+|---|---|---|
+| Registro | `POST /api/auth/registro` | 201 `{"email", "vigenciaEnlaceHoras": 24}`. **Ya no inicia sesión ni devuelve token** (antes: `AuthResponse`). La cuenta queda con `correo_confirmado = false` y se envía el enlace. |
+| Enlace | `<PWA>/confirmar-cuenta?token=<43 caracteres>` | La PWA lee el token y llama al endpoint de abajo. |
+| Confirmar | `POST /api/auth/confirmar-correo` `{"token"}` | 204. No inicia sesión, como `restablecer-password`: la persona entra después con su contraseña. |
+| Login sin confirmar | `POST /api/auth/login` | 409 con `codigo: CORREO_NO_CONFIRMADO`, **solo con la contraseña correcta**. Con una incorrecta sigue el 401 de siempre. |
+| Reenviar | `POST /api/auth/reenviar-confirmacion` `{"email"}` | 202 sin cuerpo, siempre. |
+
+Errores de `confirmar-correo`, todos 409 con un `codigo` estable para la
+PWA (`BusinessException` suma un código opcional, que
+`GlobalExceptionHandler` copia a `ApiError.codigo` como el
+`TERMINOS_PENDIENTES` de D-12):
+
+| `codigo` | Cuándo |
+|---|---|
+| `CONFIRMACION_INVALIDA` | Token desconocido. |
+| `CORREO_YA_CONFIRMADO` | La cuenta ya está confirmada (incluye volver a abrir un enlace usado). |
+| `CONFIRMACION_REEMPLAZADA` | Se pidió un enlace nuevo después de este. |
+| `CONFIRMACION_VENCIDA` | Pasaron 24 horas. |
+
+Un enlace usado implica una cuenta confirmada, así que «usado» responde
+`CORREO_YA_CONFIRMADO` («Tu correo ya está confirmado. Inicia sesión…»): es
+lo que le sirve a quien vuelve a abrir el enlace, o a quien se le adelantó el
+antivirus del correo abriéndolo primero.
+
+### El token: aleatorio, de un solo uso y guardado como hash
+
+Sigue el patrón de la recuperación de contraseña (`PasswordResetService`,
+DEP-08): tabla propia (`token_confirmacion_correo`, V20), un solo uso,
+vencimiento (24 h) y el correo después del commit, fuera de la petición y de
+la transacción (`ConfirmacionCorreoSolicitadaListener`, D-13). Dos
+diferencias:
+
+- **Se guarda el SHA-256 del token, nunca el token** (`token_hash`). Quien
+  lea la base o un respaldo no puede confirmar cuentas ajenas. Sin sal: el
+  token ya tiene 256 bits de azar (`SecureRandom`, 43 caracteres base64url),
+  así que no hay diccionario contra el que probar, y la búsqueda por igualdad
+  necesita un hash determinista.
+- **El token lo genera el hilo que envía el correo.** Con el token hasheado,
+  el listener no podría reconstruirlo a partir del id del evento (como hace
+  la recuperación). El registro y el reenvío guardan una fila sin hash y
+  publican `ConfirmacionCorreoSolicitadaEvent(tokenId)`; en el executor
+  asíncrono, `ConfirmacionCorreoService#emitirMensaje` genera el token,
+  guarda su hash en una transacción corta y arma el mensaje, que se envía
+  sin transacción. El valor no pasa por la petición, por el evento ni por la
+  base: solo existe en ese hilo y en el correo.
+
+**Pedir uno nuevo anula los anteriores** (`invalidated_at`), y confirmar
+anula los demás pendientes. Si mientras un envío esperaba en la cola la
+persona pidió otro, ya confirmó o el enlace venció, `emitirMensaje` devuelve
+vacío y no se envía nada. El hash se escribe con un `UPDATE` condicional
+(`TokenConfirmacionCorreoRepository#emitir`: solo si la fila sigue sin hash,
+sin usar, sin anular y vigente), no guardando la entidad leída: si un reenvío
+anula la fila entre la lectura y la escritura, PostgreSQL vuelve a evaluar la
+condición tras esperar el candado de la fila y no la emite. Guardar la
+entidad reescribiría `invalidated_at` con el valor leído y dejaría dos
+enlaces válidos (hallazgo de la revisión del 28/10). Por lo mismo la entidad
+lleva `@DynamicUpdate`: confirmar solo escribe `used_at`.
+
+**Topes del reenvío, por cuenta:** uno por minuto (el del registro cuenta),
+5 por hora y 10 por día. El endpoint responde igual exista o no la cuenta,
+esté o no confirmada y se alcance o no un tope: no sirve para averiguar qué
+correos tienen cuenta. Con solo el minuto, un bucle sobre una cuenta pediría
+1440 enlaces al día; con solo el tope por hora, 120, que igual superan la
+cuota diaria de Resend Free (100) y dejarían sin correo a todos. Con el tope
+diario una cuenta gasta a lo sumo 10, y agotar la cuota exige muchas
+cuentas, cada una con su captcha. (La recuperación de contraseña, 3 por hora
+y sin tope diario, sigue como en DEP-08.) Los pedidos simultáneos de una
+cuenta se serializan con un candado consultivo (`pg_advisory_xact_lock`
+sobre `confirmacion-correo:<id>`), como la recuperación. La PWA debe
+deshabilitar el botón «reenviar» un minuto: la respuesta no dice si se
+envió.
+
+**El enlace apunta a la PWA** con la URL de `FRONTEND_URL` o, sin ella, el
+primer origen de `CORS_ALLOWED_ORIGINS`, que en todos los entornos es el de
+la PWA y en `prod` ya es obligatorio: así no se suma una variable
+obligatoria. La recuperación de contraseña no arma enlaces (el correo trae un
+token para pegar), así que no había una propiedad que reutilizar. Una URL que
+no sea un origen `http(s)://host[:puerto]` sin ruta no arranca.
+
+**El token va en la query (`?token=`)**, como pidió la tarea, y por eso
+llega al servidor de la PWA y puede quedar en sus registros de acceso
+(Vercel). Se acepta porque el token es de un solo uso, vence en 24 horas y
+deja de servir al confirmar. La alternativa, un fragmento
+(`/confirmar-cuenta#token=…`), que el navegador no envía, queda anotada como
+endurecimiento posible: cambia el contrato con la PWA.
+
+### El correo tiene que ser verídico: dominio desechable o sin MX
+
+En `AuthService#registrar`, el orden es: captcha (NC-08) → **dominio del
+correo** → términos y correo duplicado → crear la cuenta. El dominio va
+antes de crear nada y, como el captcha, **sin transacción**: la consulta DNS
+no retiene una conexión del pool (D-13). No revela nada de las cuentas, así
+que puede ir antes del 409 «El correo ya está registrado».
+
+| Rechazo (409) | `codigo` | Mensaje |
+|---|---|---|
+| Dominio desechable, o subdominio de uno | `CORREO_DESECHABLE` | «No aceptamos correos temporales o desechables. Usa una dirección que revises seguido: ahí te avisaremos cómo avanzan tus reportes.» |
+| El dominio no recibe correo | `DOMINIO_SIN_CORREO` | «El dominio «gmail.con» no puede recibir correos. Revisa que esté bien escrito o usa otra dirección.» (nombra el dominio: casi siempre es un error de tipeo) |
+
+**Desechables: lista fija y versionada.** `resources/data/dominios-desechables.txt`
+es una instantánea de la lista
+[`disposable-email-domains`](https://github.com/disposable-email-domains/disposable-email-domains)
+(`disposable_email_blocklist.conf`, commit `fa96007`, del 27/10/2026,
+descargada el 28/10/2026, **9963 dominios**), con licencia **CC0 1.0**
+(dominio público). Fuente, commit, fecha y licencia van también en la
+cabecera del archivo. No se actualiza sola: actualizarla es reemplazar el
+archivo y la cabecera, y correr `DominiosDesechablesTest`. La regla
+(`auth/domain/DominiosDesechables`, pura) cubre los subdominios
+(`x.mailinator.com`), compara en minúsculas y en ASCII (IDN) y nunca un
+dominio de primer nivel solo. La lee `auth/infra/ArchivoDominiosDesechables`
+al arrancar (sin el archivo no arranca). No necesita red, así que se aplica
+en todos los perfiles, también en los tests. La lista incluye dominios de
+tipeo de los proveedores grandes (`gmial.com`, `hotmial.com`), que se usan
+para recibir correo ajeno.
+
+**MX: un puerto con dos adaptadores**, elegidos con `app.dominio-correo.tipo`
+(`DOMINIO_CORREO_TIPO`), como el captcha:
+
+| Valor | Adaptador | Uso |
+|---|---|---|
+| `dns` | `auth/infra/DnsVerificadorDeDominioAdapter` | Por defecto en `prod`: `application-prod.yml` dice `${DOMINIO_CORREO_TIPO:dns}`, así que no hace falta definir la variable; solo sirve para apagarlo. |
+| `ninguno` | `auth/infra/SinVerificacionDeDominioAdapter` | Por defecto fuera de `prod` (en local se registran cuentas `@viasegura.test`, sin MX) y fijo en los tests, sin red. |
+
+El adaptador DNS usa el proveedor DNS de JNDI que trae el JDK (sin
+dependencias nuevas; el módulo `jdk.naming.dns` viene en la imagen
+`eclipse-temurin:21-jre`) con los servidores del sistema. **Rechaza** un
+dominio que no existe (NXDOMAIN), uno sin MX y uno con «null MX» (RFC 7505,
+un único `0 .` que declara que no recibe correo); también, sin consultar, un
+literal de IP o un nombre sin punto. No aplica el «MX implícito» del
+RFC 5321 (entregar al registro A cuando no hay MX): la decisión fue «sin
+registro MX, no recibe correo», y un dominio que recibe correo de verdad
+publica su MX.
+
+**Falla abierto, con un plazo garantizado.** Si el DNS falla (SERVFAIL, sin
+servidores) o no responde, se acepta el registro y queda un WARN con el
+dominio (nunca el correo): el enlace es la prueba definitiva y un DNS caído
+no debe impedir registrarse. JNDI espera 1 s y reintenta una vez con 2 s,
+pero **por servidor**; por eso la consulta corre en un hilo virtual y la
+petición espera como máximo `app.dominio-correo.dns.plazo-milisegundos`
+(3000).
+
+**Verificación contra el DNS real (2026-10-28, Windows)**, con la misma
+consulta JNDI: `gmail.com` → 5 MX (128 ms); `upc.edu.pe` →
+`0 upc-edu-pe.mail.protection.outlook.com.` (preferencia 0 con servidor: se
+acepta); `example.com` → `0 .` (null MX: se rechaza); un dominio inexistente
+→ NXDOMAIN (`NameNotFoundException`, 16 ms); `lima.pe` → NXDOMAIN. Este
+último es el dominio de los correos de los IT: por eso los tests fijan
+`ninguno`, y `PerfilProdIT` (que corre con `dns`) simula el puerto.
+
+### Quién nace confirmado
+
+- El **ADMIN inicial** (`AdministradorInicialSeeder`): su correo lo da el
+  operador del despliegue.
+- Las cuentas de `scripts/seed-datos-prueba.sql` (desarrollo): el script las
+  marca confirmadas.
+- En los IT, los usuarios de fixture (`AbstractPostgisIT#guardarConTerminos`).
+  Los IT que registran por el API confirman con
+  `AbstractPostgisIT#confirmarEIniciarSesion` (un `UPDATE` directo, porque el
+  token solo está en el correo) y entran por `POST /api/auth/login`: la
+  regla no se debilita. El flujo real del enlace lo prueba
+  `ConfirmacionCorreoIT`.
+- Un funcionario (DEP-05) se registra como cualquier ciudadano, así que
+  confirma su correo antes de que se le asigne el rol.
+
+`Usuario.correoConfirmado` es `false` por defecto, también en el builder:
+una cuenta nueva nace sin confirmar salvo que quien la crea diga lo
+contrario.
+
+### Lo que no cubre
+
+- Una cuenta que alguien registró con un correo ajeno queda sin confirmar y
+  bloquea ese correo («El correo ya está registrado»). La dueña del correo
+  puede recuperarla: «¿Olvidaste tu contraseña?» funciona sin confirmar,
+  cambia la contraseña del intruso, y después pide el enlace. Si en cambio
+  abre el enlace del primer correo, confirma la cuenta con la contraseña del
+  otro (por eso el correo dice «Si no creaste esta cuenta, ignora este
+  correo»). Purgar las cuentas que nunca se confirman queda fuera de NC-09.
+- El 409 `CORREO_NO_CONFIRMADO` del login solo aparece con la contraseña
+  correcta, así que no revela nada que no sepa quien ya la tiene.
+
+### Pruebas
+
+- `ConfirmacionCorreoIT` (GreenMail, el token se lee del correo):
+  registro sin sesión; el correo con el enlace y, en la base, solo el hash;
+  login sin confirmar 409 con código y con contraseña incorrecta el 401 de
+  siempre; confirmar y entrar; confirmar dos veces; enlace vencido,
+  desconocido y reemplazado; reenvío que no enumera (cuenta inexistente,
+  confirmada y sin confirmar: misma respuesta, un solo correo), uno por
+  minuto, topes por hora y por día, seis reenvíos simultáneos que crean un
+  solo enlace, y que una fila anulada o ya emitida no se emite.
+- `RegistroDominioCorreoIT` (el puerto del DNS simulado): sin MX → 409 sin
+  crear la cuenta; desechable (y subdominio con mayúsculas) → 409 sin
+  consultar el DNS; DNS caído → registra; el dominio va antes del correo
+  duplicado. `RegistroCaptchaIT` suma que el captcha va antes del dominio.
+- Unitarios: `DnsVerificadorDeDominioAdapterTest` (resolvedor inyectado:
+  MX, sin MX, null MX, NXDOMAIN, SERVFAIL, un DNS colgado que vuelve dentro
+  del plazo), `DominiosDesechablesTest` (la regla y la instantánea:
+  9963 dominios, cabecera con fuente y licencia, conocidos dentro y
+  proveedores comunes fuera), `ValidacionTipoDominioCorreoTest`,
+  `ConfirmacionCorreoSolicitadaListenerTest` y `ConfirmacionCorreoServiceTest`
+  (URL de la PWA, hash y ciclo del token).
+
 ## Consentimiento (D-12, NC-07b)
 
 La Ley N.° 29733 de Protección de Datos Personales pide un consentimiento
@@ -2022,7 +2334,7 @@ dispositivo, no la autorización del titular de los datos.
 
 Cualquier rol autenticado y **solo los propios**: ninguna ruta lleva id de
 usuario, así que nadie lee ni revoca los de otro. Sin token, 401.
-`UsuarioResponse` (de `/me`, login y registro) suma `debeAceptarTerminos`. Es
+`UsuarioResponse` (de `/me` y del login; desde NC-09 el registro ya no la devuelve) suma `debeAceptarTerminos`. Es
 un dato del propio usuario, no una señal interna, y ese DTO no lo lee nadie más.
 
 **Usuarios existentes.** La migración no les crea filas: D-12 prohíbe darlos
@@ -2206,12 +2518,15 @@ sugerencia oficial en `reporte` (`categoria_sugerida_id`,
 `confianza_sugerencia`, `version_modelo_sugerencia`). Esa es la que mide la
 evaluación del modelo (OE3: sugerida frente a confirmada). Sigue la propuesta
 aceptada el 21/10 (`project-context/decisions/propuestas/2026-10-21-ml-clases-modelo.md`),
-fase 0: todo el flujo con un **clasificador falso**, antes de que existan el
-servicio `inferencia/` (NC-03) y su adaptador HTTP (NC-04b).
+fase 0: todo el flujo con un **clasificador falso**, antes de que existieran
+el servicio `inferencia/` (NC-03) y su adaptador HTTP. Desde NC-04b (v0.8.0)
+producción sugiere con el modelo real: ver
+[El adaptador del servicio de inferencia](#el-adaptador-del-servicio-de-inferencia-nc-04b).
 
 | Pieza | Capa | Qué hace |
 |---|---|---|
 | `clasificacion/port/ClasificadorDano` | Puerto | Detecta daños en una foto ya saneada y devuelve `ResultadoDeteccion(versionModelo, detecciones)`. Sus errores salen como `ClasificacionNoDisponibleException`. |
+| `clasificacion/infra/InferenciaHttpAdapter` | Adaptador | `POST /v1/detecciones` del servicio `inferencia/` (NC-04b, `CLASIFICACION_TIPO=http`). |
 | `clasificacion/infra/FalsoClasificadorAdapter` | Adaptador | Respuesta fija por configuración (`CLASIFICACION_FALSO_RESPUESTA`): vacía, pares `clase:confianza` o `falla`. |
 | `clasificacion/domain/PoliticaDeSugerencia` | Dominio | Umbral y clase dominante (abajo). Regla pura, con `PoliticaDeSugerenciaTest`. |
 | `clasificacion/service/ClasificacionService` | Aplicación | Vista previa (sanea, detecta y aplica la política) y sugerencia sobre una foto ya saneada. Sin transacción. |
@@ -2284,12 +2599,12 @@ la elige a mano, como siempre.
   responde «sin sugerencia», nunca 503.
 - **Con la clasificación apagada no se sanea nada.** `ClasificadorDano`
   declara si puede detectar algo (`estaDisponible()`); el falso sin respuesta,
-  que es como corre producción hasta NC-04b, dice que no. Entonces la vista
-  previa responde «sin sugerencia» sin sanear la foto (por eso ahí una foto
+  que es como corre producción con `CLASIFICACION_TIPO=falso`, dice que no.
+  Entonces la vista previa responde «sin sugerencia» sin sanear la foto (por eso ahí una foto
   inválida no da 409) y la sugerencia oficial no lee la base ni descarga la
   foto. Lo decide el adaptador y no una propiedad `habilitada` aparte, para
   que no puedan contradecirse (una «habilitada» con un falso que no detecta
-  nada). El adaptador HTTP de NC-04b responderá `true`: un servicio caído se
+  nada). El adaptador HTTP (NC-04b) responde `true`: un servicio caído se
   nota al llamarlo, no antes.
 
 ### Sugerencia oficial (D-08)
@@ -2385,20 +2700,79 @@ deja crear dos reportes del mismo hueco. La gravedad la expresa la
 - Las estándar no se reactivan por el API (US-29); volver atrás sería otra
   migración.
 
+### El adaptador del servicio de inferencia (NC-04b)
+
+`clasificacion/infra/InferenciaHttpAdapter` (`CLASIFICACION_TIPO=http`)
+llama a `POST /v1/detecciones` del servicio `inferencia/` (RF-DETR Nano) por
+la red privada, en `CLASIFICACION_URL`, según el contrato
+`project-context/handoffs/2026-10-25-contrato-inferencia-v1.md`. Es el
+adaptador de producción desde la v0.8.0 (decisión del usuario del 26/10).
+
+| Decisión | Por qué |
+|---|---|
+| `RestClient` sobre el `HttpClient` del JDK, como `ResendCorreoAdapter` | Sin dependencias nuevas: la imagen está al borde de los 400 MB. |
+| **HTTP/1.1 explícito** | Por defecto el cliente del JDK intenta HTTP/2 y, sobre `http://`, lo negocia con un `Upgrade: h2c` que uvicorn no habla. Con HTTP/1.1 cada conexión lleva una llamada a la vez, así que las conexiones abiertas, también las que quedan en keep-alive, nunca pasan de las llamadas simultáneas. |
+| **Cuerpo en chunks** (`Transfer-Encoding: chunked`, sin `Content-Length`) | El multipart se escribe en streaming. uvicorn lo acepta, y el límite de cuerpo del servicio cuenta los bytes que recibe, no solo el `Content-Length` declarado (`inferencia/app/api/limite_cuerpo.py`). Lo comprueban `InferenciaHttpAdapterTest` con un servidor local e `InferenciaHttpAdapterIT` contra el servicio real. |
+| **0,5 s de conexión + 2,5 s de lectura** (3 s como máximo) | El tope de la vista previa: el ciudadano espera la sugerencia mientras arma el reporte. La conexión es por la red privada y tarda milisegundos; la lectura se lleva casi todo porque incluye la espera en el servicio, que infiere de a una imagen. Spring 6.2 cuenta la lectura desde que sale el pedido hasta cerrar el cuerpo, así que también corta una respuesta que llega a medias. |
+| **Turno (*bulkhead*): 4 llamadas a la vez, sin esperar** | El `HttpClient` del JDK no limita sus conexiones y el servicio responde 503 desde 10 conexiones o tareas abiertas, contando las de keep-alive. Un `Semaphore(4)` con `tryAcquire` sin espera lo mantiene lejos de ese tope: sin turno, «sin sugerencia» al instante. **La vista previa y la sugerencia oficial compiten por los mismos turnos**: la sugerencia oficial ocupa los hilos del executor asíncrono (en la práctica los 2 de `ASYNC_HILOS_BASE`, porque el pool solo crece hacia `ASYNC_HILOS_MAX` con su cola de 100 tareas llena, y esos hilos también envían correos y avisos), y las vistas previas en curso, el resto. El turno propio de la vista previa solo acota el saneado y se suelta antes de clasificar, así que puede haber varias clasificando a la vez, una por ciudadano con la pantalla abierta. El tope protege al servicio; no reserva turnos para nadie. |
+| **Sin reintentos** | La IA nunca bloquea un reporte (§4.3), y un reintento solo cargaría más a un servicio que ya no respondió. |
+| **Cualquier falla es «sin sugerencia»** | Una respuesta distinta de 200, un timeout o un error de conexión se traducen a `ClasificacionNoDisponibleException`, que `ClasificacionService` convierte en «sin sugerencia» con un WARN. |
+| **La respuesta se valida solo por su estructura** | Se rechaza entera si falta `version_modelo` o `detecciones`, si los tipos no son los del contrato o si `version_modelo` pasa de 40 caracteres (la columna). Se ignoran `caja` y los campos desconocidos. Una clase desconocida o una confianza fuera de [0, 1] **no** la invalidan: las descarta `PoliticaDeSugerencia` y las demás detecciones de la foto siguen valiendo. El cuerpo de un 200 se lee hasta **256 KiB** (100 detecciones caben en unos 10 KB): uno más grande es «fuera del contrato» y no se carga entero en memoria. |
+| **La foto viaja sin datos del ciudadano** | La parte `imagen` lleva la foto **saneada** (sin EXIF) con el nombre fijo `foto.jpg`, nunca el del archivo original. |
+| **`estaDisponible()` siempre `true`** | Un servicio caído se nota al llamarlo; no se adivina antes. |
+
+**Una línea de log por llamada**, con su duración: es la medida de latencia
+de DEP-13. El nivel separa las causas:
+
+| Nivel | Ejemplo | Qué indica |
+|---|---|---|
+| `INFO` | `Inferencia: 200 en 287 ms, 1 deteccion(es), modelo rdd2022-…` | Respondió. |
+| `WARN` | `error del servicio, HTTP 500, error_de_inferencia`; `servicio saturado, HTTP 503`; `sin respuesta en 2589 ms (HttpTimeoutException)`; `sin turno` | Un problema del servicio o de capacidad, pasajero. |
+| `ERROR` | `pedido rechazado, HTTP 400, imagen_invalida`; `200 … fuera del contrato /v1` | Un defecto de un lado del contrato: la foto llega saneada (JPEG de 2048 px o menos), así que el servicio no debería rechazarla. Hay que corregirlo, no esperar. |
+
+Del cuerpo de un error solo se copia el `codigo` del contrato, y solo si
+tiene forma de código; nunca el `mensaje`.
+
+**Medido contra el contenedor real** (`ciudadviva-inferencia:nc03` con
+`--cpus=2` en la máquina de desarrollo, fotos sintéticas saneadas, dos
+corridas de `InferenciaHttpAdapterIT` el 26/10): una llamada sola tarda
+234–298 ms (457–651 ms la primera, que abre la conexión). Con seis a la vez,
+cuatro toman turno y el servicio las atiende en fila: terminan a los ~0,3,
+~0,55, ~0,8 y ~1,0 s (287–310, 526–563, 768–811 y 1002–1045 ms); las otras
+dos reciben «sin turno» al instante y ninguna llega al 503. Con un servicio
+mudo y los tiempos de producción, la llamada se corta a los 2,6 s. La
+latencia en Railway se mide en DEP-13 con estas mismas líneas.
+
+**Consecuencia del turno sin espera.** Si coinciden más de cuatro llamadas,
+las que no tienen turno dan «sin sugerencia», vengan de una vista previa o de
+la sugerencia oficial. En la vista previa el ciudadano elige a mano. **Una
+sugerencia oficial sin turno se pierde**: las columnas quedan nulas y no se
+reintenta (se escribe una sola vez), así que esa foto cuenta como «sin
+sugerencia» en la evaluación del modelo (OE3). A la escala del MVP debería ser
+raro, y las líneas `sin turno` del log lo muestran. Si la sugerencia oficial,
+que es asíncrona, debe esperar su turno en vez de perderse lo está decidiendo
+el usuario (ver «Pendiente»).
+
 ### Configuración
 
 | Propiedad (variable) | Por defecto | Qué es |
 |---|---|---|
-| `app.clasificacion.tipo` (`CLASIFICACION_TIPO`) | `falso` | Adaptador. Hoy solo `falso`; `http` falla al arrancar con un mensaje que remite a NC-04b. |
+| `app.clasificacion.tipo` (`CLASIFICACION_TIPO`) | `falso`; en `prod`, sin valor por defecto | `http` (`InferenciaHttpAdapter`) o `falso`. Otro valor no arranca. |
+| `app.clasificacion.http.url` (`CLASIFICACION_URL`) | vacía | URL base del servicio, sin la ruta (`http://inferencia.railway.internal:8000`; en local, `http://localhost:8090`). Obligatoria con `http`: sin ella, sin esquema `http(s)` y host, o con ruta, query, fragmento o usuario, no arranca. Con `falso` no se mira. |
 | `app.clasificacion.umbral` (`CLASIFICACION_UMBRAL`) | `0.50` | En (0, 1]; fuera de rango no arranca. |
 | `app.clasificacion.falso.respuesta` (`CLASIFICACION_FALSO_RESPUESTA`) | vacía | Lo que el falso «detecta» en cualquier foto. Si está mal escrita, no arranca. |
 | `app.clasificacion.falso.version-modelo` | `falso-0` | Versión que informa el falso. |
 
-- **`local`**: `bache:0.87` por defecto, para ver la vista previa y la
-  sugerencia sin el servicio de inferencia.
-- **`prod`**: respuesta vacía **literal**, no por entorno. La clasificación
-  queda apagada (`estaDisponible()` en `false`): nunca sugiere ni escribe
-  nada, y ni sanea ni descarga fotos para eso. Una respuesta fija en
+- **`local`**: `falso` con `bache:0.87` por defecto, para ver la vista previa
+  y la sugerencia sin el servicio de inferencia. Con el modelo real:
+  `docker run --rm -d --name inferencia -p 8090:8000 --cpus=2 ciudadviva-inferencia`
+  y `CLASIFICACION_TIPO=http CLASIFICACION_URL=http://localhost:8090`.
+- **`prod`**: `CLASIFICACION_TIPO` **obligatoria**, sin valor por defecto
+  (como `FOTOS_ALMACEN`, `CORREO_TIPO` y `CAPTCHA_TIPO`): `http` en el despliegue. La
+  respuesta del falso sigue vacía y **literal**, no por entorno, así que
+  `CLASIFICACION_TIPO=falso` es el interruptor para apagar la clasificación
+  sin escribir nada más: `estaDisponible()` en `false`, nunca sugiere ni
+  escribe, y ni sanea ni descarga fotos para eso. Una respuesta fija en
   producción llenaría la base de sugerencias inventadas y arruinaría la
   evaluación del modelo.
 - **`test`**: `bache:0.87,grieta:0.30`, literal, para que un
@@ -2409,7 +2783,18 @@ deja crear dos reportes del mismo hueco. La gravedad la expresa la
 
 - Unitarias: `PoliticaDeSugerenciaTest` (las cuatro reglas, umbral exacto,
   empates, redondeo y rangos), `FalsoClasificadorAdapterTest`,
-  `ValidacionTipoClasificadorTest`, `ClasificacionServiceTest` (la vista previa
+  `InferenciaHttpAdapterTest` (NC-04b, con `MockRestServiceServer`: 200 con y
+  sin detecciones, con una clase desconocida y con confianza 1,5; 400, 413,
+  500, 503 y otros estados; timeout; respuestas fuera del contrato, entre
+  ellas sin `version_modelo` y con una de 41 caracteres; el nivel de log de
+  cada causa; con seis llamadas simultáneas, a lo sumo cuatro llegan al
+  servidor, y los turnos se devuelven también cuando la llamada falla; el
+  tope de 256 KiB del cuerpo. Con sockets locales y un `@Timeout` de JUnit
+  para no colgar la CI: HTTP/1.1 sin `Upgrade` y el cuerpo en chunks, que con
+  los tiempos de producción un servicio mudo se corta por la lectura, una
+  respuesta que se corta a medias y una conexión rechazada),
+  `ValidacionTipoClasificadorTest` (con `http`, la URL: solo la base),
+  `ClasificacionServiceTest` (la vista previa
   clasifica la foto **saneada**; la oficial no la vuelve a sanear; una vista
   previa a la vez, sin esperar; sin turno de saneado, error inesperado del
   adaptador o clasificación apagada = «sin sugerencia»),
@@ -2422,19 +2807,31 @@ deja crear dos reportes del mismo hueco. La gravedad la expresa la
   la adhesión no clasifica, la edición no la borra), `SugerenciaCategoriaFallaIT`
   (con el falso en `falla`, el reporte se crea igual y la vista previa es «sin
   sugerencia»; es el único contexto de Spring nuevo), `SugerenciaFueraDeDtosIT`
-  y `CategoriasDelModeloIT` (V19).
+  y `CategoriasDelModeloIT` (V19). Desde NC-04b, `ArranqueClasificacionIT`
+  (en `prod`, sin `CLASIFICACION_TIPO` o con `http` sin URL, no arranca) y
+  `PerfilProdIT` (con `http`, el clasificador es el adaptador HTTP; la
+  respuesta del falso sigue vacía).
+- Contra el servicio real: `InferenciaHttpAdapterIT`, **solo si existe
+  `CLASIFICACION_TEST_URL`** (como `S3FotoStorageServiceIT` con
+  `FOTOS_S3_TEST_ENDPOINT`). La CI no construye la imagen (descarga torch y
+  los pesos), así que no está en `CLASES_OBLIGATORIAS` y allí queda omitido.
+  Comprueba que FastAPI acepta el multipart del adaptador, que la respuesta
+  real cumple el contrato y es la misma para la misma foto (D-08), un 400
+  real, que el turno mantiene al servicio lejos del 503 y el flujo entero
+  (vista previa y sugerencia oficial) con `CLASIFICACION_TIPO=http`. Las
+  fotos son sintéticas: que el modelo encuentre un bache en una foto real lo
+  prueba la prueba de humo del despliegue (DEP-13).
+  ```bash
+  docker run --rm -d --name inferencia-it -p 8090:8000 --cpus=2 ciudadviva-inferencia:nc03
+  CLASIFICACION_TEST_URL=http://localhost:8090 mvn verify -Dit.test=InferenciaHttpAdapterIT
+  docker stop inferencia-it
+  ```
 
 ### Pendiente
 
-- **NC-04b**: `clasificacion/infra/InferenciaHttpAdapter` (RestClient, timeout
-  de 3 s, errores traducidos a `ClasificacionNoDisponibleException`), aceptar
-  `http` en `ValidacionTipoClasificador` y volver obligatoria
-  `CLASIFICACION_TIPO` en `prod`.
-  - **Acotar las llamadas a la inferencia** (con un pool o un *bulkhead* en el
-    adaptador, o reteniendo el turno de la vista previa durante `detectar`).
-    El turno de la vista previa se suelta antes de clasificar, así que hoy no
-    las acota. Con el falso no importa; con hasta 3 s por llamada, sí
-    (revisión del 25/10).
+- **Sugerencia oficial sin turno de inferencia** (revisión de NC-04b, 26/10):
+  hoy se pierde, como una vista previa sin turno. Si debe esperar su turno
+  (es asíncrona y no hace esperar a nadie) lo decide el usuario.
 - **Aviso de privacidad** (frontend y textos legales): decir que la foto se
   analiza automáticamente para sugerir una categoría y que la decisión es del
   ciudadano (DS 016-2024-JUS, art. 6.1).
@@ -2477,8 +2874,10 @@ deja crear dos reportes del mismo hueco. La gravedad la expresa la
   nunca durante la descarga ni la clasificación; y la vista previa ocupa como
   mucho uno de los dos turnos de saneado y no espera el suyo, así que una
   creación puede esperar a lo sumo a una vista previa en curso (unos cientos de
-  ms), no a una fila de ellas. Con la clasificación apagada (producción hasta
-  NC-04b) ninguna de las dos sanea ni descarga nada.
+  ms), no a una fila de ellas. Con la clasificación apagada
+  (`CLASIFICACION_TIPO=falso`) ninguna de las dos sanea ni descarga nada; con
+  el modelo real (NC-04b), la inferencia (hasta 3 s) tampoco retiene una
+  conexión.
 - **Fotos huérfanas.** Si la transacción falla después de subir la foto, el
   archivo u objeto queda en el disco o el bucket (aceptable en el MVP).
   Mejora posible: borrarlo en `afterCompletion` con estado `ROLLED_BACK`.
@@ -2507,6 +2906,7 @@ deja crear dos reportes del mismo hueco. La gravedad la expresa la
 (`GEOGRAPHY(Point,4326)`), ambas con índice **GiST**. Ver
 `src/main/resources/db/migration/V1__init_schema.sql`. Las migraciones
 posteriores agregan tablas propias, como `suscripcion_push` (V12, NC-07),
-`consentimiento` (V13 y V14, NC-07b) y `municipalidad` y `periodo_gestion`
-(V15 y V16, NC-01), o columnas, como la sugerencia de categoría de
-`reporte` y la clase del modelo de `categoria_dano` (V19, NC-04).
+`consentimiento` (V13 y V14, NC-07b), `municipalidad` y `periodo_gestion`
+(V15 y V16, NC-01) y `token_confirmacion_correo` (V20, NC-09), o columnas,
+como la sugerencia de categoría de `reporte` y la clase del modelo de
+`categoria_dano` (V19, NC-04) y `usuario.correo_confirmado` (V20, NC-09).

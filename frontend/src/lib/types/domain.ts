@@ -118,7 +118,10 @@ export type Usuario = Requerido<
   preferenciaNotificacion: PreferenciaNotificacion;
 };
 
-/** Respuesta de `POST /api/auth/login` y `POST /api/auth/registro`. */
+/**
+ * Respuesta de `POST /api/auth/login`. Desde NC-09 el registro ya no la
+ * devuelve: la cuenta nace sin confirmar y no inicia sesión.
+ */
 export type SesionIniciada = Requerido<
   Omit<Schemas['AuthResponse'], 'usuario'>,
   'token' | 'tokenType' | 'expiresInMinutes'
@@ -128,6 +131,18 @@ export type SesionIniciada = Requerido<
 
 export type RegistroRequest = Schemas['RegistroRequest'];
 export type LoginRequest = Schemas['LoginRequest'];
+
+/**
+ * NC-09: respuesta 201 de `POST /api/auth/registro` (`RegistroResponse`). La
+ * cuenta queda creada sin confirmar y SIN sesión; el correo trae un enlace
+ * que vence en `vigenciaEnlaceHoras`. Los dos campos son `NOT NULL` en el
+ * record del backend: siempre vienen.
+ */
+export type CuentaPorConfirmar = Requerido<Schemas['RegistroResponse'], 'email' | 'vigenciaEnlaceHoras'>;
+/** NC-09: `POST /api/auth/confirmar-correo` (204, o 409 con `codigo`). */
+export type ConfirmarCorreoRequest = Schemas['ConfirmarCorreoRequest'];
+/** NC-09: `POST /api/auth/reenviar-confirmacion` (202 siempre, exista o no la cuenta). */
+export type ReenviarConfirmacionRequest = Schemas['ReenviarConfirmacionRequest'];
 
 /** US-03: `POST /api/auth/recuperar-password` (responde 202 exista o no la cuenta). */
 export type RecuperarPasswordRequest = Schemas['RecuperarPasswordRequest'];
@@ -142,7 +157,11 @@ export interface ApiErrorBody {
   message: string;
   path: string;
   details: string[];
-  /** Codigo de maquina; el backend lo omite si no hay (hoy solo `TERMINOS_PENDIENTES`). */
+  /**
+   * Codigo de maquina; el backend lo omite si no hay. Hoy:
+   * `TERMINOS_PENDIENTES` (D-12) y los de la confirmacion del correo (NC-09,
+   * `features/auth/model/confirmacion.ts`).
+   */
   codigo?: string;
 }
 
@@ -154,6 +173,20 @@ export type CategoriaDano = Requerido<
   Schemas['CategoriaDanoResponse'],
   'id' | 'nombre' | 'esEstandar'
 >;
+
+/**
+ * NC-04: respuesta de `POST /api/clasificaciones`, la vista previa de la
+ * categoria que sugiere la foto (handoff `2026-10-25-clasificacion-vista-previa`).
+ * Los dos campos son `null` a la vez cuando no hay sugerencia. A proposito no
+ * trae confianza ni version del modelo: la sugerencia es una señal interna.
+ *
+ * Alias del schema generado con la nulabilidad real: springdoc marca los dos
+ * campos como opcionales, pero el record siempre los envia (`null` cuando no
+ * hay sugerencia).
+ */
+export type ClasificacionResponse = {
+  [K in keyof Schemas['ClasificacionResponse']]-?: NonNullable<Schemas['ClasificacionResponse'][K]> | null;
+};
 
 /**
  * US-22: una fila de la linea de tiempo del reporte (cambio de estado o

@@ -96,6 +96,41 @@ app:
       # la peticion, asi que esperar mas a Resend no demora a nadie.
       timeout-conexion-segundos: 3
       timeout-lectura-segundos: 10
+  # Captcha del registro de cuenta (NC-08): puerto auth/port/VerificadorDeCaptcha,
+  # la casilla «No soy un robot» de Google reCAPTCHA v2:
+  #   ninguno   -> SinCaptchaAdapter, no se exige ni verifica (desarrollo, tests)
+  #   recaptcha -> RecaptchaV2Adapter, POST https://www.google.com/recaptcha/api/siteverify
+  # En prod CAPTCHA_TIPO es obligatoria (application-prod.yml).
+  captcha:
+    tipo: ${CAPTCHA_TIPO:ninguno}
+    # Solo `recaptcha`: clave secreta del sitio, SOLO por entorno y nunca en
+    # el repo. Con tipo=recaptcha y sin secreto, la aplicacion no arranca.
+    secret: ${CAPTCHA_SECRET:}
+    recaptcha:
+      # La verificacion corre en el hilo de la peticion (fuera de la
+      # transaccion): el ciudadano espera, asi que la lectura es mas corta
+      # que la de Resend. Sin reintentos.
+      timeout-conexion-segundos: 3
+      timeout-lectura-segundos: 5
+  # Dominio del correo al registrarse (NC-09): puerto
+  # auth/port/VerificadorDeDominioDeCorreo, si el dominio tiene MX:
+  #   ninguno -> SinVerificacionDeDominioAdapter, no consulta el DNS (por
+  #              defecto fuera de prod; fijo en los tests, sin red)
+  #   dns     -> DnsVerificadorDeDominioAdapter, consulta el MX (por defecto
+  #              en prod, application-prod.yml)
+  # Falla abierto: si el DNS falla o no responde en el plazo, se acepta. La
+  # lista de dominios desechables (resources/data/dominios-desechables.txt)
+  # se aplica siempre: no necesita red.
+  dominio-correo:
+    tipo: ${DOMINIO_CORREO_TIPO:ninguno}
+    dns:
+      # Lo que la peticion del registro espera al DNS, como maximo.
+      plazo-milisegundos: 3000
+  # Origen de la PWA para armar los enlaces de los correos (NC-09:
+  # <origen>/confirmar-cuenta?token=...). Vacio = el primer origen de
+  # app.cors.allowed-origins, que es el de la PWA en todos los entornos.
+  frontend:
+    url: ${FRONTEND_URL:}
   # Notificaciones al ciudadano (US-16/US-21). El remitente es el de todos
   # los correos (NOTIF_FROM); con Resend, de un dominio verificado.
   notificaciones:
@@ -141,19 +176,27 @@ app:
     nombre: ${ADMIN_INICIAL_NOMBRE:}
   # Sugerencia de categoria por la foto (NC-04, D-08): puerto
   # clasificacion/port/ClasificadorDano, con el adaptador elegido aqui:
-  #   falso -> FalsoClasificadorAdapter, respuestas fijas (el unico hasta NC-04b)
-  #   http  -> el servicio inferencia/ (NC-04b; hoy no arranca)
+  #   falso -> FalsoClasificadorAdapter, respuestas fijas (local y tests)
+  #   http  -> InferenciaHttpAdapter, el servicio inferencia/ (NC-04b;
+  #            produccion), en CLASIFICACION_URL
   # La usan la vista previa (POST /api/clasificaciones) y la sugerencia
   # oficial, que corre despues del commit en el executor asincrono.
   clasificacion:
     tipo: ${CLASIFICACION_TIPO:falso}
+    http:
+      # URL base del servicio, sin la ruta (el adaptador agrega
+      # /v1/detecciones): p. ej. http://inferencia.railway.internal:8000 o,
+      # en local, http://localhost:8090. Obligatoria con CLASIFICACION_TIPO=http
+      # (ValidacionTipoClasificador); con 'falso' no se mira.
+      url: ${CLASIFICACION_URL:}
     # Confianza minima para sugerir (PoliticaDeSugerencia), en (0, 1]. 0.50
     # inicial; se calibra en NC-03b con fotos de Lima.
     umbral: ${CLASIFICACION_UMBRAL:0.50}
     falso:
       # Lo que "detecta" en cualquier foto: vacio = nada (nunca sugiere),
       # 'falla' = el servicio caido, o pares clase:confianza separados por
-      # coma ('bache:0.87,grieta:0.30'). En produccion siempre vacio.
+      # coma ('bache:0.87,grieta:0.30'). En produccion siempre vacio: ahi
+      # CLASIFICACION_TIPO=falso apaga la clasificacion.
       respuesta: ${CLASIFICACION_FALSO_RESPUESTA:}
       version-modelo: falso-0
   # Executor asincrono acotado (AsyncConfig): avisos al ciudadano, correos y

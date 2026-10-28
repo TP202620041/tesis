@@ -15,9 +15,11 @@ import pe.edu.upc.viasegura.common.port.ArchivoSubido;
 /**
  * Clasificador falso (NC-04, fase 0): responde siempre lo mismo, sin mirar la
  * foto. Permite construir y probar la vista previa y la sugerencia oficial
- * antes de que exista {@code inferencia/} (NC-03) y su adaptador HTTP
- * (NC-04b). Se activa con {@code app.clasificacion.tipo=falso}
- * ({@code CLASIFICACION_TIPO}), el valor por defecto.
+ * sin el servicio {@code inferencia/} (NC-03) ni su adaptador HTTP
+ * ({@code InferenciaHttpAdapter}, NC-04b). Se activa con
+ * {@code app.clasificacion.tipo=falso} ({@code CLASIFICACION_TIPO}), el valor
+ * por defecto salvo en {@code prod}, donde la variable es obligatoria y
+ * {@code falso} apaga la clasificacion.
  *
  * <p>La respuesta se fija con {@code app.clasificacion.falso.respuesta}
  * ({@code CLASIFICACION_FALSO_RESPUESTA}):</p>
@@ -62,8 +64,9 @@ public class FalsoClasificadorAdapter implements ClasificadorDano {
 
     /**
      * Sin respuesta configurada no detectaria nada nunca: la clasificacion esta
-     * apagada (produccion hasta NC-04b). En modo {@code falla} si esta
-     * disponible, para que el camino de error se recorra entero.
+     * apagada ({@code CLASIFICACION_TIPO=falso} en produccion). En modo
+     * {@code falla} si esta disponible, para que el camino de error se
+     * recorra entero.
      */
     @Override
     public boolean estaDisponible() {

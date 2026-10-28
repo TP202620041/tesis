@@ -65,15 +65,14 @@ afterEach(() => {
 });
 
 describe('FormularioRegistro (NC-07b)', () => {
-  // Recien registrado: los terminos se aceptaron al crear la cuenta.
-  const REGISTRADO = { ...USUARIO, debeAceptarTerminos: false };
+  // NC-09: recien registrado no hay sesion, solo la cuenta por confirmar.
+  const CUENTA = { email: 'ana@lima.pe', vigenciaEnlaceHoras: 24 };
 
-  function conRegistro(
-    enviar = vi.fn().mockResolvedValue({ sesion: { usuario: REGISTRADO }, terminosDesactualizados: false }),
-  ) {
+  function conRegistro(enviar = vi.fn().mockResolvedValue({ cuenta: CUENTA, terminosDesactualizados: false })) {
     vi.mocked(useRegistro).mockReturnValue({
       enviando: false,
       error: null,
+      errorDelCorreo: null,
       terminosDesactualizados: false,
       enviar,
     });
@@ -112,18 +111,23 @@ describe('FormularioRegistro (NC-07b)', () => {
     await usuario.click(screen.getByRole('checkbox'));
     await usuario.click(screen.getByRole('button', { name: 'Crear cuenta' }));
 
-    expect(enviar).toHaveBeenCalledWith({
-      nombre: 'Ana',
-      apellido: 'Ruiz',
-      email: 'ana@lima.pe',
-      password: 'secreta123',
-    });
-    // QA-1 I-2: a «Mis reportes», como el login; nunca a la pantalla de
-    // depuración `/sesion`, que ya no existe.
-    expect(push).toHaveBeenCalledWith('/mis-reportes');
+    // Sin site key de reCAPTCHA (NC-08) el token va como `null`.
+    expect(enviar).toHaveBeenCalledWith(
+      {
+        nombre: 'Ana',
+        apellido: 'Ruiz',
+        email: 'ana@lima.pe',
+        password: 'secreta123',
+      },
+      null,
+    );
+    // NC-09: la cuenta nace sin confirmar y sin sesión: no se navega a
+    // ninguna pantalla privada, se pide revisar el correo.
+    expect(push).not.toHaveBeenCalled();
+    expect(screen.getByRole('heading', { name: 'Revisa tu correo' })).toBeInTheDocument();
   });
 
-  it('vuelve al ?redirect= interno con que se llegó (p. ej. desde /reportar)', async () => {
+  it('el login de «Revisa tu correo» conserva el ?redirect= interno (p. ej. desde /reportar)', async () => {
     parametros.valor = new URLSearchParams('redirect=/reportar');
     conRegistro();
     render(<FormularioRegistro textoLegal={TEXTO_LEGAL} />);
@@ -132,7 +136,10 @@ describe('FormularioRegistro (NC-07b)', () => {
     await usuario.click(screen.getByRole('checkbox'));
     await usuario.click(screen.getByRole('button', { name: 'Crear cuenta' }));
 
-    expect(push).toHaveBeenCalledWith('/reportar');
+    expect(screen.getByRole('link', { name: 'Ir a iniciar sesión' })).toHaveAttribute(
+      'href',
+      '/login?redirect=%2Freportar',
+    );
   });
 
   it('un ?redirect= a otro sitio se ignora', async () => {
@@ -144,7 +151,7 @@ describe('FormularioRegistro (NC-07b)', () => {
     await usuario.click(screen.getByRole('checkbox'));
     await usuario.click(screen.getByRole('button', { name: 'Crear cuenta' }));
 
-    expect(push).toHaveBeenCalledWith('/mis-reportes');
+    expect(screen.getByRole('link', { name: 'Ir a iniciar sesión' })).toHaveAttribute('href', '/login');
   });
 
   describe('QA-1 M-2', () => {
@@ -175,7 +182,7 @@ describe('FormularioRegistro (NC-07b)', () => {
     });
 
     it('un error que no es de los términos (p. ej. correo ya registrado) deja la casilla marcada', async () => {
-      const enviar = conRegistro(vi.fn().mockResolvedValue({ sesion: null, terminosDesactualizados: false }));
+      const enviar = conRegistro(vi.fn().mockResolvedValue({ cuenta: null, terminosDesactualizados: false }));
       render(<FormularioRegistro textoLegal={TEXTO_LEGAL} />);
       const usuario = await llenar();
       await usuario.click(screen.getByRole('checkbox'));
@@ -187,7 +194,7 @@ describe('FormularioRegistro (NC-07b)', () => {
     });
 
     it('con los términos desactualizados sí la desmarca: hay que leer el texto nuevo', async () => {
-      conRegistro(vi.fn().mockResolvedValue({ sesion: null, terminosDesactualizados: true }));
+      conRegistro(vi.fn().mockResolvedValue({ cuenta: null, terminosDesactualizados: true }));
       render(<FormularioRegistro textoLegal={TEXTO_LEGAL} />);
       const usuario = await llenar();
       await usuario.click(screen.getByRole('checkbox'));
@@ -233,6 +240,7 @@ describe('FormularioRegistro (NC-07b)', () => {
     vi.mocked(useRegistro).mockReturnValue({
       enviando: false,
       error: { mensaje: 'La version de los terminos aceptada no es la vigente', detalles: [] },
+      errorDelCorreo: null,
       terminosDesactualizados: true,
       enviar: vi.fn(),
     });

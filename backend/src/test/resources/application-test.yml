@@ -23,6 +23,15 @@ security:
 # de 0.50 la sugerencia es siempre «Bache» con 0.870.
 # SugerenciaCategoriaFallaIT lo pone en modo 'falla'.
 #
+# Sin captcha (NC-08), literal por la misma razon: un CAPTCHA_TIPO del entorno
+# no debe hacer que la suite llame a Google. RegistroCaptchaIT exige el captcha
+# con un VerificadorDeCaptcha simulado.
+#
+# Sin consulta DNS del dominio del correo (NC-09), literal por la misma razon:
+# un DOMINIO_CORREO_TIPO del entorno no debe hacer que la suite dependa de la
+# red. RegistroDominioCorreoIT simula el puerto; la lista de desechables se
+# aplica igual.
+#
 # Primer ADMIN (DEP-04): vacio a proposito, aunque el entorno de quien corre
 # los tests defina ADMIN_INICIAL_*. El seeder del contexto no hace nada;
 # AdministradorInicialSeederIT lo instancia con los valores de cada caso.
@@ -32,6 +41,11 @@ app:
   correo:
     tipo: smtp
     api-key: ""
+  captcha:
+    tipo: ninguno
+    secret: ""
+  dominio-correo:
+    tipo: ninguno
   clasificacion:
     tipo: falso
     umbral: 0.50

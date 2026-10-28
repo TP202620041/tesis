@@ -74,6 +74,11 @@ la ignoraba: en un clon limpio el `cp` de arriba fallaba.
   `VERCEL=1` (con `VERCEL_ENV=development`) en `.env.local` y la guarda
   rompería el desarrollo local. En local y en la CI no se exige y vale el
   respaldo `http://localhost:8080`. Ver `.env.example`.
+- **Variable** `NEXT_PUBLIC_RECAPTCHA_SITE_KEY` (Production y Preview): la
+  site key **pública** de reCAPTCHA v2 del dominio (NC-08). También se hornea
+  en el build y, si falta o está vacía, **el build de Vercel falla**: el
+  backend desplegado exige el captcha y sin widget ningún registro pasaría.
+  En local puede faltar (ver «Captcha en el registro (NC-08)»).
 - **CORS**: el backend debe aceptar el dominio de Vercel
   (`app.cors.allowed-origins`). Las *Preview* tienen una URL por despliegue,
   así que contra el API de producción solo funcionan si se agrega su origen.
@@ -108,7 +113,7 @@ Dos detalles de configuración que costaron encontrar:
 src/
 ├── app/                        # App Router: solo routing y composición
 │   ├── (public)/               # sin login — mapa, desempeño, guía
-│   ├── (auth)/                 # login, registro, recuperar-password
+│   ├── (auth)/                 # login, registro, recuperar-password, confirmar-cuenta
 │   ├── (ciudadano)/            # rol CIUDADANO — mis-reportes, reportar
 │   ├── (municipal)/            # rol FUNCIONARIO_MUNICIPAL — bandeja, dashboard
 │   ├── (cuenta)/               # cualquier usuario con sesión — perfil («Cuenta»), soporte
@@ -752,6 +757,107 @@ Decisión del usuario (20/10):
   lo envía; un 400 lo conserva; no se purga a los 30 días; completarlo pasadas
   48 h no lo reenvía a ciegas; `completar` sobre uno ya completo no escribe.
 
+### Sugerencia de la categoría por la foto (NC-04)
+
+Al elegir la foto en `/reportar`, la PWA la envía a `POST
+/api/clasificaciones` y muestra el tipo de daño que sugiere, o que no hay
+sugerencia. El servidor no guarda nada, y el reporte se crea con la categoría
+que elija el ciudadano. La sugerencia oficial la recalcula el backend sobre la
+foto guardada (D-08), así que de la vista previa no se reenvía nada. El
+contrato está en `project-context/handoffs/2026-10-25-clasificacion-vista-previa.md`.
+Hasta NC-04b el backend usa el clasificador falso, y en producción responde
+siempre «sin sugerencia». Con el modelo real (v0.8.0) el contrato no cambia.
+
+- **Solo propone; nunca elige sola.** El handoff sugería *preseleccionar* la
+  categoría cuando el selector estuviera vacío. Aquí no se preselecciona: la
+  sugerencia aparece bajo el selector («Sugerencia por la foto: Bache. Es
+  automática: el tipo de daño lo eliges tú.») con un botón **«Elegir
+  «Bache»»**, y el selector solo cambia con ese toque o eligiendo a mano.
+  Hay tres razones:
+  - La decisión tiene que ser del ciudadano, y verse así (DS 016-2024-JUS,
+    art. 6.1). El texto lo dice.
+  - Es el mismo criterio que la severidad sin valor por defecto (NC-02): un
+    valor preseleccionado se envía sin que nadie lo decida y sesga el dato.
+  - La tesis evalúa la IA comparando la categoría sugerida con la confirmada
+    (OE3, por SQL). Una preselección aceptada por inercia contaría como
+    confirmación e inflaría el acierto.
+
+  Cuesta un toque más. Si el usuario prefiere la preselección del handoff, el
+  cambio es local: aplicar la sugerencia cuando el selector esté vacío, en
+  `FormularioReporte` (las reglas de `model/sugerencia.ts` ya distinguen
+  «elegida» de «propuesta»).
+- **No pisa lo elegido.** Si la respuesta llega después de que el ciudadano
+  eligió otra categoría, su elección queda y la sugerencia se ofrece con el
+  mismo botón. Si eligió la misma, el texto lo dice y no hay botón. Si la
+  categoría sugerida no está en el catálogo que tiene la PWA (desfase de
+  caché), se ignora y cuenta como «sin sugerencia».
+- **Catálogo que carga o que falla.** `useCategoriasDeReporte` devuelve, además
+  de la lista, si está `cargando`, `listo` o `fallido`: la lista vacía sola no
+  lo distingue. Mientras carga (al montar o tras un cambio de distrito), la
+  sugerencia se sigue mostrando sin el botón y con el mismo texto, para no
+  volver a anunciarla. Si el catálogo no se pudo traer, queda «sin
+  sugerencia»: no hay contra qué validarla ni cómo elegirla.
+- **Aviso antes de elegir.** La foto sale hacia el servidor apenas se elige,
+  así que la ayuda del campo lo dice de antemano: «Al elegirla, la analizamos
+  automáticamente para sugerirte el tipo de daño. La decisión es tuya.» Va
+  junto a «JPG, PNG o WEBP, de hasta 10 MB.» y también describe el campo
+  (`aria-describedby`).
+- **La foto va antes del tipo de daño.** El orden queda ubicación → foto →
+  tipo → título → severidad → descripción. Con la foto debajo del selector, la
+  sugerencia llegaría a un campo que el ciudadano ya pasó. El prototipo de la
+  fase 2 (`/reportar` en pasos) pone la foto en el paso 3, después del tipo.
+  Con NC-04, el asistente tiene que pedirla antes del tipo o en el mismo paso.
+- **Nunca bloquea.** El selector y «Enviar reporte» siguen habilitados
+  mientras se analiza. Se hace una sola petición por foto elegida, sin
+  reintentos y sin cola offline. Un fallo de red, un 5xx, un 401, el 413 o la
+  espera agotada quedan en «sin sugerencia», que no se distingue de «el modelo
+  no vio un daño claro». El único error que se muestra es el **409**: la foto
+  no es una imagen válida, y el envío fallaría igual. Se avisa junto a la foto,
+  con el campo `aria-invalid`, para que el ciudadano la cambie o la quite.
+- **Sin carreras.** `useSugerenciaDeCategoria` cancela con `AbortController`
+  la petición de la foto anterior al elegir otra, al quitarla, al desmontarse
+  el formulario y al enviar el reporte (`descartar()`: si la respuesta no
+  llegó, ya no se muestra). Si el envío falla y el ciudadano sigue en el
+  formulario (409 por duplicado o por categoría inactiva, 400), `reanudar()`
+  vuelve a pedir la vista previa de esa foto, solo si `descartar()` la había
+  cancelado: si ya había llegado, o si la foto cambió entretanto, no se pide
+  otra vez. Además, cada resultado queda atado a **su** `File`,
+  y el estado se deriva comparándolo con la foto actual, así que una respuesta
+  vieja nunca aparece con la foto nueva. No va sobre `useCarga`, por tres
+  motivos:
+  - compara sus dependencias por JSON, y un `File` serializa como `{}`;
+  - no cancela la petición;
+  - traduce los errores a texto, y aquí hace falta el `status`.
+- **Espera máxima de 20 s** (`ESPERA_MAXIMA_DE_SUGERENCIA_MS`), subida
+  incluida. El servidor corta la inferencia a los 3 s, pero en una red móvil
+  la subida de una foto de varios MB puede tardar más. Pasado ese tiempo se
+  cancela y queda «sin sugerencia», en vez de un «Analizando…» que no termina.
+- **`redirigirEn401: false`.** La vista previa es una ayuda que el ciudadano no
+  pidió. Con la sesión vencida, no debe tirar el formulario a medio llenar con
+  una navegación al login, ni con el 403 de términos pendientes. El token se
+  borra igual, y el envío del reporte, que sí es la acción del ciudadano, lleva
+  al login como siempre.
+- **La foto viaja dos veces** (vista previa y reporte). No se reduce en el
+  cliente antes de la vista previa: D-08 se apoya en que la misma foto dé la
+  misma sugerencia que vio el ciudadano, y una foto reescalada podría dar otra.
+- **Accesibilidad.** El texto («Analizando la foto para sugerirte un tipo de
+  daño…», la sugerencia o «No hay una sugerencia para esta foto…») va en una
+  región `role="status"` que existe siempre, también vacía: una región que
+  aparece junto con su texto no la anuncian todos los lectores. El botón queda
+  fuera de la región, para que el anuncio sea solo el texto. El selector la
+  referencia con `aria-describedby`. Al tocar «Elegir …» el botón desaparece y
+  el foco pasa al selector, que anuncia la categoría elegida.
+- **Sin porcentajes.** El API no devuelve confianza ni versión del modelo, a
+  propósito: es una señal interna. La UI tampoco la infiere.
+- **Tipos.** `ClasificacionResponse` (`lib/types/domain.ts`) es un alias de
+  `Schemas['ClasificacionResponse']` con la nulabilidad real (los dos campos
+  siempre vienen, `null` sin sugerencia). En NC-04 se escribió a mano porque
+  el `openapi.json` de entonces era anterior al endpoint; el spec ya lo trae
+  y en NC-09 pasó a alias.
+- **Fuera de alcance aquí:** el aviso de privacidad sobre el análisis
+  automático de la foto (términos v2 y `/privacidad`). Va en otra tarea, con el
+  texto legal.
+
 ### Consentimiento (NC-07b, D-12)
 
 El consentimiento es un **permiso** por finalidad y versión
@@ -820,6 +926,138 @@ queda bloqueado sin los términos.
 Los avisos opcionales llevan su propia versión de texto
 (`push-2026-10-v1`, `correo-2026-10-v1`, en `model/consentimientos.ts`): el
 backend la guarda tal cual para saber qué texto vio el usuario.
+
+### Captcha en el registro (NC-08)
+
+El registro pide la casilla «No soy un robot» de **Google reCAPTCHA v2**. El
+backend verifica el token con la clave secreta; la PWA solo pinta el widget
+y manda `captchaToken` en `POST /api/auth/registro`.
+
+- **Sin librería** (`react-google-recaptcha` y similares): es una sola
+  pantalla y bastan tres llamadas (`ready`, `render`, `reset`). Así no se
+  suma peso ni una dependencia más que auditar, y quedan bajo control propio
+  la carga del script (una sola vez por documento, aunque StrictMode monte
+  el efecto dos veces: `hooks/useCaptcha.ts`), el momento del reset y los
+  hosts de la CSP. La lógica pura (site key, URL del script, tamaño del
+  widget, mensajes) está en `model/captcha.ts`.
+- **Sin site key no hay widget.** `NEXT_PUBLIC_RECAPTCHA_SITE_KEY` es
+  opcional en local: sin ella el formulario no muestra la casilla ni manda
+  token, porque el backend local corre con `CAPTCHA_TIPO=ninguno` y lo
+  ignora. Así el desarrollo y los tests no dependen de Google. Para ver el
+  widget en local está la site key de prueba de Google (en `.env.example`),
+  que siempre aprueba y nunca va a producción. En Vercel la variable es
+  obligatoria (ver «Despliegue en Vercel»).
+- **Reset tras cada error.** El token de reCAPTCHA es de un solo uso: el
+  backend lo gasta al verificarlo, aunque después el registro falle por otra
+  causa (correo duplicado, validación). Por eso, tras **cualquier** error
+  del registro, el formulario borra el token y sube un contador
+  (`reinicios`) que hace `grecaptcha.reset`; reenviar exige marcar la casilla
+  de nuevo. Se eligió un contador como prop y no una ref imperativa porque el
+  formulario ya reacciona al error cambiando estado. La casilla de términos
+  conserva su regla (QA-1 M-2). Los 409 y 503 del captcha se muestran con
+  `mensajeDeError`, como cualquier otro error: la PWA no decide nada por el
+  texto del mensaje.
+- **Móvil.** El widget normal mide 304 px fijos; si el contenedor es más
+  angosto se pinta el `compact` (164 × 144 px), y el contenedor lleva
+  `overflow-x-auto` como red de seguridad para que nunca desborde el
+  formulario.
+- **Sin red.** Si el script no carga se muestra «No se pudo cargar la
+  verificación. Revisa tu conexión y recarga.» (`role="alert"`) en lugar de
+  un hueco vacío.
+- **CSP** (`next.config.ts`), limitada **por ruta** como recomienda la guía
+  de CSP de reCAPTCHA: `script-src` suma `https://www.google.com/recaptcha/`
+  (`api.js`) y `https://www.gstatic.com/recaptcha/` (el resto del widget, en
+  `/recaptcha/releases/<versión>/…`); la nueva directiva `frame-src
+  https://www.google.com/recaptcha/ https://recaptcha.google.com/recaptcha/`
+  deja pasar los iframes de la casilla y del desafío (`/recaptcha/api2/anchor`
+  y `/recaptcha/api2/bframe`; sin ella regía `default-src 'self'`;
+  `recaptcha.google.com` lo lista la guía para el desafío y se incluye para
+  que nunca quede en blanco en producción); y `connect-src` repite las dos
+  rutas de script porque el Service Worker vuelve a pedir con `fetch()` los
+  scripts de otro origen (lo mismo que pasó con los tiles del mapa). No se
+  abre `www.google.com` entero: en `script-src` eso es un rodeo conocido de
+  la CSP (endpoints JSONP de Google), y la CSP es la mitigación declarada del
+  JWT en `localStorage` (ver «Seguridad: dónde vive el JWT»).
+
+### Confirmación del correo (NC-09)
+
+Decisión del usuario (28/10): una cuenta nueva **no puede iniciar sesión**
+hasta abrir el enlace que recibe por correo. Contrato:
+`project-context/handoffs/2026-10-28-confirmacion-correo.md`; el porqué, en
+el README del backend («Confirmación del correo»). Lo que cambia en la PWA:
+
+- **El registro ya no inicia sesión.** `POST /api/auth/registro` responde 201
+  con `{email, vigenciaEnlaceHoras}` (tipo `CuentaPorConfirmar`), sin token:
+  `api.ts` ya no guarda nada. El formulario se reemplaza por «Revisa tu
+  correo» (`RegistroEnviado`) con el correo de la respuesta, la vigencia y
+  «Reenviar el enlace»; el foco pasa a ese título porque el formulario que lo
+  tenía desaparece. «Ir a iniciar sesión» conserva el `?redirect=`: quien
+  llegó desde `/reportar` vuelve ahí al entrar después de confirmar.
+- **Dominio del correo rechazado.** Los 409 `CORREO_DESECHABLE` y
+  `DOMINIO_SIN_CORREO` van en línea en el campo del correo (no como error
+  general) y se borran en cuanto se cambia lo escrito. Como cualquier error
+  del registro, reinician la casilla del captcha (NC-08): el token ya se gastó.
+- **Login.** El 409 `CORREO_NO_CONFIRMADO` muestra el mensaje del backend y
+  «Reenviar el enlace» al correo con el que se intentó entrar (no al que
+  quede después en el campo). El backend solo responde ese 409 con la
+  contraseña correcta, así que no revela qué cuentas existen. El reenvío va
+  fuera del `<form>` del login porque tiene el suyo (no se anidan).
+- **`/confirmar-cuenta?token=…`** (grupo `(auth)`, pública; la URL la arma el
+  backend y `RUTA_CONFIRMAR_CUENTA` la fija). Es una pantalla de acceso más
+  (`RUTAS_DE_ACCESO` en `auth/model/rutas.ts`, una sola lista): sin el marco
+  de la app y sin el aviso «inicia sesión» de la cola offline, que al volver
+  la dejaría sin el token. La página sigue siendo
+  estática: el token se lee en el cliente con `useSearchParams` dentro de un
+  `Suspense` y nunca llega al HTML del servidor. `useConfirmacionDeCorreo`:
+  - toma el token **una vez** y lo saca de la URL con `history.replaceState`
+    (Next lo integra con su router) **antes** de llamar al API, para que no
+    quede en el historial ni en el `Referer`;
+  - llama **una sola vez**, también con el doble efecto de StrictMode: una
+    ref marca el pedido y otra si el componente sigue montado. Con el flag
+    `cancelado` de siempre, la limpieza del primer montaje descartaría la
+    única respuesta. Por eso no usa `useCarga`, que está pensado para
+    lecturas que se pueden repetir y descartar;
+  - sin token, o con uno de más de 100 caracteres, no llama: el backend
+    respondería 400, y para el usuario es lo mismo que
+    `CONFIRMACION_INVALIDA`.
+
+  Estados (`model/confirmacion.ts`, decididos por `codigo`, nunca por el
+  texto): `confirmando`; `confirmado` (204, y también el 409
+  `CORREO_YA_CONFIRMADO`: un segundo clic, o el antivirus del correo que abrió
+  el enlace antes); `vencido`, `reemplazado` e `invalido`, con el mensaje del
+  backend y el formulario para pedir otro enlace (aquí no se conoce el
+  correo, así que se pide); y `error` (red o 5xx), con «Volver a intentar» y
+  el mismo token. Ninguno inicia sesión: todos terminan en el login. El
+  resultado se anuncia en una región `role="status"` que existe desde el
+  primer render.
+- **Reenviar** (`ReenviarConfirmacion` + `useReenvioDeConfirmacion`). El
+  backend responde 202 siempre (cuenta inexistente, ya confirmada, tope
+  alcanzado o enviado), así que tras pedirlo la pantalla dice siempre lo
+  mismo: «Si tu cuenta está pendiente de confirmar, te enviamos un enlace
+  nuevo…». El botón espera **60 s** después de cada reenvío y, en «Revisa tu
+  correo», desde el registro: el backend admite uno por minuto y el del
+  registro cuenta; un pedido antes no enviaría nada y la respuesta no lo
+  diría. Durante la espera el botón lleva `aria-disabled`, no `disabled`,
+  para no perder el foco justo después de usarlo, y su descripción dice
+  cuántos segundos faltan; el hook ignora el clic. La espera vive en la
+  pantalla (un nuevo intento de login con el mismo error la reinicia): el
+  tope real lo pone el backend.
+- **El Service Worker no guarda esa página.** La regla por defecto de
+  Serwist para las páginas del mismo origen (`NetworkFirst`, caché
+  `others`) guardaría la respuesta con la URL completa, token incluido, como
+  clave en Cache Storage. `sw.ts` la manda a `NetworkOnly`
+  (`esPaginaConTokenEnLaUrl` en `pwa/cachesDeSesion.ts`, que repite la ruta
+  porque el SW se compila aparte; un test la compara con la de la app). Sin
+  red, el enlace no abre la página, pero tampoco podría confirmar nada.
+- **Lo que no se evita.** La primera petición a la PWA lleva el token en la
+  query y puede quedar en los registros de acceso de Vercel; `replaceState`
+  no lo impide. El handoff lo acepta (un solo uso, 24 h, inútil una vez
+  confirmada la cuenta); evitarlo exigiría pasar a un fragmento (`#token=`),
+  y lo haría primero el backend. Al API no le llega por el `Referer`: la
+  política `strict-origin-when-cross-origin` de `next.config.ts` solo manda
+  el origen a otro origen, y la página no carga recursos de terceros.
+- **CSP y `proxy`:** sin cambios. Los dos endpoints nuevos son del mismo
+  origen del API, que ya está en `connect-src`, y la PWA no tiene `proxy`.
 
 ### Notificaciones push (US-21)
 
@@ -1101,13 +1339,14 @@ Un reporte recién creado puede tardar hasta 60 s en aparecer en la capa.
 
 Verificado end-to-end contra el backend real:
 
-- **US-01** registro (`/registro`) · **US-02** login (`/login`). Los dos
-  terminan en el mismo lugar (`destinoTrasAcceso`, QA-1 I-2): el
-  `?redirect=` si es una ruta interna (validado con `destinoInterno`), si no
-  la puerta de entrada del rol (el ciudadano, «Mis reportes»), y antes la
-  aceptación de términos si está pendiente. Los enlaces «Regístrate» e
-  «Inicia sesión» conservan el `?redirect=`: quien llegó al login desde
-  `/reportar` y crea una cuenta vuelve a `/reportar`.
+- **US-01** registro (`/registro`) · **US-02** login (`/login`). El login
+  termina en `destinoTrasAcceso` (QA-1 I-2): el `?redirect=` si es una ruta
+  interna (validado con `destinoInterno`), si no la puerta de entrada del rol
+  (el ciudadano, «Mis reportes»), y antes la aceptación de términos si está
+  pendiente. Desde NC-09 el registro no inicia sesión: muestra «Revisa tu
+  correo» y lleva al login. Los enlaces «Regístrate» e «Inicia sesión», y el
+  de «Revisa tu correo», conservan el `?redirect=`: quien llegó al login
+  desde `/reportar` y crea una cuenta vuelve a `/reportar` al entrar.
 - `/sesion` (verificación de `GET /api/auth/me`, andamiaje del primer slice)
   **se eliminó** en QA-1 I-2: el registro llevaba ahí y el ciudadano caía en
   una pantalla de depuración con el rol y la preferencia en crudo y sin
@@ -1206,6 +1445,23 @@ Verificado end-to-end contra el backend real:
   `/mapa`; completar sin severidad muestra «Elige la severidad del daño»; y,
   tras completarlo, se envió con la MISMA `Idempotency-Key` (reporte #185) y
   salió de la cola.
+- **NC-09** confirmación del correo: «Revisa tu correo» tras el registro, el
+  aviso con reenvío en el login y `/confirmar-cuenta` (ver «Confirmación del
+  correo (NC-09)» en Decisiones técnicas). Cubierta por tests de las reglas
+  (`model/confirmacion.ts`), de los hooks (una sola llamada con StrictMode,
+  token fuera de la URL, cada código, espera de 60 s), del gateway y de las
+  tres pantallas. Los tipos salen del OpenAPI del backend de NC-09, y el
+  contrato se probó con `curl` contra ese backend (201 del registro, 409
+  `CORREO_DESECHABLE`, `CORREO_NO_CONFIRMADO` y `CONFIRMACION_INVALIDA`, 202
+  del reenvío). **Todavía no se recorrió en el navegador** con el correo
+  real (Mailhog en local, Resend en producción).
+- **NC-04** sugerencia de la categoría por la foto en `/reportar` (ver
+  «Sugerencia de la categoría por la foto (NC-04)» en Decisiones técnicas).
+  Cubierta por tests de las reglas (`model/sugerencia.ts`), del hook
+  (cancelación, espera agotada, 409 y fallos), del gateway y del formulario.
+  **Todavía no se verificó contra el backend real**: falta probarla con el
+  clasificador falso del perfil `local` (`CLASIFICACION_FALSO_RESPUESTA` con
+  `bache:0.87`, vacío y `falla`).
 
 ### 404 e ids inválidos (QA-1 M-11)
 

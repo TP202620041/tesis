@@ -126,6 +126,8 @@ describe('modoDelMarco', () => {
     expect(modoDelMarco('/login')).toBe('ninguno');
     expect(modoDelMarco('/registro')).toBe('ninguno');
     expect(modoDelMarco('/recuperar-password')).toBe('ninguno');
+    // NC-09: sin la cabecera ni la navegación alrededor de la tarjeta (dos logos).
+    expect(modoDelMarco('/confirmar-cuenta')).toBe('ninguno');
   });
 
   it('la aceptación de términos lleva solo el logo', () => {

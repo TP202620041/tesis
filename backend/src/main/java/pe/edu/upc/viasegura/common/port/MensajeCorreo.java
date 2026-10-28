@@ -9,7 +9,8 @@ import java.util.regex.Pattern;
  * @param asunto   asunto.
  * @param texto    cuerpo en texto plano.
  * @param etiqueta categoria del correo para filtrar en el panel del proveedor
- *                 ({@code recuperacion}, {@code soporte}, {@code aviso-reporte}).
+ *                 ({@code recuperacion}, {@code confirmacion-correo},
+ *                 {@code soporte}, {@code aviso-reporte}).
  *                 Nunca un dato personal: solo minusculas, digitos, {@code -} y
  *                 {@code _}, que es lo que admite una etiqueta de Resend.
  */
@@ -34,7 +35,8 @@ public record MensajeCorreo(String para, String asunto, String texto, String eti
 
     /**
      * Solo la etiqueta: el destinatario es un dato personal y el texto puede
-     * llevar un token de recuperacion, y un {@code toString} termina tarde o
+     * llevar un token (de recuperacion o el del enlace de confirmacion, NC-09),
+     * y un {@code toString} termina tarde o
      * temprano en un log.
      */
     @Override

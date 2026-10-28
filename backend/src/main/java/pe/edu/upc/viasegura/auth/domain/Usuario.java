@@ -11,6 +11,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import java.time.Instant;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -71,4 +72,24 @@ public class Usuario extends BaseAuditableEntity {
     @Column(nullable = false)
     @Builder.Default
     private boolean activo = true;
+
+    /**
+     * NC-09: si la persona abrio el enlace de confirmacion que recibio por
+     * correo. Sin confirmar no puede iniciar sesion. Por defecto {@code false}
+     * (tambien en el builder): una cuenta nace sin confirmar salvo que quien
+     * la crea diga lo contrario, como el ADMIN inicial (DEP-04). Las cuentas
+     * anteriores a NC-09 las dio por confirmadas la migracion V20.
+     */
+    @Column(name = "correo_confirmado", nullable = false)
+    private boolean correoConfirmado;
+
+    /** Cuando se confirmo el correo; {@code null} en las cuentas confirmadas por la migracion V20. */
+    @Column(name = "correo_confirmado_en")
+    private Instant correoConfirmadoEn;
+
+    /** NC-09: la persona abrio el enlace de confirmacion. */
+    public void confirmarCorreo(Instant ahora) {
+        this.correoConfirmado = true;
+        this.correoConfirmadoEn = ahora;
+    }
 }

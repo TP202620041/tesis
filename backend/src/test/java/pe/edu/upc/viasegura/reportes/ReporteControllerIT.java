@@ -7,8 +7,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -16,7 +14,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
 import pe.edu.upc.viasegura.distritos.domain.Distrito;
 import pe.edu.upc.viasegura.distritos.repository.DistritoRepository;
 import pe.edu.upc.viasegura.reportes.domain.CategoriaDano;
@@ -34,8 +31,6 @@ class ReporteControllerIT extends AbstractPostgisIT {
 
     @Autowired
     MockMvc mockMvc;
-    @Autowired
-    ObjectMapper objectMapper;
     @Autowired
     CategoriaDanoRepository categoriaRepository;
     @Autowired
@@ -66,13 +61,11 @@ class ReporteControllerIT extends AbstractPostgisIT {
         String registro = """
                 {"email":"%s","password":"secreta123","nombre":"Ciro","apellido":"Vecino","aceptaTerminos":true,"versionTerminos":"%s"}
                 """.formatted(correo, versionTerminos);
-        MvcResult res = mockMvc.perform(post("/api/auth/registro")
+        mockMvc.perform(post("/api/auth/registro")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(registro))
-                .andExpect(status().isCreated())
-                .andReturn();
-        JsonNode body = objectMapper.readTree(res.getResponse().getContentAsString());
-        return body.get("token").asText();
+                .andExpect(status().isCreated());
+        return confirmarEIniciarSesion(correo, "secreta123");
     }
 
     private MockMultipartFile fotoPng() {
