@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
@@ -62,6 +63,44 @@ class AsyncConfigTest {
             soltar.countDown();
             sugerencias.shutdown();
         }
+    }
+
+    @Test
+    void elDeLasSugerencias_alApagar_esperaALaQueCorre_yLasDeLaColaNoEmpiezanSinInterrupcion() throws Exception {
+        // Es lo que hace Spring al cerrar el contexto: primero la parada
+        // coordinada (stop), despues la destruccion (shutdown).
+        ThreadPoolTaskExecutor sugerencias = (ThreadPoolTaskExecutor) config.ejecutorSugerencias(1, 10);
+        CountDownLatch corriendo = new CountDownLatch(1);
+        CountDownLatch soltar = new CountDownLatch(1);
+        AtomicBoolean laQueCorriaTermino = new AtomicBoolean();
+        AtomicBoolean encoladaSinInterrupcion = new AtomicBoolean();
+        try {
+            sugerencias.execute(() -> {
+                corriendo.countDown();
+                try {
+                    // Como una sugerencia oficial esperando turno.
+                    laQueCorriaTermino.set(soltar.await(10, TimeUnit.SECONDS));
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+            assertThat(corriendo.await(5, TimeUnit.SECONDS)).isTrue();
+            sugerencias.execute(() -> encoladaSinInterrupcion.set(!Thread.currentThread().isInterrupted()));
+
+            CountDownLatch parado = new CountDownLatch(1);
+            sugerencias.stop(parado::countDown);
+            assertThat(parado.await(300, TimeUnit.MILLISECONDS)).as("espera a la que corre").isFalse();
+            soltar.countDown();
+            assertThat(parado.await(5, TimeUnit.SECONDS)).isTrue();
+            assertThat(laQueCorriaTermino).as("la que corria termino, sin interrupcion").isTrue();
+        } finally {
+            soltar.countDown();
+            sugerencias.shutdown();
+        }
+        // La encolada no corrio, o corrio con el hilo interrumpido (y
+        // SugerenciaCategoriaService no hace nada en ese caso).
+        assertThat(sugerencias.getThreadPoolExecutor().awaitTermination(5, TimeUnit.SECONDS)).isTrue();
+        assertThat(encoladaSinInterrupcion).isFalse();
     }
 
     @Test

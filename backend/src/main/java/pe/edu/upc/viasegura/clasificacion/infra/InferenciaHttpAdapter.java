@@ -10,6 +10,7 @@ import java.net.http.HttpClient;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
@@ -149,6 +150,8 @@ public class InferenciaHttpAdapter implements ClasificadorDano {
      */
     static final long MS_ESPERA_OFICIAL_MAXIMA = 60_000;
     static final String PROPIEDAD_ESPERA_OFICIAL = "app.clasificacion.http.espera-turno-oficial-ms";
+    /** Los hilos del executor de las sugerencias ({@code AsyncConfig}): cada uno puede tener un turno. */
+    static final String PROPIEDAD_HILOS_SUGERENCIAS = "app.async.sugerencias.hilos";
 
     /** Del cuerpo de un error se copia al log solo un {@code codigo} con esta forma. */
     private static final Pattern CODIGO_DE_ERROR = Pattern.compile("[a-z0-9_]{1,64}");
@@ -170,10 +173,12 @@ public class InferenciaHttpAdapter implements ClasificadorDano {
     @Autowired
     public InferenciaHttpAdapter(
             @Value("${app.clasificacion.http.url:}") String urlBase,
-            @Value("${" + PROPIEDAD_ESPERA_OFICIAL + ":" + MS_ESPERA_OFICIAL_POR_DEFECTO + "}") long msEsperaOficial) {
+            @Value("${" + PROPIEDAD_ESPERA_OFICIAL + ":" + MS_ESPERA_OFICIAL_POR_DEFECTO + "}") long msEsperaOficial,
+            @Value("${" + PROPIEDAD_HILOS_SUGERENCIAS + ":2}") int hilosDeSugerencias) {
         this(RestClient.builder().requestFactory(
                         fabrica(Duration.ofMillis(MS_CONEXION), Duration.ofMillis(MS_LECTURA))),
                 urlBase, Duration.ofMillis(msEsperaOficial));
+        hilosDeSugerenciasValidos(hilosDeSugerencias);
         log.info("Clasificador HTTP: {} (timeout {} + {} ms, {} llamadas a la vez; la sugerencia oficial espera"
                 + " turno hasta {} ms)", url, MS_CONEXION, MS_LECTURA, LLAMADAS_SIMULTANEAS, msEsperaOficial);
     }
@@ -206,6 +211,23 @@ public class InferenciaHttpAdapter implements ClasificadorDano {
                     + (espera == null ? "vacia" : espera.toMillis() + " ms"));
         }
         return espera;
+    }
+
+    /**
+     * Entre 1 y {@value #LLAMADAS_SIMULTANEAS} - 1; si no, no arranca. Cada hilo
+     * del executor de las sugerencias puede tener un turno: con
+     * {@value #LLAMADAS_SIMULTANEAS} o mas, las sugerencias oficiales podrian
+     * ocuparlos todos y dejar sin sugerencia a las vistas previas, que no
+     * esperan (NC-04c). Lo valida este modulo y no {@code AsyncConfig}:
+     * {@code common} no depende de {@code clasificacion}.
+     */
+    static void hilosDeSugerenciasValidos(int hilos) {
+        if (hilos < 1 || hilos >= LLAMADAS_SIMULTANEAS) {
+            throw new IllegalStateException("ASYNC_SUGERENCIAS_HILOS (" + PROPIEDAD_HILOS_SUGERENCIAS
+                    + ") debe estar entre 1 y " + (LLAMADAS_SIMULTANEAS - 1) + " (menos que las "
+                    + LLAMADAS_SIMULTANEAS + " llamadas simultaneas a la inferencia, para que la vista previa"
+                    + " conserve turnos), no " + hilos);
+        }
     }
 
     private static JdkClientHttpRequestFactory fabrica(Duration conexion, Duration lectura) {
@@ -254,8 +276,11 @@ public class InferenciaHttpAdapter implements ClasificadorDano {
     /**
      * Toma un turno o lanza «sin sugerencia». La vista previa no espera; la
      * sugerencia oficial espera hasta {@link #esperaOficial} (ver la cabecera
-     * de la clase). Si el hilo se interrumpe mientras espera (el executor se
-     * apaga), se rinde y conserva la interrupcion.
+     * de la clase). Si el hilo se interrumpe mientras espera, se rinde y
+     * conserva la interrupcion. Al apagar, la parada coordinada del executor
+     * de las sugerencias deja terminar la espera; solo si alguna sigue
+     * corriendo cuando se destruye el executor, este la interrumpe
+     * ({@code AsyncConfig#ejecutorSugerencias}).
      */
     private void tomarTurno(OrigenDeConsulta origen) {
         if (origen != OrigenDeConsulta.SUGERENCIA_OFICIAL) {
@@ -308,6 +333,14 @@ public class InferenciaHttpAdapter implements ClasificadorDano {
             log.warn("Inferencia: sin respuesta en {} ms ({}): timeout o sin conexion", ms, causa);
             throw new ClasificacionNoDisponibleException(
                     "La inferencia no respondio a tiempo o no se pudo conectar (" + causa + ")");
+        } catch (CancellationException e) {
+            // Spring 6.2 corta la lectura cancelando el futuro del HttpClient del
+            // JDK; segun el momento en que lo corta, llega asi y no como
+            // ResourceAccessException. Es el mismo timeout.
+            long ms = msDesde(inicio);
+            log.warn("Inferencia: sin respuesta en {} ms (Timeout de lectura: el pedido se cancelo)", ms);
+            throw new ClasificacionNoDisponibleException(
+                    "La inferencia no respondio a tiempo (Timeout de lectura, pedido cancelado)");
         } catch (RestClientException e) {
             long ms = msDesde(inicio);
             log.warn("Inferencia: error del cliente HTTP en {} ms ({})", ms, e.getClass().getSimpleName());

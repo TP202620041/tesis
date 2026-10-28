@@ -1831,7 +1831,7 @@ crea el suyo si no hay ningún `Executor`).
 | Hilos | 2 base, hasta 4 (`ASYNC_HILOS_BASE`, `ASYNC_HILOS_MAX`) | 2 fijos (`ASYNC_SUGERENCIAS_HILOS`) |
 | Cola | 100 tareas (`ASYNC_COLA`) | 100 tareas (`ASYNC_SUGERENCIAS_COLA`) |
 | Cola llena | **se rechaza** (`TaskRejectedException`): quien encola registra qué se pierde y la descarta | igual |
-| Apagado | espera hasta 10 s a las tareas en curso | igual |
+| Apagado | espera hasta 10 s a las tareas en curso y corre la cola | deja terminar las que corren y **descarta la cola** (ver abajo) |
 
 **Por qué la sugerencia oficial tiene su propio executor (NC-04c).** Desde
 NC-04c espera hasta 10 s un turno del servicio de inferencia (ver «Espera de
@@ -1850,16 +1850,31 @@ hilos, como el semáforo lo es de llamadas):
   aviso;
 - con **2 hilos fijos**, a lo sumo 2 sugerencias oficiales llaman a la vez,
   así que de los 4 turnos del adaptador quedan 2 para las vistas previas,
-  igual que antes de NC-04c. Por eso `ASYNC_SUGERENCIAS_HILOS` debe quedar
-  por debajo de 4. Hilos fijos (base = máximo) porque un pool que solo crece
-  con la cola llena se quedaría en los base de todos modos;
+  igual que antes de NC-04c. Por eso `ASYNC_SUGERENCIAS_HILOS` debe estar
+  entre 1 y 3: con 4 o más no arranca (lo valida `InferenciaHttpAdapter`, en
+  `clasificacion`, porque `common` no puede depender de ese módulo). Hilos
+  fijos (base = máximo) porque un pool que solo crece con la cola llena se
+  quedaría en los base de todos modos;
 - la cola de 100 guarda solo el id del reporte (la foto se descarga al
   correr), así que no pesa en memoria. En el peor caso, con cada tarea
   esperando el plazo entero, se vacía en unos 100 / 2 × 13 s ≈ 11 minutos, y
   una sugerencia tardía sigue sirviendo: es interna y no la espera nadie.
   El servicio infiere de a una foto (≈0,3 s cada una, unas 3 por segundo),
   así que dos hilos ya lo mantienen ocupado, muy por encima de los reportes
-  con foto que se esperan en el piloto.
+  con foto que se esperan en el piloto;
+- **al apagar** (un redespliegue) no espera a la cola: con
+  `waitForTasksToCompleteOnShutdown` en `false`, el valor por defecto de
+  Spring, el cierre del contexto primero pausa el executor y espera a que
+  terminen las sugerencias que corren (como mucho 10 s de espera más 3 s de
+  llamada, dentro de los 30 s por fase de Spring), antes de que se cierre el
+  pool de conexiones; después, al destruirlo, descarta la cola e interrumpe
+  lo que quede. Una tarea que un hilo ya había tomado de la cola arranca
+  interrumpida y `SugerenciaCategoriaService` no hace nada. Las sugerencias
+  encoladas se pierden, como cualquier sugerencia rechazada. El general, en
+  cambio, corre su cola al apagar (son correos y avisos), con el plazo de
+  10 s. Con la regla del general, las sugerencias correrían la cola entera
+  durante el apagado, y lo que pasara del plazo escribiría con el pool ya
+  cerrado (hallazgo de la revisión del 28/10).
 
 Cuesta dos hilos más, dormidos la mayor parte del tiempo.
 
@@ -2804,8 +2819,9 @@ hasta 10 s por un turno**; la vista previa sigue igual.
 - **El adaptador** (`InferenciaHttpAdapter`): la vista previa usa
   `tryAcquire()` como antes; la oficial, `tryAcquire(espera)`. Si en el plazo
   no se libera un turno, se rinde con «sin sugerencia» (WARN con lo que
-  esperó). Si el hilo se interrumpe mientras espera (el executor se apaga),
-  se rinde y conserva la interrupción. El semáforo no es justo: un turno que
+  esperó). Si el hilo se interrumpe mientras espera, se rinde y conserva la
+  interrupción; es defensivo, porque al apagar el executor deja terminar la
+  espera (ver «Executor asíncrono»). El semáforo no es justo: un turno que
   se libera puede tomarlo antes una vista previa que llega en ese instante, y
   la oficial sigue esperando hasta su plazo. Así la vista previa no cambia en
   nada, y la oficial no puede adelantarse a un ciudadano que espera en
@@ -2836,7 +2852,7 @@ vista previa siguen dando dos «sin turno» al instante.
 | `app.clasificacion.http.url` (`CLASIFICACION_URL`) | vacía | URL base del servicio, sin la ruta (`http://inferencia.railway.internal:8000`; en local, `http://localhost:8090`). Obligatoria con `http`: sin ella, sin esquema `http(s)` y host, o con ruta, query, fragmento o usuario, no arranca. Con `falso` no se mira. |
 | `app.clasificacion.umbral` (`CLASIFICACION_UMBRAL`) | `0.50` | En (0, 1]; fuera de rango no arranca. |
 | `app.clasificacion.http.espera-turno-oficial-ms` (`CLASIFICACION_ESPERA_TURNO_MS`) | `10000` | Cuánto espera la sugerencia oficial un turno (NC-04c), entre 0 y 60000 ms; fuera de rango no arranca. Solo con `http`. |
-| `app.async.sugerencias.hilos` / `.cola` (`ASYNC_SUGERENCIAS_HILOS`, `ASYNC_SUGERENCIAS_COLA`) | `2` / `100` | El executor de la sugerencia oficial (NC-04c, ver «Executor asíncrono»). Los hilos deben quedar por debajo de 4, los turnos del adaptador. |
+| `app.async.sugerencias.hilos` / `.cola` (`ASYNC_SUGERENCIAS_HILOS`, `ASYNC_SUGERENCIAS_COLA`) | `2` / `100` | El executor de la sugerencia oficial (NC-04c, ver «Executor asíncrono»). Los hilos, entre 1 y 3 (menos que los 4 turnos del adaptador); con `http`, fuera de rango no arranca. |
 | `app.clasificacion.falso.respuesta` (`CLASIFICACION_FALSO_RESPUESTA`) | vacía | Lo que el falso «detecta» en cualquier foto. Si está mal escrita, no arranca. |
 | `app.clasificacion.falso.version-modelo` | `falso-0` | Versión que informa el falso. |
 
@@ -2862,7 +2878,9 @@ vista previa siguen dando dos «sin turno» al instante.
   empates, redondeo y rangos), `FalsoClasificadorAdapterTest`,
   `InferenciaHttpAdapterTest` (NC-04b, con `MockRestServiceServer`: 200 con y
   sin detecciones, con una clase desconocida y con confianza 1,5; 400, 413,
-  500, 503 y otros estados; timeout; respuestas fuera del contrato, entre
+  500, 503 y otros estados; timeout (también cuando Spring 6.2 lo entrega
+  como `CancellationException` y no envuelto, una carrera que apareció en
+  la verificación de NC-04c); respuestas fuera del contrato, entre
   ellas sin `version_modelo` y con una de 41 caracteres; el nivel de log de
   cada causa; con seis llamadas simultáneas, a lo sumo cuatro llegan al
   servidor, y los turnos se devuelven también cuando la llamada falla; el
@@ -2870,8 +2888,8 @@ vista previa siguen dando dos «sin turno» al instante.
   la sugerencia oficial espera y sigue cuando se libera uno; con un plazo
   corto se rinde sin llegar al servidor; la vista previa no espera (falla en
   menos de 1 s con la oficial configurada en 5 s); interrumpida mientras
-  espera, se rinde y conserva la interrupción; y la espera fuera de 0–60 s no
-  arranca. Con sockets locales y un `@Timeout` de JUnit
+  espera, se rinde y conserva la interrupción; la espera fuera de 0–60 s no
+  arranca, y tampoco 4 o más hilos de sugerencias. Con sockets locales y un `@Timeout` de JUnit
   para no colgar la CI: HTTP/1.1 sin `Upgrade` y el cuerpo en chunks, que con
   los tiempos de producción un servicio mudo se corta por la lectura, una
   respuesta que se corta a medias y una conexión rechazada),
@@ -2884,9 +2902,11 @@ vista previa siguen dando dos «sin turno» al instante.
   `SugerenciaCategoriaListenerTest` (cola llena),
   `SugerenciaCategoriaServiceTest` (clasificación apagada, foto ausente,
   almacenamiento caído, URL que no es un nombre del servidor; desde NC-04c,
-  que corre en el executor de las sugerencias) y `AsyncConfigTest` (NC-04c:
-  el executor de las sugerencias, con hilos fijos, cola acotada y rechazo con
-  la cola llena; el general sigue siendo el primario).
+  que corre en el executor de las sugerencias y que con el hilo interrumpido
+  no hace nada) y `AsyncConfigTest` (NC-04c: el executor de las sugerencias,
+  con hilos fijos, cola acotada y rechazo con la cola llena; al apagar espera
+  a la que corre y la encolada no empieza sin interrupción; el general sigue
+  siendo el primario).
 - Integración: `ClasificacionVistaPreviaIT` (rol, términos pendientes, no
   persiste, errores),
   `SugerenciaCategoriaIT` (se escribe una sola vez, lo del cliente se ignora,

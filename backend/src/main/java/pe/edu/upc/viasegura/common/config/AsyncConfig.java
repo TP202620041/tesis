@@ -32,8 +32,8 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
  *
  * <p><b>La sugerencia oficial tiene el suyo</b> ({@value #EJECUTOR_SUGERENCIAS},
  * NC-04c): {@code app.async.sugerencias.hilos} hilos fijos (2) y cola de
- * {@code app.async.sugerencias.cola} (100), con las mismas reglas de rechazo
- * y apagado. Desde NC-04c esa tarea espera hasta 10 s un turno del servicio
+ * {@code app.async.sugerencias.cola} (100), con el mismo rechazo y otro
+ * apagado (ver {@link #ejecutorSugerencias}). Desde NC-04c esa tarea espera hasta 10 s un turno del servicio
  * de inferencia, y mientras espera ocupa su hilo: en el executor general,
  * dos sugerencias esperando dejarian sin hilos a los correos de confirmacion
  * y de recuperacion y a los avisos. Separadas, esperar solo retrasa otras
@@ -91,6 +91,17 @@ public class AsyncConfig {
      * que la cola de 100 no pesa en memoria; en el peor caso, con todas
      * esperando turno, se vacia en unos 100 / 2 x 13 s = 11 minutos, y una
      * sugerencia tardia sigue sirviendo (es interna).
+     *
+     * <p><b>Apagado distinto del general</b> ({@code waitForTasksToCompleteOnShutdown}
+     * en {@code false}, el valor por defecto de Spring): al cerrar el
+     * contexto, la parada coordinada pausa el executor y espera a que
+     * terminen las sugerencias en curso (a lo sumo 10 s de espera mas 3 s de
+     * llamada, dentro de los 30 s por fase de Spring), antes de que se cierre
+     * el pool de conexiones. Las que siguen en cola no empiezan y se pierden,
+     * como cualquier sugerencia rechazada. Si al destruir el executor queda
+     * alguna corriendo, se interrumpe y se rinde. Con {@code true} correria la
+     * cola entera durante el apagado, y lo que pasara del plazo escribiria con
+     * el pool ya cerrado.</p>
      */
     @Bean(name = EJECUTOR_SUGERENCIAS)
     @Profile("!test")
@@ -103,8 +114,8 @@ public class AsyncConfig {
         ejecutor.setMaxPoolSize(hilos);
         ejecutor.setQueueCapacity(cola);
         ejecutor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
-        ejecutor.setWaitForTasksToCompleteOnShutdown(true);
-        ejecutor.setAwaitTerminationSeconds(10);
+        ejecutor.setWaitForTasksToCompleteOnShutdown(false);
+        ejecutor.setAwaitTerminationSeconds(5);
         ejecutor.initialize();
         return ejecutor;
     }

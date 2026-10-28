@@ -31,6 +31,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -353,6 +354,21 @@ class InferenciaHttpAdapterTest {
     }
 
     @Test
+    void unaLecturaCanceladaPorElTimeoutDeSpring_esSinSugerencia_yLiberaElTurno(CapturedOutput salida) {
+        // Spring 6.2 corta la lectura cancelando el futuro del cliente del JDK, y
+        // a veces la cancelacion llega tal cual (CancellationException) en vez de
+        // envuelta: paso en una corrida de conLosTiemposDeProduccion_... del 28/10.
+        servidor.expect(manyTimes(), requestTo(URL)).andRespond(pedido -> {
+            throw new CancellationException();
+        });
+
+        for (int i = 0; i <= InferenciaHttpAdapter.LLAMADAS_SIMULTANEAS; i++) {
+            assertThat(falla().getMessage()).contains("no respondio a tiempo", "Timeout");
+        }
+        enElLog(salida, "WARN", "el pedido se cancelo");
+    }
+
+    @Test
     void sinReintentos_unFalloEsUnaSolaLlamada() {
         servidor.expect(once(), requestTo(URL)).andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE));
 
@@ -589,7 +605,8 @@ class InferenciaHttpAdapterTest {
 
     @Test
     void laSugerenciaOficialInterrumpidaMientrasEspera_seRinde_yConservaLaInterrupcion() throws Exception {
-        // Es lo que pasa si el executor se apaga con la tarea esperando turno.
+        // Defensivo: al apagar, la parada coordinada deja terminar la espera, y
+        // solo si sigue corriendo cuando se destruye el executor, este la interrumpe.
         conEsperaOficial(Duration.ofSeconds(10));
         CountDownLatch soltar = new CountDownLatch(1);
         AtomicInteger llegaron = new AtomicInteger();
@@ -636,6 +653,22 @@ class InferenciaHttpAdapterTest {
                     .hasMessageContaining("CLASIFICACION_ESPERA_TURNO_MS");
         }
         assertThat(InferenciaHttpAdapter.MS_ESPERA_OFICIAL_POR_DEFECTO).isEqualTo(10_000);
+    }
+
+    @Test
+    void conTantosHilosDeSugerenciasComoTurnos_noArranca() {
+        // Cada hilo de las sugerencias puede tener un turno: con 4, la oficial
+        // podria ocuparlos todos y dejar sin sugerencia a las vistas previas.
+        for (int hilos : new int[] {1, 2, 3}) {
+            assertThat(new InferenciaHttpAdapter(BASE, InferenciaHttpAdapter.MS_ESPERA_OFICIAL_POR_DEFECTO, hilos))
+                    .isNotNull();
+        }
+        for (int hilos : new int[] {0, InferenciaHttpAdapter.LLAMADAS_SIMULTANEAS, 8}) {
+            assertThatThrownBy(() -> new InferenciaHttpAdapter(BASE,
+                    InferenciaHttpAdapter.MS_ESPERA_OFICIAL_POR_DEFECTO, hilos))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("ASYNC_SUGERENCIAS_HILOS");
+        }
     }
 
     // --- Con sockets locales: lo que el mock no ve ----------------------------
@@ -691,7 +724,7 @@ class InferenciaHttpAdapterTest {
         // un runner compartido puede sumar unos cientos de ms.
         try (ServerSocket mudo = new ServerSocket(0, 10, InetAddress.getLoopbackAddress())) {
             InferenciaHttpAdapter produccion = new InferenciaHttpAdapter("http://127.0.0.1:" + mudo.getLocalPort(),
-                    InferenciaHttpAdapter.MS_ESPERA_OFICIAL_POR_DEFECTO);
+                    InferenciaHttpAdapter.MS_ESPERA_OFICIAL_POR_DEFECTO, 2);
 
             long inicio = System.nanoTime();
             ClasificacionNoDisponibleException error = catchThrowableOfType(ClasificacionNoDisponibleException.class,

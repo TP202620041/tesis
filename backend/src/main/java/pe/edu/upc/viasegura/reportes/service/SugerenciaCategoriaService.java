@@ -62,6 +62,13 @@ public class SugerenciaCategoriaService {
      */
     @Async(AsyncConfig.EJECUTOR_SUGERENCIAS)
     public void sugerir(Long reporteId) {
+        // NC-04c: un hilo que llega interrumpido es el executor que se destruye
+        // al apagar (la tarea ya estaba tomada de la cola): no se empieza nada.
+        if (Thread.currentThread().isInterrupted()) {
+            log.info("Reporte {}: el executor de las sugerencias se esta apagando; se pierde su sugerencia",
+                    reporteId);
+            return;
+        }
         // Con la clasificacion apagada (CLASIFICACION_TIPO=falso en produccion)
         // no se lee la base ni se descarga la foto para una respuesta que ya se
         // sabe vacia.

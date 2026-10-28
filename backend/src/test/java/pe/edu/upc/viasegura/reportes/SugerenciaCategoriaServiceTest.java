@@ -144,6 +144,21 @@ class SugerenciaCategoriaServiceTest {
     }
 
     @Test
+    void conElHiloInterrumpido_noLeeLaBaseNiClasifica() {
+        // NC-04c: es la tarea que el executor de las sugerencias ya habia
+        // tomado de la cola cuando se destruye al apagar.
+        Thread.currentThread().interrupt();
+        try {
+            servicio.sugerir(42L);
+
+            verifyNoInteractions(reporteRepository, fotos, clasificacion, reporteService);
+            assertThat(Thread.currentThread().isInterrupted()).as("conserva la interrupcion").isTrue();
+        } finally {
+            Thread.interrupted();
+        }
+    }
+
+    @Test
     void correEnElExecutorDeLasSugerencias_noEnElDeLosCorreosYAvisos() throws Exception {
         // NC-04c: puede esperar hasta 10 s un turno de inferencia; en el executor
         // general dejaria sin hilos a los correos de confirmacion y a los avisos.
