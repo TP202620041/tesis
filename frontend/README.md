@@ -113,7 +113,7 @@ Dos detalles de configuración que costaron encontrar:
 src/
 ├── app/                        # App Router: solo routing y composición
 │   ├── (public)/               # sin login — mapa, desempeño, guía
-│   ├── (auth)/                 # login, registro, recuperar-password
+│   ├── (auth)/                 # login, registro, recuperar-password, confirmar-cuenta
 │   ├── (ciudadano)/            # rol CIUDADANO — mis-reportes, reportar
 │   ├── (municipal)/            # rol FUNCIONARIO_MUNICIPAL — bandeja, dashboard
 │   ├── (cuenta)/               # cualquier usuario con sesión — perfil («Cuenta»), soporte
@@ -849,11 +849,11 @@ siempre «sin sugerencia». Con el modelo real (v0.8.0) el contrato no cambia.
   el foco pasa al selector, que anuncia la categoría elegida.
 - **Sin porcentajes.** El API no devuelve confianza ni versión del modelo, a
   propósito: es una señal interna. La UI tampoco la infiere.
-- **Tipos escritos a mano.** El `openapi.json` guardado es anterior al
-  endpoint, y no había backend corriendo para `npm run api:sync`.
-  `ClasificacionResponse` está en `lib/types/domain.ts`, escrito según el
-  handoff. Con el spec nuevo pasa a ser un alias de
-  `Schemas['ClasificacionResponse']`.
+- **Tipos.** `ClasificacionResponse` (`lib/types/domain.ts`) es un alias de
+  `Schemas['ClasificacionResponse']` con la nulabilidad real (los dos campos
+  siempre vienen, `null` sin sugerencia). En NC-04 se escribió a mano porque
+  el `openapi.json` de entonces era anterior al endpoint; el spec ya lo trae
+  y en NC-09 pasó a alias.
 - **Fuera de alcance aquí:** el aviso de privacidad sobre el análisis
   automático de la foto (términos v2 y `/privacidad`). Va en otra tarea, con el
   texto legal.
@@ -978,6 +978,86 @@ y manda `captchaToken` en `POST /api/auth/registro`.
   abre `www.google.com` entero: en `script-src` eso es un rodeo conocido de
   la CSP (endpoints JSONP de Google), y la CSP es la mitigación declarada del
   JWT en `localStorage` (ver «Seguridad: dónde vive el JWT»).
+
+### Confirmación del correo (NC-09)
+
+Decisión del usuario (28/10): una cuenta nueva **no puede iniciar sesión**
+hasta abrir el enlace que recibe por correo. Contrato:
+`project-context/handoffs/2026-10-28-confirmacion-correo.md`; el porqué, en
+el README del backend («Confirmación del correo»). Lo que cambia en la PWA:
+
+- **El registro ya no inicia sesión.** `POST /api/auth/registro` responde 201
+  con `{email, vigenciaEnlaceHoras}` (tipo `CuentaPorConfirmar`), sin token:
+  `api.ts` ya no guarda nada. El formulario se reemplaza por «Revisa tu
+  correo» (`RegistroEnviado`) con el correo de la respuesta, la vigencia y
+  «Reenviar el enlace»; el foco pasa a ese título porque el formulario que lo
+  tenía desaparece. «Ir a iniciar sesión» conserva el `?redirect=`: quien
+  llegó desde `/reportar` vuelve ahí al entrar después de confirmar.
+- **Dominio del correo rechazado.** Los 409 `CORREO_DESECHABLE` y
+  `DOMINIO_SIN_CORREO` van en línea en el campo del correo (no como error
+  general) y se borran en cuanto se cambia lo escrito. Como cualquier error
+  del registro, reinician la casilla del captcha (NC-08): el token ya se gastó.
+- **Login.** El 409 `CORREO_NO_CONFIRMADO` muestra el mensaje del backend y
+  «Reenviar el enlace» al correo con el que se intentó entrar (no al que
+  quede después en el campo). El backend solo responde ese 409 con la
+  contraseña correcta, así que no revela qué cuentas existen. El reenvío va
+  fuera del `<form>` del login porque tiene el suyo (no se anidan).
+- **`/confirmar-cuenta?token=…`** (grupo `(auth)`, pública; la URL la arma el
+  backend y `RUTA_CONFIRMAR_CUENTA` la fija). Es una pantalla de acceso más
+  (`RUTAS_DE_ACCESO` en `auth/model/rutas.ts`, una sola lista): sin el marco
+  de la app y sin el aviso «inicia sesión» de la cola offline, que al volver
+  la dejaría sin el token. La página sigue siendo
+  estática: el token se lee en el cliente con `useSearchParams` dentro de un
+  `Suspense` y nunca llega al HTML del servidor. `useConfirmacionDeCorreo`:
+  - toma el token **una vez** y lo saca de la URL con `history.replaceState`
+    (Next lo integra con su router) **antes** de llamar al API, para que no
+    quede en el historial ni en el `Referer`;
+  - llama **una sola vez**, también con el doble efecto de StrictMode: una
+    ref marca el pedido y otra si el componente sigue montado. Con el flag
+    `cancelado` de siempre, la limpieza del primer montaje descartaría la
+    única respuesta. Por eso no usa `useCarga`, que está pensado para
+    lecturas que se pueden repetir y descartar;
+  - sin token, o con uno de más de 100 caracteres, no llama: el backend
+    respondería 400, y para el usuario es lo mismo que
+    `CONFIRMACION_INVALIDA`.
+
+  Estados (`model/confirmacion.ts`, decididos por `codigo`, nunca por el
+  texto): `confirmando`; `confirmado` (204, y también el 409
+  `CORREO_YA_CONFIRMADO`: un segundo clic, o el antivirus del correo que abrió
+  el enlace antes); `vencido`, `reemplazado` e `invalido`, con el mensaje del
+  backend y el formulario para pedir otro enlace (aquí no se conoce el
+  correo, así que se pide); y `error` (red o 5xx), con «Volver a intentar» y
+  el mismo token. Ninguno inicia sesión: todos terminan en el login. El
+  resultado se anuncia en una región `role="status"` que existe desde el
+  primer render.
+- **Reenviar** (`ReenviarConfirmacion` + `useReenvioDeConfirmacion`). El
+  backend responde 202 siempre (cuenta inexistente, ya confirmada, tope
+  alcanzado o enviado), así que tras pedirlo la pantalla dice siempre lo
+  mismo: «Si tu cuenta está pendiente de confirmar, te enviamos un enlace
+  nuevo…». El botón espera **60 s** después de cada reenvío y, en «Revisa tu
+  correo», desde el registro: el backend admite uno por minuto y el del
+  registro cuenta; un pedido antes no enviaría nada y la respuesta no lo
+  diría. Durante la espera el botón lleva `aria-disabled`, no `disabled`,
+  para no perder el foco justo después de usarlo, y su descripción dice
+  cuántos segundos faltan; el hook ignora el clic. La espera vive en la
+  pantalla (un nuevo intento de login con el mismo error la reinicia): el
+  tope real lo pone el backend.
+- **El Service Worker no guarda esa página.** La regla por defecto de
+  Serwist para las páginas del mismo origen (`NetworkFirst`, caché
+  `others`) guardaría la respuesta con la URL completa, token incluido, como
+  clave en Cache Storage. `sw.ts` la manda a `NetworkOnly`
+  (`esPaginaConTokenEnLaUrl` en `pwa/cachesDeSesion.ts`, que repite la ruta
+  porque el SW se compila aparte; un test la compara con la de la app). Sin
+  red, el enlace no abre la página, pero tampoco podría confirmar nada.
+- **Lo que no se evita.** La primera petición a la PWA lleva el token en la
+  query y puede quedar en los registros de acceso de Vercel; `replaceState`
+  no lo impide. El handoff lo acepta (un solo uso, 24 h, inútil una vez
+  confirmada la cuenta); evitarlo exigiría pasar a un fragmento (`#token=`),
+  y lo haría primero el backend. Al API no le llega por el `Referer`: la
+  política `strict-origin-when-cross-origin` de `next.config.ts` solo manda
+  el origen a otro origen, y la página no carga recursos de terceros.
+- **CSP y `proxy`:** sin cambios. Los dos endpoints nuevos son del mismo
+  origen del API, que ya está en `connect-src`, y la PWA no tiene `proxy`.
 
 ### Notificaciones push (US-21)
 
@@ -1259,13 +1339,14 @@ Un reporte recién creado puede tardar hasta 60 s en aparecer en la capa.
 
 Verificado end-to-end contra el backend real:
 
-- **US-01** registro (`/registro`) · **US-02** login (`/login`). Los dos
-  terminan en el mismo lugar (`destinoTrasAcceso`, QA-1 I-2): el
-  `?redirect=` si es una ruta interna (validado con `destinoInterno`), si no
-  la puerta de entrada del rol (el ciudadano, «Mis reportes»), y antes la
-  aceptación de términos si está pendiente. Los enlaces «Regístrate» e
-  «Inicia sesión» conservan el `?redirect=`: quien llegó al login desde
-  `/reportar` y crea una cuenta vuelve a `/reportar`.
+- **US-01** registro (`/registro`) · **US-02** login (`/login`). El login
+  termina en `destinoTrasAcceso` (QA-1 I-2): el `?redirect=` si es una ruta
+  interna (validado con `destinoInterno`), si no la puerta de entrada del rol
+  (el ciudadano, «Mis reportes»), y antes la aceptación de términos si está
+  pendiente. Desde NC-09 el registro no inicia sesión: muestra «Revisa tu
+  correo» y lleva al login. Los enlaces «Regístrate» e «Inicia sesión», y el
+  de «Revisa tu correo», conservan el `?redirect=`: quien llegó al login
+  desde `/reportar` y crea una cuenta vuelve a `/reportar` al entrar.
 - `/sesion` (verificación de `GET /api/auth/me`, andamiaje del primer slice)
   **se eliminó** en QA-1 I-2: el registro llevaba ahí y el ciudadano caía en
   una pantalla de depuración con el rol y la preferencia en crudo y sin
@@ -1364,6 +1445,16 @@ Verificado end-to-end contra el backend real:
   `/mapa`; completar sin severidad muestra «Elige la severidad del daño»; y,
   tras completarlo, se envió con la MISMA `Idempotency-Key` (reporte #185) y
   salió de la cola.
+- **NC-09** confirmación del correo: «Revisa tu correo» tras el registro, el
+  aviso con reenvío en el login y `/confirmar-cuenta` (ver «Confirmación del
+  correo (NC-09)» en Decisiones técnicas). Cubierta por tests de las reglas
+  (`model/confirmacion.ts`), de los hooks (una sola llamada con StrictMode,
+  token fuera de la URL, cada código, espera de 60 s), del gateway y de las
+  tres pantallas. Los tipos salen del OpenAPI del backend de NC-09, y el
+  contrato se probó con `curl` contra ese backend (201 del registro, 409
+  `CORREO_DESECHABLE`, `CORREO_NO_CONFIRMADO` y `CONFIRMACION_INVALIDA`, 202
+  del reenvío). **Todavía no se recorrió en el navegador** con el correo
+  real (Mailhog en local, Resend en producción).
 - **NC-04** sugerencia de la categoría por la foto en `/reportar` (ver
   «Sugerencia de la categoría por la foto (NC-04)» en Decisiones técnicas).
   Cubierta por tests de las reglas (`model/sugerencia.ts`), del hook

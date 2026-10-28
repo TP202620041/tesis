@@ -8,10 +8,13 @@ import {
   type FinalidadOpcional,
 } from './model/consentimientos';
 import type {
+  ConfirmarCorreoRequest,
+  CuentaPorConfirmar,
   FinalidadConsentimiento,
   LoginRequest,
   PreferenciaNotificacion,
   RecuperarPasswordRequest,
+  ReenviarConfirmacionRequest,
   RegistroRequest,
   RestablecerPasswordRequest,
   SesionIniciada,
@@ -21,18 +24,38 @@ import type {
 /**
  * Llamadas al API de autenticacion (US-01, US-02, US-03, US-04).
  *
- * `registro`, `login`, `recuperar-password` y `restablecer-password` son las
- * unicas rutas que se llaman sin token (`conAuth: false`): en el backend
- * estan en `RUTAS_PUBLICAS`.
+ * `registro`, `login`, `recuperar-password`, `restablecer-password`,
+ * `confirmar-correo` y `reenviar-confirmacion` son las unicas rutas que se
+ * llaman sin token (`conAuth: false`): en el backend estan en
+ * `RUTAS_PUBLICAS`.
  */
 
-/** US-01: registra una cuenta ciudadana y deja la sesion iniciada. */
-export async function registrar(datos: RegistroRequest): Promise<SesionIniciada> {
-  const sesion = await api.post<SesionIniciada>('/api/auth/registro', datos, {
-    conAuth: false,
-  });
-  guardarToken(sesion.token);
-  return sesion;
+/**
+ * US-01 + NC-09: registra una cuenta ciudadana. NO inicia sesion: la cuenta
+ * nace sin confirmar y el backend envia un enlace al correo. No se guarda
+ * ningun token (la respuesta ya no lo trae).
+ */
+export function registrar(datos: RegistroRequest): Promise<CuentaPorConfirmar> {
+  return api.post<CuentaPorConfirmar>('/api/auth/registro', datos, { conAuth: false });
+}
+
+/**
+ * NC-09: confirma el correo con el token del enlace. 204 sin cuerpo; los 409
+ * traen `codigo` (`model/confirmacion.ts`). No inicia sesion.
+ */
+export async function confirmarCorreo(token: string): Promise<void> {
+  const cuerpo: ConfirmarCorreoRequest = { token };
+  await api.post<void>('/api/auth/confirmar-correo', cuerpo, { conAuth: false });
+}
+
+/**
+ * NC-09: pide otro enlace de confirmacion. El backend responde 202 SIEMPRE
+ * (cuenta inexistente, ya confirmada, tope alcanzado o enviado): no hay
+ * resultado que interpretar. Solo falla por validacion (400) o por red.
+ */
+export async function reenviarConfirmacion(email: string): Promise<void> {
+  const cuerpo: ReenviarConfirmacionRequest = { email };
+  await api.post<void>('/api/auth/reenviar-confirmacion', cuerpo, { conAuth: false });
 }
 
 /** US-02: inicia sesion y persiste el token para las llamadas siguientes. */

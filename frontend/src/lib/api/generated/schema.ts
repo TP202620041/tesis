@@ -164,6 +164,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/reenviar-confirmacion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["reenviarConfirmacion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/recuperar-password": {
         parameters: {
             query?: never;
@@ -206,6 +222,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["login"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/confirmar-correo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["confirmarCorreo"];
         delete?: never;
         options?: never;
         head?: never;
@@ -718,26 +750,13 @@ export interface components {
             versionTerminos: string;
             captchaToken?: string;
         };
-        AuthResponse: {
-            token?: string;
-            tokenType?: string;
-            /** Format: int64 */
-            expiresInMinutes?: number;
-            usuario?: components["schemas"]["UsuarioResponse"];
-        };
-        UsuarioResponse: {
-            /** Format: int64 */
-            id?: number;
+        RegistroResponse: {
             email?: string;
-            nombre?: string;
-            apellido?: string;
-            rol?: string;
-            preferenciaNotificacion?: string;
-            fotoUrl?: string;
             /** Format: int64 */
-            distritoId?: number;
-            distritoNombre?: string;
-            debeAceptarTerminos?: boolean;
+            vigenciaEnlaceHoras?: number;
+        };
+        ReenviarConfirmacionRequest: {
+            email: string;
         };
         RecuperarPasswordRequest: {
             email: string;
@@ -761,6 +780,30 @@ export interface components {
         LoginRequest: {
             email: string;
             password: string;
+        };
+        AuthResponse: {
+            token?: string;
+            tokenType?: string;
+            /** Format: int64 */
+            expiresInMinutes?: number;
+            usuario?: components["schemas"]["UsuarioResponse"];
+        };
+        UsuarioResponse: {
+            /** Format: int64 */
+            id?: number;
+            email?: string;
+            nombre?: string;
+            apellido?: string;
+            rol?: string;
+            preferenciaNotificacion?: string;
+            fotoUrl?: string;
+            /** Format: int64 */
+            distritoId?: number;
+            distritoNombre?: string;
+            debeAceptarTerminos?: boolean;
+        };
+        ConfirmarCorreoRequest: {
+            token: string;
         };
         ResponderTicketRequest: {
             respuesta: string;
@@ -854,12 +897,10 @@ export interface components {
             preferenciaNotificacion: "PUSH" | "EMAIL" | "AMBAS";
         };
         PageTicketAdminResponse: {
-            /** Format: int64 */
-            totalElements?: number;
             /** Format: int32 */
             totalPages?: number;
-            first?: boolean;
-            last?: boolean;
+            /** Format: int64 */
+            totalElements?: number;
             /** Format: int32 */
             size?: number;
             content?: components["schemas"]["TicketAdminResponse"][];
@@ -869,18 +910,20 @@ export interface components {
             /** Format: int32 */
             numberOfElements?: number;
             pageable?: components["schemas"]["PageableObject"];
+            first?: boolean;
+            last?: boolean;
             empty?: boolean;
         };
         PageableObject: {
             /** Format: int64 */
             offset?: number;
             sort?: components["schemas"]["SortObject"];
-            unpaged?: boolean;
-            paged?: boolean;
-            /** Format: int32 */
-            pageNumber?: number;
             /** Format: int32 */
             pageSize?: number;
+            /** Format: int32 */
+            pageNumber?: number;
+            paged?: boolean;
+            unpaged?: boolean;
         };
         SortObject: {
             empty?: boolean;
@@ -909,12 +952,10 @@ export interface components {
             sort?: string[];
         };
         PageReporteResumenResponse: {
-            /** Format: int64 */
-            totalElements?: number;
             /** Format: int32 */
             totalPages?: number;
-            first?: boolean;
-            last?: boolean;
+            /** Format: int64 */
+            totalElements?: number;
             /** Format: int32 */
             size?: number;
             content?: components["schemas"]["ReporteResumenResponse"][];
@@ -924,6 +965,8 @@ export interface components {
             /** Format: int32 */
             numberOfElements?: number;
             pageable?: components["schemas"]["PageableObject"];
+            first?: boolean;
+            last?: boolean;
             empty?: boolean;
         };
         HistorialEntradaResponse: {
@@ -1424,8 +1467,30 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["AuthResponse"];
+                    "*/*": components["schemas"]["RegistroResponse"];
                 };
+            };
+        };
+    };
+    reenviarConfirmacion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReenviarConfirmacionRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -1516,6 +1581,28 @@ export interface operations {
                 content: {
                     "*/*": components["schemas"]["AuthResponse"];
                 };
+            };
+        };
+    };
+    confirmarCorreo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfirmarCorreoRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

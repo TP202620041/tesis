@@ -10,7 +10,9 @@ const CLASES = 'font-medium text-enlace hover:underline';
 /**
  * Enlace entre el login y el registro que conserva el `?redirect=` (QA-1
  * I-2): quien llego al login desde `/reportar` y elige «Regístrate» termina
- * en `/reportar` al crear la cuenta, no en la puerta de entrada generica.
+ * en `/reportar`, no en la puerta de entrada generica. Desde NC-09, al
+ * iniciar sesion tras confirmar el correo: «Revisa tu correo» lleva al login
+ * con el mismo `?redirect=`.
  *
  * `useSearchParams` exige un limite de Suspense: la pagina lo envuelve en
  * uno cuyo respaldo es {@link EnlaceDeAccesoSinDestino}.
