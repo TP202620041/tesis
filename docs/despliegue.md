@@ -2,7 +2,7 @@
 
 > Procedimiento para desplegar el MVP en **Railway** (API + PostGIS + respaldo), **Vercel** (PWA), **Cloudflare R2** (fotos y respaldos) y **Resend** (correo por HTTP). Diseño, opciones y fuentes: `project-context/decisions/propuestas/2026-10-21-despliegue-mvp.md` (aceptada el 21/10). Diagrama: `docs/arquitectura/c4-despliegue.md`.
 >
-> Versión 0.2 · 2026-10-25 · El primer despliegue (DEP-09) se hizo el 25/10 con v0.7.1, y v0.7.2 agrega `respaldo-bd` (§5.3). Lo que sigue marcado **(verificar)** se confirma con la prueba de humo (DEP-10) y se corrige aquí.
+> Versión 0.3 · 2026-10-28 · El primer despliegue (DEP-09) se hizo el 25/10 con v0.7.1, y v0.7.2 agrega `respaldo-bd` (§5.3). El 28/10 se sumó la operación: la política de reinicio y la primera corrida de `respaldo-bd`, y una sección nueva (§11) con las defensas del API, los límites de gasto y el DNS de Resend. Lo que sigue marcado **(verificar)** se confirma con la prueba de humo (DEP-10) y se corrige aquí.
 
 ## 0. Antes de empezar
 
@@ -39,7 +39,9 @@ En los comandos, `$API` es la URL pública del API y `$PWA` la de la PWA. Las fi
 | API | `$API` = `https://api.ciudadviva.app` | Railway (`backend`) | |
 | Fotos | `fotos.ciudadviva.app` | — | **Reservado** para un dominio propio de R2. Hoy no se crea nada. |
 
-El origen de la PWA no debe cambiar después de abrir a usuarios: push, la sesión y la cola offline son por origen. Las URLs que dan Vercel (`*.vercel.app`) y Railway (`*.up.railway.app`) siguen existiendo; sirven para depurar, no para los usuarios.
+El origen de la PWA no debe cambiar después de abrir a usuarios: push, la sesión y la cola offline son por origen.
+- **Vercel:** la URL `*.vercel.app` sigue existiendo y sirve para depurar, no para los usuarios.
+- **Railway:** la URL `*.up.railway.app` del `backend` **se borró** (§11.1). El API solo se alcanza por `$API`, a través del proxy de Cloudflare.
 
 ## 1. Cuentas
 
@@ -288,11 +290,11 @@ curl -s -o /dev/null -w "%{http_code}\n" $API/v3/api-docs          # distinto de
    **La URL lleva `POSTGRES_PASSWORD` sin codificar.** Funciona porque §4 la genera sin `/`, `+` ni `=`. Si se rota (§9), la nueva tiene que ser **solo alfanumérica**: un `/`, `@` o `%` rompe la URL, y libpq repite trozos de ella en el error del log.
 4. **Settings › Deploy:**
    - **Cron Schedule:** `0 8 * * *`, que son las 08:00 UTC, las 03:00 en Lima. El cron de Railway corre en UTC, con un mínimo de 5 minutos entre corridas.
-   - **Restart Policy:** *On Failure*, con **2** reintentos como máximo.
-     - **Por qué se puede reintentar:** cada corrida crea un objeto con otro nombre, así que un reintento nunca pisa un respaldo bueno.
-     - **Qué cubre:** un fallo pasajero de la red o de R2 que sobreviva a los 3 reintentos de `curl` no deja el día sin respaldo.
-     - **Por qué no se cuelga:** el script corta solo, con 15 s para conectar a la base, 60 s de espera por un lock y 15 min para la subida. Un cuelgue haría que Railway saltara las corridas siguientes.
-     - (verificar que Railway aplique la política a un servicio cron).
+   - **Sin política de reinicio.** En Railway, los servicios con cron no la tienen. El panel lo dice: «Services with a cron schedule do not have a restart policy» (verificado el 28/10). Una corrida que falla no se repite sola. Lo que cubre un fallo:
+     - **los 3 reintentos de `curl`** en la subida a R2, dentro de la misma corrida. Cubren un fallo pasajero de la red o de R2;
+     - **la corrida del día siguiente.** Crea un objeto con otro nombre, así que el día perdido no pisa nada; con la retención de 30 días (§2), basta con un respaldo bueno cerca;
+     - **la revisión de §8** (que el último objeto tenga menos de 24 h, y `railway cron list`) y el correo de Railway (paso 5). Detectan un fallo que se repite. Si hace falta un respaldo ya, se corre a mano con `railway cron run --service respaldo-bd`.
+   - **Por qué no se cuelga:** el script corta solo, con 15 s para conectar a la base, 60 s de espera por un lock y 15 min para la subida. Un cuelgue haría que Railway saltara las corridas siguientes.
 5. **Si falla, que se note:** Railway avisa por correo cuando un despliegue o una corrida falla. Comprobar que esas notificaciones estén activas en la cuenta del usuario (*Account › Notifications*; verificar el nombre exacto). Además, §8 pide revisar cada semana que el último objeto tenga menos de 24 h.
 
 **Verificar la primera vez** (desde la PC del usuario, con la CLI enlazada al proyecto):
@@ -304,6 +306,10 @@ curl -s -o /dev/null -w "%{http_code}\n" $API/v3/api-docs          # distinto de
    - **Un 403 de R2:** muestra el XML del error, sin la clave. Lo normal es que el token «respaldos» no alcance a ese bucket.
    - **Si dice `could not translate host name "postgis.railway.internal"`:** es la resolución DNS de Alpine (musl) en la red privada. Agregar `ENABLE_ALPINE_PRIVATE_NETWORKING=true` o cambiar la imagen a `postgres:16-bookworm`.
    - **Formato:** `pg_dump` custom; se restaura con `pg_restore` (§8).
+3. **Hecho el 28/10:** la primera corrida de prueba contra R2.
+   - **Hora:** 22:40 UTC.
+   - **Objeto:** `prueba-2026-10-28T22-40-15Z.dump`, de 132 013 bytes, en `ciudadviva-respaldos`.
+   - La limpieza del paso 1 (quitar `BACKUP_FILE_PREFIX` y borrar el objeto) sigue valiendo si no se hizo.
 
 Si el plan de Railway incluye respaldos del volumen (en el servicio `postgis` › Backups), activar también el diario y el semanal (verificar disponibilidad en Hobby).
 
@@ -453,3 +459,42 @@ docker exec viasegura-db psql -U viasegura -d viasegura -c "DROP DATABASE restau
 - **Publicar:** al fusionar en `main` el PR de un `release/*` o de un `hotfix/*`, Railway reconstruye `backend` y Vercel reconstruye la PWA, en paralelo. Por eso cada cambio del API tiene que ser **compatible con la PWA anterior durante una versión** (propuesta de despliegue, riesgo 1). Si una versión no puede cumplirlo, desactivar antes en Vercel la asignación automática del dominio de producción y promover el despliegue a mano cuando el API ya esté arriba (verificar el nombre exacto de la opción).
 - **Después de publicar:** prueba de humo (§7.3).
 - **Volver atrás:** Railway › `backend` › Deployments › el anterior › *Redeploy*; Vercel › Deployments › el anterior › *Instant Rollback* (en Hobby, verificar hasta cuántas versiones atrás). Las migraciones de Flyway no se deshacen: una versión vieja arranca sobre un esquema más nuevo solo si las migraciones fueron aditivas (columnas nulables, tablas nuevas). Nunca restaurar un respaldo para «deshacer» una migración sin antes medir cuántos datos se perderían.
+
+## 11. Operación: defensas, límites de gasto y DNS
+
+### 11.1 Defensas delante del API (25 y 26/10)
+
+| Defensa | Qué hace | Cómo se verifica |
+|---|---|---|
+| **Sin dominio `*.up.railway.app` en `backend`** | Se borró el dominio generado de Railway. El API solo se alcanza por `api.ciudadviva.app`, con el proxy de Cloudflare, así que nadie puede saltarse el proxy ni su límite de peticiones. El paso «Generate Domain» de §5.2 ya no se hace en producción. | Railway › `backend` › Settings › Networking muestra solo el dominio propio. `curl -s -D - -o /dev/null $API/actuator/health` muestra `server: cloudflare`. |
+| **Límite de peticiones en Cloudflare** | Una regla de *rate limiting* (Security › WAF › Rate limiting rules) para las peticiones de escritura a `api.ciudadviva.app`: **30 cada 10 s por IP**, con **10 s de bloqueo**. El plan Free admite **una sola** regla de este tipo, y ya está usada: una regla nueva obliga a editar esta. El backend no limita por IP (§5.2), así que esta es la única defensa contra ráfagas. | Cloudflare › Security › Events muestra los bloqueos. Pasada la ráfaga, la PWA trata el 429 como pasajero: la cola sin conexión lo reintenta (US-06). |
+| **`HEAD /actuator/health` responde 401** | `SecurityConfig` solo abre `GET` en esa ruta (rutas públicas exactas y solo `GET`). | **Un monitor externo tiene que usar `GET`:** con `HEAD` daría el servicio por caído. `curl -s $API/actuator/health` da `{"status":"UP"}` y `curl -sI $API/actuator/health` da 401. |
+
+**Si aparecen 429 legítimos.** Con el CGNAT de las redes móviles, varios usuarios pueden compartir una IP. A la escala de la tesis, 30 escrituras cada 10 s alcanzan. Si Security › Events muestra bloqueos de usuarios reales, se sube el umbral de esa misma regla y se anota aquí.
+
+### 11.2 Límites de gasto de Railway
+
+En Railway › Workspace › Usage:
+
+| Límite | Valor | Qué pasa al alcanzarlo |
+|---|---|---|
+| **Compute: alerta** | US$ 15 | Railway manda un correo y los servicios siguen corriendo. |
+| **Compute: límite duro** | US$ 25 | Railway **apaga todos los servicios** (`backend`, `postgis`, `respaldo-bd`) hasta que se sube o se quita el límite. El sitio queda caído. |
+| **Agent** | — | Es solo para las funciones de IA de Railway, **no para los servicios**. Se limita por separado del compute: alcanzarlo no apaga nada. |
+
+Fuente: [docs.railway.com/reference/usage-limits](https://docs.railway.com/reference/usage-limits), consultada el 28/10/2026. El gasto esperado ronda los US$ 9–12 al mes con la inferencia, así que el límite duro deja margen. Si se acerca a la alerta, revisar en Usage qué servicio crece antes de subir el límite.
+
+### 11.3 Registros DNS que no se borran (Cloudflare, zona `ciudadviva.app`)
+
+Detalle de cada registro en §3 (correo), §5.2 (`api`) y §6 (PWA).
+
+| Registro | Para qué | Proxy |
+|---|---|---|
+| 3 `MX` en la raíz, SPF de la raíz, `TXT` en `cf2024-1._domainkey` | Email Routing: recibir en `contacto@`, `soporte@` y `dmarc@` (§3) | — |
+| `TXT` en `_dmarc` | DMARC único del dominio (§3) | — |
+| `TXT` en `resend._domainkey`; `MX` y `TXT` en `send` | Resend: DKIM y SPF del envío (§3) | — |
+| **`CNAME` en `rsend` → `send.forge.rmta.net`** | **Parte de la verificación de Resend del 25/10** (§3, paso 1). No se borra aunque ningún servicio propio lo use: de Resend depende todo el correo saliente, incluida la confirmación de la cuenta (NC-09) | **Sin proxy** (nube gris) |
+| `CNAME` en `api` y `TXT` en `_railway-verify.api` | Dominio propio del API en Railway (§5.2) | `api` **con proxy** |
+| `A` en la raíz y `CNAME` en `www` | PWA en Vercel (§6) | Sin proxy |
+
+**Antes de borrar o cambiar un registro de la zona,** buscarlo en esta tabla. Si no está, averiguar quién lo creó antes de tocarlo.
