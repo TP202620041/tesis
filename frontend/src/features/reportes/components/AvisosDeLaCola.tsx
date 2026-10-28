@@ -4,11 +4,9 @@ import Link from 'next/link';
 import { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import { BotonIcono } from '@/components/ui/Icono';
+import { RUTAS_DE_ACCESO } from '@/features/auth/model/rutas';
 import { useCierreDelAvisoDeIncompletos } from '../hooks/useCierreDelAvisoDeIncompletos';
 import { clasesDeBoton } from '@/components/ui/Boton';
-
-/** Rutas donde no tiene sentido pedir que inicie sesion: ya esta en eso. */
-const RUTAS_DE_ACCESO = ['/login', '/registro', '/recuperar-password'];
 
 function plural(n: number): string {
   return n === 1 ? '1 reporte pendiente' : `${n} reportes pendientes`;
@@ -20,6 +18,9 @@ function plural(n: number): string {
  * al login, que vuelve a esta misma pantalla.
  */
 export function AvisoPendientesSinSesion({ cantidad, ruta }: { cantidad: number; ruta: string }) {
+  // En las pantallas de acceso no tiene sentido pedir que inicie sesion: ya
+  // esta en eso (y desde `/confirmar-cuenta`, volver sin el token mostraria
+  // un enlace invalido).
   if (cantidad === 0 || RUTAS_DE_ACCESO.some((r) => ruta.startsWith(r))) return null;
   return (
     <p

@@ -1,5 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { CACHE_ENTRE_ORIGENES, borrarCacheEntreOrigenes, esPeticionAlApi } from './cachesDeSesion';
+import { RUTA_CONFIRMAR_CUENTA } from '@/features/auth/model/rutas';
+import {
+  CACHE_ENTRE_ORIGENES,
+  RUTA_CON_TOKEN_EN_LA_URL,
+  borrarCacheEntreOrigenes,
+  esPaginaConTokenEnLaUrl,
+  esPeticionAlApi,
+} from './cachesDeSesion';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -19,6 +26,26 @@ describe('esPeticionAlApi', () => {
     expect(esPeticionAlApi(new URL('http://localhost:3000/mis-reportes'))).toBe(false);
     // Solo el prefijo exacto `/api/`.
     expect(esPeticionAlApi(new URL('http://localhost:3000/apiario'))).toBe(false);
+  });
+});
+
+describe('esPaginaConTokenEnLaUrl (NC-09)', () => {
+  it('es la misma ruta que la página de confirmación de la app', () => {
+    // El SW no puede importar de features (se compila aparte): si alguien
+    // mueve la página, el token volvería a quedar en la caché sin avisar.
+    expect(RUTA_CON_TOKEN_EN_LA_URL).toBe(RUTA_CONFIRMAR_CUENTA);
+  });
+
+  it('reconoce la página del enlace, con o sin token y con barra final', () => {
+    expect(esPaginaConTokenEnLaUrl(new URL('https://ciudadviva.app/confirmar-cuenta?token=abc'))).toBe(true);
+    expect(esPaginaConTokenEnLaUrl(new URL('http://localhost:3000/confirmar-cuenta'))).toBe(true);
+    expect(esPaginaConTokenEnLaUrl(new URL('http://localhost:3000/confirmar-cuenta/'))).toBe(true);
+  });
+
+  it('deja que el resto de páginas se cacheen como siempre', () => {
+    expect(esPaginaConTokenEnLaUrl(new URL('http://localhost:3000/login'))).toBe(false);
+    expect(esPaginaConTokenEnLaUrl(new URL('http://localhost:3000/confirmar-cuenta-x'))).toBe(false);
+    expect(esPaginaConTokenEnLaUrl(new URL('http://localhost:3000/recuperar-password?token=abc'))).toBe(false);
   });
 });
 

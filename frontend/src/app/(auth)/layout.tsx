@@ -3,7 +3,8 @@ import Link from 'next/link';
 import { Logo } from '@/components/ui/Logo';
 
 /**
- * Marco comun de las pantallas de acceso (login, registro, recuperacion).
+ * Marco comun de las pantallas de acceso (login, registro, recuperacion y
+ * confirmacion del correo, NC-09).
  * Sin la navegacion de la app (DIS-1): quien entra aqui viene a una sola
  * cosa, y el logo lleva a la portada.
  */

@@ -1,5 +1,5 @@
 import type { Rol } from '@/lib/types/domain';
-import { RUTA_ACEPTAR_TERMINOS, RUTA_SOPORTE_ADMIN } from './rutas';
+import { RUTA_ACEPTAR_TERMINOS, RUTA_SOPORTE_ADMIN, RUTAS_DE_ACCESO } from './rutas';
 
 /**
  * Navegación por rol (DIS-1; propuesta §7, FE-DS-03). Un solo lugar define qué
@@ -173,15 +173,14 @@ export function esRutaActual(ruta: string, item: ItemNavegacion): boolean {
 
 /**
  * Cuánto marco lleva cada pantalla:
- * - `ninguno`: las de acceso (login, registro, recuperación), que tienen su
- *   propio marco centrado con el logo: quien llega ahí viene a una sola cosa.
+ * - `ninguno`: las de acceso (login, registro, recuperación y confirmación
+ *   del correo, {@link RUTAS_DE_ACCESO}), que tienen su propio marco centrado
+ *   con el logo: quien llega ahí viene a una sola cosa.
  * - `minimo`: la aceptación de términos (solo el logo): mientras no acepte, el
  *   resto de la app le respondería 403.
  * - `completo`: todas las demás.
  */
 export type ModoDelMarco = 'ninguno' | 'minimo' | 'completo';
-
-const RUTAS_DE_ACCESO = ['/login', '/registro', '/recuperar-password'];
 
 export function modoDelMarco(ruta: string): ModoDelMarco {
   const camino = ruta.split(/[?#]/)[0] ?? ruta;

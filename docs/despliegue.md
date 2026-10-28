@@ -100,6 +100,7 @@ El origen de la PWA no debe cambiar después de abrir a usuarios: push, la sesi�
      - **`CNAME` en `rsend`** → `send.forge.rmta.net`, **sin proxy** (nube gris);
      - **DMARC:** ya existe (el de arriba). No crear otro.
    - **Sin dominio verificado**, Resend solo entrega al correo del dueño de la cuenta (desde `onboarding@resend.dev`) y responde 403 a cualquier otro destinatario. El despliegue puede salir así, con el correo limitado a esa dirección: cada envío rechazado queda como un `WARN` en el log del backend, y la recuperación de contraseña sigue respondiendo 202.
+   - **Desde NC-09 el correo es requisito del registro.** Una cuenta nueva no inicia sesión hasta abrir el enlace de confirmación que le llega por correo (las cuentas anteriores a NC-09 quedaron confirmadas). Sin el envío con Resend funcionando y el dominio verificado, nadie que se registre puede entrar. Antes de desplegar NC-09, correr la verificación de abajo con un destinatario que no sea el dueño de la cuenta de Resend.
 2. **Clave** (API Keys › Create API Key): nombre `ciudadviva-backend`, permiso **Sending access** (solo envía) y, en *Domain*, **solo el dominio verificado**. Resend la muestra una sola vez: al gestor de contraseñas. Es `CORREO_API_KEY` (§5.2).
 3. **Remitente:** `NOTIF_FROM=Ciudad Viva <no-reply@ciudadviva.app>` (§5.2).
 
@@ -207,6 +208,7 @@ railway connect postgis               # abre psql por túnel SSH (requiere psql 
    | `JWT_EXPIRATION_MINUTES` | `120` |
    | `PORT` | `8080` (ver la nota debajo de la tabla) |
    | `CORS_ALLOWED_ORIGINS` | `https://ciudadviva.app`: solo la raíz, porque `www` redirige y no es un origen. Exacto, con `https://` y sin barra final. |
+   | `FRONTEND_URL` | `https://ciudadviva.app` (NC-09). Opcional y recomendada: origen de la PWA, sin ruta, para el enlace de confirmación del correo (`<origen>/confirmar-cuenta?token=…`). Sin ella se usa el primer origen de `CORS_ALLOWED_ORIGINS`, que hoy es el mismo; definirla evita que el enlace cambie si algún día esa lista empieza por otro origen. Una URL que no sea un origen `http(s)` no arranca. |
    | `NOTIF_FROM` | `Ciudad Viva <no-reply@ciudadviva.app>` (**obligatoria** en `prod` con cualquier tipo de correo) |
    | `CORREO_TIPO` | `resend` (decisión del 21/10). **Obligatoria** en `prod`: sin ella, o con un valor distinto de `smtp` o `resend`, la app no arranca. |
    | `CORREO_API_KEY` | §3 |
@@ -366,7 +368,7 @@ Si el correo ya tiene una cuenta con otro rol, o la contraseña no cumple el lar
 
 ### 7.2 Funcionarios (DEP-05)
 
-1. La persona se registra en `$PWA` y **confirma que el registro le funcionó a ella**. Si al registrarse vio «El correo ya está registrado», no se asigna: primero recupera la cuenta con «¿Olvidaste tu contraseña?» (cuando DEP-08 funcione) o se revisa la cuenta con ella. El registro no verifica la propiedad del correo. El script muestra la fecha de registro de la cuenta antes de cambiarla.
+1. La persona se registra en `$PWA`, abre el enlace de confirmación que le llega al correo y **confirma que el registro le funcionó a ella** (inicia sesión con su contraseña). Si al registrarse vio «El correo ya está registrado», no se asigna: primero recupera la cuenta con «¿Olvidaste tu contraseña?» (cuando DEP-08 funcione) o se revisa la cuenta con ella. Desde NC-09 el registro verifica la propiedad del correo: una cuenta no inicia sesión sin abrir el enlace que llega a ese buzón, así que entrar con la contraseña prueba que el correo es suyo. Las cuentas creadas antes de NC-09 quedaron confirmadas sin esa prueba. El script muestra la fecha de registro de la cuenta antes de cambiarla.
 2. Desde la raíz del repo:
 
    ```bash
@@ -389,7 +391,7 @@ Después de cada despliegue de `main`. La corre `qa-e2e` con la PWA en el navega
 |---|---|---|
 | 1 | `GET $API/actuator/health` | `{"status":"UP"}` |
 | 2 | `GET $API/api/distritos`, `GET $API/api/categorias` | 43 distritos; categorías estándar activas |
-| 3 | Registro de un ciudadano nuevo en `$PWA` | Pide aceptar los términos; entra |
+| 3 | Registro de un ciudadano nuevo en `$PWA` | Pide aceptar los términos y muestra «Revisa tu correo», sin entrar. Antes de confirmar, el login responde «Confirma tu correo…» con «Reenviar el enlace». El correo llega; su enlace abre `$PWA/confirmar-cuenta`, que dice «¡Listo! Tu correo está confirmado» y deja la URL sin el token. Después, entra (NC-09). |
 | 4 | Crear un reporte con foto (GPS y ubicación manual) | Se crea; aparece en el mapa |
 | 5 | Abrir la `fotoUrl` del reporte sin sesión | 200, `image/jpeg`; sin EXIF (`exiftool` no muestra GPS ni modelo de equipo) |
 | 6 | Foto de perfil | La ve su dueño; otra cuenta recibe 404 |
