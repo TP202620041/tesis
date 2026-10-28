@@ -46,6 +46,16 @@ export const MENSAJE_REENVIO =
   'Si tu cuenta está pendiente de confirmar, te enviamos un enlace nuevo. Revisa tu correo (y la carpeta de spam).';
 
 /**
+ * NC-09c: lo que suma «¿Olvidaste tu contraseña?» tras pedir el token. Desde
+ * NC-09b el backend no envía nada a una cuenta sin confirmar (responde lo
+ * mismo que para un correo sin cuenta), y sin esto quien no confirmó y
+ * olvidó la contraseña no tiene salida. Se muestra **siempre**, haya o no
+ * cuenta y esté o no confirmada, así que no revela nada.
+ */
+export const AVISO_RECUPERACION_SIN_CONFIRMAR =
+  'Si todavía no confirmaste tu cuenta, no te llegará este correo: pide el enlace de confirmación.';
+
+/**
  * Enlace sin token o con uno imposible: el mismo texto que el 409
  * `CONFIRMACION_INVALIDA`, porque para el usuario es el mismo problema.
  */

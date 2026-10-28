@@ -1042,6 +1042,22 @@ el README del backend («Confirmación del correo»). Lo que cambia en la PWA:
   cuántos segundos faltan; el hook ignora el clic. La espera vive en la
   pantalla (un nuevo intento de login con el mismo error la reinicia): el
   tope real lo pone el backend.
+- **«¿Olvidaste tu contraseña?» (NC-09c).** Desde NC-09b el backend no
+  envía nada a una cuenta sin confirmar que pide recuperar la contraseña
+  (responde lo mismo que para un correo sin cuenta). Quien no confirmó y
+  además olvidó la contraseña quedaba atascado: el reenvío del login exige
+  la contraseña correcta y registrarse de nuevo da «correo ya registrado».
+  Decisión del usuario (28/10, opción C de
+  `propuestas/2026-10-28-reenviar-confirmacion-sin-contrasena.md`): tras
+  pedir el token, el mensaje genérico suma «Si todavía no confirmaste tu
+  cuenta, no te llegará este correo: pide el enlace de confirmación»
+  (`AVISO_RECUPERACION_SIN_CONFIRMAR`) y, al lado, `ReenviarConfirmacion`
+  con el correo ya escrito. Se muestra **siempre**, haya o no cuenta, así
+  que no revela nada; el reenvío conserva su mensaje neutro y la espera de
+  60 s. El aviso va dentro de la misma región `role="status"` que el mensaje
+  de éxito, para que se anuncie con él, y el reenvío va fuera del `<form>`
+  del token (no se anidan). Con «Ya tengo un token» no hay correo y no se
+  ofrece. Sin cambio de contrato ni de backend.
 - **El Service Worker no guarda esa página.** La regla por defecto de
   Serwist para las páginas del mismo origen (`NetworkFirst`, caché
   `others`) guardaría la respuesta con la URL completa, token incluido, como
@@ -1455,6 +1471,11 @@ Verificado end-to-end contra el backend real:
   `CORREO_DESECHABLE`, `CORREO_NO_CONFIRMADO` y `CONFIRMACION_INVALIDA`, 202
   del reenvío). **Todavía no se recorrió en el navegador** con el correo
   real (Mailhog en local, Resend en producción).
+- **NC-09c** «Reenviar el enlace» de confirmación desde «¿Olvidaste tu
+  contraseña?», tras pedir el token (ver «Confirmación del correo (NC-09)»).
+  Cubierta por tests del componente: aviso y acción tras pedir el token,
+  reenvío al correo escrito con el mensaje neutro y la espera de 60 s, y sin
+  reenvío con «Ya tengo un token».
 - **NC-04** sugerencia de la categoría por la foto en `/reportar` (ver
   «Sugerencia de la categoría por la foto (NC-04)» en Decisiones técnicas).
   Cubierta por tests de las reglas (`model/sugerencia.ts`), del hook

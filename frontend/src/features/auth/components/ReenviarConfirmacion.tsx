@@ -19,8 +19,9 @@ interface ReenviarConfirmacionProps {
 /**
  * NC-09: «Reenviar el enlace» de confirmación, sin sesión. Lo usan la
  * pantalla «Revisa tu correo» del registro, el login (409
- * `CORREO_NO_CONFIRMADO`) y `/confirmar-cuenta` con el enlace vencido,
- * reemplazado o inválido (ahí no se sabe el correo y se pide).
+ * `CORREO_NO_CONFIRMADO`), «¿Olvidaste tu contraseña?» tras pedir el token
+ * (NC-09c) y `/confirmar-cuenta` con el enlace vencido, reemplazado o
+ * inválido (ahí no se sabe el correo y se pide).
  *
  * - Tras pedirlo, siempre el mismo mensaje neutro, en una región
  *   `role="status"` que existe desde el inicio (si aparece junto con su
