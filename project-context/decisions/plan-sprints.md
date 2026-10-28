@@ -102,7 +102,7 @@ Hay un carril de backend y uno de frontend en paralelo. En un mismo sprint el fr
 
 **BE-11** sale de la deuda de DEP-12 (`propuestas/2026-10-21-fotos-r2.md`, «La regla de §4.5…»): `ReporteService#crear` sube la foto a R2 **dentro** de su `@Transactional` y retiene una conexión del pool durante la red (~100–500 ms). La propuesta sugería resolverla con NC-04; NC-04 no la tomó (revisión del 25/10) y queda como tarea propia del S7. Va junto con borrar el objeto huérfano en `afterCompletion` cuando la transacción se revierte.
 
-**BE-13 y BE-14** salen de los plazos de conservación que fijó el usuario el 26/10 para los términos v2 (`legal/terminos-y-privacidad-v2.md` §7). Lo que prometen los términos el sistema tiene que cumplirlo:
+**BE-13 y BE-14** salen de los plazos de conservación que fijó el usuario el 26/10 para los términos v2 (`legal/terminos-y-privacidad-v2.md` §8). Lo que prometen los términos el sistema tiene que cumplirlo:
 - **BE-13:** hoy nada borra las consultas de soporte.
 - **BE-14:** hoy no existe forma de cerrar una cuenta (`backend/README.md`, «inactivo»), aunque los términos v1 ya lo ofrecían por soporte.
 
@@ -120,7 +120,7 @@ Van en la v0.8.0, junto con los términos v2. Fichas: `plan-migracion-capas.md`.
   - Backend en #122, ya en `develop`; PWA en #123.
   - El registro deja de devolver sesión, así que **las dos partes salen en la misma versión**.
 - **BE-15:** borra las cuentas que nunca se confirman, 30 días después de crearlas (`propuestas/2026-10-28-cuentas-sin-confirmar.md`). Una cuenta sin confirmar tampoco puede restablecer la contraseña. La ficha la escribe el agente de backend en `plan-migracion-capas.md`.
-- Los términos v2 prometen las dos (§2 y §8). Por eso van en la v0.8.0, junto con los plazos de los mismos términos que cubren BE-13 y BE-14 (sus fichas llegan con el PR #116).
+- Los términos v2 prometen las dos (§2 y §8). Por eso van en la v0.8.0, junto con BE-13 y BE-14, que cumplen los otros plazos de los mismos términos.
 
 **La moderación entra al S7 (decisión del usuario del 28/10).** Propuesta `propuestas/2026-10-28-moderacion-de-contenido.md` (decidida) y D-15 en ARCHITECTURE.md. Fichas y criterios: `plan-migracion-capas.md`, NC-10 y NC-11.
 - **Qué entra:**

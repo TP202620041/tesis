@@ -21,6 +21,12 @@
 > - la revisión de la foto y del texto en §5;
 > - ocultar y denunciar en §5 y §8.
 >
+> **Si la v0.8.0 sale con `MODERACION_TIPO=ninguna`** (porque DEP-13 o NC-10a no están listos), el código está, pero la revisión automática no corre. En ese caso, una de dos (`plan-sprints.md`, «La moderación entra al S7»):
+> - se quita de §5 el párrafo «La foto del daño» antes de publicar;
+> - o se retrasa la publicación de esta versión hasta que la moderación esté en `http`.
+>
+> No se publica la v2 completa con la moderación apagada.
+>
 > **Qué cambia respecto de v1:**
 > - §2: la confirmación del correo al crear la cuenta (NC-09) y las denuncias.
 > - §4 nuevo: el análisis automático de la foto (NC-04 y NC-04b).
@@ -93,7 +99,7 @@ Para que la plataforma no publique contenido sexual ni insultos, revisamos autom
 - **Si detecta ese contenido, la foto se rechaza:** no se guarda ni se publica, y te pedimos tomar otra. La revisión también se hace en la vista previa, para avisarte antes de enviar.
 - **Si en ese momento el servicio no responde, no podemos aceptar la foto.** Puedes guardar el reporte en tu dispositivo, y se enviará cuando el servicio vuelva, o enviarlo sin foto.
 
-**El texto.** Los textos que escribes para publicar, como la descripción del reporte, se comparan con una lista de palabras ofensivas. Si encontramos una, no publicamos el texto y te pedimos cambiarlo. El aviso no repite la palabra.
+**El texto.** El título y la descripción del reporte, tus comentarios y tu nombre de perfil se comparan con una lista de palabras ofensivas, al escribirlos y al editarlos. Si encontramos una, no publicamos el texto y te pedimos cambiarlo. El aviso no repite la palabra.
 
 **Qué guardamos de lo rechazado:** nada. Ni la foto, ni el texto, ni el resultado del análisis. En el registro técnico del servidor queda solo que hubo un rechazo, con tu identificador de usuario y la fecha, para detectar abusos.
 
@@ -103,18 +109,18 @@ La revisión es automática y puede equivocarse. Si crees que rechazamos algo po
 - El equipo de Ciudad Viva puede ocultar la foto de un reporte, o el reporte completo, si incumple estos términos (§11). **La municipalidad no puede ocultar reportes.**
 - Lo hacemos con un motivo, que el autor ve en la línea de tiempo de su reporte, y lo podemos deshacer.
 - Una **foto oculta** deja de mostrarse, pero el reporte sigue público.
-- Un **reporte oculto** deja de ser público y **no cuenta en el índice de desempeño** mientras esté oculto. Su autor lo sigue viendo en «Mis reportes».
-- Lo que alguien ya descargó en su dispositivo antes de que lo ocultáramos puede quedar en él.
+- Un **reporte oculto** deja de ser público, sale de la bandeja de la municipalidad y **no cuenta en el índice de desempeño** mientras esté oculto. Su autor lo sigue viendo en «Mis reportes».
+- Una foto oculta puede tardar hasta una hora en dejar de mostrarse en todas partes. Lo que alguien ya descargó en su dispositivo antes de que la ocultáramos puede quedar en él.
 
 **Denunciar.**
 - Si ves un reporte con contenido que incumple estas reglas, usa el botón **«Denunciar contenido»**. Necesitas una cuenta.
-- Puedes denunciar cada reporte una vez, con un máximo de denuncias por día.
+- Puedes denunciar cada reporte una vez, con un máximo de 10 denuncias por día.
 - Cada denuncia la revisa el equipo de Ciudad Viva: por sí sola no oculta nada.
 - Quien hizo el reporte no sabe quién lo denunció.
 
 ## 6. Con quién compartimos tus datos
 
-- **La municipalidad del distrito** donde está el daño recibe el reporte para atenderlo. El personal municipal no ve tu correo.
+- **La municipalidad del distrito** donde está el daño recibe el reporte para atenderlo, salvo mientras esté oculto (§5). El personal municipal no ve tu correo.
 - **Tus denuncias** solo las ve el equipo de Ciudad Viva. No se comparten con el autor del reporte ni con la municipalidad.
 - **Proveedores técnicos que procesan datos en nuestro nombre:**
   - **Railway:** aloja el servidor de la aplicación, la base de datos y el análisis de fotos (§4 y §5).
