@@ -100,6 +100,7 @@ preferible que no arranque y que el log diga qué falta.
 | `CLASIFICACION_TIPO` | sí | Adaptador del clasificador de fotos (NC-04b): `http` (el servicio `inferencia/` por la red privada) en el despliegue. `falso` es el **interruptor** para apagar la clasificación: en `prod` el falso responde siempre «sin detecciones» (`application-prod.yml`, literal) y no escribe nada. Sin ella no arranca: con el `falso` de desarrollo por defecto la clasificación quedaría apagada sin que nada lo advierta, porque cualquier falla del adaptador también termina en «sin sugerencia». Otro valor tampoco arranca (`clasificacion/infra/ValidacionTipoClasificador`). Ver [Sugerencia de categoría](#sugerencia-de-categoría-por-la-foto-nc-04-fase-0). |
 | `CLASIFICACION_URL` | con `CLASIFICACION_TIPO=http` | URL base del servicio de inferencia, sin la ruta: `http://${{inferencia.RAILWAY_PRIVATE_DOMAIN}}:8000` en Railway. Sin ella, sin esquema `http(s)` y host, o con ruta (`…:8000/v1`), query, fragmento o usuario, no arranca: el adaptador agrega `/v1/detecciones`, y una ruta de más daría un 404 en cada llamada que solo se vería en el log. No es un secreto. |
 | `CLASIFICACION_UMBRAL` | no (`0.50`) | Confianza mínima para sugerir, en (0, 1]. Se calibra en NC-03b. |
+| `CLASIFICACION_ESPERA_TURNO_MS` | no (`10000`) | Cuánto espera la sugerencia oficial un turno del servicio de inferencia (NC-04c), entre 0 y 60000 ms; fuera de rango no arranca. La vista previa nunca espera. |
 | `JWT_EXPIRATION_MINUTES`, `VAPID_*`, `PUSH_*`, `MAIL_*` (solo con `smtp`), `LEGAL_VERSION_TERMINOS`, `ASYNC_*` | no | Las mismas de `application.yml`, con sus valores por defecto. |
 
 ### Qué cambia respecto de `local`
@@ -1834,19 +1835,71 @@ Timeouts del push: 3 s de conexión y 5 s de pedido
 
 ### Executor asíncrono (`AsyncConfig`)
 
-Uno solo, con nombre (`ejecutorAsincrono`, hilos `viasegura-async-*`), para
-reutilizar en todo trabajo posterior al commit: los avisos, los correos y la
-sugerencia de categoría de D-08 (`@Async(AsyncConfig.EJECUTOR)`, NC-04). Reemplaza
-al `applicationTaskExecutor` de Spring Boot (Boot solo crea el suyo si no hay
-ningún `Executor`), así que también es el executor por defecto de cualquier
-`@Async` sin nombre.
+Dos, con nombre, para el trabajo posterior al commit:
 
-| Parámetro | Por defecto | Variable |
+- **El general** (`ejecutorAsincrono`, hilos `viasegura-async-*`,
+  `@Async(AsyncConfig.EJECUTOR)`): los avisos y los correos. Es `@Primary`,
+  así que también es el executor por defecto de cualquier `@Async` sin
+  nombre.
+- **El de las sugerencias** (`ejecutorSugerencias`, hilos
+  `viasegura-sugerencia-*`, `@Async(AsyncConfig.EJECUTOR_SUGERENCIAS)`,
+  desde NC-04c): solo la sugerencia oficial de categoría de D-08. Ver abajo
+  por qué va aparte.
+
+Los dos reemplazan al `applicationTaskExecutor` de Spring Boot (Boot solo
+crea el suyo si no hay ningún `Executor`).
+
+| Parámetro | General | Sugerencias |
 |---|---|---|
-| Hilos base / máximo | 2 / 4 | `ASYNC_HILOS_BASE`, `ASYNC_HILOS_MAX` |
-| Cola | 100 tareas | `ASYNC_COLA` |
-| Cola llena | **se rechaza** (`TaskRejectedException`): quien encola registra qué se pierde y la descarta | — |
-| Apagado | espera hasta 10 s a las tareas en curso | — |
+| Hilos | 2 base, hasta 4 (`ASYNC_HILOS_BASE`, `ASYNC_HILOS_MAX`) | 2 fijos (`ASYNC_SUGERENCIAS_HILOS`) |
+| Cola | 100 tareas (`ASYNC_COLA`) | 100 tareas (`ASYNC_SUGERENCIAS_COLA`) |
+| Cola llena | **se rechaza** (`TaskRejectedException`): quien encola registra qué se pierde y la descarta | igual |
+| Apagado | espera hasta 10 s a las tareas en curso y corre la cola | deja terminar las que corren y **descarta la cola** (ver abajo) |
+
+**Por qué la sugerencia oficial tiene su propio executor (NC-04c).** Desde
+NC-04c espera hasta 10 s un turno del servicio de inferencia (ver «Espera de
+turno de la sugerencia oficial»), y mientras espera ocupa su hilo. En el
+executor general, que en la práctica trabaja con sus 2 hilos base (el pool
+solo crece hacia 4 con la cola de 100 llena), dos sugerencias esperando lo
+dejarían sin hilos: los correos de confirmación y de recuperación y los
+avisos quedarían en cola detrás de ellas, y con una carga sostenida de
+vistas previas cada sugerencia esperaría el plazo entero (2 tareas cada
+~13 s). Subir los hilos del general no lo resuelve: más hilos también son
+más sugerencias a la vez, que ocuparían los 4 turnos y dejarían sin
+sugerencia a las vistas previas. Con un executor aparte (un *bulkhead* de
+hilos, como el semáforo lo es de llamadas):
+
+- esperar un turno solo retrasa a otras sugerencias, nunca un correo ni un
+  aviso;
+- con **2 hilos fijos**, a lo sumo 2 sugerencias oficiales llaman a la vez,
+  así que de los 4 turnos del adaptador quedan 2 para las vistas previas,
+  igual que antes de NC-04c. Por eso `ASYNC_SUGERENCIAS_HILOS` debe estar
+  entre 1 y 3: con 4 o más no arranca (lo valida `InferenciaHttpAdapter`, en
+  `clasificacion`, porque `common` no puede depender de ese módulo). Hilos
+  fijos (base = máximo) porque un pool que solo crece con la cola llena se
+  quedaría en los base de todos modos;
+- la cola de 100 guarda solo el id del reporte (la foto se descarga al
+  correr), así que no pesa en memoria. En el peor caso, con cada tarea
+  esperando el plazo entero, se vacía en unos 100 / 2 × 13 s ≈ 11 minutos, y
+  una sugerencia tardía sigue sirviendo: es interna y no la espera nadie.
+  El servicio infiere de a una foto (≈0,3 s cada una, unas 3 por segundo),
+  así que dos hilos ya lo mantienen ocupado, muy por encima de los reportes
+  con foto que se esperan en el piloto;
+- **al apagar** (un redespliegue) no espera a la cola: con
+  `waitForTasksToCompleteOnShutdown` en `false`, el valor por defecto de
+  Spring, el cierre del contexto primero pausa el executor y espera a que
+  terminen las sugerencias que corren (como mucho 10 s de espera más 3 s de
+  llamada, dentro de los 30 s por fase de Spring), antes de que se cierre el
+  pool de conexiones; después, al destruirlo, descarta la cola e interrumpe
+  lo que quede. Una tarea que un hilo ya había tomado de la cola arranca
+  interrumpida y `SugerenciaCategoriaService` no hace nada. Las sugerencias
+  encoladas se pierden, como cualquier sugerencia rechazada. El general, en
+  cambio, corre su cola al apagar (son correos y avisos), con el plazo de
+  10 s. Con la regla del general, las sugerencias correrían la cola entera
+  durante el apagado, y lo que pasara del plazo escribiría con el pool ya
+  cerrado (hallazgo de la revisión del 28/10).
+
+Cuesta dos hilos más, dormidos la mayor parte del tiempo.
 
 Con la cola llena la tarea **nunca** corre en el hilo que la pidió (no se usa
 `CallerRunsPolicy`): eso le devolvería al funcionario la latencia de la red
@@ -1855,13 +1908,15 @@ el rechazo y deja un WARN con el reporte, el ciudadano y el estado del aviso
 perdido. Perder un aviso en ese caso se acepta: el reporte y su historial no
 dependen de él. Lo mismo hacen los correos de recuperación y de soporte
 (DEP-08): `RecuperacionSolicitadaListener` y `TicketRespondidoListener`
-encolan en este executor y, si los rechaza, registran el id del token o del
-ticket (ver «Correo saliente»), y `SugerenciaCategoriaListener` registra el
-reporte cuya sugerencia se pierde (NC-04).
+encolan en el executor general y, si los rechaza, registran el id del token
+o del ticket (ver «Correo saliente»), y `SugerenciaCategoriaListener`
+registra el reporte cuya sugerencia se pierde si el de las sugerencias la
+rechaza (NC-04).
 
-**En los IT** el bean real no existe (`@Profile("!test")`) y
-`support/EjecutorSincronoTestConfig` registra uno con el mismo nombre que
-corre cada tarea en un hilo nuevo y **espera a que termine**: los IT siguen
+**En los IT** los beans reales no existen (`@Profile("!test")`) y
+`support/EjecutorSincronoTestConfig` registra dos con los mismos nombres (el
+general, `@Primary` como el real) que corren cada tarea en un hilo nuevo y
+**esperan a que termine**: los IT siguen
 siendo deterministas, sin esperas ni `Thread.sleep`. No es un
 `SyncTaskExecutor` (mismo hilo) porque en `AFTER_COMMIT` ese hilo todavía
 tiene ligada la transacción ya confirmada, y las escrituras «participarían» en
@@ -2804,7 +2859,7 @@ adaptador de producción desde la v0.8.0 (decisión del usuario del 26/10).
 | **HTTP/1.1 explícito** | Por defecto el cliente del JDK intenta HTTP/2 y, sobre `http://`, lo negocia con un `Upgrade: h2c` que uvicorn no habla. Con HTTP/1.1 cada conexión lleva una llamada a la vez, así que las conexiones abiertas, también las que quedan en keep-alive, nunca pasan de las llamadas simultáneas. |
 | **Cuerpo en chunks** (`Transfer-Encoding: chunked`, sin `Content-Length`) | El multipart se escribe en streaming. uvicorn lo acepta, y el límite de cuerpo del servicio cuenta los bytes que recibe, no solo el `Content-Length` declarado (`inferencia/app/api/limite_cuerpo.py`). Lo comprueban `InferenciaHttpAdapterTest` con un servidor local e `InferenciaHttpAdapterIT` contra el servicio real. |
 | **0,5 s de conexión + 2,5 s de lectura** (3 s como máximo) | El tope de la vista previa: el ciudadano espera la sugerencia mientras arma el reporte. La conexión es por la red privada y tarda milisegundos; la lectura se lleva casi todo porque incluye la espera en el servicio, que infiere de a una imagen. Spring 6.2 cuenta la lectura desde que sale el pedido hasta cerrar el cuerpo, así que también corta una respuesta que llega a medias. |
-| **Turno (*bulkhead*): 4 llamadas a la vez, sin esperar** | El `HttpClient` del JDK no limita sus conexiones y el servicio responde 503 desde 10 conexiones o tareas abiertas, contando las de keep-alive. Un `Semaphore(4)` con `tryAcquire` sin espera lo mantiene lejos de ese tope: sin turno, «sin sugerencia» al instante. **La vista previa y la sugerencia oficial compiten por los mismos turnos**: la sugerencia oficial ocupa los hilos del executor asíncrono (en la práctica los 2 de `ASYNC_HILOS_BASE`, porque el pool solo crece hacia `ASYNC_HILOS_MAX` con su cola de 100 tareas llena, y esos hilos también envían correos y avisos), y las vistas previas en curso, el resto. El turno propio de la vista previa solo acota el saneado y se suelta antes de clasificar, así que puede haber varias clasificando a la vez, una por ciudadano con la pantalla abierta. El tope protege al servicio; no reserva turnos para nadie. |
+| **Turno (*bulkhead*): 4 llamadas a la vez; la vista previa no espera y la sugerencia oficial espera hasta 10 s** (NC-04c) | El `HttpClient` del JDK no limita sus conexiones y el servicio responde 503 desde 10 conexiones o tareas abiertas, contando las de keep-alive. Un `Semaphore(4)` lo mantiene lejos de ese tope. **La vista previa y la sugerencia oficial compiten por los mismos turnos**, pero no los esperan igual: la vista previa toma turno sin esperar (sin turno, «sin sugerencia» al instante), y la sugerencia oficial, asíncrona, espera uno hasta 10 s (ver «Espera de turno de la sugerencia oficial»). La oficial corre en su propio executor de 2 hilos, así que como mucho ocupa 2 turnos y quedan 2 para las vistas previas en curso. El turno propio de la vista previa solo acota el saneado y se suelta antes de clasificar, así que puede haber varias clasificando a la vez, una por ciudadano con la pantalla abierta. El tope protege al servicio; no reserva turnos para nadie. |
 | **Sin reintentos** | La IA nunca bloquea un reporte (§4.3), y un reintento solo cargaría más a un servicio que ya no respondió. |
 | **Cualquier falla es «sin sugerencia»** | Una respuesta distinta de 200, un timeout o un error de conexión se traducen a `ClasificacionNoDisponibleException`, que `ClasificacionService` convierte en «sin sugerencia» con un WARN. |
 | **La respuesta se valida solo por su estructura** | Se rechaza entera si falta `version_modelo` o `detecciones`, si los tipos no son los del contrato o si `version_modelo` pasa de 40 caracteres (la columna). Se ignoran `caja` y los campos desconocidos. Una clase desconocida o una confianza fuera de [0, 1] **no** la invalidan: las descarta `PoliticaDeSugerencia` y las demás detecciones de la foto siguen valiendo. El cuerpo de un 200 se lee hasta **256 KiB** (100 detecciones caben en unos 10 KB): uno más grande es «fuera del contrato» y no se carga entero en memoria. |
@@ -2816,8 +2871,8 @@ de DEP-13. El nivel separa las causas:
 
 | Nivel | Ejemplo | Qué indica |
 |---|---|---|
-| `INFO` | `Inferencia: 200 en 287 ms, 1 deteccion(es), modelo rdd2022-…` | Respondió. |
-| `WARN` | `error del servicio, HTTP 500, error_de_inferencia`; `servicio saturado, HTTP 503`; `sin respuesta en 2589 ms (HttpTimeoutException)`; `sin turno` | Un problema del servicio o de capacidad, pasajero. |
+| `INFO` | `Inferencia: 200 en 287 ms, 1 deteccion(es), modelo rdd2022-…`; `la sugerencia oficial espero 224 ms por un turno` | Respondió; o la sugerencia oficial tuvo que esperar turno (NC-04c). |
+| `WARN` | `error del servicio, HTTP 500, error_de_inferencia`; `servicio saturado, HTTP 503`; `sin respuesta en 2589 ms (HttpTimeoutException)`; `sin turno para la vista previa`; `la sugerencia oficial espero 10000 ms sin turno` | Un problema del servicio o de capacidad, pasajero. |
 | `ERROR` | `pedido rechazado, HTTP 400, imagen_invalida`; `200 … fuera del contrato /v1` | Un defecto de un lado del contrato: la foto llega saneada (JPEG de 2048 px o menos), así que el servicio no debería rechazarla. Hay que corregirlo, no esperar. |
 
 Del cuerpo de un error solo se copia el `codigo` del contrato, y solo si
@@ -2833,15 +2888,51 @@ dos reciben «sin turno» al instante y ninguna llega al 503. Con un servicio
 mudo y los tiempos de producción, la llamada se corta a los 2,6 s. La
 latencia en Railway se mide en DEP-13 con estas mismas líneas.
 
-**Consecuencia del turno sin espera.** Si coinciden más de cuatro llamadas,
-las que no tienen turno dan «sin sugerencia», vengan de una vista previa o de
-la sugerencia oficial. En la vista previa el ciudadano elige a mano. **Una
-sugerencia oficial sin turno se pierde**: las columnas quedan nulas y no se
-reintenta (se escribe una sola vez), así que esa foto cuenta como «sin
-sugerencia» en la evaluación del modelo (OE3). A la escala del MVP debería ser
-raro, y las líneas `sin turno` del log lo muestran. Si la sugerencia oficial,
-que es asíncrona, debe esperar su turno en vez de perderse lo está decidiendo
-el usuario (ver «Pendiente»).
+### Espera de turno de la sugerencia oficial (NC-04c)
+
+Hasta NC-04c ninguna llamada esperaba turno: si coincidían más de cuatro, las
+que no lo tenían daban «sin sugerencia». En la vista previa el ciudadano
+elige a mano, pero **una sugerencia oficial sin turno se perdía**: las
+columnas quedan nulas y no se reintenta (se escribe una sola vez), así que
+esa foto contaba como «sin sugerencia» en la evaluación del modelo (OE3).
+Decisión del usuario del 28/10: **la sugerencia oficial asíncrona espera
+hasta 10 s por un turno**; la vista previa sigue igual.
+
+- **El puerto dice quién llama, no cuánto esperar.**
+  `ClasificadorDano#detectar(foto, origen)` recibe un
+  `clasificacion/domain/OrigenDeConsulta` (`VISTA_PREVIA` o
+  `SUGERENCIA_OFICIAL`): `ClasificacionService#vistaPrevia` pasa el primero
+  y `ClasificacionService#sugerenciaOficial`, el segundo. Cuánto se espera es
+  un detalle del adaptador HTTP, el único con turnos; el falso lo ignora.
+  Pasar un tiempo de espera por el puerto obligaría a la aplicación a saber
+  que hay turnos.
+- **El adaptador** (`InferenciaHttpAdapter`): la vista previa usa
+  `tryAcquire()` como antes; la oficial, `tryAcquire(espera)`. Si en el plazo
+  no se libera un turno, se rinde con «sin sugerencia» (WARN con lo que
+  esperó). Si el hilo se interrumpe mientras espera, se rinde y conserva la
+  interrupción; es defensivo, porque al apagar el executor deja terminar la
+  espera (ver «Executor asíncrono»). El semáforo no es justo: un turno que
+  se libera puede tomarlo antes una vista previa que llega en ese instante, y
+  la oficial sigue esperando hasta su plazo. Así la vista previa no cambia en
+  nada, y la oficial no puede adelantarse a un ciudadano que espera en
+  pantalla.
+- **Configurable** para que los tests usen un plazo corto:
+  `app.clasificacion.http.espera-turno-oficial-ms`
+  (`CLASIFICACION_ESPERA_TURNO_MS`, 10000 por defecto, entre 0 y 60000; fuera
+  de rango no arranca, porque mientras espera ocupa un hilo). Con 0, la
+  oficial tampoco espera, como antes de NC-04c.
+- **Un executor propio** (`ejecutorSugerencias`, 2 hilos fijos): esperar
+  ocupa el hilo, y en el executor general retrasaría correos y avisos. El
+  dimensionamiento y su justificación están en «Executor asíncrono»: con 2
+  hilos, la oficial ocupa como mucho 2 de los 4 turnos.
+- **Tiempo máximo de una sugerencia oficial**: la espera (10 s) más la
+  llamada (3 s). Nadie la espera: la creación del reporte respondió antes.
+
+**Medido contra el contenedor real** (28/10, misma imagen y máquina):
+`InferenciaHttpAdapterIT` lanza seis sugerencias oficiales a la vez; cuatro
+toman turno, las otras dos esperan 224 y 448 ms a que se libere uno, y las
+seis reciben respuesta, ninguna un 503 ni «sin turno». Las mismas seis como
+vista previa siguen dando dos «sin turno» al instante.
 
 ### Configuración
 
@@ -2850,6 +2941,8 @@ el usuario (ver «Pendiente»).
 | `app.clasificacion.tipo` (`CLASIFICACION_TIPO`) | `falso`; en `prod`, sin valor por defecto | `http` (`InferenciaHttpAdapter`) o `falso`. Otro valor no arranca. |
 | `app.clasificacion.http.url` (`CLASIFICACION_URL`) | vacía | URL base del servicio, sin la ruta (`http://inferencia.railway.internal:8000`; en local, `http://localhost:8090`). Obligatoria con `http`: sin ella, sin esquema `http(s)` y host, o con ruta, query, fragmento o usuario, no arranca. Con `falso` no se mira. |
 | `app.clasificacion.umbral` (`CLASIFICACION_UMBRAL`) | `0.50` | En (0, 1]; fuera de rango no arranca. |
+| `app.clasificacion.http.espera-turno-oficial-ms` (`CLASIFICACION_ESPERA_TURNO_MS`) | `10000` | Cuánto espera la sugerencia oficial un turno (NC-04c), entre 0 y 60000 ms; fuera de rango no arranca. Solo con `http`. |
+| `app.async.sugerencias.hilos` / `.cola` (`ASYNC_SUGERENCIAS_HILOS`, `ASYNC_SUGERENCIAS_COLA`) | `2` / `100` | El executor de la sugerencia oficial (NC-04c, ver «Executor asíncrono»). Los hilos, entre 1 y 3 (menos que los 4 turnos del adaptador); con `http`, fuera de rango no arranca. |
 | `app.clasificacion.falso.respuesta` (`CLASIFICACION_FALSO_RESPUESTA`) | vacía | Lo que el falso «detecta» en cualquier foto. Si está mal escrita, no arranca. |
 | `app.clasificacion.falso.version-modelo` | `falso-0` | Versión que informa el falso. |
 
@@ -2875,22 +2968,35 @@ el usuario (ver «Pendiente»).
   empates, redondeo y rangos), `FalsoClasificadorAdapterTest`,
   `InferenciaHttpAdapterTest` (NC-04b, con `MockRestServiceServer`: 200 con y
   sin detecciones, con una clase desconocida y con confianza 1,5; 400, 413,
-  500, 503 y otros estados; timeout; respuestas fuera del contrato, entre
+  500, 503 y otros estados; timeout (también cuando Spring 6.2 lo entrega
+  como `CancellationException` y no envuelto, una carrera que apareció en
+  la verificación de NC-04c); respuestas fuera del contrato, entre
   ellas sin `version_modelo` y con una de 41 caracteres; el nivel de log de
   cada causa; con seis llamadas simultáneas, a lo sumo cuatro llegan al
   servidor, y los turnos se devuelven también cuando la llamada falla; el
-  tope de 256 KiB del cuerpo. Con sockets locales y un `@Timeout` de JUnit
+  tope de 256 KiB del cuerpo. Desde NC-04c, con los cuatro turnos ocupados:
+  la sugerencia oficial espera y sigue cuando se libera uno; con un plazo
+  corto se rinde sin llegar al servidor; la vista previa no espera (falla en
+  menos de 1 s con la oficial configurada en 5 s); interrumpida mientras
+  espera, se rinde y conserva la interrupción; la espera fuera de 0–60 s no
+  arranca, y tampoco 4 o más hilos de sugerencias. Con sockets locales y un `@Timeout` de JUnit
   para no colgar la CI: HTTP/1.1 sin `Upgrade` y el cuerpo en chunks, que con
   los tiempos de producción un servicio mudo se corta por la lectura, una
   respuesta que se corta a medias y una conexión rechazada),
   `ValidacionTipoClasificadorTest` (con `http`, la URL: solo la base),
   `ClasificacionServiceTest` (la vista previa
-  clasifica la foto **saneada**; la oficial no la vuelve a sanear; una vista
+  clasifica la foto **saneada** y pide `VISTA_PREVIA`; la oficial no la
+  vuelve a sanear y pide `SUGERENCIA_OFICIAL`; una vista
   previa a la vez, sin esperar; sin turno de saneado, error inesperado del
   adaptador o clasificación apagada = «sin sugerencia»),
-  `SugerenciaCategoriaListenerTest` (cola llena) y
+  `SugerenciaCategoriaListenerTest` (cola llena),
   `SugerenciaCategoriaServiceTest` (clasificación apagada, foto ausente,
-  almacenamiento caído, URL que no es un nombre del servidor).
+  almacenamiento caído, URL que no es un nombre del servidor; desde NC-04c,
+  que corre en el executor de las sugerencias y que con el hilo interrumpido
+  no hace nada) y `AsyncConfigTest` (NC-04c: el executor de las sugerencias,
+  con hilos fijos, cola acotada y rechazo con la cola llena; al apagar espera
+  a la que corre y la encolada no empieza sin interrupción; el general sigue
+  siendo el primario).
 - Integración: `ClasificacionVistaPreviaIT` (rol, términos pendientes, no
   persiste, errores),
   `SugerenciaCategoriaIT` (se escribe una sola vez, lo del cliente se ignora,
@@ -2907,7 +3013,9 @@ el usuario (ver «Pendiente»).
   los pesos), así que no está en `CLASES_OBLIGATORIAS` y allí queda omitido.
   Comprueba que FastAPI acepta el multipart del adaptador, que la respuesta
   real cumple el contrato y es la misma para la misma foto (D-08), un 400
-  real, que el turno mantiene al servicio lejos del 503 y el flujo entero
+  real, que el turno mantiene al servicio lejos del 503, que seis
+  sugerencias oficiales a la vez reciben respuesta todas (las sin turno
+  esperan, NC-04c) y el flujo entero
   (vista previa y sugerencia oficial) con `CLASIFICACION_TIPO=http`. Las
   fotos son sintéticas: que el modelo encuentre un bache en una foto real lo
   prueba la prueba de humo del despliegue (DEP-13).
@@ -2919,9 +3027,6 @@ el usuario (ver «Pendiente»).
 
 ### Pendiente
 
-- **Sugerencia oficial sin turno de inferencia** (revisión de NC-04b, 26/10):
-  hoy se pierde, como una vista previa sin turno. Si debe esperar su turno
-  (es asíncrona y no hace esperar a nadie) lo decide el usuario.
 - **Aviso de privacidad** (frontend y textos legales): decir que la foto se
   analiza automáticamente para sugerir una categoría y que la decisión es del
   ciudadano (DS 016-2024-JUS, art. 6.1).

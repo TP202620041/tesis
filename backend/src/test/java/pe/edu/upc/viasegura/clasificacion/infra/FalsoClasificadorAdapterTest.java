@@ -2,6 +2,8 @@ package pe.edu.upc.viasegura.clasificacion.infra;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static pe.edu.upc.viasegura.clasificacion.domain.OrigenDeConsulta.SUGERENCIA_OFICIAL;
+import static pe.edu.upc.viasegura.clasificacion.domain.OrigenDeConsulta.VISTA_PREVIA;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -19,7 +21,7 @@ class FalsoClasificadorAdapterTest {
     @Test
     void conParesClaseConfianza_detectaEsoEnCualquierFoto() {
         ResultadoDeteccion resultado = new FalsoClasificadorAdapter(" bache:0.87 , grieta:0.3 ", "falso-0")
-                .detectar(FOTO);
+                .detectar(FOTO, VISTA_PREVIA);
 
         assertThat(resultado.versionModelo()).isEqualTo("falso-0");
         assertThat(resultado.detecciones())
@@ -28,15 +30,15 @@ class FalsoClasificadorAdapterTest {
 
     @Test
     void vacio_noDetectaNada() {
-        assertThat(new FalsoClasificadorAdapter("", "falso-0").detectar(FOTO).detecciones()).isEmpty();
-        assertThat(new FalsoClasificadorAdapter(null, "falso-0").detectar(FOTO).detecciones()).isEmpty();
+        assertThat(new FalsoClasificadorAdapter("", "falso-0").detectar(FOTO, VISTA_PREVIA).detecciones()).isEmpty();
+        assertThat(new FalsoClasificadorAdapter(null, "falso-0").detectar(FOTO, VISTA_PREVIA).detecciones()).isEmpty();
     }
 
     @Test
     void modoFalla_lanzaComoUnServicioCaido() {
         FalsoClasificadorAdapter falla = new FalsoClasificadorAdapter("FALLA", "falso-0");
 
-        assertThatThrownBy(() -> falla.detectar(FOTO)).isInstanceOf(ClasificacionNoDisponibleException.class);
+        assertThatThrownBy(() -> falla.detectar(FOTO, VISTA_PREVIA)).isInstanceOf(ClasificacionNoDisponibleException.class);
     }
 
     @Test
@@ -52,9 +54,9 @@ class FalsoClasificadorAdapterTest {
     void fotoVacia_noSeClasifica() {
         FalsoClasificadorAdapter falso = new FalsoClasificadorAdapter("bache:0.9", "falso-0");
 
-        assertThatThrownBy(() -> falso.detectar(new ArchivoSubido(null, "image/jpeg", "f.jpg")))
+        assertThatThrownBy(() -> falso.detectar(new ArchivoSubido(null, "image/jpeg", "f.jpg"), SUGERENCIA_OFICIAL))
                 .isInstanceOf(ClasificacionNoDisponibleException.class);
-        assertThatThrownBy(() -> falso.detectar(null)).isInstanceOf(ClasificacionNoDisponibleException.class);
+        assertThatThrownBy(() -> falso.detectar(null, VISTA_PREVIA)).isInstanceOf(ClasificacionNoDisponibleException.class);
     }
 
     @ParameterizedTest

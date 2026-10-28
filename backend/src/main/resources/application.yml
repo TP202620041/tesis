@@ -189,6 +189,11 @@ app:
       # en local, http://localhost:8090. Obligatoria con CLASIFICACION_TIPO=http
       # (ValidacionTipoClasificador); con 'falso' no se mira.
       url: ${CLASIFICACION_URL:}
+      # NC-04c: cuanto espera la sugerencia oficial (asincrona) un turno del
+      # servicio cuando las 4 llamadas simultaneas estan ocupadas, en ms, entre
+      # 0 y 60000. La vista previa nunca espera. Sin turno a tiempo: sin
+      # sugerencia.
+      espera-turno-oficial-ms: ${CLASIFICACION_ESPERA_TURNO_MS:10000}
     # Confianza minima para sugerir (PoliticaDeSugerencia), en (0, 1]. 0.50
     # inicial; se calibra en NC-03b con fotos de Lima.
     umbral: ${CLASIFICACION_UMBRAL:0.50}
@@ -199,13 +204,20 @@ app:
       # CLASIFICACION_TIPO=falso apaga la clasificacion.
       respuesta: ${CLASIFICACION_FALSO_RESPUESTA:}
       version-modelo: falso-0
-  # Executor asincrono acotado (AsyncConfig): avisos al ciudadano, correos y
-  # la sugerencia de categoria (D-08). Con la cola llena la tarea se descarta
-  # y se registra; nunca corre en el hilo de la peticion.
+  # Executors asincronos acotados (AsyncConfig): el general, para avisos al
+  # ciudadano y correos, y uno propio para la sugerencia de categoria (D-08,
+  # NC-04c), que puede esperar hasta 10 s un turno de inferencia sin
+  # retrasar a los otros. Con la cola llena la tarea se descarta y se
+  # registra; nunca corre en el hilo de la peticion.
   async:
     hilos-base: ${ASYNC_HILOS_BASE:2}
     hilos-max: ${ASYNC_HILOS_MAX:4}
     cola: ${ASYNC_COLA:100}
+    sugerencias:
+      # Hilos fijos. Menos de 4 (los turnos de inferencia), para que la vista
+      # previa conserve turnos libres.
+      hilos: ${ASYNC_SUGERENCIAS_HILOS:2}
+      cola: ${ASYNC_SUGERENCIAS_COLA:100}
   # CORS: el frontend es una PWA Next.js desplegada como proyecto
   # independiente, en otro origen. Lista de origenes permitidos separados
   # por coma; en dev, el servidor de desarrollo de Next (puerto 3000).

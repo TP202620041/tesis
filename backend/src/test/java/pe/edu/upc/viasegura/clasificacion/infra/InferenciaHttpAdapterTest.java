@@ -16,6 +16,8 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withException;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
+import static pe.edu.upc.viasegura.clasificacion.domain.OrigenDeConsulta.SUGERENCIA_OFICIAL;
+import static pe.edu.upc.viasegura.clasificacion.domain.OrigenDeConsulta.VISTA_PREVIA;
 
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
@@ -29,13 +31,17 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
@@ -119,7 +125,7 @@ class InferenciaHttpAdapterTest {
 
     private ClasificacionNoDisponibleException falla() {
         ClasificacionNoDisponibleException error = catchThrowableOfType(ClasificacionNoDisponibleException.class,
-                () -> adaptador.detectar(FOTO));
+                () -> adaptador.detectar(FOTO, VISTA_PREVIA));
         assertThat(error).as("se esperaba «sin sugerencia»").isNotNull();
         return error;
     }
@@ -148,7 +154,7 @@ class InferenciaHttpAdapterTest {
                         not(containsString(NOMBRE_ORIGINAL)))))
                 .andRespond(withSuccess(DOS_DETECCIONES, MediaType.APPLICATION_JSON));
 
-        ResultadoDeteccion resultado = adaptador.detectar(FOTO);
+        ResultadoDeteccion resultado = adaptador.detectar(FOTO, VISTA_PREVIA);
 
         servidor.verify();
         assertThat(resultado.versionModelo()).isEqualTo(VERSION);
@@ -161,7 +167,7 @@ class InferenciaHttpAdapterTest {
     void doscientosSinDetecciones_esUnResultadoVacio() {
         responde(respuesta("[]"));
 
-        ResultadoDeteccion resultado = adaptador.detectar(FOTO);
+        ResultadoDeteccion resultado = adaptador.detectar(FOTO, VISTA_PREVIA);
 
         assertThat(resultado.versionModelo()).isEqualTo(VERSION);
         assertThat(resultado.detecciones()).isEmpty();
@@ -173,7 +179,7 @@ class InferenciaHttpAdapterTest {
                 [{"clase": "alcantarilla", "confianza": 0.95, "caja": [0, 0, 1, 1]},
                  {"clase": "bache", "confianza": 0.80, "caja": [0, 0, 1, 1]}]"""));
 
-        ResultadoDeteccion resultado = adaptador.detectar(FOTO);
+        ResultadoDeteccion resultado = adaptador.detectar(FOTO, VISTA_PREVIA);
 
         assertThat(resultado.detecciones()).containsExactly(
                 new Deteccion("alcantarilla", 0.95), new Deteccion("bache", 0.80));
@@ -188,7 +194,7 @@ class InferenciaHttpAdapterTest {
                 [{"clase": "bache", "confianza": 1.5, "caja": [0, 0, 1, 1]},
                  {"clase": "grieta", "confianza": 0.70, "caja": [0, 0, 1, 1]}]"""));
 
-        ResultadoDeteccion resultado = adaptador.detectar(FOTO);
+        ResultadoDeteccion resultado = adaptador.detectar(FOTO, VISTA_PREVIA);
 
         assertThat(resultado.detecciones()).containsExactly(new Deteccion("bache", 1.5), new Deteccion("grieta", 0.70));
         Sugerencia sugerencia = new PoliticaDeSugerencia(0.50).aplicar(resultado, List.of(BACHE, PISTA)).orElseThrow();
@@ -203,7 +209,7 @@ class InferenciaHttpAdapterTest {
                                  {"clase": "grieta", "confianza": 1}]}
                 """.formatted(VERSION));
 
-        assertThat(adaptador.detectar(FOTO).detecciones())
+        assertThat(adaptador.detectar(FOTO, VISTA_PREVIA).detecciones())
                 .containsExactly(new Deteccion("bache", 0.9), new Deteccion("grieta", 1.0));
     }
 
@@ -213,7 +219,7 @@ class InferenciaHttpAdapterTest {
         String relleno = "x".repeat(InferenciaHttpAdapter.MAX_BYTES_RESPUESTA - 200);
         responde("{\"version_modelo\": \"" + VERSION + "\", \"detecciones\": [], \"relleno\": \"" + relleno + "\"}");
 
-        assertThat(adaptador.detectar(FOTO).detecciones()).isEmpty();
+        assertThat(adaptador.detectar(FOTO, VISTA_PREVIA).detecciones()).isEmpty();
     }
 
     @Test
@@ -232,14 +238,14 @@ class InferenciaHttpAdapterTest {
         String cuarenta = "v".repeat(40);
         responde("{\"version_modelo\": \"" + cuarenta + "\", \"detecciones\": []}");
 
-        assertThat(adaptador.detectar(FOTO).versionModelo()).isEqualTo(cuarenta);
+        assertThat(adaptador.detectar(FOTO, VISTA_PREVIA).versionModelo()).isEqualTo(cuarenta);
     }
 
     @Test
     void cadaLlamada_registraSuDuracion(CapturedOutput salida) {
         responde(DOS_DETECCIONES);
 
-        adaptador.detectar(FOTO);
+        adaptador.detectar(FOTO, VISTA_PREVIA);
 
         assertThat(salida.getOut()).containsPattern(
                 "INFO.*Inferencia: 200 en \\d+ ms, 2 deteccion\\(es\\), modelo " + VERSION);
@@ -348,6 +354,21 @@ class InferenciaHttpAdapterTest {
     }
 
     @Test
+    void unaLecturaCanceladaPorElTimeoutDeSpring_esSinSugerencia_yLiberaElTurno(CapturedOutput salida) {
+        // Spring 6.2 corta la lectura cancelando el futuro del cliente del JDK, y
+        // a veces la cancelacion llega tal cual (CancellationException) en vez de
+        // envuelta: paso en una corrida de conLosTiemposDeProduccion_... del 28/10.
+        servidor.expect(manyTimes(), requestTo(URL)).andRespond(pedido -> {
+            throw new CancellationException();
+        });
+
+        for (int i = 0; i <= InferenciaHttpAdapter.LLAMADAS_SIMULTANEAS; i++) {
+            assertThat(falla().getMessage()).contains("no respondio a tiempo", "Timeout");
+        }
+        enElLog(salida, "WARN", "el pedido se cancelo");
+    }
+
+    @Test
     void sinReintentos_unFalloEsUnaSolaLlamada() {
         servidor.expect(once(), requestTo(URL)).andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE));
 
@@ -361,9 +382,9 @@ class InferenciaHttpAdapterTest {
 
     @Test
     void fotoVacia_noLlamaAlServicio() {
-        assertThatThrownBy(() -> adaptador.detectar(new ArchivoSubido(null, "image/jpeg", "f.jpg")))
+        assertThatThrownBy(() -> adaptador.detectar(new ArchivoSubido(null, "image/jpeg", "f.jpg"), VISTA_PREVIA))
                 .isInstanceOf(ClasificacionNoDisponibleException.class);
-        assertThatThrownBy(() -> adaptador.detectar(null)).isInstanceOf(ClasificacionNoDisponibleException.class);
+        assertThatThrownBy(() -> adaptador.detectar(null, SUGERENCIA_OFICIAL)).isInstanceOf(ClasificacionNoDisponibleException.class);
         servidor.verify();
     }
 
@@ -419,7 +440,7 @@ class InferenciaHttpAdapterTest {
                 llamadas.add(hilos.submit(() -> {
                     salida.await();
                     try {
-                        return adaptador.detectar(FOTO);
+                        return adaptador.detectar(FOTO, VISTA_PREVIA);
                     } catch (ClasificacionNoDisponibleException sinTurno) {
                         dosSinTurno.countDown();
                         return null;
@@ -447,7 +468,7 @@ class InferenciaHttpAdapterTest {
         }
 
         // Los turnos se devolvieron: una llamada mas llega al servidor.
-        assertThat(adaptador.detectar(FOTO).versionModelo()).isEqualTo(VERSION);
+        assertThat(adaptador.detectar(FOTO, VISTA_PREVIA).versionModelo()).isEqualTo(VERSION);
         assertThat(llegaron).hasValue(5);
     }
 
@@ -466,8 +487,188 @@ class InferenciaHttpAdapterTest {
             falla();
         }
 
-        assertThat(adaptador.detectar(FOTO).detecciones()).hasSize(2);
+        assertThat(adaptador.detectar(FOTO, VISTA_PREVIA).detecciones()).hasSize(2);
         servidor.verify();
+    }
+
+    // --- NC-04c: la sugerencia oficial espera turno; la vista previa no ------
+
+    /** Un adaptador con otra espera de la sugerencia oficial, atado a un servidor simulado nuevo. */
+    private void conEsperaOficial(Duration espera) {
+        RestClient.Builder builder = RestClient.builder();
+        servidor = MockRestServiceServer.bindTo(builder).build();
+        adaptador = new InferenciaHttpAdapter(builder, BASE, espera);
+    }
+
+    /**
+     * Ocupa los cuatro turnos con vistas previas retenidas en el servidor
+     * hasta {@code soltar}. Las llamadas que lleguen despues (las de cada test)
+     * tambien responden, sin retener si {@code soltar} ya se abrio.
+     */
+    private ExecutorService ocuparLosCuatroTurnos(CountDownLatch soltar, AtomicInteger llegaron)
+            throws InterruptedException {
+        CountDownLatch cuatroEnElServidor = new CountDownLatch(InferenciaHttpAdapter.LLAMADAS_SIMULTANEAS);
+        servidor.expect(manyTimes(), requestTo(URL)).andRespond(pedido -> {
+            llegaron.incrementAndGet();
+            cuatroEnElServidor.countDown();
+            try {
+                soltar.await(10, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            return withSuccess(DOS_DETECCIONES, MediaType.APPLICATION_JSON).createResponse(pedido);
+        });
+        ExecutorService hilos = Executors.newFixedThreadPool(InferenciaHttpAdapter.LLAMADAS_SIMULTANEAS);
+        for (int i = 0; i < InferenciaHttpAdapter.LLAMADAS_SIMULTANEAS; i++) {
+            hilos.submit(() -> adaptador.detectar(FOTO, VISTA_PREVIA));
+        }
+        assertThat(cuatroEnElServidor.await(10, TimeUnit.SECONDS)).as("cuatro llamadas con turno").isTrue();
+        return hilos;
+    }
+
+    private static long msDesde(long inicio) {
+        return Duration.ofNanos(System.nanoTime() - inicio).toMillis();
+    }
+
+    @Test
+    void conLosCuatroTurnosOcupados_laSugerenciaOficialEspera_ySigueCuandoSeLiberaUno(CapturedOutput salida)
+            throws Exception {
+        conEsperaOficial(Duration.ofSeconds(5));
+        CountDownLatch soltar = new CountDownLatch(1);
+        AtomicInteger llegaron = new AtomicInteger();
+        ExecutorService retenidas = ocuparLosCuatroTurnos(soltar, llegaron);
+        ExecutorService oficial = Executors.newSingleThreadExecutor();
+        try {
+            Future<ResultadoDeteccion> sugerencia = oficial.submit(() -> adaptador.detectar(FOTO, SUGERENCIA_OFICIAL));
+
+            // Esperando turno: no se rindio ni llego al servidor.
+            assertThatThrownBy(() -> sugerencia.get(400, TimeUnit.MILLISECONDS))
+                    .isInstanceOf(TimeoutException.class);
+            assertThat(llegaron).hasValue(4);
+
+            soltar.countDown();
+            assertThat(sugerencia.get(5, TimeUnit.SECONDS).versionModelo()).isEqualTo(VERSION);
+            assertThat(llegaron).hasValue(5);
+        } finally {
+            soltar.countDown();
+            retenidas.shutdownNow();
+            oficial.shutdownNow();
+        }
+        enElLog(salida, "INFO", "la sugerencia oficial espero");
+    }
+
+    @Test
+    void sinTurnoEnElPlazo_laSugerenciaOficialSeRinde_sinLlegarAlServidor(CapturedOutput salida) throws Exception {
+        conEsperaOficial(Duration.ofMillis(300));
+        CountDownLatch soltar = new CountDownLatch(1);
+        AtomicInteger llegaron = new AtomicInteger();
+        ExecutorService retenidas = ocuparLosCuatroTurnos(soltar, llegaron);
+        try {
+            long inicio = System.nanoTime();
+            ClasificacionNoDisponibleException error = catchThrowableOfType(ClasificacionNoDisponibleException.class,
+                    () -> adaptador.detectar(FOTO, SUGERENCIA_OFICIAL));
+            long ms = msDesde(inicio);
+
+            assertThat(error).as("se esperaba «sin sugerencia»").isNotNull();
+            assertThat(error.getMessage()).startsWith("Sin turno para la inferencia");
+            assertThat(ms).as("espero el plazo y se rindio").isBetween(290L, 5_000L);
+            assertThat(llegaron).hasValue(4);
+        } finally {
+            soltar.countDown();
+            retenidas.shutdownNow();
+        }
+        enElLog(salida, "WARN", "ms sin turno");
+    }
+
+    @Test
+    void conLosCuatroTurnosOcupados_laVistaPreviaNoEspera_aunqueLaOficialSi(CapturedOutput salida) throws Exception {
+        conEsperaOficial(Duration.ofSeconds(5));
+        CountDownLatch soltar = new CountDownLatch(1);
+        AtomicInteger llegaron = new AtomicInteger();
+        ExecutorService retenidas = ocuparLosCuatroTurnos(soltar, llegaron);
+        try {
+            long inicio = System.nanoTime();
+            ClasificacionNoDisponibleException error = catchThrowableOfType(ClasificacionNoDisponibleException.class,
+                    () -> adaptador.detectar(FOTO, VISTA_PREVIA));
+            long ms = msDesde(inicio);
+
+            assertThat(error).as("se esperaba «sin sugerencia»").isNotNull();
+            assertThat(error.getMessage()).startsWith("Sin turno para la inferencia");
+            assertThat(ms).as("al instante, no los 5 s de la oficial").isLessThan(1_000L);
+            assertThat(llegaron).hasValue(4);
+        } finally {
+            soltar.countDown();
+            retenidas.shutdownNow();
+        }
+        enElLog(salida, "WARN", "sin turno para la vista previa");
+    }
+
+    @Test
+    void laSugerenciaOficialInterrumpidaMientrasEspera_seRinde_yConservaLaInterrupcion() throws Exception {
+        // Defensivo: al apagar, la parada coordinada deja terminar la espera, y
+        // solo si sigue corriendo cuando se destruye el executor, este la interrumpe.
+        conEsperaOficial(Duration.ofSeconds(10));
+        CountDownLatch soltar = new CountDownLatch(1);
+        AtomicInteger llegaron = new AtomicInteger();
+        ExecutorService retenidas = ocuparLosCuatroTurnos(soltar, llegaron);
+        AtomicReference<Throwable> error = new AtomicReference<>();
+        AtomicBoolean interrumpidoAlSalir = new AtomicBoolean();
+        Thread hilo = new Thread(() -> {
+            try {
+                adaptador.detectar(FOTO, SUGERENCIA_OFICIAL);
+            } catch (Throwable t) {
+                error.set(t);
+            }
+            interrumpidoAlSalir.set(Thread.currentThread().isInterrupted());
+        });
+        try {
+            hilo.start();
+            long limite = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+            while (hilo.getState() != Thread.State.TIMED_WAITING && System.nanoTime() < limite) {
+                Thread.onSpinWait();
+            }
+            hilo.interrupt();
+            hilo.join(5_000);
+
+            assertThat(hilo.isAlive()).isFalse();
+            assertThat(error.get()).isInstanceOf(ClasificacionNoDisponibleException.class)
+                    .hasMessageContaining("Interrumpida");
+            assertThat(interrumpidoAlSalir).isTrue();
+            assertThat(llegaron).hasValue(4);
+        } finally {
+            soltar.countDown();
+            retenidas.shutdownNow();
+        }
+    }
+
+    @Test
+    void laEsperaDeLaSugerenciaOficial_entre0y60s_oNoArranca() {
+        RestClient.Builder builder = RestClient.builder();
+        for (Duration valida : List.of(Duration.ZERO, Duration.ofSeconds(10), Duration.ofSeconds(60))) {
+            assertThat(new InferenciaHttpAdapter(builder, BASE, valida)).isNotNull();
+        }
+        for (Duration invalida : List.of(Duration.ofMillis(-1), Duration.ofMillis(60_001))) {
+            assertThatThrownBy(() -> new InferenciaHttpAdapter(builder, BASE, invalida))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("CLASIFICACION_ESPERA_TURNO_MS");
+        }
+        assertThat(InferenciaHttpAdapter.MS_ESPERA_OFICIAL_POR_DEFECTO).isEqualTo(10_000);
+    }
+
+    @Test
+    void conTantosHilosDeSugerenciasComoTurnos_noArranca() {
+        // Cada hilo de las sugerencias puede tener un turno: con 4, la oficial
+        // podria ocuparlos todos y dejar sin sugerencia a las vistas previas.
+        for (int hilos : new int[] {1, 2, 3}) {
+            assertThat(new InferenciaHttpAdapter(BASE, InferenciaHttpAdapter.MS_ESPERA_OFICIAL_POR_DEFECTO, hilos))
+                    .isNotNull();
+        }
+        for (int hilos : new int[] {0, InferenciaHttpAdapter.LLAMADAS_SIMULTANEAS, 8}) {
+            assertThatThrownBy(() -> new InferenciaHttpAdapter(BASE,
+                    InferenciaHttpAdapter.MS_ESPERA_OFICIAL_POR_DEFECTO, hilos))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("ASYNC_SUGERENCIAS_HILOS");
+        }
     }
 
     // --- Con sockets locales: lo que el mock no ve ----------------------------
@@ -496,7 +697,7 @@ class InferenciaHttpAdapterTest {
             InferenciaHttpAdapter real = new InferenciaHttpAdapter(
                     "http://127.0.0.1:" + local.getAddress().getPort(), Duration.ofSeconds(1), Duration.ofSeconds(2));
 
-            assertThat(real.detectar(FOTO).detecciones()).hasSize(2);
+            assertThat(real.detectar(FOTO, VISTA_PREVIA).detecciones()).hasSize(2);
         } finally {
             local.stop(0);
         }
@@ -522,11 +723,12 @@ class InferenciaHttpAdapterTest {
         // presupuesto de 3 s (eso lo fija laConexionYLaLecturaSuman3sComoMaximo):
         // un runner compartido puede sumar unos cientos de ms.
         try (ServerSocket mudo = new ServerSocket(0, 10, InetAddress.getLoopbackAddress())) {
-            InferenciaHttpAdapter produccion = new InferenciaHttpAdapter("http://127.0.0.1:" + mudo.getLocalPort());
+            InferenciaHttpAdapter produccion = new InferenciaHttpAdapter("http://127.0.0.1:" + mudo.getLocalPort(),
+                    InferenciaHttpAdapter.MS_ESPERA_OFICIAL_POR_DEFECTO, 2);
 
             long inicio = System.nanoTime();
             ClasificacionNoDisponibleException error = catchThrowableOfType(ClasificacionNoDisponibleException.class,
-                    () -> produccion.detectar(FOTO));
+                    () -> produccion.detectar(FOTO, VISTA_PREVIA));
             long espera = Duration.ofNanos(System.nanoTime() - inicio).toMillis();
 
             assertThat(error).isNotNull();
@@ -564,7 +766,7 @@ class InferenciaHttpAdapterTest {
 
             long inicio = System.nanoTime();
             ClasificacionNoDisponibleException error = catchThrowableOfType(ClasificacionNoDisponibleException.class,
-                    () -> conTimeouts.detectar(FOTO));
+                    () -> conTimeouts.detectar(FOTO, VISTA_PREVIA));
 
             assertThat(error).isNotNull();
             assertThat(error.getMessage()).contains("no respondio a tiempo");
@@ -586,7 +788,7 @@ class InferenciaHttpAdapterTest {
         InferenciaHttpAdapter sinServicio = new InferenciaHttpAdapter(
                 "http://127.0.0.1:" + puertoCerrado, Duration.ofSeconds(1), Duration.ofSeconds(2));
 
-        assertThatThrownBy(() -> sinServicio.detectar(FOTO))
+        assertThatThrownBy(() -> sinServicio.detectar(FOTO, VISTA_PREVIA))
                 .isInstanceOf(ClasificacionNoDisponibleException.class)
                 .hasMessageContaining("no se pudo conectar");
     }

@@ -3,12 +3,15 @@ package pe.edu.upc.viasegura.clasificacion;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static pe.edu.upc.viasegura.clasificacion.domain.OrigenDeConsulta.SUGERENCIA_OFICIAL;
+import static pe.edu.upc.viasegura.clasificacion.domain.OrigenDeConsulta.VISTA_PREVIA;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -60,17 +63,19 @@ class ClasificacionServiceTest {
     @Test
     void vistaPrevia_clasificaLaFotoSaneada_noLaOriginal() {
         when(saneador.sanear(ORIGINAL)).thenReturn(SANEADA);
-        when(clasificador.detectar(SANEADA)).thenReturn(detecto(new Deteccion("bache", 0.87)));
+        when(clasificador.detectar(SANEADA, VISTA_PREVIA)).thenReturn(detecto(new Deteccion("bache", 0.87)));
         when(categorias.activas()).thenReturn(List.of(BACHE));
 
         assertThat(servicio.vistaPrevia(ORIGINAL)).isEqualTo(new ClasificacionResponse(1L, "Bache"));
-        verify(clasificador, never()).detectar(ORIGINAL);
+        verify(clasificador, never()).detectar(eq(ORIGINAL), any());
+        // NC-04c: la vista previa le dice al adaptador que no espere turno.
+        verify(clasificador).detectar(SANEADA, VISTA_PREVIA);
     }
 
     @Test
     void vistaPrevia_sinSugerencia_respondeConLosCamposNulos() {
         when(saneador.sanear(ORIGINAL)).thenReturn(SANEADA);
-        when(clasificador.detectar(SANEADA)).thenReturn(detecto(new Deteccion("bache", 0.20)));
+        when(clasificador.detectar(SANEADA, VISTA_PREVIA)).thenReturn(detecto(new Deteccion("bache", 0.20)));
         when(categorias.activas()).thenReturn(List.of(BACHE));
 
         assertThat(servicio.vistaPrevia(ORIGINAL)).isEqualTo(new ClasificacionResponse(null, null));
@@ -79,7 +84,7 @@ class ClasificacionServiceTest {
     @Test
     void vistaPrevia_conElServicioCaido_esSinSugerencia() {
         when(saneador.sanear(ORIGINAL)).thenReturn(SANEADA);
-        when(clasificador.detectar(any())).thenThrow(new ClasificacionNoDisponibleException("timeout"));
+        when(clasificador.detectar(any(), any())).thenThrow(new ClasificacionNoDisponibleException("timeout"));
 
         assertThat(servicio.vistaPrevia(ORIGINAL)).isEqualTo(ClasificacionResponse.sinSugerencia());
     }
@@ -87,11 +92,11 @@ class ClasificacionServiceTest {
     @Test
     void vistaPrevia_unaFotoQueNoEsImagen_recibeElErrorDelSaneado_sinClasificar() {
         when(saneador.sanear(ORIGINAL)).thenThrow(new BusinessException("Formato no permitido")).thenReturn(SANEADA);
-        when(clasificador.detectar(SANEADA)).thenReturn(detecto(new Deteccion("bache", 0.87)));
+        when(clasificador.detectar(SANEADA, VISTA_PREVIA)).thenReturn(detecto(new Deteccion("bache", 0.87)));
         when(categorias.activas()).thenReturn(List.of(BACHE));
 
         assertThatThrownBy(() -> servicio.vistaPrevia(ORIGINAL)).isInstanceOf(BusinessException.class);
-        verify(clasificador, never()).detectar(any());
+        verify(clasificador, never()).detectar(any(), any());
         // El turno de la vista previa volvió aunque el saneado lanzó: la siguiente clasifica.
         assertThat(servicio.vistaPrevia(ORIGINAL)).isEqualTo(new ClasificacionResponse(1L, "Bache"));
     }
@@ -105,37 +110,39 @@ class ClasificacionServiceTest {
     }
 
     @Test
-    void sugerir_noVuelveASanearLaFotoGuardada() {
-        when(clasificador.detectar(SANEADA)).thenReturn(detecto(new Deteccion("bache", 0.87)));
+    void sugerenciaOficial_noVuelveASanearLaFotoGuardada() {
+        when(clasificador.detectar(SANEADA, SUGERENCIA_OFICIAL)).thenReturn(detecto(new Deteccion("bache", 0.87)));
         when(categorias.activas()).thenReturn(List.of(BACHE));
 
-        assertThat(servicio.sugerir(SANEADA))
+        assertThat(servicio.sugerenciaOficial(SANEADA))
                 .contains(new Sugerencia(1L, "Bache", new BigDecimal("0.870"), "falso-0"));
         verifyNoInteractions(saneador);
+        // NC-04c: la oficial le dice al adaptador que puede esperar turno.
+        verify(clasificador).detectar(SANEADA, SUGERENCIA_OFICIAL);
     }
 
     @Test
-    void sugerir_sinDetecciones_niSiquieraConsultaElCatalogo() {
-        when(clasificador.detectar(SANEADA)).thenReturn(detecto());
+    void sugerenciaOficial_sinDetecciones_niSiquieraConsultaElCatalogo() {
+        when(clasificador.detectar(SANEADA, SUGERENCIA_OFICIAL)).thenReturn(detecto());
 
-        assertThat(servicio.sugerir(SANEADA)).isEmpty();
+        assertThat(servicio.sugerenciaOficial(SANEADA)).isEmpty();
         verifyNoInteractions(categorias);
     }
 
     @Test
-    void sugerir_conElServicioCaido_esVacio() {
-        when(clasificador.detectar(SANEADA)).thenThrow(new ClasificacionNoDisponibleException("caido"));
+    void sugerenciaOficial_conElServicioCaido_esVacio() {
+        when(clasificador.detectar(SANEADA, SUGERENCIA_OFICIAL)).thenThrow(new ClasificacionNoDisponibleException("caido"));
 
-        assertThat(servicio.sugerir(SANEADA)).isEmpty();
+        assertThat(servicio.sugerenciaOficial(SANEADA)).isEmpty();
     }
 
     @Test
     void unErrorInesperadoDelAdaptador_esSinSugerencia_nuncaUnErrorParaElCiudadano() {
         when(saneador.sanear(ORIGINAL)).thenReturn(SANEADA);
-        when(clasificador.detectar(any())).thenThrow(new IllegalStateException("respuesta fuera del contrato"));
+        when(clasificador.detectar(any(), any())).thenThrow(new IllegalStateException("respuesta fuera del contrato"));
 
         assertThat(servicio.vistaPrevia(ORIGINAL)).isEqualTo(ClasificacionResponse.sinSugerencia());
-        assertThat(servicio.sugerir(SANEADA)).isEmpty();
+        assertThat(servicio.sugerenciaOficial(SANEADA)).isEmpty();
     }
 
     @Test
@@ -145,10 +152,10 @@ class ClasificacionServiceTest {
         ArchivoSubido basura = new ArchivoSubido(new byte[] {0, 1, 2}, "image/png", "no-es-imagen.png");
 
         assertThat(servicio.vistaPrevia(basura)).isEqualTo(ClasificacionResponse.sinSugerencia());
-        assertThat(servicio.sugerir(SANEADA)).isEmpty();
+        assertThat(servicio.sugerenciaOficial(SANEADA)).isEmpty();
         assertThat(servicio.estaDisponible()).isFalse();
         verifyNoInteractions(saneador, categorias);
-        verify(clasificador, never()).detectar(any());
+        verify(clasificador, never()).detectar(any(), any());
     }
 
     @Test
@@ -158,11 +165,11 @@ class ClasificacionServiceTest {
                 .thenReturn(SANEADA);
 
         assertThat(servicio.vistaPrevia(ORIGINAL)).isEqualTo(ClasificacionResponse.sinSugerencia());
-        verify(clasificador, never()).detectar(any());
+        verify(clasificador, never()).detectar(any(), any());
         verifyNoInteractions(categorias);
 
         // El turno de la vista previa volvió: con saneado disponible, la siguiente clasifica.
-        when(clasificador.detectar(SANEADA)).thenReturn(detecto(new Deteccion("bache", 0.87)));
+        when(clasificador.detectar(SANEADA, VISTA_PREVIA)).thenReturn(detecto(new Deteccion("bache", 0.87)));
         when(categorias.activas()).thenReturn(List.of(BACHE));
         assertThat(servicio.vistaPrevia(ORIGINAL)).isEqualTo(new ClasificacionResponse(1L, "Bache"));
     }
@@ -176,7 +183,7 @@ class ClasificacionServiceTest {
             assertThat(soltar.await(5, TimeUnit.SECONDS)).isTrue();
             return SANEADA;
         });
-        when(clasificador.detectar(SANEADA)).thenReturn(detecto(new Deteccion("bache", 0.87)));
+        when(clasificador.detectar(SANEADA, VISTA_PREVIA)).thenReturn(detecto(new Deteccion("bache", 0.87)));
         when(categorias.activas()).thenReturn(List.of(BACHE));
 
         CompletableFuture<ClasificacionResponse> primera = CompletableFuture.supplyAsync(() -> servicio.vistaPrevia(ORIGINAL));

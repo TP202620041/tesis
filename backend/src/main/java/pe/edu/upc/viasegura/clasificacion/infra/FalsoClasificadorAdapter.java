@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import pe.edu.upc.viasegura.clasificacion.domain.Deteccion;
+import pe.edu.upc.viasegura.clasificacion.domain.OrigenDeConsulta;
 import pe.edu.upc.viasegura.clasificacion.domain.ResultadoDeteccion;
 import pe.edu.upc.viasegura.clasificacion.port.ClasificacionNoDisponibleException;
 import pe.edu.upc.viasegura.clasificacion.port.ClasificadorDano;
@@ -73,8 +74,9 @@ public class FalsoClasificadorAdapter implements ClasificadorDano {
         return falla || !resultado.detecciones().isEmpty();
     }
 
+    /** Sin servicio ni turnos: responde al instante, venga de donde venga ({@code origen} no importa). */
     @Override
-    public ResultadoDeteccion detectar(ArchivoSubido foto) {
+    public ResultadoDeteccion detectar(ArchivoSubido foto, OrigenDeConsulta origen) {
         if (foto == null || foto.vacio()) {
             throw new ClasificacionNoDisponibleException("Foto vacia: no hay nada que clasificar");
         }
