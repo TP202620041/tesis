@@ -1,6 +1,6 @@
 # Propuesta: pedir el enlace de confirmación sin la contraseña
 
-- **Estado:** decidida: opción C (2026-10-28) <!-- abierta | aceptada | rechazada -->
+- **Estado:** aceptada (opción C, 2026-10-28; decidida por el usuario) <!-- abierta | aceptada | rechazada -->
 - **Fecha:** 2026-10-28
 - **Origen:** agente de backend, tarea NC-09b (hallazgo 2 de la revisión de `revisor-arquitectura`)
 - **Decide:** el usuario. Si se acepta, la sesión de raíz abre la tarea del frontend en el plan.
