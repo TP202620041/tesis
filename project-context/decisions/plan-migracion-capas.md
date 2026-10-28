@@ -404,7 +404,7 @@ No es migración, es funcionalidad. Se lista aquí para fijar **dónde** va cada
   - el reporte con foto recibe un 503;
   - la PWA ofrece la cola sin conexión o «Enviar sin foto»;
   - `MODERACION_TIPO=ninguna` queda como interruptor.
-- **Términos:** la moderación va dentro de la v2 (no hay v3), en la rama `feature/doc-terminos-v2-moderacion`.
+- **Términos:** la moderación va dentro de la v2 (no hay v3), en la rama `feature/doc-terminos-v2` (PR #116).
 - **Respuestas a las preguntas abiertas** (el usuario respondió «Me parece bien» a todas):
   - la calibración usa solo fotos negativas;
   - el nombre del perfil también se filtra;
@@ -460,7 +460,7 @@ No es migración, es funcionalidad. Se lista aquí para fijar **dónde** va cada
 - `lint-imports` en verde. `MIN_PYTEST_INFERENCIA` lo sube la sesión de raíz al fusionar.
 
 #### NC-10b · Backend: módulo `moderacion`
-- **Módulo nuevo** `moderacion` (D-15, si se acepta), sin dependencias salvo `common`:
+- **Módulo nuevo** `moderacion` (D-15), sin dependencias salvo `common`:
   - `port/ModeradorDeImagen` y `domain/PoliticaDeModeracion` (rechaza si `puntaje ≥ umbral`);
   - `domain/FiltroDeGroserias` (regla pura);
   - `infra/InferenciaModeracionHttpAdapter`, `infra/SinModeracionAdapter`, `infra/ValidacionTipoModeracion` e `infra/ListaDeGroseriasConfig`;
@@ -470,6 +470,7 @@ No es migración, es funcionalidad. Se lista aquí para fijar **dónde** va cada
   - sigue el patrón de `InferenciaHttpAdapter`: `RestClient` sobre el `HttpClient` del JDK con HTTP/1.1, 500 + 2 500 ms, sin reintentos y validación solo de la estructura;
   - un `puntaje` fuera de [0, 1] o una `version_modelo` de más de 40 caracteres dejan la respuesta fuera de contrato;
   - el turno es un **`Semaphore(4)` con `tryAcquire` de hasta 1 s** en la creación y **sin espera** en la vista previa;
+  - los turnos de moderación son aparte de los de detección. NC-04c hace que la sugerencia oficial espere hasta 10 s por un turno de detección, y no cambia nada de esto: la suma sigue siendo de 4 + 4 conexiones, por debajo de las 10 del servicio;
   - registra la duración de cada llamada.
 - **Configuración:**
   - `MODERACION_TIPO` (`http` | `ninguna`) es obligatoria en `prod`, sin valor por defecto, y vale `ninguna` fuera de `prod`;
@@ -499,6 +500,7 @@ No es migración, es funcionalidad. Se lista aquí para fijar **dónde** va cada
   - Si la foto se rechaza, no se clasifica.
   - Si no se pudo revisar, vale `false`.
   - Con `/contrato`.
+- **La sugerencia oficial no modera.** `reportes.service.SugerenciaCategoriaService` (asíncrona, D-08) no llama a `ModeracionService` ni al puerto `ModeradorDeImagen`: la foto guardada ya pasó la moderación al crear el reporte. Esto no toca la espera por un turno de detección que agrega NC-04c.
 - **Registro:**
   - de una foto rechazada no se guarda nada; el log deja un WARN con el usuario, el puntaje redondeado y la versión;
   - de un texto rechazado, el log guarda el campo, la entrada que coincidió y la versión de la lista, nunca el texto.
@@ -517,6 +519,7 @@ No es migración, es funcionalidad. Se lista aquí para fijar **dónde** va cada
   - 503 `MODERACION_NO_DISPONIBLE`, sin nada creado;
   - el reenvío con una `Idempotency-Key` ya registrada devuelve la respuesta guardada aunque el servicio esté caído.
 - **Sin foto,** el moderador no se llama.
+- **La sugerencia oficial no llama al moderador:** con un doble del puerto `ModeradorDeImagen` que cuenta las llamadas, un reporte creado con foto suma **una** (la de la creación). Después de que corre `SugerenciaCategoriaService`, el contador sigue en una: **cero llamadas** de la sugerencia oficial. También se prueba llamando a `SugerenciaCategoriaService` directamente con el doble en cero.
 - **Texto ofensivo** en el título, la descripción (al crear y al editar), el comentario o el nombre del perfil (al registrarse y al editarlo): 400 `TEXTO_NO_PERMITIDO` sin la palabra en el cuerpo.
 - **En el registro**, el filtro del nombre corre después del captcha, como las demás validaciones (orden de NC-08 y NC-09).
 - **Vista previa:**
@@ -609,15 +612,30 @@ No es migración, es funcionalidad. Se lista aquí para fijar **dónde** va cada
     - sale de la búsqueda, del área, de la densidad, del detalle público (404), de los comentarios (404), de `mis-adhesiones`, del índice y de la exportación;
     - sigue en `mis-reportes` del creador;
     - **sale de la bandeja municipal y de su detalle de gestión**, y el funcionario recibe 404 si intenta cambiarle el estado o asignarlo. `ReporteGestionResponse` no gana ningún campo;
-  - **foto oculta:** `fotoUrl` en `null` en todos los DTO que no son del ADMIN;
+    - **solo lo ven su creador y el ADMIN.** Lo que devuelve cada ruta mientras esté oculto:
+
+      | Ruta | Creador | ADMIN | Funcionario del distrito | Adheridos | Otros |
+      |---|---|---|---|---|---|
+      | `GET /api/reportes/{id}/historial` | 200, con el motivo y el texto del índice; autor «Moderación de Ciudad Viva» | 200, completo | **404** | **404** | 403, como hoy |
+      | `GET /api/reportes/{id}/responsable` (y `POST`, y `PATCH /{id}/estado`) | — (rol) | — (rol) | **404** | — | — |
+
+    - **Al restablecerlo, todo vuelve a como era antes**, y la línea de tiempo muestra el par oculto/restablecido según la tabla de la propuesta, §6: el funcionario ve el motivo y los adheridos, el texto fijo;
+  - **foto oculta:** `fotoUrl` en `null` en todos los DTO que no son del ADMIN. El reporte sigue visible para todos, y su historial también, con el motivo para el creador y el funcionario y el texto fijo para los adheridos;
   - `findReporteActivoCercano` ignora los reportes ocultos.
-- **Fotos:**
-  - `WebMvcConfig` consulta el puerto nuevo `common/port/VisibilidadDeFotosDeReporte`, que implementa `reportes/infra/JpaVisibilidadDeFotosAdapter`, y responde 404 si la foto no es de un reporte visible;
+- **Fotos** (D-15, punto 4):
+  - el *resource handler* de `/media/fotos/reportes/**` pasa de `common/config/WebMvcConfig` a `reportes/infra/FotosDeReporteWebConfig` con `git mv`, junto con su test si lo tiene;
+  - su resolver pregunta a `ReporteRepository` si la foto es de un reporte con `NOT oculto AND NOT foto_oculta`, la carga por `common.port.FotoStorageService` y, si no, responde 404. Una foto que no pertenece a ningún reporte también da 404;
+  - no se crea ningún puerto en `common/port`;
   - la foto de reporte suma `s-maxage=3600`; el navegador conserva sus 30 días. Hay que comprobar con `curl -sI` que Cloudflare respeta `s-maxage`;
   - el runbook (`docs/despliegue.md`) suma dos procedimientos: la purga manual de una URL en Cloudflare y el de material ilegal. Este último lo agrega la sesión de raíz cuando el usuario lo confirme con su asesor.
 - **Línea de tiempo** (`SeguimientoReporteService`):
-  - el motivo lo ven el creador, el funcionario y el ADMIN; los adheridos ven un texto fijo, y el autor solo lo ve el ADMIN;
+  - el motivo lo ven el creador, el funcionario y el ADMIN; los adheridos ven un texto fijo, y el autor solo lo ve el ADMIN. Esto vale para quien tiene acceso al historial: con el reporte oculto, solo el creador y el ADMIN (tabla de arriba);
   - `REPORTE_OCULTO` agrega, para todos, el texto fijo «Mientras esté oculto, este reporte no cuenta en el índice de desempeño.» y `REPORTE_RESTABLECIDO`, «Vuelve a contar en el índice de desempeño.». Los arma el servidor y no el ADMIN.
+- **El motivo no delata a quien denunció.** El motivo es texto libre del ADMIN, y lo leen el creador y el funcionario. No debe identificar a quien denunció ni decir cuántos lo hicieron (términos v2, §5: «quien hizo el reporte no sabe quién lo denunció»). Dos garantías:
+  - el servidor nunca agrega al motivo datos de las denuncias, ni la identidad ni el conteo;
+  - el servidor rechaza con 400 un motivo que contenga el correo de alguno de los denunciantes de ese reporte.
+
+  El resto lo cubre el aviso del diálogo del ADMIN (NC-11b).
 - **SEC-01 y señales internas:**
   - solo el ADMIN oculta; el FUNCIONARIO_MUNICIPAL y el CIUDADANO reciben 403 en toda ruta de moderación;
   - no hay ocultamiento automático por denuncias;
@@ -637,10 +655,16 @@ No es migración, es funcionalidad. Se lista aquí para fijar **dónde** va cada
   - 401 anónimo y 403 funcionario.
 - `OcultamientoReporteIT`:
   - cada fila de la tabla de visibilidad, incluida la salida de la bandeja y el 404 del funcionario;
-  - `/media/...` con 404;
+  - **la tabla de rutas del reporte oculto:**
+    - `historial`: 200 para el creador y el ADMIN, y 404 para el funcionario y los adheridos;
+    - `responsable` (GET y POST) y `estado`: 404 para el funcionario;
+    - después de restablecerlo, los mismos accesos que antes;
+  - **con solo la foto oculta,** el historial sigue respondiendo como hoy, con el motivo o el texto fijo según quién lo pida;
+  - `/media/...` con 404, también para una foto sin reporte;
   - el historial, con su redacción y el texto del índice;
   - restablecer;
-  - 403 para quien no es ADMIN.
+  - 403 para quien no es ADMIN;
+  - un motivo con el correo de un denunciante da 400, y ninguna respuesta que lee el creador o el funcionario trae datos de las denuncias.
 - **`IndiceSinOcultosIT`** (decisión del 28/10):
   - ocultar el reporte baja `total_reportes` del distrito y de su categoría después del refresco, y también `total_resueltos` y las calificaciones si estaba resuelto y calificado;
   - restablecerlo devuelve los valores de antes;
@@ -663,10 +687,13 @@ No es migración, es funcionalidad. Se lista aquí para fijar **dónde** va cada
   - ocultar, restablecer y desestimar piden el motivo;
   - `GuardiaDeRol` con `ADMIN`.
 - **Línea de tiempo:** `LineaDeTiempo` muestra los cuatro tipos nuevos, con el texto del índice que manda el servidor (`lib/types/domain.ts` suma las uniones).
-- **Diálogo de ocultar del ADMIN:** con alcance `REPORTE`, avisa que el reporte saldrá del índice de desempeño del distrito; con `FOTO`, que el índice no cambia.
+- **Diálogo de ocultar del ADMIN:**
+  - con alcance `REPORTE`, avisa que el reporte saldrá del índice de desempeño del distrito; con `FOTO`, que el índice no cambia;
+  - junto al campo del motivo, en ocultar y en restablecer, un aviso fijo: «El autor y la municipalidad leerán este motivo. No nombres a quien denunció ni digas cuántas denuncias hubo.»;
+  - un 400 por el correo de un denunciante en el motivo se muestra en el campo.
 
 **Aceptación:**
-- Tests del diálogo, del hook, de la bandeja y del detalle (sin mapa), y de las etiquetas de `LineaDeTiempo`.
+- Tests del diálogo (incluido el aviso del motivo), del hook, de la bandeja y del detalle (sin mapa), y de las etiquetas de `LineaDeTiempo`.
 - `npm run typecheck`, `npm test` y `npm run lint` en verde.
 - Verificación en vivo: un ciudadano denuncia; el ADMIN oculta la foto y después el reporte; el público deja de verlos; el creador ve el motivo.
 - El handoff de NC-11a pasa a «atendido».

@@ -197,6 +197,8 @@ GET /salud                     200 { "estado": "ok", "version_modelo": "…", "v
 
 Hay dos diferencias con NC-04b:
 - **Turno:** un `Semaphore(4)` con `tryAcquire` de **hasta 1 s**, y no sin espera. Aquí la alternativa al turno es un 503 al ciudadano, no «sin sugerencia». La suma de turnos de los dos adaptadores (4 + 4 = 8) queda por debajo de `INFERENCIA_MAX_CONCURRENCIA` (10).
+  - Los turnos de moderación son aparte de los de detección.
+  - NC-04c (en curso) hace que la sugerencia oficial espere hasta 10 s por un turno de detección. Eso no cambia nada de lo de aquí: la detección sigue con 4 conexiones como máximo.
 - **Falla:** el adaptador lanza `ModeracionNoDisponibleException`, que el servicio traduce a 503 (§4).
 
 **Configuración**, con la misma forma que `CAPTCHA_TIPO` y `CLASIFICACION_TIPO`:
@@ -219,6 +221,7 @@ Fuera de `prod` (local, tests y CI), el valor por defecto es `ninguna`, así que
 | **Comentario** (`POST /api/reportes/{id}/comentarios`) | — | El contenido | — |
 | Adhesión (US-09) | La foto se descarta al adherir, pero llega en la misma solicitud y se analiza igual: se rechaza al subirla, como dice la decisión 1 | Igual que la creación | Igual que la creación |
 | Reenvío idempotente (US-06) | **No se vuelve a analizar.** Si la clave ya tiene respuesta, se devuelve esa antes de moderar (lectura sin transacción). Así un reporte que ya entró no recibe un 503 si el servicio cae | — | — |
+| Sugerencia oficial (D-08, asíncrona) | **No.** `SugerenciaCategoriaService` no llama al moderador: la foto guardada ya pasó la moderación al crear el reporte. Un doble que cuenta las llamadas lo prueba (NC-10b) | — | — |
 
 **La vista previa** suma un campo a `ClasificacionResponse` (cambio de contrato compatible, con su `/contrato`): `fotoRechazada: boolean`, que es `true` solo si el modelo superó el umbral. Si no se pudo revisar, es `false` y todo sigue como hoy.
 - **No es una señal interna:** habla de la foto que el propio ciudadano acaba de subir, y la creación le daría el mismo veredicto.
@@ -379,13 +382,21 @@ Detalles:
 - Ninguna ruta nueva es pública (`SecurityConfig` no cambia). El FUNCIONARIO_MUNICIPAL no puede denunciar ni moderar (403).
 - **No hay ocultamiento automático por número de denuncias:** si lo hubiera, cualquiera que juntara cuentas podría sacar un reporte del mapa y, desde la decisión 7, también del índice (ver SEC-01 abajo). La denuncia solo pone el reporte en la bandeja.
 - «¿Ya denuncié?» no va en ningún DTO. La PWA muestra el botón siempre y, si recibe 409, el mensaje «Ya denunciaste este reporte».
+- **El motivo de ocultar o restablecer no delata a quien denunció** (revisión del 28/10). Es texto libre del ADMIN, y lo leen el creador y el funcionario.
+  - El servidor no le agrega datos de las denuncias.
+  - El servidor rechaza con 400 un motivo que contenga el correo de alguno de los denunciantes del reporte.
+  - El diálogo del ADMIN avisa que no nombre a quien denunció ni diga cuántas denuncias hubo.
+
+  Es coherente con los términos v2, §5: «quien hizo el reporte no sabe quién lo denunció».
 
 ### Qué ve cada quien
 
 | | Público (mapa, búsqueda, detalle, densidad, comentarios) | Creador | Adheridos | Funcionario (bandeja, detalle, exportación) | ADMIN |
 |---|---|---|---|---|---|
 | **Foto oculta** | El reporte sigue visible, con `fotoUrl` en `null`, y la URL de la foto da 404 | Igual, más el evento con el motivo en su línea de tiempo | Igual que el público | El reporte sin foto, en la bandeja y en la exportación. **Sigue contando en el índice** | Todo, y la foto por su endpoint |
-| **Reporte oculto** | Fuera: 404 en el detalle y en los comentarios; no aparece en la búsqueda, el área, la densidad ni en `mis-adhesiones` | Lo sigue viendo en «Mis reportes» (sin foto), con el evento, el motivo y el aviso de que no cuenta en el índice. No puede comentar ni recibir comentarios | Desaparece de su lista | **Sale del índice, de la exportación** (decisión 7) **y de la bandeja**, junto con su detalle de gestión (decisión 13). El funcionario no puede cambiarle el estado mientras esté oculto (404) | Todo |
+| **Reporte oculto** | Fuera: 404 en el detalle y en los comentarios; no aparece en la búsqueda, el área, la densidad ni en `mis-adhesiones` | Lo sigue viendo en «Mis reportes» (sin foto), con el evento, el motivo y el aviso de que no cuenta en el índice. No puede comentar ni recibir comentarios | Desaparece de su lista, y su historial da 404 | **Sale del índice, de la exportación** (decisión 7) **y de la bandeja**, junto con su detalle de gestión (decisión 13). Mientras esté oculto, el funcionario recibe 404 en el historial, en el responsable (GET y POST) y al cambiarle el estado | Todo |
+
+Con el reporte oculto, **solo lo ven su creador y el ADMIN**. Al restablecerlo, todos recuperan el acceso que tenían, y la línea de tiempo muestra el par oculto/restablecido como dice la tabla de «Línea de tiempo».
 
 - **Deduplicación (US-09):** `findReporteActivoCercano` ignora los reportes ocultos. Si no lo hiciera, un reporte nuevo y legítimo en el mismo lugar se convertiría en una adhesión invisible. Con solo la foto oculta, la deduplicación sigue igual.
 - **Calificación (US-26):** mientras el reporte esté oculto, su calificación no cuenta en el índice, porque la vista la une a través del reporte. Al restablecerlo vuelve a contar.
@@ -395,10 +406,11 @@ Detalles:
 
 | Opción | Cómo | A favor | En contra |
 |---|---|---|---|
-| **A. El resolver pregunta a la base** | `WebMvcConfig` consulta un puerto nuevo, `common/port/VisibilidadDeFotosDeReporte#esPublica(nombre)`, que implementa `reportes/infra/JpaVisibilidadDeFotosAdapter`. Es el mismo patrón que `clasificacion.port.CategoriasClasificables`. Responde 404 si la foto no pertenece a un reporte con `NOT oculto AND NOT foto_oculta` | Atómico con la transacción que oculta. Restablecer es cambiar un booleano. Una foto huérfana (sin reporte) deja de servirse, y se ahorra la llamada a R2 en un 404 | Una consulta indexada por cada foto que llega al origen. Es poco frente a la lectura de R2 que ya se hace |
+| **A. El resolver pregunta a la base, y vive en `reportes`** | El *resource handler* de `/media/fotos/reportes/**` pasa de `common/config/WebMvcConfig` a `reportes/infra/FotosDeReporteWebConfig`. Su resolver pregunta a `ReporteRepository` si la foto es de un reporte con `NOT oculto AND NOT foto_oculta` y la carga por `common.port.FotoStorageService`. Si no, responde 404 | Atómico con la transacción que oculta. Restablecer es cambiar un booleano. Una foto huérfana (sin reporte) deja de servirse, y se ahorra la llamada a R2 en un 404. No crea ningún puerto en `common` | Una consulta indexada por cada foto que llega al origen. Es poco frente a la lectura de R2 que ya se hace. Mueve una clase de `common` a `reportes` |
+| A'. El mismo resolver en `common`, con un puerto invertido | `WebMvcConfig` se queda en `common` y consulta `common/port/VisibilidadDeFotosDeReporte`, que implementa `reportes/infra` | No mueve clases | `common/port` es solo para I/O externa que usan dos o más módulos (§4.3, D-11). Este puerto no es de I/O externa: obligaría a aflojar la norma |
 | B. Mover el objeto | Pasar `<uuid>.jpg` a `ocultas/<uuid>.jpg` en el mismo bucket, que el resolver nunca resuelve | No consulta la base | No es atómico con la base (necesita compensación). Suma tres métodos al puerto, implementados en los dos adaptadores |
 
-**Decidido (D-15, 28/10): A.**
+**Decidido (D-15, 28/10): A**, con el resolver en `reportes`. La primera versión de esta propuesta usaba el puerto invertido (A'); la revisión del 28/10 lo cambió para no aflojar la norma de `common/port`. Servir la foto de un reporte depende ahora de una regla de `reportes`, su visibilidad. Guardar y cargar siguen en `common` (D-11).
 
 **La caché.** Hoy la foto sale con `max-age` de 30 días, `immutable`, y Cloudflare puede guardarla en el borde. Ocultarla no la borra de ahí.
 
@@ -421,7 +433,7 @@ Detalles:
 
 | Tipo | Quién lo escribe | Comentario | Autor visible |
 |---|---|---|---|
-| `FOTO_OCULTA`, `REPORTE_OCULTO`, `FOTO_RESTABLECIDA`, `REPORTE_RESTABLECIDO` | ADMIN | El motivo, que ven el creador, el funcionario y el ADMIN. Los adheridos ven un texto fijo («Se ocultó contenido de este reporte por las reglas de uso») | Solo el ADMIN. Los demás ven «Moderación de Ciudad Viva» |
+| `FOTO_OCULTA`, `REPORTE_OCULTO`, `FOTO_RESTABLECIDA`, `REPORTE_RESTABLECIDO` | ADMIN | El motivo, que ven el creador, el funcionario y el ADMIN. Los adheridos ven un texto fijo («Se ocultó contenido de este reporte por las reglas de uso»). Vale para quien tiene acceso al historial: **mientras el reporte está oculto, solo el creador y el ADMIN** (el funcionario y los adheridos reciben 404). Con la foto oculta, o con el reporte ya restablecido, todos los que tenían acceso lo ven | Solo el ADMIN. Los demás ven «Moderación de Ciudad Viva» |
 
 Lo aplica `SeguimientoReporteService`, igual que la redacción de las asignaciones.
 
@@ -459,7 +471,7 @@ Se tomó la opción B, la contraria a la que recomendaba esta propuesta: un repo
 
 **Decidido por el usuario el 28/10 (decisión 8): la moderación va dentro de la v2**, que todavía no se publicó. No hay v3.
 
-El texto está en la rama `feature/doc-terminos-v2-moderacion`, que sale de `feature/doc-terminos-v2` (PR #116). Esa rama también suma la confirmación del correo de NC-09 (PR #122). Qué cambia:
+El texto ya está en la rama `feature/doc-terminos-v2` (PR #116). Esa rama también suma la confirmación del correo de NC-09 (PR #122). Qué cambia:
 - **§2:** filas de las denuncias y de la confirmación del correo.
 - **§5 nueva, «Revisión del contenido antes de publicar»:**
   - la foto se revisa en el servicio propio para rechazar contenido sexual u obsceno, sin terceros y sin guardar nada si se rechaza;
