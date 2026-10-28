@@ -92,6 +92,8 @@ preferible que no arranque y que el log diga qué falta.
 | `CORREO_API_KEY` | con `CORREO_TIPO=resend` | Clave de la API de Resend (secreto). Sin ella el adaptador no arranca. |
 | `CAPTCHA_TIPO` | sí | Captcha del registro de cuenta (NC-08): `recaptcha` (Google reCAPTCHA v2, casilla «No soy un robot») o `ninguno` (no se exige). Sin ella no arranca: con el `ninguno` de desarrollo, un despliegue que la olvidara dejaría el registro sin captcha sin que nada lo advierta. Con otro valor tampoco: `auth/infra/ValidacionTipoCaptcha` lo rechaza antes de crear ningún bean (ver «Captcha en el registro»). |
 | `CAPTCHA_SECRET` | con `CAPTCHA_TIPO=recaptcha` | Clave secreta del sitio en la consola de reCAPTCHA (secreto). Sin ella el adaptador no arranca. La clave del sitio (pública) la usa el frontend, no el backend. |
+| `DOMINIO_CORREO_TIPO` | no (`dns` en `prod`) | Verificación del dominio del correo al registrarse (NC-09): `dns` consulta el MX; `ninguno` la apaga (la lista de desechables se aplica igual). Con valor por defecto **a propósito**: no es una variable obligatoria nueva, porque `dns` no necesita ninguna clave y falla abierto si el DNS no responde. Otro valor no arranca (`auth/infra/ValidacionTipoDominioCorreo`). Ver «Confirmación del correo». |
+| `FRONTEND_URL` | no (el primer origen de `CORS_ALLOWED_ORIGINS`) | Origen de la PWA para el enlace de confirmación (`<origen>/confirmar-cuenta?token=…`), sin ruta. Sin ella se usa el primer origen de `CORS_ALLOWED_ORIGINS`, que es el de la PWA (`https://ciudadviva.app`); solo hace falta si ese primer origen no lo es (por ejemplo, si la lista empieza por `https://www.…`: funcionaría por la redirección 308, pero con un salto de más). Una URL que no es un origen `http(s)` no arranca. |
 | `PORT` | no (8080) | Lo inyecta la plataforma. |
 | `SPRINGDOC_HABILITADO` | no (`false`) | `true` publica `/v3/api-docs` y Swagger UI. |
 | `ADMIN_INICIAL_EMAIL`, `ADMIN_INICIAL_PASSWORD`, `ADMIN_INICIAL_NOMBRE` | solo en el primer arranque | Crean el primer ADMIN en una base sin ninguno. Después se borra `ADMIN_INICIAL_PASSWORD`; las otras dos pueden quedar (ver «Operación en producción»). |
@@ -286,16 +288,17 @@ Los ADMIN siguientes se gestionan aparte (decisión del usuario, 22/10).
 |---|---|
 | `ADMIN_INICIAL_EMAIL` ausente o en blanco | Nada (log `INFO`). Es el caso de todo arranque normal. |
 | Ya hay algún `ADMIN` (sea o no la cuenta de la variable) | Nada (log `INFO`, sin repetir el correo ni la contraseña). No valida las variables, no crea un segundo ADMIN aunque el correo sea nuevo y **nunca** cambia la contraseña ni el nombre de un ADMIN. |
-| Sin ADMIN y sin cuenta con ese correo | La crea: `ADMIN`, activa, sin distrito, con la contraseña hasheada por el `PasswordEncoder` de la aplicación. |
+| Sin ADMIN y sin cuenta con ese correo | La crea: `ADMIN`, activa, sin distrito, con el correo confirmado (NC-09: lo dio el operador, no un registro público) y la contraseña hasheada por el `PasswordEncoder` de la aplicación. |
 | Sin ADMIN y el correo ya tiene cuenta (con otro rol, por fuerza) | **No arranca** («…nunca se promueve…»). |
 | Sin ADMIN, y falta la contraseña, tiene menos de 12 caracteres o más de 72 bytes, o el correo no cumple las reglas del registro (`@Email`, 150 caracteres como máximo) | **No arranca**, sin crear nada y sin repetir el valor en el mensaje. |
 
 Decisiones:
 
-- **Crea, nunca promueve** (decisión del usuario, 22/10). El registro no
-  verifica la propiedad del correo: cualquiera puede registrarse con un
-  correo ajeno. Si el seeder promoviera una cuenta existente, quien se
-  registrara primero con ese correo quedaría como ADMIN. Promover una cuenta
+- **Crea, nunca promueve** (decisión del usuario, 22/10). Cualquiera puede
+  registrarse con un correo ajeno (hasta NC-09 el registro no verificaba la
+  propiedad del correo, y una cuenta sin confirmar sigue sin probarla). Si el
+  seeder promoviera una cuenta existente, quien se registrara primero con ese
+  correo quedaría como ADMIN. Promover una cuenta
   ya registrada fue la primera versión de la propuesta de despliegue y
   dependía del orden de los pasos: registrar la cuenta *antes* de definir la
   variable. Creándola, el orden deja de importar y el caso peligroso se
@@ -370,9 +373,10 @@ ADMIN.
    contraseña queda con el hash de la aplicación y su aceptación de los
    términos, registrada (D-12).
 2. **Antes de asignar, la persona confirma que el registro le funcionó a
-   ella** (entra con su contraseña). El registro no verifica la propiedad
-   del correo: si al registrarse vio «El correo ya está registrado», alguien
-   pudo registrarse antes con su correo, y asignar le daría el rol a esa
+   ella** (entra con su contraseña). Desde NC-09 una cuenta no inicia sesión
+   sin confirmar su correo, así que entrar prueba que el correo es suyo. Si
+   al registrarse vio «El correo ya está registrado», alguien pudo
+   registrarse antes con su correo, y asignar le daría el rol a esa
    cuenta. En ese caso no se asigna hasta que recupere la cuenta con
    «¿Olvidaste tu contraseña?» (cuando funcione DEP-08) o se revise con ella.
    El script muestra la fecha de registro de la cuenta (`created_at`, hora
@@ -531,8 +535,10 @@ bucket. Además crea un bucket de Railway que no se usa. Decisión del usuario
 
 | Método | Ruta                | Auth | Historia | Descripción |
 |--------|---------------------|------|----------|-------------|
-| POST   | `/api/auth/registro`| No   | US-01    | Registrar cuenta ciudadana (exige aceptar los términos vigentes, D-12) |
-| POST   | `/api/auth/login`   | No   | US-02    | Iniciar sesión (devuelve JWT) |
+| POST   | `/api/auth/registro`| No   | US-01    | Registrar cuenta ciudadana (exige aceptar los términos vigentes, D-12). Desde NC-09 la cuenta nace sin confirmar y la respuesta no trae token |
+| POST   | `/api/auth/confirmar-correo` | No | NC-09 | Confirmar el correo con el token del enlace (204; no inicia sesión) |
+| POST   | `/api/auth/reenviar-confirmacion` | No | NC-09 | Pedir otro enlace (202 siempre) |
+| POST   | `/api/auth/login`   | No   | US-02    | Iniciar sesión (devuelve JWT). Sin el correo confirmado, 409 `CORREO_NO_CONFIRMADO` |
 | GET    | `/api/auth/me`      | Sí   | US-02    | Datos del usuario autenticado (con `debeAceptarTerminos`) |
 | GET/POST | `/api/auth/me/consentimientos` | Sí | NC-07b | Consentimientos propios: listar y aceptar (ver [Consentimiento](#consentimiento-d-12-nc-07b)) |
 | DELETE | `/api/auth/me/consentimientos/{finalidad}` | Sí | NC-07b | Revocar un consentimiento propio |
@@ -540,10 +546,16 @@ bucket. Además crea un bucket de Railway que no se usa. Decisión del usuario
 ### Ejemplo rápido
 
 ```bash
-# Registro
+# Registro (201 con {"email", "vigenciaEnlaceHoras"}; sin token desde NC-09)
 curl -X POST http://localhost:8080/api/auth/registro \
   -H "Content-Type: application/json" \
   -d '{"email":"vecino@lima.pe","password":"secreta123","nombre":"Ana","apellido":"Ruiz","aceptaTerminos":true,"versionTerminos":"2026-10-v1"}'
+
+# Confirmar el correo: el enlace llega a Mailhog (http://localhost:8025),
+# http://localhost:3000/confirmar-cuenta?token=<TOKEN_DEL_ENLACE>
+curl -X POST http://localhost:8080/api/auth/confirmar-correo \
+  -H "Content-Type: application/json" \
+  -d '{"token":"<TOKEN_DEL_ENLACE>"}'
 
 # Login
 curl -X POST http://localhost:8080/api/auth/login \
@@ -1857,7 +1869,8 @@ con `app.correo.tipo` (`CORREO_TIPO`):
 **Por qué un puerto, y por qué en `common`.** El plan de Railway bloquea el
 SMTP saliente, así que en producción el correo va por HTTP, y cambiar de
 proveedor tiene que ser solo configuración. El correo lo usan tres módulos
-(`auth`: recuperación de contraseña, US-03; `soporte`: respuesta a un ticket,
+(`auth`: recuperación de contraseña, US-03, y desde NC-09 el enlace de
+confirmación de la cuenta; `soporte`: respuesta a un ticket,
 US-25; `notificaciones`: aviso de cambio de estado, US-16), y D-11 reserva
 `common/port` para la E/S que usan dos o más. En `notificaciones` crearía el
 ciclo `auth` → `notificaciones` → `auth`. Ninguna clase fuera de
@@ -1867,7 +1880,7 @@ eligió el usuario; la comparación está en
 `project-context/decisions/propuestas/2026-10-21-correo-saliente-http.md`.
 
 **El mensaje.** `MensajeCorreo` lleva destinatario, asunto, texto y una
-etiqueta (`recuperacion`, `soporte` o `aviso-reporte`), pero no el remitente:
+etiqueta (`recuperacion`, `confirmacion-correo`, `soporte` o `aviso-reporte`), pero no el remitente:
 lo fija el adaptador desde `NOTIF_FROM`. La etiqueta viaja a Resend como
 `tags: [{"name": "categoria", "value": …}]`, para filtrar en su panel, y nunca
 es un dato personal. Su `toString` solo muestra la etiqueta, porque el texto
@@ -2069,6 +2082,205 @@ captcha: sin token, rechazado, Google caído, correo existente y token válido);
 `ValidacionTipoCaptchaTest` y `ArranqueCaptchaIT` (valores no admitidos y
 `prod` sin la variable).
 
+## Confirmación del correo (NC-09)
+
+Desde NC-09 el correo de una cuenta tiene que ser verídico. Tres decisiones
+del usuario (28/10):
+
+1. **Una cuenta sin confirmar no puede iniciar sesión** hasta abrir el
+   enlace que recibe por correo.
+2. **Las cuentas que ya existían se dan por confirmadas** (la migración V20):
+   en producción ya hay usuarios reales y ninguno debe quedar fuera.
+3. **El registro rechaza el correo** si su dominio no recibe correo (sin
+   registro MX en el DNS) o si es un dominio desechable conocido (temp-mail,
+   10minutemail, mailinator…), según una lista fija versionada.
+
+### El flujo
+
+| Paso | Endpoint | Respuesta |
+|---|---|---|
+| Registro | `POST /api/auth/registro` | 201 `{"email", "vigenciaEnlaceHoras": 24}`. **Ya no inicia sesión ni devuelve token** (antes: `AuthResponse`). La cuenta queda con `correo_confirmado = false` y se envía el enlace. |
+| Enlace | `<PWA>/confirmar-cuenta?token=<43 caracteres>` | La PWA lee el token y llama al endpoint de abajo. |
+| Confirmar | `POST /api/auth/confirmar-correo` `{"token"}` | 204. No inicia sesión, como `restablecer-password`: la persona entra después con su contraseña. |
+| Login sin confirmar | `POST /api/auth/login` | 409 con `codigo: CORREO_NO_CONFIRMADO`, **solo con la contraseña correcta**. Con una incorrecta sigue el 401 de siempre. |
+| Reenviar | `POST /api/auth/reenviar-confirmacion` `{"email"}` | 202 sin cuerpo, siempre. |
+
+Errores de `confirmar-correo`, todos 409 con un `codigo` estable para la
+PWA (`BusinessException` suma un código opcional, que
+`GlobalExceptionHandler` copia a `ApiError.codigo` como el
+`TERMINOS_PENDIENTES` de D-12):
+
+| `codigo` | Cuándo |
+|---|---|
+| `CONFIRMACION_INVALIDA` | Token desconocido. |
+| `CORREO_YA_CONFIRMADO` | La cuenta ya está confirmada (incluye volver a abrir un enlace usado). |
+| `CONFIRMACION_REEMPLAZADA` | Se pidió un enlace nuevo después de este. |
+| `CONFIRMACION_VENCIDA` | Pasaron 24 horas. |
+
+Un enlace usado implica una cuenta confirmada, así que «usado» responde
+`CORREO_YA_CONFIRMADO` («Tu correo ya está confirmado. Inicia sesión…»): es
+lo que le sirve a quien vuelve a abrir el enlace, o a quien se le adelantó el
+antivirus del correo abriéndolo primero.
+
+### El token: aleatorio, de un solo uso y guardado como hash
+
+Sigue el patrón de la recuperación de contraseña (`PasswordResetService`,
+DEP-08): tabla propia (`token_confirmacion_correo`, V20), un solo uso,
+vencimiento (24 h) y el correo después del commit, fuera de la petición y de
+la transacción (`ConfirmacionCorreoSolicitadaListener`, D-13). Dos
+diferencias:
+
+- **Se guarda el SHA-256 del token, nunca el token** (`token_hash`). Quien
+  lea la base o un respaldo no puede confirmar cuentas ajenas. Sin sal: el
+  token ya tiene 256 bits de azar (`SecureRandom`, 43 caracteres base64url),
+  así que no hay diccionario contra el que probar, y la búsqueda por igualdad
+  necesita un hash determinista.
+- **El token lo genera el hilo que envía el correo.** Con el token hasheado,
+  el listener no podría reconstruirlo a partir del id del evento (como hace
+  la recuperación). El registro y el reenvío guardan una fila sin hash y
+  publican `ConfirmacionCorreoSolicitadaEvent(tokenId)`; en el executor
+  asíncrono, `ConfirmacionCorreoService#emitirMensaje` genera el token,
+  guarda su hash en una transacción corta y arma el mensaje, que se envía
+  sin transacción. El valor no pasa por la petición, por el evento ni por la
+  base: solo existe en ese hilo y en el correo.
+
+**Pedir uno nuevo anula los anteriores** (`invalidated_at`), y confirmar
+anula los demás pendientes. Si mientras un envío esperaba en la cola la
+persona pidió otro, ya confirmó o el enlace venció, `emitirMensaje` devuelve
+vacío y no se envía nada.
+
+**Topes del reenvío, por cuenta:** uno por minuto (el del registro cuenta) y
+5 por hora. El endpoint responde igual exista o no la cuenta, esté o no
+confirmada y se alcance o no un tope: no sirve para averiguar qué correos
+tienen cuenta. Sin el tope por hora, un bucle que respete el minuto gastaría
+igual la cuota diaria de Resend (100) con una sola cuenta. Los pedidos
+simultáneos de una cuenta se serializan con un candado consultivo
+(`pg_advisory_xact_lock` sobre `confirmacion-correo:<id>`), como la
+recuperación. La PWA debe deshabilitar el botón «reenviar» un minuto: la
+respuesta no dice si se envió.
+
+**El enlace apunta a la PWA** con la URL de `FRONTEND_URL` o, sin ella, el
+primer origen de `CORS_ALLOWED_ORIGINS`, que en todos los entornos es el de
+la PWA y en `prod` ya es obligatorio: así no se suma una variable
+obligatoria. La recuperación de contraseña no arma enlaces (el correo trae un
+token para pegar), así que no había una propiedad que reutilizar. Una URL que
+no sea un origen `http(s)://host[:puerto]` sin ruta no arranca.
+
+### El correo tiene que ser verídico: dominio desechable o sin MX
+
+En `AuthService#registrar`, el orden es: captcha (NC-08) → **dominio del
+correo** → términos y correo duplicado → crear la cuenta. El dominio va
+antes de crear nada y, como el captcha, **sin transacción**: la consulta DNS
+no retiene una conexión del pool (D-13). No revela nada de las cuentas, así
+que puede ir antes del 409 «El correo ya está registrado».
+
+| Rechazo (409) | `codigo` | Mensaje |
+|---|---|---|
+| Dominio desechable, o subdominio de uno | `CORREO_DESECHABLE` | «No aceptamos correos temporales o desechables. Usa una dirección que revises seguido: ahí te avisaremos cómo avanzan tus reportes.» |
+| El dominio no recibe correo | `DOMINIO_SIN_CORREO` | «El dominio «gmail.con» no puede recibir correos. Revisa que esté bien escrito o usa otra dirección.» (nombra el dominio: casi siempre es un error de tipeo) |
+
+**Desechables: lista fija y versionada.** `resources/data/dominios-desechables.txt`
+es una instantánea de la lista
+[`disposable-email-domains`](https://github.com/disposable-email-domains/disposable-email-domains)
+(`disposable_email_blocklist.conf`, commit `fa96007`, del 27/10/2026,
+descargada el 28/10/2026, **9963 dominios**), con licencia **CC0 1.0**
+(dominio público). Fuente, commit, fecha y licencia van también en la
+cabecera del archivo. No se actualiza sola: actualizarla es reemplazar el
+archivo y la cabecera, y correr `DominiosDesechablesTest`. La regla
+(`auth/domain/DominiosDesechables`, pura) cubre los subdominios
+(`x.mailinator.com`), compara en minúsculas y en ASCII (IDN) y nunca un
+dominio de primer nivel solo. La lee `auth/infra/ArchivoDominiosDesechables`
+al arrancar (sin el archivo no arranca). No necesita red, así que se aplica
+en todos los perfiles, también en los tests. La lista incluye dominios de
+tipeo de los proveedores grandes (`gmial.com`, `hotmial.com`), que se usan
+para recibir correo ajeno.
+
+**MX: un puerto con dos adaptadores**, elegidos con `app.dominio-correo.tipo`
+(`DOMINIO_CORREO_TIPO`), como el captcha:
+
+| Valor | Adaptador | Uso |
+|---|---|---|
+| `dns` | `auth/infra/DnsVerificadorDeDominioAdapter` | Por defecto en `prod` (literal en `application-prod.yml`, con la variable solo para apagarlo). |
+| `ninguno` | `auth/infra/SinVerificacionDeDominioAdapter` | Por defecto fuera de `prod` (en local se registran cuentas `@viasegura.test`, sin MX) y fijo en los tests, sin red. |
+
+El adaptador DNS usa el proveedor DNS de JNDI que trae el JDK (sin
+dependencias nuevas; el módulo `jdk.naming.dns` viene en la imagen
+`eclipse-temurin:21-jre`) con los servidores del sistema. **Rechaza** un
+dominio que no existe (NXDOMAIN), uno sin MX y uno con «null MX» (RFC 7505,
+un único `0 .` que declara que no recibe correo); también, sin consultar, un
+literal de IP o un nombre sin punto. No aplica el «MX implícito» del
+RFC 5321 (entregar al registro A cuando no hay MX): la decisión fue «sin
+registro MX, no recibe correo», y un dominio que recibe correo de verdad
+publica su MX.
+
+**Falla abierto, con un plazo garantizado.** Si el DNS falla (SERVFAIL, sin
+servidores) o no responde, se acepta el registro y queda un WARN con el
+dominio (nunca el correo): el enlace es la prueba definitiva y un DNS caído
+no debe impedir registrarse. JNDI espera 1 s y reintenta una vez con 2 s,
+pero **por servidor**; por eso la consulta corre en un hilo virtual y la
+petición espera como máximo `app.dominio-correo.dns.plazo-milisegundos`
+(3000).
+
+**Verificación contra el DNS real (2026-10-28, Windows)**, con la misma
+consulta JNDI: `gmail.com` → 5 MX (128 ms); `upc.edu.pe` →
+`0 upc-edu-pe.mail.protection.outlook.com.` (preferencia 0 con servidor: se
+acepta); `example.com` → `0 .` (null MX: se rechaza); un dominio inexistente
+→ NXDOMAIN (`NameNotFoundException`, 16 ms); `lima.pe` → NXDOMAIN. Este
+último es el dominio de los correos de los IT: por eso los tests fijan
+`ninguno`, y `PerfilProdIT` (que corre con `dns`) simula el puerto.
+
+### Quién nace confirmado
+
+- El **ADMIN inicial** (`AdministradorInicialSeeder`): su correo lo da el
+  operador del despliegue.
+- Las cuentas de `scripts/seed-datos-prueba.sql` (desarrollo): el script las
+  marca confirmadas.
+- En los IT, los usuarios de fixture (`AbstractPostgisIT#guardarConTerminos`).
+  Los IT que registran por el API confirman con
+  `AbstractPostgisIT#confirmarEIniciarSesion` (un `UPDATE` directo, porque el
+  token solo está en el correo) y entran por `POST /api/auth/login`: la
+  regla no se debilita. El flujo real del enlace lo prueba
+  `ConfirmacionCorreoIT`.
+- Un funcionario (DEP-05) se registra como cualquier ciudadano, así que
+  confirma su correo antes de que se le asigne el rol.
+
+`Usuario.correoConfirmado` es `false` por defecto, también en el builder:
+una cuenta nueva nace sin confirmar salvo que quien la crea diga lo
+contrario.
+
+### Lo que no cubre
+
+- Una cuenta que alguien registró con un correo ajeno queda sin confirmar y
+  bloquea ese correo («El correo ya está registrado»). La dueña del correo
+  puede recuperarla: «¿Olvidaste tu contraseña?» funciona sin confirmar,
+  cambia la contraseña del intruso, y después pide el enlace. Si en cambio
+  abre el enlace del primer correo, confirma la cuenta con la contraseña del
+  otro (por eso el correo dice «Si no creaste esta cuenta, ignora este
+  correo»). Purgar las cuentas que nunca se confirman queda fuera de NC-09.
+- El 409 `CORREO_NO_CONFIRMADO` del login solo aparece con la contraseña
+  correcta, así que no revela nada que no sepa quien ya la tiene.
+
+### Pruebas
+
+- `ConfirmacionCorreoIT` (GreenMail, el token se lee del correo):
+  registro sin sesión; el correo con el enlace y, en la base, solo el hash;
+  login sin confirmar 409 con código y con contraseña incorrecta el 401 de
+  siempre; confirmar y entrar; confirmar dos veces; enlace vencido,
+  desconocido y reemplazado; reenvío que no enumera (cuenta inexistente,
+  confirmada y sin confirmar: misma respuesta, un solo correo), uno por
+  minuto, tope por hora y seis reenvíos simultáneos que crean un solo enlace.
+- `RegistroDominioCorreoIT` (el puerto del DNS simulado): sin MX → 409 sin
+  crear la cuenta; desechable (y subdominio con mayúsculas) → 409 sin
+  consultar el DNS; DNS caído → registra; el dominio va antes del correo
+  duplicado. `RegistroCaptchaIT` suma que el captcha va antes del dominio.
+- Unitarios: `DnsVerificadorDeDominioAdapterTest` (resolvedor inyectado:
+  MX, sin MX, null MX, NXDOMAIN, SERVFAIL, un DNS colgado que vuelve dentro
+  del plazo), `DominiosDesechablesTest` (la regla y la instantánea:
+  9963 dominios, cabecera con fuente y licencia, conocidos dentro y
+  proveedores comunes fuera), `ValidacionTipoDominioCorreoTest`,
+  `ConfirmacionCorreoSolicitadaListenerTest` y `ConfirmacionCorreoServiceTest`
+  (URL de la PWA, hash y ciclo del token).
+
 ## Consentimiento (D-12, NC-07b)
 
 La Ley N.° 29733 de Protección de Datos Personales pide un consentimiento
@@ -2103,7 +2315,7 @@ dispositivo, no la autorización del titular de los datos.
 
 Cualquier rol autenticado y **solo los propios**: ninguna ruta lleva id de
 usuario, así que nadie lee ni revoca los de otro. Sin token, 401.
-`UsuarioResponse` (de `/me`, login y registro) suma `debeAceptarTerminos`. Es
+`UsuarioResponse` (de `/me` y del login; desde NC-09 el registro ya no la devuelve) suma `debeAceptarTerminos`. Es
 un dato del propio usuario, no una señal interna, y ese DTO no lo lee nadie más.
 
 **Usuarios existentes.** La migración no les crea filas: D-12 prohíbe darlos
@@ -2675,6 +2887,7 @@ el usuario (ver «Pendiente»).
 (`GEOGRAPHY(Point,4326)`), ambas con índice **GiST**. Ver
 `src/main/resources/db/migration/V1__init_schema.sql`. Las migraciones
 posteriores agregan tablas propias, como `suscripcion_push` (V12, NC-07),
-`consentimiento` (V13 y V14, NC-07b) y `municipalidad` y `periodo_gestion`
-(V15 y V16, NC-01), o columnas, como la sugerencia de categoría de
-`reporte` y la clase del modelo de `categoria_dano` (V19, NC-04).
+`consentimiento` (V13 y V14, NC-07b), `municipalidad` y `periodo_gestion`
+(V15 y V16, NC-01) y `token_confirmacion_correo` (V20, NC-09), o columnas,
+como la sugerencia de categoría de `reporte` y la clase del modelo de
+`categoria_dano` (V19, NC-04) y `usuario.correo_confirmado` (V20, NC-09).
