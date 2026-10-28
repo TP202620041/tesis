@@ -1,7 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '@/lib/api/errors';
-import { borrarToken, guardarToken } from '@/lib/auth/token-storage';
-import { clavePublicaVapid, darDeBajaSuscripcionPush, descargarFotoDePerfil } from './api';
+import { borrarToken, guardarToken, leerToken } from '@/lib/auth/token-storage';
+import {
+  clavePublicaVapid,
+  confirmarCorreo,
+  darDeBajaSuscripcionPush,
+  descargarFotoDePerfil,
+  reenviarConfirmacion,
+  registrar,
+} from './api';
 
 /*
  * US-21: el adaptador HTTP de push, sobre el cliente real con `fetch` falso
@@ -97,5 +104,57 @@ describe('descargarFotoDePerfil', () => {
 
     expect(fetchFalso).not.toHaveBeenCalled();
     expect(src).toBe('/media/fotos/reportes/abc.png');
+  });
+});
+
+describe('confirmación del correo (NC-09)', () => {
+  it('el registro devuelve la cuenta por confirmar y no toca la sesión', async () => {
+    fetchFalso.mockResolvedValue(Response.json({ email: 'ana@lima.pe', vigenciaEnlaceHoras: 24 }, { status: 201 }));
+
+    const cuenta = await registrar({
+      nombre: 'Ana',
+      apellido: 'Ruiz',
+      email: 'ana@lima.pe',
+      password: 'secreta123',
+      aceptaTerminos: true,
+      versionTerminos: '2026-10-v1',
+    });
+
+    expect(cuenta).toEqual({ email: 'ana@lima.pe', vigenciaEnlaceHoras: 24 });
+    const [url, init] = fetchFalso.mock.calls[0]!;
+    expect(String(url)).toMatch(/\/api\/auth\/registro$/);
+    // Ruta pública: sin token, y el que había sigue igual (no hay sesión nueva).
+    expect(new Headers(init?.headers).has('Authorization')).toBe(false);
+    expect(leerToken()).toBe('token-de-prueba');
+  });
+
+  it('confirmar manda el token en el cuerpo, sin Authorization, y acepta el 204', async () => {
+    fetchFalso.mockResolvedValue(new Response(null, { status: 204 }));
+
+    await expect(confirmarCorreo('abc')).resolves.toBeUndefined();
+
+    const [url, init] = fetchFalso.mock.calls[0]!;
+    expect(String(url)).toMatch(/\/api\/auth\/confirmar-correo$/);
+    expect(init?.method).toBe('POST');
+    expect(init?.body).toBe(JSON.stringify({ token: 'abc' }));
+    expect(new Headers(init?.headers).has('Authorization')).toBe(false);
+  });
+
+  it('un 409 de la confirmación llega con su código', async () => {
+    fetchFalso.mockResolvedValue(
+      Response.json({ status: 409, message: 'El enlace venció.', codigo: 'CONFIRMACION_VENCIDA' }, { status: 409 }),
+    );
+    await expect(confirmarCorreo('abc')).rejects.toMatchObject({ status: 409, codigo: 'CONFIRMACION_VENCIDA' });
+  });
+
+  it('reenviar acepta el 202 sin cuerpo', async () => {
+    fetchFalso.mockResolvedValue(new Response(null, { status: 202, headers: { 'Content-Length': '0' } }));
+
+    await expect(reenviarConfirmacion('ana@lima.pe')).resolves.toBeUndefined();
+
+    const [url, init] = fetchFalso.mock.calls[0]!;
+    expect(String(url)).toMatch(/\/api\/auth\/reenviar-confirmacion$/);
+    expect(init?.body).toBe(JSON.stringify({ email: 'ana@lima.pe' }));
+    expect(new Headers(init?.headers).has('Authorization')).toBe(false);
   });
 });
