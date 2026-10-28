@@ -374,13 +374,16 @@ ADMIN.
    términos, registrada (D-12).
 2. **Antes de asignar, la persona confirma que el registro le funcionó a
    ella** (entra con su contraseña). Desde NC-09 una cuenta no inicia sesión
-   sin confirmar su correo, así que entrar prueba que el correo es suyo. Si
-   al registrarse vio «El correo ya está registrado», alguien pudo
-   registrarse antes con su correo, y asignar le daría el rol a esa
-   cuenta. En ese caso no se asigna hasta que recupere la cuenta con
-   «¿Olvidaste tu contraseña?» (cuando funcione DEP-08) o se revise con ella.
-   El script muestra la fecha de registro de la cuenta (`created_at`, hora
-   de Lima) para compararla con lo que la persona recuerda.
+   sin confirmar su correo, así que entrar prueba que el correo es suyo, y
+   desde NC-09b el script no asigna una cuenta sin confirmar. Si al
+   registrarse vio «El correo ya está registrado», alguien pudo registrarse
+   antes con su correo, y asignar le daría el rol a esa cuenta. En ese caso
+   no se asigna hasta que ella recupere la cuenta: pide el enlace con
+   «Reenviar», la confirma y cambia la contraseña con «¿Olvidaste tu
+   contraseña?», que solo funciona con la cuenta confirmada (ver «Cuentas
+   sin confirmar (NC-09b)»). El script muestra la fecha de registro de la
+   cuenta (`created_at`, hora de Lima) y si confirmó su correo, para
+   compararlo con lo que la persona recuerda.
 3. Un operador con acceso a la base corre `backend/scripts/asignar-funcionario.sql`
    con variables de `psql`, desde la raíz del repositorio:
 
@@ -407,7 +410,8 @@ ADMIN.
 
 | Caso | `asignar` (por defecto) | `accion=revocar` |
 |---|---|---|
-| Cuenta `CIUDADANO` | Pasa a `FUNCIONARIO_MUNICIPAL` con ese distrito. Si tenía distrito de residencia, avisa que se reemplaza (es el mismo campo). | Nada (aviso). |
+| Cuenta `CIUDADANO` con el correo confirmado | Pasa a `FUNCIONARIO_MUNICIPAL` con ese distrito. Si tenía distrito de residencia, avisa que se reemplaza (es el mismo campo). | Nada (aviso). |
+| Cuenta `CIUDADANO` sin confirmar el correo (NC-09b) | **Falla**: «La cuenta … no confirmo su correo: no se le asigna el rol.», con la pista de abrir el enlace o pedir otro con «Reenviar». | Nada (aviso). |
 | `FUNCIONARIO_MUNICIPAL` del mismo distrito | Nada (aviso): se puede repetir. | Vuelve a `CIUDADANO`, sin distrito. |
 | `FUNCIONARIO_MUNICIPAL` de otro distrito | **Falla**: primero se revoca. | Vuelve a `CIUDADANO`, sin distrito. |
 | `ADMIN` | **Falla.** | **Falla.** |
@@ -432,6 +436,13 @@ Decisiones:
 - **Solo de `CIUDADANO` a funcionario.** Cambiar de distrito a un
   funcionario mueve su bandeja: se pide revocar y volver a asignar, para
   que no ocurra por un error de tipeo. Un ADMIN nunca se toca.
+- **Solo una cuenta con el correo confirmado** (NC-09b, decisión del
+  usuario del 28/10). Sin confirmar, nada prueba que el correo sea de la
+  persona: es el caso de quien registró antes un correo ajeno. Antes de
+  NC-09b dependía de que el operador siguiera el paso 2; ahora lo comprueba
+  el script, en el mismo bloque `DO`, así que falla sin asignar nada. El
+  aviso inicial dice si la cuenta confirmó su correo. Revocar no lo mira:
+  quitar el rol siempre debe poder hacerse.
 - **Atómico y sin restos en la sesión.** Todas las comprobaciones y el
   `UPDATE` van en un bloque `DO` dentro de `BEGIN … COMMIT`, y los datos
   pasan de `psql` a la base con `SET LOCAL`, que desaparece al terminar la
@@ -473,6 +484,16 @@ cambios), el aviso con la fecha de registro, el archivo con CRLF y, en una
 misma sesión, un `\i` que falla (la cuenta ADMIN) seguido de otro que
 funciona: tras el fallo no queda transacción abierta, ni el `SET LOCAL`, ni
 las variables, y la persona siguiente se asigna sin arrastrar nada.
+
+**Verificación de NC-09b (2026-10-28)** contra `viasegura_test`, con el
+`psql` del contenedor (entrada estándar) y dos cuentas propias que se
+borraron al final: la cuenta sin confirmar da el aviso «correo SIN
+CONFIRMAR», el error y la pista de arriba y código 3, y queda `CIUDADANO`
+sin distrito; la confirmada (aviso «correo confirmado») se asigna a
+Miraflores con `miraflores` y se revoca. Lo prueba además
+`AsignarFuncionarioScriptIT` en cada `mvn verify`: corre el bloque `DO` leído
+del archivo (no una copia), porque `psql` no está garantizado en la CI ni en
+el PATH de Windows.
 
 ### Respaldo diario de la base (DEP-09, v0.7.2)
 
@@ -2260,23 +2281,65 @@ acepta); `example.com` → `0 .` (null MX: se rechaza); un dominio inexistente
   regla no se debilita. El flujo real del enlace lo prueba
   `ConfirmacionCorreoIT`.
 - Un funcionario (DEP-05) se registra como cualquier ciudadano, así que
-  confirma su correo antes de que se le asigne el rol.
+  confirma su correo antes de que se le asigne el rol. Desde NC-09b,
+  `asignar-funcionario.sql` lo exige (ver abajo).
 
 `Usuario.correoConfirmado` es `false` por defecto, también en el builder:
 una cuenta nueva nace sin confirmar salvo que quien la crea diga lo
 contrario.
 
+### Cuentas sin confirmar (NC-09b)
+
+NC-09 dejó tres casos borde en la propuesta
+`project-context/decisions/propuestas/2026-10-28-cuentas-sin-confirmar.md`.
+El usuario los decidió el 28/10:
+
+1. **Una cuenta sin confirmar no recupera la contraseña, y restablecerla no
+   confirma el correo.** En palabras del usuario: «No pueden restablecer la
+   contraseña de una cuenta no creada, de todas maneras tendrán que pasar por
+   la confirmación del correo». El único camino a una cuenta confirmada es el
+   enlace de confirmación.
+   - `POST /api/auth/recuperar-password` con el correo de una cuenta sin
+     confirmar hace **lo mismo que con un correo sin cuenta**: 202 sin
+     cuerpo, sin token y sin correo. `PasswordResetService` corta en el
+     mismo punto que con la cuenta inexistente, después de la misma
+     consulta y antes del candado y del conteo del tope, así que tampoco el
+     tiempo de respuesta lo distingue. Deja un `INFO` con el id de la
+     cuenta, nunca el correo.
+   - Un token de recuperación de una cuenta sin confirmar (solo pudo quedar
+     de antes de esta regla) **vale lo mismo que uno inexistente**:
+     `restablecer-password` responde el 404 «Token de recuperación
+     inválido», antes de mirar si se usó o venció, y no cambia nada. Si
+     estaba en la cola asíncrona, `mensajeDeRecuperacion` no lo envía. Se
+     eligió el 404 de siempre y no un 409 con código nuevo: el contrato no
+     cambia y la PWA no necesita otro caso para una situación que, con la
+     regla, ya no se produce.
+2. **Las cuentas que nunca se confirman se purgan a los 30 días**, en su
+   propia tarea (**BE-15** del plan, sin implementar). Hasta entonces quedan
+   en `usuario`.
+3. **`asignar-funcionario.sql` exige la cuenta confirmada**: con una cuenta
+   sin confirmar falla con un mensaje claro y no asigna nada (ver «Alta y
+   baja de funcionarios»).
+
+**La dueña de un correo que otro registró** ve «El correo ya está
+registrado» y no puede usar «¿Olvidaste tu contraseña?». Recupera la cuenta
+así: pide el enlace con «Reenviar» en el inicio de sesión, la confirma (con
+la contraseña que puso el otro, que no conoce) y después cambia la
+contraseña con «¿Olvidaste tu contraseña?», que ya funciona. Son tres pasos
+en vez de dos, pero el enlace de confirmación sigue siendo la única prueba de
+que el correo es suyo, como decidió el usuario. La otra salida es esperar la
+purga de BE-15 y registrarse de nuevo. Riesgo que queda: entre la
+confirmación y el cambio de contraseña, quien registró la cuenta puede
+entrar con su contraseña, y su JWT sigue valiendo hasta que vence (120
+minutos como máximo: no hay blacklist de tokens, ver «Decisiones de
+seguridad»). Es una ventana corta y la cuenta recién confirmada todavía no
+tiene datos de la dueña.
+
 ### Lo que no cubre
 
-- Una cuenta que alguien registró con un correo ajeno queda sin confirmar y
-  bloquea ese correo («El correo ya está registrado»). La dueña del correo
-  puede recuperarla: «¿Olvidaste tu contraseña?» funciona sin confirmar,
-  cambia la contraseña del intruso, y después pide el enlace. Si en cambio
-  abre el enlace del primer correo, confirma la cuenta con la contraseña del
-  otro (por eso el correo dice «Si no creaste esta cuenta, ignora este
-  correo»). Purgar las cuentas que nunca se confirman queda fuera de NC-09.
 - El 409 `CORREO_NO_CONFIRMADO` del login solo aparece con la contraseña
   correcta, así que no revela nada que no sepa quien ya la tiene.
+- Las cuentas sin confirmar se acumulan hasta que entre la purga (BE-15).
 
 ### Pruebas
 
@@ -2288,6 +2351,16 @@ contrario.
   confirmada y sin confirmar: misma respuesta, un solo correo), uno por
   minuto, topes por hora y por día, seis reenvíos simultáneos que crean un
   solo enlace, y que una fila anulada o ya emitida no se emite.
+- `PasswordResetIT` (NC-09b): pedir la recuperación de una cuenta sin
+  confirmar responde igual que con un correo sin cuenta (estado, cuerpo y
+  cabeceras), sin token ni correo en GreenMail, y deja el `INFO` sin el
+  correo; un token de esa cuenta, vigente o vencido, da el mismo 404 que uno
+  inexistente y no cambia la contraseña ni confirma el correo; el listener no
+  lo envía; y, ya confirmada, la cuenta sí recupera.
+- `AsignarFuncionarioScriptIT` (NC-09b): el bloque `DO` de
+  `asignar-funcionario.sql`, leído del archivo, falla con una cuenta sin
+  confirmar (mensaje y pista exactos) sin asignar nada, y asigna una
+  confirmada.
 - `RegistroDominioCorreoIT` (el puerto del DNS simulado): sin MX → 409 sin
   crear la cuenta; desechable (y subdominio con mayúsculas) → 409 sin
   consultar el DNS; DNS caído → registra; el dominio va antes del correo

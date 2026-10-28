@@ -12,13 +12,16 @@
 --   Cualquiera pudo registrarse antes con el correo de la persona. Desde NC-09
 --   una cuenta no inicia sesion sin confirmar su correo con el enlace que
 --   recibe, asi que entrar con la contrasena prueba que el correo es suyo
---   (las cuentas anteriores a NC-09 se dieron por confirmadas). Asigne solo si
---   la persona confirma que el registro le funciono a ella (entra con su
---   contrasena). Si
---   al registrarse vio "El correo ya esta registrado", NO asigne: primero que
---   recupere la cuenta con "Olvidaste tu contrasena" (cuando funcione DEP-08)
---   o revise la cuenta con ella. El script muestra la fecha de registro de la
---   cuenta (created_at) para compararla con lo que la persona recuerda.
+--   (las cuentas anteriores a NC-09 se dieron por confirmadas). Desde NC-09b
+--   el script no asigna una cuenta sin confirmar: falla y no cambia nada.
+--   Igual, asigne solo si la persona confirma que el registro le funciono a
+--   ella (entra con su contrasena). Si al registrarse vio "El correo ya esta
+--   registrado", NO asigne: alguien pudo registrarse antes con su correo.
+--   Para recuperarla, ella pide el enlace ("Reenviar" en el inicio de
+--   sesion), confirma la cuenta y cambia la contrasena con "Olvidaste tu
+--   contrasena", que solo funciona con la cuenta confirmada (NC-09b). El
+--   script muestra la fecha de registro de la cuenta (created_at) y si
+--   confirmo su correo, para compararlo con lo que la persona recuerda.
 --
 -- USO (desde la raiz del repo)
 --   Asignar:
@@ -41,9 +44,10 @@
 --   - El distrito se busca por nombre sin distinguir mayusculas ni tildes
 --     ('rimac' encuentra el distrito Rimac, que lleva tilde) y debe coincidir
 --     con exactamente uno.
---   - asignar: solo una cuenta CIUDADANO. Si ya es FUNCIONARIO_MUNICIPAL de ese
---     distrito no cambia nada (se puede repetir sin error). A un funcionario de
---     otro distrito primero se le revoca; un ADMIN nunca se toca.
+--   - asignar: solo una cuenta CIUDADANO con el correo confirmado (NC-09b). Si
+--     ya es FUNCIONARIO_MUNICIPAL de ese distrito no cambia nada (se puede
+--     repetir sin error). A un funcionario de otro distrito primero se le
+--     revoca; un ADMIN nunca se toca.
 --   - revocar: solo un FUNCIONARIO_MUNICIPAL, que queda CIUDADANO y sin
 --     distrito (lo vuelve a elegir en su perfil). Si ya es CIUDADANO no cambia
 --     nada.
@@ -127,7 +131,8 @@ BEGIN
     END IF;
 
     -- Para comparar con lo que recuerda la persona (ver "ANTES DE ASIGNAR").
-    RAISE NOTICE 'Cuenta % (rol %), registrada el % (hora de Lima).', v_email, v_usuario.rol,
+    RAISE NOTICE 'Cuenta % (rol %, correo %), registrada el % (hora de Lima).', v_email, v_usuario.rol,
+        CASE WHEN v_usuario.correo_confirmado THEN 'confirmado' ELSE 'SIN CONFIRMAR' END,
         to_char(v_usuario.created_at AT TIME ZONE 'America/Lima', 'YYYY-MM-DD HH24:MI');
 
     SELECT nombre INTO v_actual FROM distrito WHERE id = v_usuario.distrito_id;
@@ -177,6 +182,14 @@ BEGIN
             USING HINT = CASE WHEN v_usuario.rol = 'FUNCIONARIO_MUNICIPAL'
                               THEN 'Para cambiarla de distrito, devuelvala antes a CIUDADANO (-v accion=revocar).'
                               ELSE 'Un ADMIN no se convierte en funcionario.' END;
+    END IF;
+
+    -- NC-09b: sin confirmar, nada prueba que el correo sea de la persona.
+    IF NOT v_usuario.correo_confirmado THEN
+        RAISE EXCEPTION 'La cuenta % no confirmo su correo: no se le asigna el rol.', v_email
+            USING HINT = 'La persona debe abrir el enlace de confirmacion que recibio al registrarse (o pedir'
+                      || ' otro con "Reenviar" en el inicio de sesion) y entrar con su contrasena. Despues,'
+                      || ' vuelva a correr el script.';
     END IF;
 
     IF v_actual IS NOT NULL THEN
