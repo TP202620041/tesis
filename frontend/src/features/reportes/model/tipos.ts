@@ -49,6 +49,12 @@ export type DensidadReportes = Required<Omit<Schemas['DensidadReportesResponse']
   celdas: CeldaDensidad[];
 };
 
+/**
+ * Si el catálogo de categorías del formulario ya llegó, sigue cargando (al
+ * montar o tras un cambio de distrito) o no se pudo traer.
+ */
+export type EstadoDelCatalogo = 'cargando' | 'listo' | 'fallido';
+
 export interface PaginaReportes {
   contenido: ReporteResumen[];
   /** Total que cumple los filtros, no solo los de esta pagina. */

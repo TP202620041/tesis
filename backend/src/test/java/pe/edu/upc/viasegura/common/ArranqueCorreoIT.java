@@ -54,6 +54,7 @@ class ArranqueCorreoIT {
                 "--FOTOS_DIR=" + System.getProperty("java.io.tmpdir") + "/viasegura-test-fotos",
                 "--FOTOS_ALMACEN=local",
                 "--NOTIF_FROM=Ciudad Viva <no-reply@ciudadviva.test>",
+                "--CAPTCHA_TIPO=ninguno",
         };
     }
 
