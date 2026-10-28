@@ -187,7 +187,7 @@ railway connect postgis               # abre psql por túnel SSH (requiere psql 
 3. **Settings › Build › Watch Paths:** `/backend/**` y `!/backend/scripts/respaldo-bd/**`. Las rutas parten de la raíz del repo aunque haya *Root Directory*. Así, un cambio en `frontend/`, en `docs/` o en el script de respaldos (§5.3) no redespliega el API.
 4. **Settings › Deploy:** *Healthcheck Path* `/actuator/health` (el tiempo de espera por defecto, 300 s, alcanza); *Restart Policy* `On Failure`. Railway solo consulta el health check al desplegar, para cambiar de versión sin corte; no lo vigila después.
 5. **Networking:**
-   - **Generate Domain:** la URL `*.up.railway.app`, para depurar.
+   - **No generar un dominio `*.up.railway.app`** («Generate Domain»). El del `backend` se borró el 25/10 (§11.1). El API solo se alcanza por `$API`, a través del proxy de Cloudflare. El `CNAME` `api` → `<id>.up.railway.app` de abajo **no cambia**: ese es el destino del dominio propio.
    - **Custom Domain** (Settings › Public Networking): `api.ciudadviva.app` (`$API`). Según [la documentación de Railway](https://docs.railway.com/networking/domains/working-with-domains), revisada por la sesión «dominio» el 25/10, se crean en Cloudflare **los dos registros** que muestra Railway:
      - el `CNAME` `api` → `<id>.up.railway.app`, **con proxy** (nube naranja);
      - el `TXT` de verificación, en `_railway-verify.api` con el valor que muestra Railway. Sin el `TXT`, el dominio responde 404 aunque el `CNAME` ya resuelva.
@@ -468,8 +468,8 @@ docker exec viasegura-db psql -U viasegura -d viasegura -c "DROP DATABASE restau
 
 | Defensa | Qué hace | Cómo se verifica |
 |---|---|---|
-| **Sin dominio `*.up.railway.app` en `backend`** | Se borró el dominio generado de Railway. El API solo se alcanza por `api.ciudadviva.app`, con el proxy de Cloudflare, así que nadie puede saltarse el proxy ni su límite de peticiones. El paso «Generate Domain» de §5.2 ya no se hace en producción. | Railway › `backend` › Settings › Networking muestra solo el dominio propio. `curl -s -D - -o /dev/null $API/actuator/health` muestra `server: cloudflare`. |
-| **Límite de peticiones en Cloudflare** | Una regla de *rate limiting* (Security › WAF › Rate limiting rules) para las peticiones de escritura a `api.ciudadviva.app`: **30 cada 10 s por IP**, con **10 s de bloqueo**. El plan Free admite **una sola** regla de este tipo, y ya está usada: una regla nueva obliga a editar esta. El backend no limita por IP (§5.2), así que esta es la única defensa contra ráfagas. | Cloudflare › Security › Events muestra los bloqueos. Pasada la ráfaga, la PWA trata el 429 como pasajero: la cola sin conexión lo reintenta (US-06). |
+| **Sin dominio `*.up.railway.app` en `backend`** | Se borró el dominio generado de Railway. El API solo se alcanza por `api.ciudadviva.app`, con el proxy de Cloudflare, así que nadie puede saltarse el proxy ni su límite de peticiones. §5.2, paso 5, pide no volver a generarlo. | Railway › `backend` › Settings › Networking muestra solo el dominio propio. `curl -s -D - -o /dev/null $API/actuator/health` muestra `server: cloudflare`. |
+| **Límite de peticiones en Cloudflare** | Una regla de *rate limiting* (Security › WAF › Rate limiting rules) para las peticiones de escritura a `api.ciudadviva.app`: **30 cada 10 s por IP**, con **10 s de bloqueo**. El plan Free admite **una sola** regla de este tipo, y ya está usada: una regla nueva obliga a editar esta. El backend no limita por IP (§5.2), así que esta es la única defensa por IP contra ráfagas. El registro además exige captcha (NC-08). | Cloudflare › Security › Events muestra los bloqueos. Ante un 429, la cola sin conexión reintenta los reportes encolados (US-06). Las demás escrituras (inicio de sesión, registro, adhesión, gestión) muestran el error y el usuario reintenta. |
 | **`HEAD /actuator/health` responde 401** | `SecurityConfig` solo abre `GET` en esa ruta (rutas públicas exactas y solo `GET`). | **Un monitor externo tiene que usar `GET`:** con `HEAD` daría el servicio por caído. `curl -s $API/actuator/health` da `{"status":"UP"}` y `curl -sI $API/actuator/health` da 401. |
 
 **Si aparecen 429 legítimos.** Con el CGNAT de las redes móviles, varios usuarios pueden compartir una IP. A la escala de la tesis, 30 escrituras cada 10 s alcanzan. Si Security › Events muestra bloqueos de usuarios reales, se sube el umbral de esa misma regla y se anota aquí.
@@ -482,7 +482,7 @@ En Railway › Workspace › Usage:
 |---|---|---|
 | **Compute: alerta** | US$ 15 | Railway manda un correo y los servicios siguen corriendo. |
 | **Compute: límite duro** | US$ 25 | Railway **apaga todos los servicios** (`backend`, `postgis`, `respaldo-bd`) hasta que se sube o se quita el límite. El sitio queda caído. |
-| **Agent** | — | Es solo para las funciones de IA de Railway, **no para los servicios**. Se limita por separado del compute: alcanzarlo no apaga nada. |
+| **Agent** | — | Es solo para las funciones de IA de Railway, **no para los servicios**. Se limita por separado del compute, y alcanzarlo no apaga los servicios. La documentación lo dice: «Compute and Agent usage are tracked and limited independently» y «Hitting the Agent hard limit disables the agent but leaves your workloads running» ([usage-limits](https://docs.railway.com/reference/usage-limits), 28/10/2026). |
 
 Fuente: [docs.railway.com/reference/usage-limits](https://docs.railway.com/reference/usage-limits), consultada el 28/10/2026. El gasto esperado ronda los US$ 9–12 al mes con la inferencia, así que el límite duro deja margen. Si se acerca a la alerta, revisar en Usage qué servicio crece antes de subir el límite.
 
