@@ -14,8 +14,11 @@
 -- Desde NC-02 (V17) los reportes llevan titulo, severidad y periodo_gestion_id (nulo fuera de todo periodo).
 BEGIN;
 
--- Nombres legibles y roles
-UPDATE usuario SET nombre = initcap(split_part(email, '@', 1)), apellido = 'Prueba'
+-- Nombres legibles y roles. Desde NC-09 (V20) el registro crea la cuenta sin
+-- confirmar y sin confirmar no se puede iniciar sesion: las de prueba se dan
+-- por confirmadas aqui (el dominio .test no recibe correo).
+UPDATE usuario SET nombre = initcap(split_part(email, '@', 1)), apellido = 'Prueba',
+       correo_confirmado = TRUE, correo_confirmado_en = coalesce(correo_confirmado_en, now())
  WHERE email LIKE '%@viasegura.test';
 UPDATE usuario SET nombre = 'Admin', rol = 'ADMIN' WHERE email = 'admin@viasegura.test';
 UPDATE usuario u SET rol = 'FUNCIONARIO_MUNICIPAL', nombre = 'Funcionario', apellido = d.nombre, distrito_id = d.id

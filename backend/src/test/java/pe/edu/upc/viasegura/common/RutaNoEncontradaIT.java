@@ -5,13 +5,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
 import pe.edu.upc.viasegura.support.AbstractPostgisIT;
 
 /**
@@ -28,18 +26,16 @@ class RutaNoEncontradaIT extends AbstractPostgisIT {
 
     @Autowired
     MockMvc mockMvc;
-    @Autowired
-    ObjectMapper objectMapper;
 
     private String token() throws Exception {
-        MvcResult res = mockMvc.perform(post("/api/auth/registro")
+        String correo = "r404-" + UUID.randomUUID() + "@lima.pe";
+        mockMvc.perform(post("/api/auth/registro")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"email":"r404-%s@lima.pe","password":"secreta123","nombre":"Ana","apellido":"Vecina","aceptaTerminos":true,"versionTerminos":"%s"}
-                                """.formatted(UUID.randomUUID(), versionTerminos)))
-                .andExpect(status().isCreated())
-                .andReturn();
-        return objectMapper.readTree(res.getResponse().getContentAsString()).get("token").asText();
+                                {"email":"%s","password":"secreta123","nombre":"Ana","apellido":"Vecina","aceptaTerminos":true,"versionTerminos":"%s"}
+                                """.formatted(correo, versionTerminos)))
+                .andExpect(status().isCreated());
+        return confirmarEIniciarSesion(correo, "secreta123");
     }
 
     @Test

@@ -127,10 +127,22 @@ class RegistroCaptchaIT extends AbstractPostgisIT {
 
         registrar(correo, "token-valido-de-la-casilla")
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.usuario.rol", is("CIUDADANO")));
+                .andExpect(jsonPath("$.email", is(correo)));
 
         verify(verificadorDeCaptcha).verificar("token-valido-de-la-casilla");
         assertThat(usuarioRepository.existsByEmail(correo)).isTrue();
+    }
+
+    @Test
+    void tokenRechazadoYCorreoDesechable_elMensajeEsElDelCaptcha() throws Exception {
+        // NC-09: el captcha va antes que la verificacion del dominio del correo.
+        String correo = "captcha-" + UUID.randomUUID() + "@mailinator.com";
+        doThrow(new BusinessException(MENSAJE_RECHAZADO)).when(verificadorDeCaptcha).verificar("rechazado");
+
+        registrar(correo, "rechazado")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message", is(MENSAJE_RECHAZADO)));
+        assertThat(usuarioRepository.existsByEmail(correo)).isFalse();
     }
 
     @Test
