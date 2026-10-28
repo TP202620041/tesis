@@ -11,6 +11,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,6 +28,7 @@ import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import pe.edu.upc.viasegura.clasificacion.domain.Deteccion;
+import pe.edu.upc.viasegura.clasificacion.domain.OrigenDeConsulta;
 import pe.edu.upc.viasegura.clasificacion.domain.ResultadoDeteccion;
 import pe.edu.upc.viasegura.clasificacion.port.ClasificacionNoDisponibleException;
 import pe.edu.upc.viasegura.clasificacion.port.ClasificadorDano;
@@ -64,27 +66,36 @@ import pe.edu.upc.viasegura.common.port.ArchivoSubido;
  * que llega a medias.</p>
  *
  * <p><b>Turno ({@code bulkhead}).</b> A lo sumo {@value #LLAMADAS_SIMULTANEAS}
- * llamadas a la vez, con un {@link Semaphore} que <b>no espera</b>: sin turno
- * la respuesta es «sin sugerencia» al instante. Hace falta porque el cliente
+ * llamadas a la vez, con un {@link Semaphore}. Hace falta porque el cliente
  * del JDK no limita sus conexiones y el servicio responde 503 desde 10
  * conexiones o tareas abiertas, contando las de keep-alive. Las llamadas
- * llegan de dos lados y <b>compiten por los mismos turnos</b>:</p>
+ * llegan de dos lados y <b>compiten por los mismos turnos</b>, pero no los
+ * esperan igual (NC-04c, decision del usuario del 28/10, segun el
+ * {@link OrigenDeConsulta}):</p>
  * <ul>
- *   <li>la sugerencia oficial, en los hilos del executor asincrono: en la
- *       practica los {@code ASYNC_HILOS_BASE} (2), porque el pool solo crece
- *       hacia {@code ASYNC_HILOS_MAX} (4) con su cola de 100 tareas llena, y
- *       esos hilos tambien envian correos y avisos;</li>
- *   <li>las vistas previas en curso, una por ciudadano con la pantalla
- *       abierta: el turno propio de la vista previa
+ *   <li>las <b>vistas previas</b> en curso, una por ciudadano con la pantalla
+ *       abierta, <b>no esperan</b>: sin turno, «sin sugerencia» al instante y
+ *       el ciudadano elige a mano. El turno propio de la vista previa
  *       ({@code ClasificacionService}) solo acota el saneado y se suelta antes
- *       de llamar aqui, asi que varias pueden estar clasificando a la vez.</li>
+ *       de llamar aqui, asi que varias pueden estar clasificando a la vez;</li>
+ *   <li>la <b>sugerencia oficial</b> espera un turno hasta
+ *       {@code app.clasificacion.http.espera-turno-oficial-ms}
+ *       ({@code CLASIFICACION_ESPERA_TURNO_MS}, 10 s por defecto): es
+ *       asincrona y no hace esperar a nadie, y sin turno se perderia (las
+ *       columnas quedan nulas y no se reintenta, y la foto contaria como «sin
+ *       sugerencia» en la evaluacion del modelo, OE3). Si en ese plazo no se
+ *       libera ninguno, se rinde: «sin sugerencia», como antes. Corre en el
+ *       executor propio de las sugerencias ({@code AsyncConfig}, 2 hilos),
+ *       asi que esperar no retrasa correos ni avisos, y a lo sumo 2 llamadas
+ *       oficiales toman turno a la vez: quedan dos para las vistas
+ *       previas.</li>
  * </ul>
- * <p>Con los dos hilos base clasificando quedan dos turnos para vistas
- * previas. El tope protege al servicio; no reserva turnos para nadie. La
- * llamada que llega sin turno da «sin sugerencia», sea una vista previa (el
- * ciudadano elige a mano) o una sugerencia oficial: esa <b>se pierde</b>, porque
- * las columnas quedan nulas y no se reintenta, y la foto cuenta como «sin
- * sugerencia» en la evaluacion del modelo (OE3).</p>
+ * <p>El tope protege al servicio; no reserva turnos para nadie. Un turno que
+ * se libera mientras una sugerencia oficial espera puede tomarlo antes una
+ * vista previa que llega en ese momento (el semaforo no es justo, y la vista
+ * previa sigue igual que antes); la oficial sigue esperando hasta su plazo.
+ * Ninguna espera puede pasar del plazo: como mucho, la sugerencia oficial
+ * tarda la espera mas los 3 s de la llamada.</p>
  *
  * <p><b>Errores y reintentos.</b> Cualquier respuesta distinta de 200, un
  * timeout o un error de conexion se traducen a
@@ -130,6 +141,15 @@ public class InferenciaHttpAdapter implements ClasificadorDano {
     static final long MS_CONEXION = 500;
     static final long MS_LECTURA = 2_500;
 
+    /** NC-04c: cuanto espera la sugerencia oficial un turno, por defecto (decision del usuario del 28/10). */
+    static final long MS_ESPERA_OFICIAL_POR_DEFECTO = 10_000;
+    /**
+     * Tope de esa espera: mientras espera, ocupa uno de los hilos de las
+     * sugerencias. Un valor mayor seria un error de configuracion.
+     */
+    static final long MS_ESPERA_OFICIAL_MAXIMA = 60_000;
+    static final String PROPIEDAD_ESPERA_OFICIAL = "app.clasificacion.http.espera-turno-oficial-ms";
+
     /** Del cuerpo de un error se copia al log solo un {@code codigo} con esta forma. */
     private static final Pattern CODIGO_DE_ERROR = Pattern.compile("[a-z0-9_]{1,64}");
     /** Lo que se lee del cuerpo de una respuesta de error: basta para el {@code codigo}. */
@@ -145,12 +165,17 @@ public class InferenciaHttpAdapter implements ClasificadorDano {
     private final RestClient restClient;
     private final URI url;
     private final Semaphore turnos = new Semaphore(LLAMADAS_SIMULTANEAS);
+    private final Duration esperaOficial;
 
     @Autowired
-    public InferenciaHttpAdapter(@Value("${app.clasificacion.http.url:}") String urlBase) {
-        this(urlBase, Duration.ofMillis(MS_CONEXION), Duration.ofMillis(MS_LECTURA));
-        log.info("Clasificador HTTP: {} (timeout {} + {} ms, {} llamadas a la vez)", url, MS_CONEXION,
-                MS_LECTURA, LLAMADAS_SIMULTANEAS);
+    public InferenciaHttpAdapter(
+            @Value("${app.clasificacion.http.url:}") String urlBase,
+            @Value("${" + PROPIEDAD_ESPERA_OFICIAL + ":" + MS_ESPERA_OFICIAL_POR_DEFECTO + "}") long msEsperaOficial) {
+        this(RestClient.builder().requestFactory(
+                        fabrica(Duration.ofMillis(MS_CONEXION), Duration.ofMillis(MS_LECTURA))),
+                urlBase, Duration.ofMillis(msEsperaOficial));
+        log.info("Clasificador HTTP: {} (timeout {} + {} ms, {} llamadas a la vez; la sugerencia oficial espera"
+                + " turno hasta {} ms)", url, MS_CONEXION, MS_LECTURA, LLAMADAS_SIMULTANEAS, msEsperaOficial);
     }
 
     /** Con otros timeouts: los tests del timeout real contra un socket local. */
@@ -163,8 +188,24 @@ public class InferenciaHttpAdapter implements ClasificadorDano {
      * {@code MockRestServiceServer}. No toca su {@code requestFactory}.
      */
     InferenciaHttpAdapter(RestClient.Builder builder, String urlBase) {
+        this(builder, urlBase, Duration.ofMillis(MS_ESPERA_OFICIAL_POR_DEFECTO));
+    }
+
+    /** Con otra espera de la sugerencia oficial: los tests la acortan. */
+    InferenciaHttpAdapter(RestClient.Builder builder, String urlBase, Duration esperaOficial) {
         this.url = urlDetecciones(urlBase);
+        this.esperaOficial = esperaOficialValida(esperaOficial);
         this.restClient = builder.build();
+    }
+
+    /** Entre 0 (no espera, como la vista previa) y {@value #MS_ESPERA_OFICIAL_MAXIMA} ms; si no, no arranca. */
+    static Duration esperaOficialValida(Duration espera) {
+        if (espera == null || espera.isNegative() || espera.toMillis() > MS_ESPERA_OFICIAL_MAXIMA) {
+            throw new IllegalStateException("CLASIFICACION_ESPERA_TURNO_MS (" + PROPIEDAD_ESPERA_OFICIAL
+                    + ") debe estar entre 0 y " + MS_ESPERA_OFICIAL_MAXIMA + " ms, no "
+                    + (espera == null ? "vacia" : espera.toMillis() + " ms"));
+        }
+        return espera;
     }
 
     private static JdkClientHttpRequestFactory fabrica(Duration conexion, Duration lectura) {
@@ -198,20 +239,57 @@ public class InferenciaHttpAdapter implements ClasificadorDano {
     }
 
     @Override
-    public ResultadoDeteccion detectar(ArchivoSubido foto) {
+    public ResultadoDeteccion detectar(ArchivoSubido foto, OrigenDeConsulta origen) {
         if (foto == null || foto.vacio()) {
             throw new ClasificacionNoDisponibleException("Foto vacia: no hay nada que clasificar");
         }
-        if (!turnos.tryAcquire()) {
-            log.warn("Inferencia: sin turno, {} llamadas en curso (sin sugerencia)", LLAMADAS_SIMULTANEAS);
-            throw new ClasificacionNoDisponibleException(
-                    "Sin turno para la inferencia: " + LLAMADAS_SIMULTANEAS + " llamadas en curso");
-        }
+        tomarTurno(origen);
         try {
             return llamar(foto);
         } finally {
             turnos.release();
         }
+    }
+
+    /**
+     * Toma un turno o lanza «sin sugerencia». La vista previa no espera; la
+     * sugerencia oficial espera hasta {@link #esperaOficial} (ver la cabecera
+     * de la clase). Si el hilo se interrumpe mientras espera (el executor se
+     * apaga), se rinde y conserva la interrupcion.
+     */
+    private void tomarTurno(OrigenDeConsulta origen) {
+        if (origen != OrigenDeConsulta.SUGERENCIA_OFICIAL) {
+            if (!turnos.tryAcquire()) {
+                log.warn("Inferencia: sin turno para la vista previa, {} llamadas en curso (sin sugerencia)",
+                        LLAMADAS_SIMULTANEAS);
+                throw sinTurno();
+            }
+            return;
+        }
+        long inicio = System.nanoTime();
+        boolean conTurno;
+        try {
+            conTurno = turnos.tryAcquire(esperaOficial.toNanos(), TimeUnit.NANOSECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.warn("Inferencia: la sugerencia oficial se interrumpio esperando turno tras {} ms (sin sugerencia)",
+                    msDesde(inicio));
+            throw new ClasificacionNoDisponibleException("Interrumpida mientras esperaba turno para la inferencia");
+        }
+        long ms = msDesde(inicio);
+        if (!conTurno) {
+            log.warn("Inferencia: la sugerencia oficial espero {} ms sin turno, {} llamadas en curso (sin sugerencia)",
+                    ms, LLAMADAS_SIMULTANEAS);
+            throw sinTurno();
+        }
+        if (ms > 0) {
+            log.info("Inferencia: la sugerencia oficial espero {} ms por un turno", ms);
+        }
+    }
+
+    private static ClasificacionNoDisponibleException sinTurno() {
+        return new ClasificacionNoDisponibleException(
+                "Sin turno para la inferencia: " + LLAMADAS_SIMULTANEAS + " llamadas en curso");
     }
 
     private ResultadoDeteccion llamar(ArchivoSubido foto) {

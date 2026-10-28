@@ -1,5 +1,6 @@
 package pe.edu.upc.viasegura.clasificacion.port;
 
+import pe.edu.upc.viasegura.clasificacion.domain.OrigenDeConsulta;
 import pe.edu.upc.viasegura.clasificacion.domain.ResultadoDeteccion;
 import pe.edu.upc.viasegura.common.port.ArchivoSubido;
 
@@ -44,9 +45,13 @@ public interface ClasificadorDano {
      *             (JPEG sin EXIF, orientado, de 2048 px o menos): la misma que
      *             se guarda, para que la vista previa y la sugerencia oficial
      *             vean la misma imagen (D-08)
+     * @param origen quien la pide (NC-04c): la vista previa no espera turno;
+     *               la sugerencia oficial, asincrona, puede esperarlo. Un
+     *               adaptador sin turnos lo ignora
      * @return la version del modelo y lo detectado (vacio si nada)
      * @throws ClasificacionNoDisponibleException si el servicio no responde, se
-     *         pasa del timeout o responde algo que no cumple el contrato
+     *         pasa del timeout, no hay turno a tiempo o responde algo que no
+     *         cumple el contrato
      */
-    ResultadoDeteccion detectar(ArchivoSubido foto);
+    ResultadoDeteccion detectar(ArchivoSubido foto, OrigenDeConsulta origen);
 }

@@ -21,8 +21,8 @@ import pe.edu.upc.viasegura.reportes.service.SugerenciaCategoriaService;
  *
  * <p>Como {@code ReporteEstadoCambiadoListener} (D-13), solo encola
  * {@link SugerenciaCategoriaService#sugerir}, que es {@code @Async} en el
- * executor acotado de {@code AsyncConfig}: la respuesta al ciudadano no espera
- * al clasificador. Si la cola esta llena, el executor rechaza la tarea y aqui
+ * executor acotado de las sugerencias ({@code AsyncConfig}, NC-04c): la
+ * respuesta al ciudadano no espera al clasificador. Si la cola esta llena, el executor rechaza la tarea y aqui
  * se registra que sugerencia se pierde, sin reintentar en el hilo de la
  * peticion. Perderla se acepta: el reporte no depende de ella, y para la
  * evaluacion (OE3) un reporte sin sugerencia es uno sin dato, no uno

@@ -5,6 +5,7 @@ import java.util.concurrent.Semaphore;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import pe.edu.upc.viasegura.clasificacion.domain.OrigenDeConsulta;
 import pe.edu.upc.viasegura.clasificacion.domain.PoliticaDeSugerencia;
 import pe.edu.upc.viasegura.clasificacion.domain.ResultadoDeteccion;
 import pe.edu.upc.viasegura.clasificacion.domain.Sugerencia;
@@ -24,11 +25,15 @@ import pe.edu.upc.viasegura.common.port.SaneadorDeImagen;
  * <p>Dos usos:</p>
  * <ul>
  *   <li>{@link #vistaPrevia}: el ciudadano sube la foto mientras arma el
- *       reporte. No guarda nada.</li>
- *   <li>{@link #sugerir}: la sugerencia oficial, que
+ *       reporte. No guarda nada. No espera turno de inferencia.</li>
+ *   <li>{@link #sugerenciaOficial}: la que
  *       {@code reportes.service.SugerenciaCategoriaService} pide sobre la foto
- *       ya guardada, despues del commit (D-08).</li>
+ *       ya guardada, despues del commit (D-08). Puede esperar un turno de
+ *       inferencia (NC-04c).</li>
  * </ul>
+ *
+ * <p>El clasificador recibe en cada llamada su {@link OrigenDeConsulta}: el
+ * adaptador decide con eso cuanto espera un turno.</p>
  *
  * <p><b>Sin {@code @Transactional} a proposito.</b> La llamada al servicio de
  * inferencia (hasta 3 s con el adaptador HTTP de NC-04b) no debe retener una
@@ -109,25 +114,32 @@ public class ClasificacionService {
             return ClasificacionResponse.sinSugerencia();
         }
         return sanearSiHayTurno(foto)
-                .flatMap(this::sugerir)
+                .flatMap(saneada -> sugerir(saneada, OrigenDeConsulta.VISTA_PREVIA))
                 .map(ClasificacionResponse::de)
                 .orElseGet(ClasificacionResponse::sinSugerencia);
     }
 
     /**
-     * Sugerencia para una foto <b>ya saneada</b>; no la vuelve a sanear
-     * (recomprimirla daria otros pixeles que los de la vista previa).
+     * Sugerencia oficial para la foto <b>ya saneada</b> y guardada de un
+     * reporte; no la vuelve a sanear (recomprimirla daria otros pixeles que los
+     * de la vista previa). La llama la sugerencia oficial asincrona, asi que el
+     * clasificador puede esperar un turno ({@link OrigenDeConsulta#SUGERENCIA_OFICIAL},
+     * NC-04c).
      *
      * @return la sugerencia, o vacio si no hay una clara, la clasificacion
-     *         esta apagada o el clasificador fallo
+     *         esta apagada o el clasificador fallo (tambien sin turno a tiempo)
      */
-    public Optional<Sugerencia> sugerir(ArchivoSubido fotoSaneada) {
+    public Optional<Sugerencia> sugerenciaOficial(ArchivoSubido fotoSaneada) {
+        return sugerir(fotoSaneada, OrigenDeConsulta.SUGERENCIA_OFICIAL);
+    }
+
+    private Optional<Sugerencia> sugerir(ArchivoSubido fotoSaneada, OrigenDeConsulta origen) {
         if (!clasificador.estaDisponible()) {
             return Optional.empty();
         }
         ResultadoDeteccion resultado;
         try {
-            resultado = clasificador.detectar(fotoSaneada);
+            resultado = clasificador.detectar(fotoSaneada, origen);
         } catch (ClasificacionNoDisponibleException e) {
             log.warn("Clasificacion no disponible, sin sugerencia: {}", e.getMessage());
             return Optional.empty();

@@ -24,7 +24,10 @@ import pe.edu.upc.viasegura.reportes.repository.ReporteRepository;
  *
  * <p><b>Fuera de la transaccion, como las notificaciones (D-13).</b>
  * {@code SugerenciaCategoriaListener} encola {@link #sugerir} despues del
- * commit de la creacion en el executor acotado de {@link AsyncConfig}; este
+ * commit de la creacion en el executor acotado de las sugerencias
+ * ({@link AsyncConfig#EJECUTOR_SUGERENCIAS}, NC-04c), separado del de los
+ * correos y avisos porque la clasificacion puede esperar hasta 10 s un turno
+ * del servicio de inferencia y no debe retrasarlos; este
  * metodo no es transaccional: lee la URL de la foto (consulta corta), la
  * descarga del almacenamiento y la clasifica (I/O, sin conexion de la base
  * tomada) y recien entonces escribe en una transaccion corta
@@ -52,12 +55,12 @@ public class SugerenciaCategoriaService {
     /**
      * Clasifica la foto del reporte y guarda la sugerencia, si la hay.
      *
-     * <p>Corre en el executor acotado; con la cola llena la llamada lanza
+     * <p>Corre en el executor de las sugerencias; con la cola llena la llamada lanza
      * {@code TaskRejectedException} y el listener registra la sugerencia
      * perdida. Un error inesperado escapa al manejador de {@code @Async}, que
      * lo registra (y en los IT hace fallar el test).</p>
      */
-    @Async(AsyncConfig.EJECUTOR)
+    @Async(AsyncConfig.EJECUTOR_SUGERENCIAS)
     public void sugerir(Long reporteId) {
         // Con la clasificacion apagada (CLASIFICACION_TIPO=falso en produccion)
         // no se lee la base ni se descarga la foto para una respuesta que ya se
@@ -69,7 +72,7 @@ public class SugerenciaCategoriaService {
         if (foto.isEmpty()) {
             return;
         }
-        Optional<Sugerencia> sugerencia = clasificacionService.sugerir(foto.get());
+        Optional<Sugerencia> sugerencia = clasificacionService.sugerenciaOficial(foto.get());
         if (sugerencia.isEmpty()) {
             log.debug("Reporte {}: sin sugerencia de categoria", reporteId);
             return;

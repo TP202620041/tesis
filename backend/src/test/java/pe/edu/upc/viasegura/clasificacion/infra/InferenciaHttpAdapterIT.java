@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static pe.edu.upc.viasegura.clasificacion.domain.OrigenDeConsulta.SUGERENCIA_OFICIAL;
+import static pe.edu.upc.viasegura.clasificacion.domain.OrigenDeConsulta.VISTA_PREVIA;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -136,7 +138,7 @@ class InferenciaHttpAdapterIT extends AbstractPostgisIT {
 
     @Test
     void unaFotoSaneada_recibeUnaRespuestaQueCumpleElContrato_yLaLlamadaRegistraSuDuracion(CapturedOutput salida) {
-        ResultadoDeteccion resultado = clasificador.detectar(fotoSaneada(2400, 1800));
+        ResultadoDeteccion resultado = clasificador.detectar(fotoSaneada(2400, 1800), VISTA_PREVIA);
 
         cumpleElContrato(resultado);
         assertThat(salida.getOut()).containsPattern("Inferencia: 200 en \\d+ ms, \\d+ deteccion\\(es\\), modelo "
@@ -149,8 +151,8 @@ class InferenciaHttpAdapterIT extends AbstractPostgisIT {
         // sugerencia oficial ven la misma imagen y reciben lo mismo.
         ArchivoSubido foto = fotoSaneada(1280, 960);
 
-        ResultadoDeteccion primera = clasificador.detectar(foto);
-        ResultadoDeteccion segunda = clasificador.detectar(foto);
+        ResultadoDeteccion primera = clasificador.detectar(foto, VISTA_PREVIA);
+        ResultadoDeteccion segunda = clasificador.detectar(foto, VISTA_PREVIA);
 
         assertThat(segunda).isEqualTo(primera);
     }
@@ -160,7 +162,7 @@ class InferenciaHttpAdapterIT extends AbstractPostgisIT {
         ArchivoSubido noImagen = new ArchivoSubido("esto no es una imagen".getBytes(StandardCharsets.UTF_8),
                 "image/jpeg", "x.jpg");
 
-        assertThatThrownBy(() -> clasificador.detectar(noImagen))
+        assertThatThrownBy(() -> clasificador.detectar(noImagen, VISTA_PREVIA))
                 .isInstanceOf(ClasificacionNoDisponibleException.class)
                 .hasMessageContaining("HTTP 400, imagen_invalida");
         assertThat(salida.getOut()).contains("ERROR").contains("pedido rechazado, HTTP 400, imagen_invalida");
@@ -177,7 +179,7 @@ class InferenciaHttpAdapterIT extends AbstractPostgisIT {
                 llamadas.add(hilos.submit(() -> {
                     salida.await();
                     try {
-                        return clasificador.detectar(foto);
+                        return clasificador.detectar(foto, VISTA_PREVIA);
                     } catch (ClasificacionNoDisponibleException e) {
                         return e.getMessage();
                     }
@@ -199,6 +201,34 @@ class InferenciaHttpAdapterIT extends AbstractPostgisIT {
         } finally {
             hilos.shutdownNow();
         }
+    }
+
+    @Test
+    void seisSugerenciasOficialesSimultaneas_lasSinTurnoEsperan_yTodasRecibenRespuesta(CapturedOutput salida)
+            throws Exception {
+        // NC-04c: las mismas seis llamadas que arriba, pero como sugerencia
+        // oficial. Las dos que no toman turno esperan (10 s como maximo) a que
+        // se libere uno, en vez de perderse; el servicio atiende de a una foto,
+        // asi que la espera real es de alrededor de un segundo.
+        ArchivoSubido foto = fotoSaneada(1600, 1200);
+        CountDownLatch salidaDeLaCarrera = new CountDownLatch(1);
+        ExecutorService hilos = Executors.newFixedThreadPool(6);
+        List<Future<ResultadoDeteccion>> llamadas = new ArrayList<>();
+        try {
+            for (int i = 0; i < 6; i++) {
+                llamadas.add(hilos.submit(() -> {
+                    salidaDeLaCarrera.await();
+                    return clasificador.detectar(foto, SUGERENCIA_OFICIAL);
+                }));
+            }
+            salidaDeLaCarrera.countDown();
+            for (Future<ResultadoDeteccion> llamada : llamadas) {
+                cumpleElContrato(llamada.get(30, TimeUnit.SECONDS));
+            }
+        } finally {
+            hilos.shutdownNow();
+        }
+        assertThat(salida.getOut()).contains("la sugerencia oficial espero").doesNotContain("ms sin turno");
     }
 
     @Test
@@ -241,7 +271,7 @@ class InferenciaHttpAdapterIT extends AbstractPostgisIT {
     @Test
     void lasDeteccionesSeOrdenanDeMayorAMenorConfianza() {
         // El contrato las devuelve asi; el adaptador conserva el orden.
-        List<Deteccion> detecciones = clasificador.detectar(fotoSaneada(2048, 1536)).detecciones();
+        List<Deteccion> detecciones = clasificador.detectar(fotoSaneada(2048, 1536), VISTA_PREVIA).detecciones();
 
         for (int i = 1; i < detecciones.size(); i++) {
             assertThat(detecciones.get(i).confianza()).isLessThanOrEqualTo(detecciones.get(i - 1).confianza());
