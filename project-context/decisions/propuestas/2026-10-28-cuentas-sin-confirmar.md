@@ -1,6 +1,6 @@
 # Propuesta: cuentas sin confirmar (NC-09)
 
-- **Estado:** abierta <!-- abierta | aceptada | rechazada -->
+- **Estado:** aceptada, decidida el 2026-10-28 (ninguna opción tal cual: ver «Decisión») <!-- abierta | aceptada | rechazada -->
 - **Fecha:** 2026-10-28
 - **Origen:** agente de backend, tarea NC-09
 - **Decide:** el usuario. Si se acepta, la sesión de raíz actualiza el plan y abre la tarea que corresponda.
@@ -27,3 +27,13 @@ NC-09 hizo que una cuenta nueva nazca sin confirmar y no pueda iniciar sesión h
 
 ## Qué queda bloqueado mientras no se decida
 Nada de NC-09: el backend funciona con la opción A y el handoff al frontend no depende de esto. Si se elige B, cambia el texto del correo de confirmación («Si no creaste esta cuenta…») y el del README; el contrato del API no cambia.
+
+## Decisión
+
+Del usuario, el **2026-10-28**. No eligió una opción tal cual: descartó B y tomó de C la purga y la comprobación del script.
+
+1. **Recuperar la contraseña (pregunta 1): restablecerla NO confirma el correo, y una cuenta sin confirmar NO puede restablecerla.** En sus palabras: «No pueden restablecer la contraseña de una cuenta no creada, de todas maneras tendrán que pasar por la confirmación del correo». Pedir el restablecimiento para una cuenta sin confirmar responde lo mismo que para una cuenta inexistente (sin correo, sin token, sin revelar nada) y deja un `INFO` sin el correo; un token que hubiera quedado de una cuenta sin confirmar se rechaza. La dueña de un correo ocupado recupera la cuenta confirmándola primero con el enlace del correo de confirmación que recibió (si venció, la página del enlace le deja pedir otro) y cambiando después la contraseña. Si ya no tiene ese correo, la PWA no le muestra dónde pedir el enlace sin la contraseña: queda en `2026-10-28-reenviar-confirmacion-sin-contrasena.md`.
+2. **Cuentas que nunca se confirman (pregunta 2): se purgan a los 30 días**, en una tarea aparte: **BE-15** del plan (`plan-migracion-capas.md`), con sus criterios y tests.
+3. **`asignar-funcionario.sql` (pregunta 3): exige la cuenta confirmada.** Con una cuenta sin confirmar falla con un mensaje claro y no asigna nada.
+
+Implementadas 1 y 3 en **NC-09b** (rama `feature/nc-09b-cuentas-sin-confirmar`); ver «Cuentas sin confirmar (NC-09b)» en `backend/README.md`. El texto del correo de confirmación no cambia. El contrato del API tampoco: el 202 y el 404 son los de siempre.
