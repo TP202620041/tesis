@@ -865,8 +865,11 @@ y manda `captchaToken` en `POST /api/auth/registro`.
   un hueco vacío.
 - **CSP** (`next.config.ts`): `script-src` suma `https://www.google.com`
   (`api.js`) y `https://www.gstatic.com` (el resto del widget); la nueva
-  directiva `frame-src https://www.google.com` deja pasar el iframe de la
-  casilla y del desafío (sin ella regía `default-src 'self'`); y
+  directiva `frame-src https://www.google.com https://recaptcha.google.com`
+  deja pasar el iframe de la casilla y del desafío (sin ella regía
+  `default-src 'self'`; `recaptcha.google.com` lo lista la guía de CSP de
+  reCAPTCHA para el iframe del desafío y se incluye para que nunca quede en
+  blanco en producción); y
   `connect-src` repite los dos hosts de script porque el Service Worker
   vuelve a pedir con `fetch()` los scripts de otro origen (lo mismo que pasó
   con los tiles del mapa).

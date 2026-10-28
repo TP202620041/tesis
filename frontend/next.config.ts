@@ -57,10 +57,12 @@ const TILE_HOSTS = 'https://tile.openstreetmap.org';
 /**
  * reCAPTCHA v2 del registro (NC-08). `api.js` se baja de www.google.com; el
  * cargador trae el resto del widget (`recaptcha__es.js` y sus recursos) de
- * www.gstatic.com; la casilla y el desafio son iframes de www.google.com.
+ * www.gstatic.com; la casilla y el desafio son iframes de www.google.com,
+ * y la guia de CSP de reCAPTCHA lista ademas recaptcha.google.com para el
+ * iframe del desafio: se incluye para que el desafio nunca quede en blanco.
  */
 const RECAPTCHA_SCRIPT_HOSTS = 'https://www.google.com https://www.gstatic.com';
-const RECAPTCHA_FRAME_HOSTS = 'https://www.google.com';
+const RECAPTCHA_FRAME_HOSTS = 'https://www.google.com https://recaptcha.google.com';
 
 /**
  * Content-Security-Policy.
@@ -83,8 +85,9 @@ const RECAPTCHA_FRAME_HOSTS = 'https://www.google.com';
  * reCAPTCHA v2 (NC-08, solo en el registro) necesita tres cosas: sus
  * scripts en `script-src` (`api.js` de www.google.com, el resto de
  * www.gstatic.com), `frame-src` para el iframe de la casilla y del desafio
- * (www.google.com; sin la directiva rige `default-src 'self'` y el widget
- * queda en blanco) y los mismos hosts de script en `connect-src`, por el
+ * (www.google.com y recaptcha.google.com, que la guia de CSP de Google
+ * lista para el desafio; sin la directiva rige `default-src 'self'` y el
+ * widget queda en blanco) y los mismos hosts de script en `connect-src`, por el
  * Service Worker (ver el comentario de `connect-src`). Lo que pasa dentro
  * del iframe se rige por la CSP de Google, no por esta.
  */
