@@ -1,6 +1,7 @@
 package pe.edu.upc.viasegura.auth.infra;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.Optional;
 import jakarta.validation.Validator;
 import jakarta.validation.constraints.Email;
@@ -40,10 +41,14 @@ import pe.edu.upc.viasegura.auth.repository.UsuarioRepository;
  *       caracteres o mas y {@value #BYTES_MAXIMOS_PASSWORD} bytes como maximo;
  *       si no, la aplicacion no arranca.</li>
  *   <li><b>No hay ADMIN y el correo ya tiene cuenta</b> (con otro rol, por
- *       fuerza): la aplicacion no arranca. No la promueve: el registro no
- *       verifica la propiedad del correo, asi que cualquiera pudo registrarse
- *       antes con ese correo y quedaria como ADMIN.</li>
+ *       fuerza): la aplicacion no arranca. No la promueve: cualquiera pudo
+ *       registrarse antes con ese correo y quedaria como ADMIN (hasta NC-09
+ *       el registro no verificaba la propiedad del correo, y una cuenta sin
+ *       confirmar tampoco la prueba).</li>
  * </ul>
+ *
+ * <p>La cuenta nace con el correo confirmado (NC-09): lo dio quien opera el
+ * despliegue, no un registro publico.</p>
  *
  * <p>No registra el consentimiento: el ADMIN acepta los terminos vigentes en
  * su primer inicio de sesion, como cualquier cuenta sin aceptacion (D-12;
@@ -130,8 +135,8 @@ public class AdministradorInicialSeeder implements ApplicationRunner {
         if (existente.isPresent()) {
             // Sin ADMIN en la base, una cuenta con ese correo tiene otro rol.
             throw new IllegalStateException("ADMIN_INICIAL_EMAIL corresponde a una cuenta existente con rol "
-                    + existente.get().getRol() + ". El administrador inicial solo se crea, nunca se promueve: el"
-                    + " registro no verifica la propiedad del correo y cualquiera pudo registrarse antes con el."
+                    + existente.get().getRol() + ". El administrador inicial solo se crea, nunca se promueve:"
+                    + " cualquiera pudo registrarse antes con ese correo."
                     + " Use un correo sin cuenta.");
         }
 
@@ -144,6 +149,11 @@ public class AdministradorInicialSeeder implements ApplicationRunner {
                 .apellido(nombreYApellido[1])
                 .rol(Rol.ADMIN)
                 .activo(true)
+                // NC-09: nace confirmado. El correo lo dio el operador del
+                // despliegue, no un registro publico; sin esto el ADMIN no
+                // podria iniciar sesion hasta pedir un enlace.
+                .correoConfirmado(true)
+                .correoConfirmadoEn(Instant.now())
                 .build());
         log.info("Administrador inicial creado: {}. Borre ADMIN_INICIAL_PASSWORD del entorno;"
                 + " la cuenta acepta los terminos en su primer inicio de sesion.", email);

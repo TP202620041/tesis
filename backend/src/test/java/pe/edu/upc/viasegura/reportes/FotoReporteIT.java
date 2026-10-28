@@ -54,14 +54,14 @@ class FotoReporteIT extends AbstractPostgisIT {
     }
 
     private String tokenCiudadano() throws Exception {
-        MvcResult res = mockMvc.perform(post("/api/auth/registro")
+        String correo = "foto-" + UUID.randomUUID() + "@lima.pe";
+        mockMvc.perform(post("/api/auth/registro")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"email":"foto-%s@lima.pe","password":"secreta123","nombre":"Ana","apellido":"Vecina","aceptaTerminos":true,"versionTerminos":"%s"}
-                                """.formatted(UUID.randomUUID(), versionTerminos)))
-                .andExpect(status().isCreated())
-                .andReturn();
-        return objectMapper.readTree(res.getResponse().getContentAsString()).get("token").asText();
+                                {"email":"%s","password":"secreta123","nombre":"Ana","apellido":"Vecina","aceptaTerminos":true,"versionTerminos":"%s"}
+                                """.formatted(correo, versionTerminos)))
+                .andExpect(status().isCreated());
+        return confirmarEIniciarSesion(correo, "secreta123");
     }
 
     private ResultActions crearReporte(MockMultipartFile foto) throws Exception {

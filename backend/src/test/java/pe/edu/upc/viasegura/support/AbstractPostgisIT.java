@@ -1,5 +1,8 @@
 package pe.edu.upc.viasegura.support;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.Instant;
+import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -7,9 +10,14 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
 import pe.edu.upc.viasegura.auth.domain.FinalidadConsentimiento;
 import pe.edu.upc.viasegura.auth.domain.Usuario;
 import pe.edu.upc.viasegura.auth.dto.AceptarConsentimientoRequest;
@@ -60,6 +68,12 @@ public abstract class AbstractPostgisIT {
     private UsuarioRepository usuarioRepositoryBase;
     @Autowired
     private ConsentimientoService consentimientoServiceBase;
+    @Autowired
+    private JdbcTemplate jdbcTemplateBase;
+    @Autowired
+    private MockMvc mockMvcBase;
+    @Autowired
+    private ObjectMapper objectMapperBase;
 
     /** Puerto de envio push falso (US-21): nunca se llama a un servicio real. */
     @Autowired
@@ -83,11 +97,48 @@ public abstract class AbstractPostgisIT {
      * {@code auth/ConsentimientoIT}. Idempotente: no duplica la aceptacion.
      */
     protected Usuario guardarConTerminos(Usuario usuario) {
+        // NC-09: un usuario de fixture es una cuenta en uso, con el correo
+        // confirmado; los casos sin confirmar estan en auth/ConfirmacionCorreoIT.
+        if (!usuario.isCorreoConfirmado()) {
+            usuario.confirmarCorreo(Instant.now());
+        }
         Usuario guardado = usuarioRepositoryBase.save(usuario);
         if (consentimientoServiceBase.debeAceptarTerminos(guardado.getId())) {
             consentimientoServiceBase.registrarAceptacionDeTerminos(guardado, versionTerminos);
         }
         return guardado;
+    }
+
+    /**
+     * NC-09: marca confirmado el correo de una cuenta registrada por
+     * {@code POST /api/auth/registro}, como si la persona hubiera abierto el
+     * enlace. Directo en la base porque el token solo existe en el correo (se
+     * guarda su hash); el flujo real del enlace lo prueba
+     * {@code auth/ConfirmacionCorreoIT}. Falla si el correo no tiene cuenta.
+     */
+    protected void confirmarCorreo(String email) {
+        int filas = jdbcTemplateBase.update(
+                "UPDATE usuario SET correo_confirmado = TRUE, correo_confirmado_en = now() WHERE email = ?", email);
+        if (filas != 1) {
+            throw new IllegalStateException("No hay una cuenta con el correo " + email + " para confirmar");
+        }
+    }
+
+    /**
+     * NC-09: el registro ya no devuelve un token de sesion. Para los IT que
+     * registran por el API y luego usan la cuenta: confirma el correo
+     * ({@link #confirmarCorreo}) e inicia sesion por {@code POST /api/auth/login},
+     * sin debilitar la regla de que una cuenta sin confirmar no entra.
+     * Devuelve el JWT.
+     */
+    protected String confirmarEIniciarSesion(String email, String password) throws Exception {
+        confirmarCorreo(email);
+        String cuerpo = mockMvcBase.perform(MockMvcRequestBuilders.post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapperBase.writeValueAsString(Map.of("email", email, "password", password))))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        return objectMapperBase.readTree(cuerpo).get("token").asText();
     }
 
     /** Otorga un consentimiento de notificaciones (push o correo) al usuario. */

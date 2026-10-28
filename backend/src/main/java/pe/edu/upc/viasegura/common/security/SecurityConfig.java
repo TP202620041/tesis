@@ -61,6 +61,10 @@ public class SecurityConfig {
             "/api/auth/login",
             "/api/auth/recuperar-password",
             "/api/auth/restablecer-password",
+            // NC-09: la persona todavia no puede iniciar sesion (sin confirmar).
+            // Rutas exactas, como las demas de /api/auth.
+            "/api/auth/confirmar-correo",
+            "/api/auth/reenviar-confirmacion",
             // Indice de desempeno distrital: transparencia ciudadana (US-18/US-20).
             // Ruta EXACTA, no wildcard: /api/desempeno/mi-distrito (US-17) es
             // interno del funcionario y debe exigir autenticacion (401 sin
