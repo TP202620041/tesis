@@ -143,6 +143,25 @@ Decisión del usuario (25/10): opción A de `propuestas/2026-10-22-refresco-indi
 
 Al cerrarla, se decide si el pool de producción vuelve a 10.
 
+### [ ] BE-15 · Las cuentas que nunca confirmaron su correo se borran a los 30 días
+Decisión del usuario (28/10), pregunta 2 de `propuestas/2026-10-28-cuentas-sin-confirmar.md`. Desde NC-09 una cuenta nace sin confirmar. Si nadie abre el enlace, hoy queda para siempre en `usuario`, con nombre, apellido, correo y la aceptación de los términos, sin finalidad (Ley N.° 29733, proporcionalidad), y ocupa el correo («El correo ya está registrado»). Desde NC-09b esa cuenta tampoco puede recuperar la contraseña.
+- Una tarea programada diaria (`@Scheduled`, en el módulo `auth`) borra las cuentas con `correo_confirmado = false` creadas hace más de 30 días. El plazo es configurable y vale 30 días por defecto. El disparador sigue el patrón que fije BE-13, la primera tarea programada; si BE-15 entra antes, lo fija ella y lo justifica en el README.
+- Solo cuentas `CIUDADANO`. Nunca toca una cuenta confirmada, el ADMIN ni un funcionario (desde NC-09b, `asignar-funcionario.sql` no asigna una cuenta sin confirmar).
+- No borra una cuenta con un enlace de confirmación vigente (sin usar, sin anular y sin vencer): quien pidió el enlace con «Reenviar» el día 30 puede usarlo.
+- El `DELETE` vuelve a comprobar `correo_confirmado = false` en la misma sentencia. Si la persona confirma mientras corre la tarea, gana la confirmación. Si gana el borrado, el enlace deja de existir y la PWA muestra `CONFIRMACION_INVALIDA`.
+- Con la cuenta se borran sus filas de `token_confirmacion_correo` y `password_reset_token`. Una cuenta sin confirmar no pudo iniciar sesión, así que no tiene reportes, adhesiones, comentarios, calificaciones, suscripciones push, claves de idempotencia, tickets ni foto de perfil. Si la tarea encuentra alguna de esas filas, no borra la cuenta y deja un WARN con su id.
+- **Abierto, con `/propuesta`:** qué se hace con sus filas de `consentimiento` (D-12). Es la misma duda que en BE-14, y se decide junto con ella. Sin decidirla, la FK impide borrar la cuenta.
+- Sin aviso por correo antes de borrar: la decisión no lo pide y gastaría cuota de Resend. Si se quiere, va con `/propuesta`.
+- Registra con `INFO` cuántas cuentas borró, sin correos.
+- Los términos v2 (§8, marcado `[REVISAR]` en el borrador de `feature/doc-terminos-v2`) pasan a decir el plazo de 30 días. Ese cambio lo hace la sesión de raíz.
+- `backend/README.md`: actualizar «Cuentas sin confirmar (NC-09b)» y «Lo que no cubre» de la sección NC-09.
+
+**Aceptación:**
+- un IT con `created_at` llevado al pasado con `JdbcTemplate` borra solo la cuenta sin confirmar de hace 31 días, y no toca una sin confirmar de hace 29 días, una confirmada de hace 31, ni una sin confirmar de hace 31 con un enlace pedido hace una hora;
+- el correo de la cuenta borrada se puede volver a registrar;
+- la tarea es idempotente (una segunda corrida no borra nada) y registra cuántas borró;
+- Failsafe igual o mayor y ArchUnit en 0.
+
 ---
 
 ## Frontend
@@ -382,4 +401,6 @@ No es migración, es funcionalidad. Se lista aquí para fijar **dónde** va cada
 
 **NC-02 backend, hecha (2026-10-21, PR #74):** `reporte` suma `titulo` (5–120 code points tras el trim), `severidad` (`BAJA < MEDIA < ALTA`, la fija el ciudadano y es pública) y `periodo_gestion_id` (asignado al crear con `MunicipalidadService#periodoVigente`, no expuesto), en V17 con relleno de los reportes existentes. La `Idempotency-Key` ya registrada se resuelve antes de validar los campos nuevos (cola offline). Falta la parte del frontend (handoff `handoffs/2026-10-20-titulo-severidad-reporte.md`). Failsafe `completed` 295 → 309, Surefire 59 → 62, ArchUnit 0 → 0.
 
-**NC-09 backend, hecha (2026-10-28, rama `feature/nc-09-confirmacion-correo`, PR pendiente):** lo descrito en la fila NC-09. Revisión del 28/10 (`revisor-arquitectura`): APTO con observaciones, atendidas en la misma rama (emisión del token con un `UPDATE` condicional para que un reenvío simultáneo no deje dos enlaces válidos, `@DynamicUpdate`, tope diario de 10 reenvíos por cuenta, el token en la query documentado como riesgo aceptado). Queda abierta la propuesta `propuestas/2026-10-28-cuentas-sin-confirmar.md` (recuperar la contraseña también confirma, purga de cuentas sin confirmar, comprobación en `asignar-funcionario.sql`). Falta la parte del frontend (handoff `handoffs/2026-10-28-confirmacion-correo.md`), que debe salir en la misma versión: el registro ya no devuelve sesión. Failsafe `completed` 462 → 486 (13 skipped en local), Surefire 390 → 445, ArchUnit 0 → 0 (almacén sin cambios), JaCoCo líneas 93,3 %.
+**NC-09 backend, hecha (2026-10-28, rama `feature/nc-09-confirmacion-correo`, PR pendiente):** lo descrito en la fila NC-09. Revisión del 28/10 (`revisor-arquitectura`): APTO con observaciones, atendidas en la misma rama (emisión del token con un `UPDATE` condicional para que un reenvío simultáneo no deje dos enlaces válidos, `@DynamicUpdate`, tope diario de 10 reenvíos por cuenta, el token en la query documentado como riesgo aceptado). La propuesta `propuestas/2026-10-28-cuentas-sin-confirmar.md` (recuperar la contraseña sin confirmar, purga de cuentas sin confirmar, comprobación en `asignar-funcionario.sql`) la decidió el usuario el 28/10: ver NC-09b abajo y BE-15. Falta la parte del frontend (handoff `handoffs/2026-10-28-confirmacion-correo.md`), que debe salir en la misma versión: el registro ya no devuelve sesión. Failsafe `completed` 462 → 486 (13 skipped en local), Surefire 390 → 445, ArchUnit 0 → 0 (almacén sin cambios), JaCoCo líneas 93,3 %.
+
+**NC-09b backend, hecha (2026-10-28, rama `feature/nc-09b-cuentas-sin-confirmar`, PR pendiente):** las respuestas del usuario del 28/10 a `propuestas/2026-10-28-cuentas-sin-confirmar.md`. (a) Una cuenta sin confirmar no recupera la contraseña, y restablecerla no confirma el correo: `recuperar-password` responde como con un correo sin cuenta (202, sin token ni correo, un `INFO` sin el correo), y un token que hubiera quedado de esa cuenta da el mismo 404 que uno inexistente, sin cambiar nada; el listener tampoco lo envía. Sin cambio de contrato. (b) La purga a los 30 días queda como **BE-15**. (c) `asignar-funcionario.sql` falla con una cuenta sin confirmar, sin asignar nada; el aviso inicial dice si la cuenta confirmó. IT: `PasswordResetIT` (+4) y `AsignarFuncionarioScriptIT` (2, corre el bloque `DO` leído del archivo); el script también se probó a mano con el `psql` del contenedor. Failsafe `completed` 486 → 492 (13 skipped en local), Surefire 445 → 445, ArchUnit 0 → 0 (almacén sin cambios), JaCoCo líneas 93,3 %.
