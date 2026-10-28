@@ -5,7 +5,7 @@
 - **Origen:** subagente arquitecto, encargo del coordinador: diseñar la moderación de contenido y dejarla lista para implementar.
 - **Decide:** el usuario.
   - **Ya registrado:** ARCHITECTURE.md (módulo `moderacion`, contrato `/v1/moderacion`, entidades y la fila **D-15**) y las fichas NC-10 y NC-11 de `plan-migracion-capas.md`.
-  - **Falta:** la fila del sprint (§10), que el coordinador pasa a `plan-sprints.md`.
+  - **También registrado (28/10):** la fila del S7 y el párrafo de la moderación en `plan-sprints.md` (§10).
 
 > Licencias, tamaños y precios consultados el **28/10/2026** en las fuentes citadas. Las cifras de RAM y latencia se midieron ese día en el portátil de desarrollo (i7-13620H, Windows, onnxruntime 1.31.1), fuera del repo, y en Railway hay que volver a medirlas. Lo marcado **SUPUESTO** no se verificó. Esto no es asesoría legal.
 
@@ -500,7 +500,9 @@ La imagen de `inferencia` crece unos 22 MB (de 637 a ~660 MB), lo que no tiene c
 | **Despliegue** | Variables `MODERACION_TIPO`, `MODERACION_URL` y `MODERACION_UMBRAL` en el backend, e `INFERENCIA_MODERACION_HILOS=1` en `inferencia`. Healthcheck `/salud` en Railway. Runbook: el interruptor `ninguna` (§10), la purga manual de una URL y el procedimiento ante material ilegal. Orden: NC-10a desplegado antes que el backend con `http` |
 | **Otras tareas** | BE-11 (la foto sin transacción) va antes que NC-10b. BE-12 (el refresco asíncrono) también cubre el evento nuevo. BE-14 anonimiza `denuncia_reporte`. NC-06 (índice por periodo), cuando rehaga la vista, conserva el filtro `NOT r.oculto` |
 
-## 10. Plan de sprints (fila propuesta, que el coordinador pasa a `plan-sprints.md`)
+## 10. Plan de sprints (pasado a `plan-sprints.md` el 28/10)
+
+**Pasado a `plan-sprints.md`**, con la fila del S7, el párrafo «La moderación entra al S7» y la fila en «Decisiones del usuario que bloquean sprints». Lo que sigue queda como registro de la propuesta.
 
 Decisión 17: NC-10 y NC-11 entran en la **v0.8.0**, junto con los términos v2. Por eso no se abre un sprint aparte: se suman al S7, que es el de esa versión.
 
@@ -540,5 +542,5 @@ Decisión 17: NC-10 y NC-11 entran en la **v0.8.0**, junto con los términos v2.
 ## Qué queda pendiente
 
 - **Confirmación del asesor** sobre el procedimiento ante material ilegal (decisión 16). Hace falta antes de abrir a usuarios reales. No bloquea la implementación.
-- **La fila del S7 en `plan-sprints.md`:** la agrega el coordinador (§10).
+- **La fila del S7 en `plan-sprints.md`:** hecha el 28/10 (§10).
 - **Nada bloquea NC-10 ni NC-11:** las fichas están desbloqueadas. BE-11 conviene que entre antes que NC-10b.

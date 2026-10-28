@@ -37,7 +37,7 @@ Hay un carril de backend y uno de frontend en paralelo. En un mismo sprint el fr
 | S4 | US-11 (endpoint de densidad) · BE-06 (incluye `ReincidenciaDetector` → `domain/`) · BE-10 | US-11 (capa de calor) · FE-06 | v0.5.0 |
 | S5 | NC-01 · NC-02 | US-19 · FE-07 · FE-08 | v0.6.0 |
 | Despliegue | DEP-01..DEP-05 · DEP-08 · DEP-11 · DEP-12 · correcciones de QA-1 · CI (DEP-07) | DEP-06 · correcciones de QA-1 · fase 1 del diseño «Cívica» (DIS-1, con US-23) | v0.7.0 |
-| S7 | NC-03a (`inferencia/`) · NC-04 (`clasificacion`) · NC-04b (adaptador HTTP de `clasificacion` al servicio `inferencia/`) · DEP-13 (servicio `inferencia` en Railway, solo por la red privada) · BE-11 (la foto se sube fuera de la transacción de creación) · BE-12 (refresco asíncrono y coalescido del índice) | NC-04 (vista previa al reportar) · FE-09 (adelantada) · atribución de RDD2022 (CC BY-SA 4.0) y de los pesos RF-DETR (Apache-2.0) en «Acerca de» o en los términos · aviso de que la foto se analiza automáticamente (nueva versión de los términos, D-12) | v0.8.0 |
+| S7 | NC-03a (`inferencia/`) · NC-04 (`clasificacion`) · NC-04b (adaptador HTTP de `clasificacion` al servicio `inferencia/`) · DEP-13 (servicio `inferencia` en Railway, solo por la red privada) · BE-11 (la foto se sube fuera de la transacción de creación) · BE-12 (refresco asíncrono y coalescido del índice) · BE-13 (las consultas de soporte se borran 3 meses después de respondidas) · BE-14 (cierre de cuenta con anonimización) · BE-15 (las cuentas sin confirmar se borran a los 30 días) · NC-09 (confirmación del correo, #122) · NC-10a (`inferencia/`: moderación de la foto, `/v1/moderacion`) · NC-10b (módulo `moderacion`: foto y texto) · NC-11a (ocultar y denunciar) | NC-04 (vista previa al reportar) · FE-09 (adelantada) · atribución de RDD2022 (CC BY-SA 4.0) y de los pesos RF-DETR (Apache-2.0) en «Acerca de» o en los términos · aviso de que la foto se analiza automáticamente (nueva versión de los términos, D-12) · NC-09 (confirmación del correo en la PWA, #123) · NC-10c (avisos de moderación) · NC-11b (denunciar y bandeja de moderación del ADMIN) | v0.8.0 |
 | S6 | NC-05 · NC-06 · BE-08 | NC-06 (dashboard por periodo, reemplaza US-17 v1) | v0.9.0 |
 | S8 | Ajustes que pida el diseño | **Diseño de la interfaz, fase 2** (mapa con hoja inferior, reporte en pasos, bandeja con panel, portada y desempeño), revisión de cada pantalla y US-24 (guía de uso) | v1.0.0 |
 
@@ -92,6 +92,33 @@ Hay un carril de backend y uno de frontend en paralelo. En un mismo sprint el fr
 - **Ficha y criterios:** `plan-migracion-capas.md`, BE-12.
 - **Mientras tanto:** producción corre con el pool en 20 (`SPRING_DATASOURCE_HIKARI_MAXIMUMPOOLSIZE`, runbook §5.2).
 
+**NC-09 y BE-15 entran al S7 (decisiones del usuario del 28/10).**
+- **NC-09:** confirmación del correo al crear la cuenta.
+  - Backend en #122, ya en `develop`; PWA en #123.
+  - El registro deja de devolver sesión, así que **las dos partes salen en la misma versión**.
+- **BE-15:** borra las cuentas que nunca se confirman, 30 días después de crearlas (`propuestas/2026-10-28-cuentas-sin-confirmar.md`). Una cuenta sin confirmar tampoco puede restablecer la contraseña. La ficha la escribe el agente de backend en `plan-migracion-capas.md`.
+- Los términos v2 prometen las dos (§2 y §8). Por eso van en la v0.8.0, junto con BE-13 y BE-14.
+
+**La moderación entra al S7 (decisión del usuario del 28/10).** Propuesta `propuestas/2026-10-28-moderacion-de-contenido.md` (decidida) y D-15 en ARCHITECTURE.md. Fichas y criterios: `plan-migracion-capas.md`, NC-10 y NC-11.
+- **Qué entra:**
+  - **NC-10:** la foto se revisa en `inferencia/` (`/v1/moderacion`, con Marqo `nsfw-image-detection-384`, Apache-2.0, umbral inicial 0,70). Una foto sexual u obscena se rechaza al subirla y nunca se guarda. Una lista propia de groserías filtra el título, la descripción, los comentarios y el nombre del perfil;
+  - **NC-11:** el ADMIN oculta un reporte o solo su foto, con motivo y registro en la línea de tiempo. Los ciudadanos denuncian con «Denunciar contenido», una vez por reporte y hasta 10 por día.
+- **Decisiones del 28/10:**
+  - **falla cerrada:** sin servicio de moderación, un reporte con foto recibe 503 y la PWA ofrece la cola sin conexión o «Enviar sin foto». `MODERACION_TIPO=ninguna` es el interruptor de emergencia;
+  - **un reporte oculto sale del índice, de la exportación y de la bandeja municipal.** SEC-01 se mantiene, porque solo el ADMIN oculta y la municipalidad nunca. Ocultar solo la foto no saca al reporte del índice;
+  - la foto de reporte lleva `s-maxage=3600`, con purga manual en Cloudflare para los casos urgentes;
+  - la moderación va **dentro de los términos v2**, que la prometen. Si NC-10 o NC-11 no llegan a la v0.8.0, la sesión de raíz recorta su párrafo antes de publicar;
+  - el procedimiento ante material ilegal lo confirma el usuario con su asesor antes de abrir a usuarios reales.
+- **Orden dentro del S7:**
+  - **carril de backend:** NC-10a (`inferencia/`), BE-11, NC-10b y NC-11a. NC-10b necesita BE-11, porque la foto se sanea y se modera sin transacción;
+  - **carril de frontend:** NC-10c cuando NC-10b esté en `develop`, y NC-11b cuando lo esté NC-11a;
+  - cada contrato nuevo con su handoff (`/contrato`).
+- **Producción:**
+  - DEP-13 se despliega con el modelo de moderación de NC-10a. Después se cargan en el backend `MODERACION_TIPO=http` y `MODERACION_URL` (con Alt + Deploy, antes de fusionar la release), igual que `CLASIFICACION_*`;
+  - el backend con `http` no llega a producción sin el servicio, porque con la falla cerrada ningún reporte con foto entraría;
+  - en `inferencia` se configura el healthcheck `/salud` en Railway, para que un redespliegue no corte la moderación.
+- **Costo:** unos **US$ 1 más al mes**: unos 65 MiB de RAM del modelo, CPU despreciable y algo de egreso por `s-maxage`. El total esperado pasa de unos US$ 9–11 a unos **US$ 10–12** al mes.
+
 El sprint «Despliegue» se intercaló el 21/10 por decisión del usuario, así que S6 y S7 se corren una versión (y el 25/10 se intercambian, ver arriba). v0.7.0 es el MVP listo para desplegar: el primer despliegue (DEP-09) y su prueba de humo (DEP-10) esperan las cuentas del usuario, y lo que exijan corregir sale como hotfix `v0.7.x`. El sistema visual y US-23 del S8 se adelantaron en ese sprint con la dirección «Cívica» (`docs/diseno/`); en el S8 quedan la fase 2 del rediseño y US-24.
 
 Ya hechas antes de S1: BE-01, BE-02, BE-07, FE-01 y FE-02.
@@ -106,6 +133,8 @@ Ya hechas antes de S1: BE-01, BE-02, BE-07, FE-01 y FE-02.
 | S7 | Clases finales del modelo y umbral (NC-03): **decidido el 21/10** (`propuestas/2026-10-21-ml-clases-modelo.md`: `bache` y `grieta` de RDD2022, umbral 0,50). NC-04 arranca con un adaptador falso. |
 | v0.8.0 | Si la versión sale con el modelo real: **decidido el 26/10**, sí (NC-04b y DEP-13 entran al S7). |
 | v0.8.0 | El aviso del análisis automático de la foto como nueva versión de los términos: si los ciudadanos que ya aceptaron tienen que volver a aceptar (D-12). **Decidido el 26/10:** sí, todos vuelven a aceptar. |
+| v0.8.0 | Confirmación del correo (NC-09) y purga de las cuentas sin confirmar (BE-15). **Decidido el 28/10:** una cuenta sin confirmar no inicia sesión ni restablece la contraseña, y se borra a los 30 días. |
+| v0.8.0 | Moderación de contenido (NC-10 y NC-11). **Decidido el 28/10:** entra en la v0.8.0, dentro de los términos v2 (`propuestas/2026-10-28-moderacion-de-contenido.md`, D-15). Antes de abrir a usuarios reales falta la confirmación del asesor sobre el procedimiento ante material ilegal. Eso no bloquea el sprint. |
 
 ## Ejecución
 
