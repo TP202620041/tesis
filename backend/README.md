@@ -2537,7 +2537,7 @@ el usuario (ver «Pendiente»).
   `docker run --rm -d --name inferencia -p 8090:8000 --cpus=2 ciudadviva-inferencia`
   y `CLASIFICACION_TIPO=http CLASIFICACION_URL=http://localhost:8090`.
 - **`prod`**: `CLASIFICACION_TIPO` **obligatoria**, sin valor por defecto
-  (como `FOTOS_ALMACEN` y `CORREO_TIPO`): `http` en el despliegue. La
+  (como `FOTOS_ALMACEN`, `CORREO_TIPO` y `CAPTCHA_TIPO`): `http` en el despliegue. La
   respuesta del falso sigue vacía y **literal**, no por entorno, así que
   `CLASIFICACION_TIPO=falso` es el interruptor para apagar la clasificación
   sin escribir nada más: `estaDisponible()` en `false`, nunca sugiere ni

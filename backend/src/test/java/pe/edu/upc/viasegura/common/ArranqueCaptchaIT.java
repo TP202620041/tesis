@@ -24,7 +24,8 @@ import pe.edu.upc.viasegura.ViaSeguraApplication;
  *
  * <p>Mismo montaje que {@code ArranqueCorreoIT}: la aplicacion real sin BD
  * (la URL apunta a un puerto cerrado) y todo lo demas obligatorio en prod por
- * argumento, para que el fallo sea el del captcha.</p>
+ * argumento, incluido {@code CLASIFICACION_TIPO} (NC-04b), para que el fallo
+ * sea el del captcha.</p>
  */
 class ArranqueCaptchaIT {
 
@@ -48,6 +49,7 @@ class ArranqueCaptchaIT {
                 "--FOTOS_ALMACEN=local",
                 "--CORREO_TIPO=smtp",
                 "--NOTIF_FROM=Ciudad Viva <no-reply@ciudadviva.test>",
+                "--CLASIFICACION_TIPO=falso",
         };
     }
 

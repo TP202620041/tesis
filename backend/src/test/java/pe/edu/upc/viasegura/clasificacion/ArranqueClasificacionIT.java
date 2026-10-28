@@ -19,8 +19,9 @@ import pe.edu.upc.viasegura.ViaSeguraApplication;
  * desarrollo por defecto, un despliegue que olvidara la variable quedaria con
  * la clasificacion apagada, y nada lo advertiria: cualquier falla del
  * adaptador tambien termina en «sin sugerencia». Mismo criterio que
- * {@code FOTOS_ALMACEN} y {@code CORREO_TIPO} ({@code ArranqueAlmacenDeFotosIT},
- * {@code ArranqueCorreoIT}): mejor que no arranque.</p>
+ * {@code FOTOS_ALMACEN}, {@code CORREO_TIPO} y {@code CAPTCHA_TIPO}
+ * ({@code ArranqueAlmacenDeFotosIT}, {@code ArranqueCorreoIT},
+ * {@code ArranqueCaptchaIT}): mejor que no arranque.</p>
  *
  * <p><b>Con {@code http} y sin {@code CLASIFICACION_URL}.</b>
  * {@code ValidacionTipoClasificador} lo rechaza antes de crear ningun bean,
@@ -49,7 +50,8 @@ class ArranqueClasificacionIT {
                 "--FOTOS_DIR=" + System.getProperty("java.io.tmpdir") + "/viasegura-test-fotos",
                 "--FOTOS_ALMACEN=local",
                 "--CORREO_TIPO=smtp",
-                "--NOTIF_FROM=Ciudad Viva <no-reply@ciudadviva.test>"));
+                "--NOTIF_FROM=Ciudad Viva <no-reply@ciudadviva.test>",
+                "--CAPTCHA_TIPO=ninguno"));
     }
 
     @Test
