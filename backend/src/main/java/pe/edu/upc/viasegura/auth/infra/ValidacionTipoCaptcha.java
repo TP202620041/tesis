@@ -1,4 +1,4 @@
-package pe.edu.upc.viasegura.common.config;
+package pe.edu.upc.viasegura.auth.infra;
 
 import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
@@ -8,7 +8,14 @@ import org.springframework.stereotype.Component;
 
 /**
  * Valida {@code app.captcha.tipo} ({@code CAPTCHA_TIPO}) al arrancar (NC-08),
- * con el mismo criterio que {@link ValidacionCorreoSaliente}.
+ * con el mismo criterio que {@code common/config/ValidacionCorreoSaliente}.
+ *
+ * <p><b>Vive en {@code auth/infra} y no en {@code common/config}</b>
+ * (ARCHITECTURE.md §4.3): {@code common} es para lo transversal, y el captcha
+ * solo lo usa el registro de {@code auth}. {@code ValidacionCorreoSaliente}
+ * si esta en {@code common} porque el correo lo usan varios modulos. Es el
+ * mismo criterio que {@code clasificacion/infra/ValidacionTipoClasificador}:
+ * la validacion queda junto a los adaptadores que elige.</p>
  *
  * <p>Los dos adaptadores de captcha se eligen con {@code @ConditionalOnProperty}:
  * {@code SinCaptchaAdapter} con {@code ninguno} (o sin la propiedad) y

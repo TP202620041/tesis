@@ -19,7 +19,7 @@ import pe.edu.upc.viasegura.ViaSeguraApplication;
  * {@code RecaptchaV2AdapterTest}: ese fallo llega al crear el adaptador.)</p>
  *
  * <p><b>Con un valor que no elige ningun adaptador</b> ({@code hcaptcha}):
- * {@code common/config/ValidacionTipoCaptcha} lo rechaza antes de crear
+ * {@code auth/infra/ValidacionTipoCaptcha} lo rechaza antes de crear
  * ningun bean, con un mensaje que nombra la variable.</p>
  *
  * <p>Mismo montaje que {@code ArranqueCorreoIT}: la aplicacion real sin BD

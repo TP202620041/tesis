@@ -1,4 +1,4 @@
-package pe.edu.upc.viasegura.common.config;
+package pe.edu.upc.viasegura.auth.infra;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
