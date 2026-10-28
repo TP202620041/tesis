@@ -150,3 +150,49 @@ describe('CampoFoto con una foto ya elegida (DEP-11)', () => {
     expect(input).toHaveAccessibleDescription('JPG, PNG o WEBP, de hasta 10 MB.');
   });
 });
+
+describe('CampoFoto: la foto que rechazó el servidor (NC-04)', () => {
+  const RECHAZO =
+    'Formato de foto no permitido (usa JPG, PNG o WEBP). Elige otra foto o quítala: con esta, el reporte no se podrá enviar.';
+
+  beforeEach(() => {
+    Object.assign(URL, {
+      createObjectURL: vi.fn(() => 'blob:vista-previa'),
+      revokeObjectURL: vi.fn(),
+    });
+  });
+
+  afterEach(() => {
+    cleanup();
+    const urlMutable = URL as unknown as Record<string, unknown>;
+    delete urlMutable.createObjectURL;
+    delete urlMutable.revokeObjectURL;
+  });
+
+  it('el motivo va junto a la foto, asociado al campo, que queda inválido', () => {
+    render(<CampoFoto valor={archivo('falsa.jpg', 'image/jpeg')} onCambiar={vi.fn()} rechazo={RECHAZO} />);
+
+    const alerta = screen.getByRole('alert');
+    expect(alerta).toHaveTextContent(RECHAZO);
+    const input = screen.getByLabelText('Foto del daño (opcional)');
+    expect(input).toHaveAttribute('aria-invalid', 'true');
+    expect(input.getAttribute('aria-describedby')).toContain(alerta.id);
+    expect(screen.getByRole('button', { name: 'Cambiar' })).toHaveAccessibleDescription(
+      `${RECHAZO} JPG, PNG o WEBP, de hasta 10 MB.`,
+    );
+  });
+
+  it('el aviso previo (el análisis automático) se ve antes de elegir y describe el campo', () => {
+    render(<CampoFoto valor={null} onCambiar={vi.fn()} aviso="Al elegirla, la analizamos." />);
+    expect(screen.getByText('Al elegirla, la analizamos.')).toBeInTheDocument();
+    expect(screen.getByLabelText('Foto del daño (opcional)')).toHaveAccessibleDescription(
+      'JPG, PNG o WEBP, de hasta 10 MB. Al elegirla, la analizamos.',
+    );
+  });
+
+  it('sin foto no hay rechazo que mostrar', () => {
+    render(<CampoFoto valor={null} onCambiar={vi.fn()} rechazo={RECHAZO} />);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Foto del daño (opcional)')).not.toHaveAttribute('aria-invalid');
+  });
+});

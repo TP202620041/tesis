@@ -46,8 +46,9 @@ export async function distritoPorCoordenadas(
 /**
  * Categorias seleccionables (US-05, US-29).
  *
- * Sin `distritoId` el backend devuelve solo las 6 estandar; con el, agrega
- * las personalizadas de ese distrito. Por eso el formulario vuelve a
+ * Sin `distritoId` el backend devuelve solo las estandar activas (5 desde
+ * V19, que desactivo «Hueco en calzada»: NC-04); con el, agrega las
+ * personalizadas de ese distrito. Por eso el formulario vuelve a
  * pedirlas cuando se resuelve la ubicacion: antes de conocer el distrito no
  * hay forma de saber que categorias propias ofrece esa municipalidad.
  */

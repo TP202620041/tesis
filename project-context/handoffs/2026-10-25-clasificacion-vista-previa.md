@@ -1,10 +1,12 @@
 # Handoff de contrato: vista previa de la categoría por la foto (NC-04)
 
-- **Estado:** pendiente <!-- pendiente | atendido -->
+- **Estado:** atendido <!-- pendiente | atendido -->
 - **Fecha:** 2026-10-25
 - **Origen:** backend, rama `feature/nc-04-clasificacion`, commit `6106cb8` y las observaciones de la revisión en el commit siguiente (PR por abrir)
 - **Historia o tarea:** NC-04 fase 0 (cambia US-05; propuesta aceptada `decisions/propuestas/2026-10-21-ml-clases-modelo.md`)
-- **Atendido por:** _(frontend, rama y fecha)_
+- **Atendido por:** frontend, rama `feature/nc-04-vista-previa`, 2026-10-26. La PWA propone la categoría con un botón, sin preseleccionarla (`frontend/README.md`, «Sugerencia de la categoría por la foto (NC-04)»). **Con pendientes** (WORKFLOW §6, paso 3), porque el backend no estaba corriendo:
+  - `ClasificacionResponse` está **escrito a mano** en `frontend/src/lib/types/domain.ts`, según este handoff. Falta `npm run api:sync` con el backend levantado para regenerar `schema.ts` y dejarlo como alias del tipo generado.
+  - Falta la prueba contra el backend en perfil `local` con el clasificador falso (`CLASIFICACION_FALSO_RESPUESTA` = `bache:0.87`, vacío y `falla`). Hasta ahora solo la cubren los tests de Vitest.
 
 ## Endpoints afectados
 | Método | Ruta | Cambio |
