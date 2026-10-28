@@ -58,7 +58,7 @@ Los 409 de siempre («El correo ya está registrado», la versión de los térmi
 | 400 | — | `Error de validación`, detalle `Falta el código del enlace de confirmación` o `El enlace de confirmación no es válido` | Página sin `token` o con uno de más de 100 caracteres: mostrar lo mismo que `CONFIRMACION_INVALIDA` sin llamar al API. |
 
 ### `POST /api/auth/reenviar-confirmacion`
-Responde **202 sin cuerpo en todos los casos**: cuenta inexistente, ya confirmada, tope alcanzado o enlace enviado. No permite averiguar qué correos tienen cuenta. Topes por cuenta: **uno por minuto** (el del registro cuenta) y **5 por hora**; un pedido de más no envía nada y responde igual. Por eso la PWA:
+Responde **202 sin cuerpo en todos los casos**: cuenta inexistente, ya confirmada, tope alcanzado o enlace enviado. No permite averiguar qué correos tienen cuenta. Topes por cuenta: **uno por minuto** (el del registro cuenta) , **5 por hora** y **10 por día**; un pedido de más no envía nada y responde igual. Por eso la PWA:
 - muestra siempre «Si tu cuenta está pendiente de confirmar, te enviamos un enlace nuevo. Revisa tu correo (y la carpeta de spam).»;
 - **deshabilita el botón «Reenviar» 60 segundos** después de registrarse o de cada reenvío (la respuesta no dice si se envió).
 
@@ -70,6 +70,7 @@ El correo trae este enlace: `<origen de la PWA>/confirmar-cuenta?token=<43 carac
 - Página **pública**, en el grupo `(auth)`, sin exigir sesión. Si hay una sesión abierta, no importa: la confirmación no la toca.
 - Al cargar, lee `token` de `searchParams` (async en Next 16), lo **saca de la URL** (`history.replaceState`) para que no quede en el historial ni en el `Referer`, y llama una sola vez a `POST /api/auth/confirmar-correo` (cuidado con el doble efecto de React en desarrollo: el segundo llamado daría `CORREO_YA_CONFIRMADO`, que igual se trata como éxito).
 - La página no carga recursos de terceros (el token está en la URL al llegar).
+- El token va en la query, así que la primera petición a la PWA lo lleva y puede quedar en los registros de acceso de Vercel; `replaceState` no lo evita. Se acepta (un solo uso, 24 h, inútil una vez confirmada la cuenta). Si se quisiera evitar, el cambio sería pasar a un fragmento (`#token=`), y lo haría primero el backend.
 - No inicia sesión: termina con un botón a `/login`.
 
 ## Cambios en pantallas existentes
