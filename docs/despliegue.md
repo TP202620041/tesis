@@ -368,7 +368,7 @@ Si el correo ya tiene una cuenta con otro rol, o la contraseña no cumple el lar
 
 ### 7.2 Funcionarios (DEP-05)
 
-1. La persona se registra en `$PWA`, abre el enlace de confirmación que le llega al correo y **confirma que el registro le funcionó a ella** (inicia sesión con su contraseña). Si al registrarse vio «El correo ya está registrado», no se asigna: primero recupera la cuenta con «¿Olvidaste tu contraseña?» (cuando DEP-08 funcione) o se revisa la cuenta con ella. Desde NC-09 el registro verifica la propiedad del correo: una cuenta no inicia sesión sin abrir el enlace que llega a ese buzón, así que entrar con la contraseña prueba que el correo es suyo. Las cuentas creadas antes de NC-09 quedaron confirmadas sin esa prueba. El script muestra la fecha de registro de la cuenta antes de cambiarla.
+1. La persona se registra en `$PWA`, abre el enlace de confirmación que le llega al correo y **confirma que el registro le funcionó a ella** (inicia sesión con su contraseña). Si al registrarse vio «El correo ya está registrado», alguien pudo registrarse antes con su correo: no se asigna hasta que ella recupere la cuenta. Desde NC-09b «¿Olvidaste tu contraseña?» no envía nada a una cuenta sin confirmar, así que el orden es: primero confirma la cuenta con el enlace del correo de confirmación que recibió cuando se registró la otra persona (si venció, la página del enlace le deja pedir otro); si ya no tiene ese correo, lo pide de nuevo con «Reenviar el enlace», que «¿Olvidaste tu contraseña?» ofrece después de pedir el token (NC-09c). Con la cuenta confirmada, cambia la contraseña con «¿Olvidaste tu contraseña?» y entra con ella. Si nada de eso funciona, se revisa la cuenta con ella. Desde NC-09 el registro verifica la propiedad del correo: una cuenta no inicia sesión sin abrir el enlace que llega a ese buzón, así que entrar con la contraseña prueba que el correo es suyo. Las cuentas creadas antes de NC-09 quedaron confirmadas sin esa prueba. El script muestra la fecha de registro de la cuenta antes de cambiarla.
 2. Desde la raíz del repo:
 
    ```bash
@@ -398,7 +398,7 @@ Después de cada despliegue de `main`. La corre `qa-e2e` con la PWA en el navega
 | 7 | CORS desde `$PWA` y desde otro origen | Pasa / 403 (§6) |
 | 8 | Cabecera CSP en `$PWA` | Incluye `$API` |
 | 9 | `/sw.js`, manifest e iconos | 200; Android ofrece instalar con el icono |
-| 10 | Recuperar contraseña con una cuenta real y con una inexistente | 202 en ambos; el correo llega solo a la real |
+| 10 | Recuperar contraseña con una cuenta confirmada, con una sin confirmar y con una inexistente | 202 en los tres; el correo con el token llega solo a la confirmada (NC-09b). En los tres la PWA muestra el mismo aviso «Si todavía no confirmaste tu cuenta, no te llegará este correo…» con «Reenviar el enlace»; con la cuenta sin confirmar, ese botón hace llegar el enlace de confirmación (NC-09c) |
 | 11 | Push: activar en Android y en un iPhone con la PWA instalada; cambiar el estado del reporte como funcionario | Llega el aviso |
 | 12 | Exportar a Excel desde la bandeja | Descarga el `.xlsx` |
 | 13 | `$API/actuator/env`, `$API/v3/api-docs` | No responden 200 |
