@@ -38,6 +38,11 @@ describe('captcha (NC-08)', () => {
     expect(url.searchParams.get('hl')).toBe('es');
   });
 
+  it('el script cae bajo la ruta /recaptcha/ que permite la CSP de next.config.ts', () => {
+    // La CSP no abre www.google.com entero, solo `https://www.google.com/recaptcha/`.
+    expect(URL_SCRIPT_CAPTCHA.startsWith('https://www.google.com/recaptcha/')).toBe(true);
+  });
+
   it('usa el widget compacto cuando el normal no cabe', () => {
     expect(tamanoDelWidget(ANCHO_WIDGET_NORMAL)).toBe('normal');
     expect(tamanoDelWidget(400)).toBe('normal');

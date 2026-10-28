@@ -55,14 +55,23 @@ const apiBaseUrl = apiBaseUrlDelEntorno ?? 'http://localhost:8080';
 const TILE_HOSTS = 'https://tile.openstreetmap.org';
 
 /**
- * reCAPTCHA v2 del registro (NC-08). `api.js` se baja de www.google.com; el
- * cargador trae el resto del widget (`recaptcha__es.js` y sus recursos) de
- * www.gstatic.com; la casilla y el desafio son iframes de www.google.com,
- * y la guia de CSP de reCAPTCHA lista ademas recaptcha.google.com para el
- * iframe del desafio: se incluye para que el desafio nunca quede en blanco.
+ * reCAPTCHA v2 del registro (NC-08), limitado POR RUTA como recomienda la
+ * guia de CSP de reCAPTCHA. Abrir `www.google.com` entero en `script-src`
+ * es un rodeo conocido de la CSP (endpoints JSONP de Google que devuelven
+ * script con un callback elegido por quien llama), y la CSP es la mitigacion
+ * declarada del JWT en `localStorage`. Una fuente que termina en `/` admite
+ * cualquier ruta bajo ese prefijo:
+ *
+ * - `api.js` es `www.google.com/recaptcha/api.js`.
+ * - El cargador trae el resto del widget de
+ *   `www.gstatic.com/recaptcha/releases/<version>/recaptcha__es.js`.
+ * - La casilla y el desafio son iframes de `www.google.com/recaptcha/api2/
+ *   anchor` y `…/api2/bframe`; la guia lista ademas
+ *   `recaptcha.google.com/recaptcha/` para el iframe del desafio, y se
+ *   incluye para que nunca quede en blanco en produccion.
  */
-const RECAPTCHA_SCRIPT_HOSTS = 'https://www.google.com https://www.gstatic.com';
-const RECAPTCHA_FRAME_HOSTS = 'https://www.google.com https://recaptcha.google.com';
+const RECAPTCHA_SCRIPTS = 'https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/';
+const RECAPTCHA_FRAMES = 'https://www.google.com/recaptcha/ https://recaptcha.google.com/recaptcha/';
 
 /**
  * Content-Security-Policy.
@@ -82,20 +91,21 @@ const RECAPTCHA_FRAME_HOSTS = 'https://www.google.com https://recaptcha.google.c
  * Worker solo muestra la notificacion y abre rutas de este origen; y la
  * clave VAPID y el registro de la suscripcion van al API, ya listado.
  *
- * reCAPTCHA v2 (NC-08, solo en el registro) necesita tres cosas: sus
+ * reCAPTCHA v2 (NC-08, solo en el registro) necesita tres cosas, todas
+ * limitadas a las rutas `/recaptcha/` (ver `RECAPTCHA_SCRIPTS`): sus
  * scripts en `script-src` (`api.js` de www.google.com, el resto de
  * www.gstatic.com), `frame-src` para el iframe de la casilla y del desafio
  * (www.google.com y recaptcha.google.com, que la guia de CSP de Google
  * lista para el desafio; sin la directiva rige `default-src 'self'` y el
- * widget queda en blanco) y los mismos hosts de script en `connect-src`, por el
- * Service Worker (ver el comentario de `connect-src`). Lo que pasa dentro
+ * widget queda en blanco) y las mismas rutas de script en `connect-src`,
+ * por el Service Worker (ver el comentario de `connect-src`). Lo que pasa dentro
  * del iframe se rige por la CSP de Google, no por esta.
  */
 const csp = [
   "default-src 'self'",
   // 'unsafe-inline' es necesario para el script de arranque de hidratacion de
   // Next; 'unsafe-eval' solo en desarrollo, que es lo que usa el HMR.
-  `script-src 'self' 'unsafe-inline'${esDesarrollo ? " 'unsafe-eval'" : ''} ${RECAPTCHA_SCRIPT_HOSTS}`,
+  `script-src 'self' 'unsafe-inline'${esDesarrollo ? " 'unsafe-eval'" : ''} ${RECAPTCHA_SCRIPTS}`,
   "style-src 'self' 'unsafe-inline'",
   // blob:/data: para la vista previa de la foto del reporte (US-05).
   // Los tiles de OpenStreetMap son imagenes de otro origen: sin listarlas
@@ -110,13 +120,14 @@ const csp = [
   // `fetch()`, que se rige por `connect-src` y no por `img-src`. Sin listarlos,
   // en cuanto el SW controla la pagina el mapa queda sin calles en cualquier
   // navegador (en desarrollo no pasa porque el SW esta desactivado).
-  // Por lo mismo van los hosts de reCAPTCHA (NC-08): el SW repite con
-  // `fetch()` los `<script>` de www.google.com y www.gstatic.com (reglas
-  // `static-js-assets` y `cross-origin` de `defaultCache`); sin listarlos,
+  // Por lo mismo van las rutas de script de reCAPTCHA (NC-08): el SW repite
+  // con `fetch()` los `<script>` de www.google.com/recaptcha/ y
+  // www.gstatic.com/recaptcha/ (reglas `static-js-assets` y `cross-origin`
+  // de `defaultCache`); sin listarlas,
   // con el SW activo la casilla del registro no aparece.
-  `connect-src 'self' ${apiBaseUrl} ${TILE_HOSTS} ${RECAPTCHA_SCRIPT_HOSTS}${esDesarrollo ? ' ws: wss:' : ''}`,
+  `connect-src 'self' ${apiBaseUrl} ${TILE_HOSTS} ${RECAPTCHA_SCRIPTS}${esDesarrollo ? ' ws: wss:' : ''}`,
   // Iframe de la casilla «No soy un robot» y del desafio (NC-08).
-  `frame-src ${RECAPTCHA_FRAME_HOSTS}`,
+  `frame-src ${RECAPTCHA_FRAMES}`,
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",

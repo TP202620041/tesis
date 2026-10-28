@@ -5,7 +5,7 @@ import { useCallback, useState, type ReactNode } from 'react';
 import { EnlaceConDialogo } from '@/components/ui/dialogo';
 import { AlertaError, Boton, Campo } from '@/components/ui/form';
 import { useRegistro } from '../hooks/useRegistro';
-import { MENSAJE_FALTA_CAPTCHA, siteKeyDelCaptcha } from '../model/captcha';
+import { captchaConfigurado, MENSAJE_FALTA_CAPTCHA, siteKeyDelCaptcha } from '../model/captcha';
 import { AYUDA_PASSWORD, errorDeLargoDePassword, PASSWORD_MAX, PASSWORD_MIN } from '../model/password';
 import { destinoTrasAcceso, RUTA_PRIVACIDAD } from '../model/rutas';
 import { TITULO_TERMINOS } from '../model/terminos';
@@ -44,6 +44,7 @@ export function FormularioRegistro({ textoLegal }: { textoLegal: ReactNode }) {
   // aparece tras el primer intento y desde ahi se recalcula al escribir.
   const [intentoEnviar, setIntentoEnviar] = useState(false);
   const errorPassword = intentoEnviar ? errorDeLargoDePassword(campos.password) : null;
+  const conCaptcha = captchaConfigurado();
   const siteKey = siteKeyDelCaptcha();
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [faltaCaptcha, setFaltaCaptcha] = useState(false);
@@ -62,11 +63,11 @@ export function FormularioRegistro({ textoLegal }: { textoLegal: ReactNode }) {
     evento.preventDefault();
     setIntentoEnviar(true);
     if (!acepta) setFaltaAceptar(true);
-    const sinCaptcha = siteKey !== null && !captchaToken;
+    const sinCaptcha = conCaptcha && !captchaToken;
     if (sinCaptcha) setFaltaCaptcha(true);
     if (!acepta || sinCaptcha || errorDeLargoDePassword(campos.password)) return;
-    const { sesion, terminosDesactualizados: textoViejo } = await enviar(campos, siteKey ? captchaToken : null);
-    if (!sesion && siteKey) {
+    const { sesion, terminosDesactualizados: textoViejo } = await enviar(campos, conCaptcha ? captchaToken : null);
+    if (!sesion && conCaptcha) {
       // NC-08: el token ya se gasto (o lo rechazo Google): casilla nueva.
       setCaptchaToken(null);
       setReiniciosCaptcha((n) => n + 1);
@@ -143,7 +144,7 @@ export function FormularioRegistro({ textoLegal }: { textoLegal: ReactNode }) {
         onChange={actualizar('password')}
       />
 
-      {siteKey && (
+      {conCaptcha && siteKey && (
         <div className="flex flex-col gap-1">
           <CampoCaptcha
             siteKey={siteKey}

@@ -863,16 +863,20 @@ y manda `captchaToken` en `POST /api/auth/registro`.
 - **Sin red.** Si el script no carga se muestra «No se pudo cargar la
   verificación. Revisa tu conexión y recarga.» (`role="alert"`) en lugar de
   un hueco vacío.
-- **CSP** (`next.config.ts`): `script-src` suma `https://www.google.com`
-  (`api.js`) y `https://www.gstatic.com` (el resto del widget); la nueva
-  directiva `frame-src https://www.google.com https://recaptcha.google.com`
-  deja pasar el iframe de la casilla y del desafío (sin ella regía
-  `default-src 'self'`; `recaptcha.google.com` lo lista la guía de CSP de
-  reCAPTCHA para el iframe del desafío y se incluye para que nunca quede en
-  blanco en producción); y
-  `connect-src` repite los dos hosts de script porque el Service Worker
-  vuelve a pedir con `fetch()` los scripts de otro origen (lo mismo que pasó
-  con los tiles del mapa).
+- **CSP** (`next.config.ts`), limitada **por ruta** como recomienda la guía
+  de CSP de reCAPTCHA: `script-src` suma `https://www.google.com/recaptcha/`
+  (`api.js`) y `https://www.gstatic.com/recaptcha/` (el resto del widget, en
+  `/recaptcha/releases/<versión>/…`); la nueva directiva `frame-src
+  https://www.google.com/recaptcha/ https://recaptcha.google.com/recaptcha/`
+  deja pasar los iframes de la casilla y del desafío (`/recaptcha/api2/anchor`
+  y `/recaptcha/api2/bframe`; sin ella regía `default-src 'self'`;
+  `recaptcha.google.com` lo lista la guía para el desafío y se incluye para
+  que nunca quede en blanco en producción); y `connect-src` repite las dos
+  rutas de script porque el Service Worker vuelve a pedir con `fetch()` los
+  scripts de otro origen (lo mismo que pasó con los tiles del mapa). No se
+  abre `www.google.com` entero: en `script-src` eso es un rodeo conocido de
+  la CSP (endpoints JSONP de Google), y la CSP es la mitigación declarada del
+  JWT en `localStorage` (ver «Seguridad: dónde vive el JWT»).
 
 ### Notificaciones push (US-21)
 
