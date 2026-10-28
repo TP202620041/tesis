@@ -95,7 +95,8 @@ preferible que no arranque y que el log diga qué falta.
 | `PORT` | no (8080) | Lo inyecta la plataforma. |
 | `SPRINGDOC_HABILITADO` | no (`false`) | `true` publica `/v3/api-docs` y Swagger UI. |
 | `ADMIN_INICIAL_EMAIL`, `ADMIN_INICIAL_PASSWORD`, `ADMIN_INICIAL_NOMBRE` | solo en el primer arranque | Crean el primer ADMIN en una base sin ninguno. Después se borra `ADMIN_INICIAL_PASSWORD`; las otras dos pueden quedar (ver «Operación en producción»). |
-| `CLASIFICACION_TIPO` | no (`falso`) | Adaptador del clasificador de fotos (NC-04). Hoy solo `falso`; `http` (servicio `inferencia/`) llega con NC-04b, que la volverá obligatoria. Otro valor no arranca (`clasificacion/infra/ValidacionTipoClasificador`). En `prod` el falso responde siempre «sin detecciones» (`application-prod.yml`, literal): la clasificación está apagada y no escribe nada (ver [Sugerencia de categoría](#sugerencia-de-categoría-por-la-foto-nc-04-fase-0)). |
+| `CLASIFICACION_TIPO` | sí | Adaptador del clasificador de fotos (NC-04b): `http` (el servicio `inferencia/` por la red privada) en el despliegue. `falso` es el **interruptor** para apagar la clasificación: en `prod` el falso responde siempre «sin detecciones» (`application-prod.yml`, literal) y no escribe nada. Sin ella no arranca: con el `falso` de desarrollo por defecto la clasificación quedaría apagada sin que nada lo advierta, porque cualquier falla del adaptador también termina en «sin sugerencia». Otro valor tampoco arranca (`clasificacion/infra/ValidacionTipoClasificador`). Ver [Sugerencia de categoría](#sugerencia-de-categoría-por-la-foto-nc-04-fase-0). |
+| `CLASIFICACION_URL` | con `CLASIFICACION_TIPO=http` | URL base del servicio de inferencia, sin la ruta: `http://${{inferencia.RAILWAY_PRIVATE_DOMAIN}}:8000` en Railway. Sin ella, sin esquema `http(s)` y host, o con ruta (`…:8000/v1`), query, fragmento o usuario, no arranca: el adaptador agrega `/v1/detecciones`, y una ruta de más daría un 404 en cada llamada que solo se vería en el log. No es un secreto. |
 | `CLASIFICACION_UMBRAL` | no (`0.50`) | Confianza mínima para sugerir, en (0, 1]. Se calibra en NC-03b. |
 | `JWT_EXPIRATION_MINUTES`, `VAPID_*`, `PUSH_*`, `MAIL_*` (solo con `smtp`), `LEGAL_VERSION_TERMINOS`, `ASYNC_*` | no | Las mismas de `application.yml`, con sus valores por defecto. |
 
@@ -140,6 +141,11 @@ preferible que no arranque y que el log diga qué falta.
   y 10 s de lectura. Desde DEP-08 ningún correo se envía dentro de una
   petición: un proveedor lento ocupa un hilo del executor asíncrono, no la
   respuesta al usuario ni una conexión de la base.
+- **Inferencia con timeouts** (NC-04b): 0,5 s de conexión y 2,5 s de lectura,
+  3 s en total, y nunca con una conexión de la base tomada. El health **no
+  incluye la inferencia**: un servicio de inferencia caído deja los reportes
+  sin sugerencia, no deja sin API, y no debe marcarla como caída ni hacer
+  fallar un despliegue.
 
 ### Imagen (`backend/Dockerfile`)
 
@@ -564,7 +570,8 @@ src/main/java/pe/edu/upc/viasegura/
 ├── distritos/         # Distrito (límites GEOGRAPHY, base de asignación)
 ├── municipalidades/   # Municipalidad (1:1 con distrito, D-09) y PeriodoGestion (NC-01)
 ├── clasificacion/     # Sugerencia de categoría por la foto (NC-04): port/ClasificadorDano,
-│                      #   infra/FalsoClasificadorAdapter, domain/PoliticaDeSugerencia
+│                      #   infra/InferenciaHttpAdapter (NC-04b) y FalsoClasificadorAdapter,
+│                      #   domain/PoliticaDeSugerencia
 ├── reportes/          # Reporte + CategoriaDano, Adhesion, Historial, Asignacion,
 │                      #   Calificacion, ComentarioPublico  (+ port/ + infra/ para Strategy geo)
 ├── notificaciones/    # Notificacion  (+ port/ + infra/ para Strategy push/email)
@@ -2280,12 +2287,15 @@ sugerencia oficial en `reporte` (`categoria_sugerida_id`,
 `confianza_sugerencia`, `version_modelo_sugerencia`). Esa es la que mide la
 evaluación del modelo (OE3: sugerida frente a confirmada). Sigue la propuesta
 aceptada el 21/10 (`project-context/decisions/propuestas/2026-10-21-ml-clases-modelo.md`),
-fase 0: todo el flujo con un **clasificador falso**, antes de que existan el
-servicio `inferencia/` (NC-03) y su adaptador HTTP (NC-04b).
+fase 0: todo el flujo con un **clasificador falso**, antes de que existieran
+el servicio `inferencia/` (NC-03) y su adaptador HTTP. Desde NC-04b (v0.8.0)
+producción sugiere con el modelo real: ver
+[El adaptador del servicio de inferencia](#el-adaptador-del-servicio-de-inferencia-nc-04b).
 
 | Pieza | Capa | Qué hace |
 |---|---|---|
 | `clasificacion/port/ClasificadorDano` | Puerto | Detecta daños en una foto ya saneada y devuelve `ResultadoDeteccion(versionModelo, detecciones)`. Sus errores salen como `ClasificacionNoDisponibleException`. |
+| `clasificacion/infra/InferenciaHttpAdapter` | Adaptador | `POST /v1/detecciones` del servicio `inferencia/` (NC-04b, `CLASIFICACION_TIPO=http`). |
 | `clasificacion/infra/FalsoClasificadorAdapter` | Adaptador | Respuesta fija por configuración (`CLASIFICACION_FALSO_RESPUESTA`): vacía, pares `clase:confianza` o `falla`. |
 | `clasificacion/domain/PoliticaDeSugerencia` | Dominio | Umbral y clase dominante (abajo). Regla pura, con `PoliticaDeSugerenciaTest`. |
 | `clasificacion/service/ClasificacionService` | Aplicación | Vista previa (sanea, detecta y aplica la política) y sugerencia sobre una foto ya saneada. Sin transacción. |
@@ -2358,12 +2368,12 @@ la elige a mano, como siempre.
   responde «sin sugerencia», nunca 503.
 - **Con la clasificación apagada no se sanea nada.** `ClasificadorDano`
   declara si puede detectar algo (`estaDisponible()`); el falso sin respuesta,
-  que es como corre producción hasta NC-04b, dice que no. Entonces la vista
-  previa responde «sin sugerencia» sin sanear la foto (por eso ahí una foto
+  que es como corre producción con `CLASIFICACION_TIPO=falso`, dice que no.
+  Entonces la vista previa responde «sin sugerencia» sin sanear la foto (por eso ahí una foto
   inválida no da 409) y la sugerencia oficial no lee la base ni descarga la
   foto. Lo decide el adaptador y no una propiedad `habilitada` aparte, para
   que no puedan contradecirse (una «habilitada» con un falso que no detecta
-  nada). El adaptador HTTP de NC-04b responderá `true`: un servicio caído se
+  nada). El adaptador HTTP (NC-04b) responde `true`: un servicio caído se
   nota al llamarlo, no antes.
 
 ### Sugerencia oficial (D-08)
@@ -2459,20 +2469,79 @@ deja crear dos reportes del mismo hueco. La gravedad la expresa la
 - Las estándar no se reactivan por el API (US-29); volver atrás sería otra
   migración.
 
+### El adaptador del servicio de inferencia (NC-04b)
+
+`clasificacion/infra/InferenciaHttpAdapter` (`CLASIFICACION_TIPO=http`)
+llama a `POST /v1/detecciones` del servicio `inferencia/` (RF-DETR Nano) por
+la red privada, en `CLASIFICACION_URL`, según el contrato
+`project-context/handoffs/2026-10-25-contrato-inferencia-v1.md`. Es el
+adaptador de producción desde la v0.8.0 (decisión del usuario del 26/10).
+
+| Decisión | Por qué |
+|---|---|
+| `RestClient` sobre el `HttpClient` del JDK, como `ResendCorreoAdapter` | Sin dependencias nuevas: la imagen está al borde de los 400 MB. |
+| **HTTP/1.1 explícito** | Por defecto el cliente del JDK intenta HTTP/2 y, sobre `http://`, lo negocia con un `Upgrade: h2c` que uvicorn no habla. Con HTTP/1.1 cada conexión lleva una llamada a la vez, así que las conexiones abiertas, también las que quedan en keep-alive, nunca pasan de las llamadas simultáneas. |
+| **Cuerpo en chunks** (`Transfer-Encoding: chunked`, sin `Content-Length`) | El multipart se escribe en streaming. uvicorn lo acepta, y el límite de cuerpo del servicio cuenta los bytes que recibe, no solo el `Content-Length` declarado (`inferencia/app/api/limite_cuerpo.py`). Lo comprueban `InferenciaHttpAdapterTest` con un servidor local e `InferenciaHttpAdapterIT` contra el servicio real. |
+| **0,5 s de conexión + 2,5 s de lectura** (3 s como máximo) | El tope de la vista previa: el ciudadano espera la sugerencia mientras arma el reporte. La conexión es por la red privada y tarda milisegundos; la lectura se lleva casi todo porque incluye la espera en el servicio, que infiere de a una imagen. Spring 6.2 cuenta la lectura desde que sale el pedido hasta cerrar el cuerpo, así que también corta una respuesta que llega a medias. |
+| **Turno (*bulkhead*): 4 llamadas a la vez, sin esperar** | El `HttpClient` del JDK no limita sus conexiones y el servicio responde 503 desde 10 conexiones o tareas abiertas, contando las de keep-alive. Un `Semaphore(4)` con `tryAcquire` sin espera lo mantiene lejos de ese tope: sin turno, «sin sugerencia» al instante. **La vista previa y la sugerencia oficial compiten por los mismos turnos**: la sugerencia oficial ocupa los hilos del executor asíncrono (en la práctica los 2 de `ASYNC_HILOS_BASE`, porque el pool solo crece hacia `ASYNC_HILOS_MAX` con su cola de 100 tareas llena, y esos hilos también envían correos y avisos), y las vistas previas en curso, el resto. El turno propio de la vista previa solo acota el saneado y se suelta antes de clasificar, así que puede haber varias clasificando a la vez, una por ciudadano con la pantalla abierta. El tope protege al servicio; no reserva turnos para nadie. |
+| **Sin reintentos** | La IA nunca bloquea un reporte (§4.3), y un reintento solo cargaría más a un servicio que ya no respondió. |
+| **Cualquier falla es «sin sugerencia»** | Una respuesta distinta de 200, un timeout o un error de conexión se traducen a `ClasificacionNoDisponibleException`, que `ClasificacionService` convierte en «sin sugerencia» con un WARN. |
+| **La respuesta se valida solo por su estructura** | Se rechaza entera si falta `version_modelo` o `detecciones`, si los tipos no son los del contrato o si `version_modelo` pasa de 40 caracteres (la columna). Se ignoran `caja` y los campos desconocidos. Una clase desconocida o una confianza fuera de [0, 1] **no** la invalidan: las descarta `PoliticaDeSugerencia` y las demás detecciones de la foto siguen valiendo. El cuerpo de un 200 se lee hasta **256 KiB** (100 detecciones caben en unos 10 KB): uno más grande es «fuera del contrato» y no se carga entero en memoria. |
+| **La foto viaja sin datos del ciudadano** | La parte `imagen` lleva la foto **saneada** (sin EXIF) con el nombre fijo `foto.jpg`, nunca el del archivo original. |
+| **`estaDisponible()` siempre `true`** | Un servicio caído se nota al llamarlo; no se adivina antes. |
+
+**Una línea de log por llamada**, con su duración: es la medida de latencia
+de DEP-13. El nivel separa las causas:
+
+| Nivel | Ejemplo | Qué indica |
+|---|---|---|
+| `INFO` | `Inferencia: 200 en 287 ms, 1 deteccion(es), modelo rdd2022-…` | Respondió. |
+| `WARN` | `error del servicio, HTTP 500, error_de_inferencia`; `servicio saturado, HTTP 503`; `sin respuesta en 2589 ms (HttpTimeoutException)`; `sin turno` | Un problema del servicio o de capacidad, pasajero. |
+| `ERROR` | `pedido rechazado, HTTP 400, imagen_invalida`; `200 … fuera del contrato /v1` | Un defecto de un lado del contrato: la foto llega saneada (JPEG de 2048 px o menos), así que el servicio no debería rechazarla. Hay que corregirlo, no esperar. |
+
+Del cuerpo de un error solo se copia el `codigo` del contrato, y solo si
+tiene forma de código; nunca el `mensaje`.
+
+**Medido contra el contenedor real** (`ciudadviva-inferencia:nc03` con
+`--cpus=2` en la máquina de desarrollo, fotos sintéticas saneadas, dos
+corridas de `InferenciaHttpAdapterIT` el 26/10): una llamada sola tarda
+234–298 ms (457–651 ms la primera, que abre la conexión). Con seis a la vez,
+cuatro toman turno y el servicio las atiende en fila: terminan a los ~0,3,
+~0,55, ~0,8 y ~1,0 s (287–310, 526–563, 768–811 y 1002–1045 ms); las otras
+dos reciben «sin turno» al instante y ninguna llega al 503. Con un servicio
+mudo y los tiempos de producción, la llamada se corta a los 2,6 s. La
+latencia en Railway se mide en DEP-13 con estas mismas líneas.
+
+**Consecuencia del turno sin espera.** Si coinciden más de cuatro llamadas,
+las que no tienen turno dan «sin sugerencia», vengan de una vista previa o de
+la sugerencia oficial. En la vista previa el ciudadano elige a mano. **Una
+sugerencia oficial sin turno se pierde**: las columnas quedan nulas y no se
+reintenta (se escribe una sola vez), así que esa foto cuenta como «sin
+sugerencia» en la evaluación del modelo (OE3). A la escala del MVP debería ser
+raro, y las líneas `sin turno` del log lo muestran. Si la sugerencia oficial,
+que es asíncrona, debe esperar su turno en vez de perderse lo está decidiendo
+el usuario (ver «Pendiente»).
+
 ### Configuración
 
 | Propiedad (variable) | Por defecto | Qué es |
 |---|---|---|
-| `app.clasificacion.tipo` (`CLASIFICACION_TIPO`) | `falso` | Adaptador. Hoy solo `falso`; `http` falla al arrancar con un mensaje que remite a NC-04b. |
+| `app.clasificacion.tipo` (`CLASIFICACION_TIPO`) | `falso`; en `prod`, sin valor por defecto | `http` (`InferenciaHttpAdapter`) o `falso`. Otro valor no arranca. |
+| `app.clasificacion.http.url` (`CLASIFICACION_URL`) | vacía | URL base del servicio, sin la ruta (`http://inferencia.railway.internal:8000`; en local, `http://localhost:8090`). Obligatoria con `http`: sin ella, sin esquema `http(s)` y host, o con ruta, query, fragmento o usuario, no arranca. Con `falso` no se mira. |
 | `app.clasificacion.umbral` (`CLASIFICACION_UMBRAL`) | `0.50` | En (0, 1]; fuera de rango no arranca. |
 | `app.clasificacion.falso.respuesta` (`CLASIFICACION_FALSO_RESPUESTA`) | vacía | Lo que el falso «detecta» en cualquier foto. Si está mal escrita, no arranca. |
 | `app.clasificacion.falso.version-modelo` | `falso-0` | Versión que informa el falso. |
 
-- **`local`**: `bache:0.87` por defecto, para ver la vista previa y la
-  sugerencia sin el servicio de inferencia.
-- **`prod`**: respuesta vacía **literal**, no por entorno. La clasificación
-  queda apagada (`estaDisponible()` en `false`): nunca sugiere ni escribe
-  nada, y ni sanea ni descarga fotos para eso. Una respuesta fija en
+- **`local`**: `falso` con `bache:0.87` por defecto, para ver la vista previa
+  y la sugerencia sin el servicio de inferencia. Con el modelo real:
+  `docker run --rm -d --name inferencia -p 8090:8000 --cpus=2 ciudadviva-inferencia`
+  y `CLASIFICACION_TIPO=http CLASIFICACION_URL=http://localhost:8090`.
+- **`prod`**: `CLASIFICACION_TIPO` **obligatoria**, sin valor por defecto
+  (como `FOTOS_ALMACEN`, `CORREO_TIPO` y `CAPTCHA_TIPO`): `http` en el despliegue. La
+  respuesta del falso sigue vacía y **literal**, no por entorno, así que
+  `CLASIFICACION_TIPO=falso` es el interruptor para apagar la clasificación
+  sin escribir nada más: `estaDisponible()` en `false`, nunca sugiere ni
+  escribe, y ni sanea ni descarga fotos para eso. Una respuesta fija en
   producción llenaría la base de sugerencias inventadas y arruinaría la
   evaluación del modelo.
 - **`test`**: `bache:0.87,grieta:0.30`, literal, para que un
@@ -2483,7 +2552,18 @@ deja crear dos reportes del mismo hueco. La gravedad la expresa la
 
 - Unitarias: `PoliticaDeSugerenciaTest` (las cuatro reglas, umbral exacto,
   empates, redondeo y rangos), `FalsoClasificadorAdapterTest`,
-  `ValidacionTipoClasificadorTest`, `ClasificacionServiceTest` (la vista previa
+  `InferenciaHttpAdapterTest` (NC-04b, con `MockRestServiceServer`: 200 con y
+  sin detecciones, con una clase desconocida y con confianza 1,5; 400, 413,
+  500, 503 y otros estados; timeout; respuestas fuera del contrato, entre
+  ellas sin `version_modelo` y con una de 41 caracteres; el nivel de log de
+  cada causa; con seis llamadas simultáneas, a lo sumo cuatro llegan al
+  servidor, y los turnos se devuelven también cuando la llamada falla; el
+  tope de 256 KiB del cuerpo. Con sockets locales y un `@Timeout` de JUnit
+  para no colgar la CI: HTTP/1.1 sin `Upgrade` y el cuerpo en chunks, que con
+  los tiempos de producción un servicio mudo se corta por la lectura, una
+  respuesta que se corta a medias y una conexión rechazada),
+  `ValidacionTipoClasificadorTest` (con `http`, la URL: solo la base),
+  `ClasificacionServiceTest` (la vista previa
   clasifica la foto **saneada**; la oficial no la vuelve a sanear; una vista
   previa a la vez, sin esperar; sin turno de saneado, error inesperado del
   adaptador o clasificación apagada = «sin sugerencia»),
@@ -2496,19 +2576,31 @@ deja crear dos reportes del mismo hueco. La gravedad la expresa la
   la adhesión no clasifica, la edición no la borra), `SugerenciaCategoriaFallaIT`
   (con el falso en `falla`, el reporte se crea igual y la vista previa es «sin
   sugerencia»; es el único contexto de Spring nuevo), `SugerenciaFueraDeDtosIT`
-  y `CategoriasDelModeloIT` (V19).
+  y `CategoriasDelModeloIT` (V19). Desde NC-04b, `ArranqueClasificacionIT`
+  (en `prod`, sin `CLASIFICACION_TIPO` o con `http` sin URL, no arranca) y
+  `PerfilProdIT` (con `http`, el clasificador es el adaptador HTTP; la
+  respuesta del falso sigue vacía).
+- Contra el servicio real: `InferenciaHttpAdapterIT`, **solo si existe
+  `CLASIFICACION_TEST_URL`** (como `S3FotoStorageServiceIT` con
+  `FOTOS_S3_TEST_ENDPOINT`). La CI no construye la imagen (descarga torch y
+  los pesos), así que no está en `CLASES_OBLIGATORIAS` y allí queda omitido.
+  Comprueba que FastAPI acepta el multipart del adaptador, que la respuesta
+  real cumple el contrato y es la misma para la misma foto (D-08), un 400
+  real, que el turno mantiene al servicio lejos del 503 y el flujo entero
+  (vista previa y sugerencia oficial) con `CLASIFICACION_TIPO=http`. Las
+  fotos son sintéticas: que el modelo encuentre un bache en una foto real lo
+  prueba la prueba de humo del despliegue (DEP-13).
+  ```bash
+  docker run --rm -d --name inferencia-it -p 8090:8000 --cpus=2 ciudadviva-inferencia:nc03
+  CLASIFICACION_TEST_URL=http://localhost:8090 mvn verify -Dit.test=InferenciaHttpAdapterIT
+  docker stop inferencia-it
+  ```
 
 ### Pendiente
 
-- **NC-04b**: `clasificacion/infra/InferenciaHttpAdapter` (RestClient, timeout
-  de 3 s, errores traducidos a `ClasificacionNoDisponibleException`), aceptar
-  `http` en `ValidacionTipoClasificador` y volver obligatoria
-  `CLASIFICACION_TIPO` en `prod`.
-  - **Acotar las llamadas a la inferencia** (con un pool o un *bulkhead* en el
-    adaptador, o reteniendo el turno de la vista previa durante `detectar`).
-    El turno de la vista previa se suelta antes de clasificar, así que hoy no
-    las acota. Con el falso no importa; con hasta 3 s por llamada, sí
-    (revisión del 25/10).
+- **Sugerencia oficial sin turno de inferencia** (revisión de NC-04b, 26/10):
+  hoy se pierde, como una vista previa sin turno. Si debe esperar su turno
+  (es asíncrona y no hace esperar a nadie) lo decide el usuario.
 - **Aviso de privacidad** (frontend y textos legales): decir que la foto se
   analiza automáticamente para sugerir una categoría y que la decisión es del
   ciudadano (DS 016-2024-JUS, art. 6.1).
@@ -2551,8 +2643,10 @@ deja crear dos reportes del mismo hueco. La gravedad la expresa la
   nunca durante la descarga ni la clasificación; y la vista previa ocupa como
   mucho uno de los dos turnos de saneado y no espera el suyo, así que una
   creación puede esperar a lo sumo a una vista previa en curso (unos cientos de
-  ms), no a una fila de ellas. Con la clasificación apagada (producción hasta
-  NC-04b) ninguna de las dos sanea ni descarga nada.
+  ms), no a una fila de ellas. Con la clasificación apagada
+  (`CLASIFICACION_TIPO=falso`) ninguna de las dos sanea ni descarga nada; con
+  el modelo real (NC-04b), la inferencia (hasta 3 s) tampoco retiene una
+  conexión.
 - **Fotos huérfanas.** Si la transacción falla después de subir la foto, el
   archivo u objeto queda en el disco o el bucket (aceptable en el MVP).
   Mejora posible: borrarlo en `afterCompletion` con estado `ROLLED_BACK`.

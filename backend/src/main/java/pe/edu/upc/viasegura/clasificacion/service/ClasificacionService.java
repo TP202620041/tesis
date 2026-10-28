@@ -73,8 +73,8 @@ public class ClasificacionService {
 
     /**
      * Si la clasificacion puede sugerir algo. Con {@code false} (el falso sin
-     * respuesta: produccion hasta NC-04b) nadie sanea ni descarga una foto para
-     * clasificarla.
+     * respuesta: produccion con {@code CLASIFICACION_TIPO=falso}) nadie sanea
+     * ni descarga una foto para clasificarla.
      */
     public boolean estaDisponible() {
         return clasificador.estaDisponible();

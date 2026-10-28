@@ -157,19 +157,27 @@ app:
     nombre: ${ADMIN_INICIAL_NOMBRE:}
   # Sugerencia de categoria por la foto (NC-04, D-08): puerto
   # clasificacion/port/ClasificadorDano, con el adaptador elegido aqui:
-  #   falso -> FalsoClasificadorAdapter, respuestas fijas (el unico hasta NC-04b)
-  #   http  -> el servicio inferencia/ (NC-04b; hoy no arranca)
+  #   falso -> FalsoClasificadorAdapter, respuestas fijas (local y tests)
+  #   http  -> InferenciaHttpAdapter, el servicio inferencia/ (NC-04b;
+  #            produccion), en CLASIFICACION_URL
   # La usan la vista previa (POST /api/clasificaciones) y la sugerencia
   # oficial, que corre despues del commit en el executor asincrono.
   clasificacion:
     tipo: ${CLASIFICACION_TIPO:falso}
+    http:
+      # URL base del servicio, sin la ruta (el adaptador agrega
+      # /v1/detecciones): p. ej. http://inferencia.railway.internal:8000 o,
+      # en local, http://localhost:8090. Obligatoria con CLASIFICACION_TIPO=http
+      # (ValidacionTipoClasificador); con 'falso' no se mira.
+      url: ${CLASIFICACION_URL:}
     # Confianza minima para sugerir (PoliticaDeSugerencia), en (0, 1]. 0.50
     # inicial; se calibra en NC-03b con fotos de Lima.
     umbral: ${CLASIFICACION_UMBRAL:0.50}
     falso:
       # Lo que "detecta" en cualquier foto: vacio = nada (nunca sugiere),
       # 'falla' = el servicio caido, o pares clase:confianza separados por
-      # coma ('bache:0.87,grieta:0.30'). En produccion siempre vacio.
+      # coma ('bache:0.87,grieta:0.30'). En produccion siempre vacio: ahi
+      # CLASIFICACION_TIPO=falso apaga la clasificacion.
       respuesta: ${CLASIFICACION_FALSO_RESPUESTA:}
       version-modelo: falso-0
   # Executor asincrono acotado (AsyncConfig): avisos al ciudadano, correos y

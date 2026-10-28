@@ -27,6 +27,8 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
+import pe.edu.upc.viasegura.clasificacion.infra.InferenciaHttpAdapter;
+import pe.edu.upc.viasegura.clasificacion.port.ClasificadorDano;
 import pe.edu.upc.viasegura.support.AbstractPostgisIT;
 
 /**
@@ -43,6 +45,11 @@ import pe.edu.upc.viasegura.support.AbstractPostgisIT;
  * conservan su mensaje, que es lo que lee el frontend
  * ({@code frontend/src/lib/api/errors.ts}); este IT lo comprueba con un 409
  * conocido.</p>
+ *
+ * <p>La clasificacion va como en el despliegue (NC-04b): {@code http}, con
+ * una {@code CLASIFICACION_URL} que aqui no responde. Ningun test de esta
+ * clase crea un reporte con foto, asi que nunca se la llama; si se la
+ * llamara, el resultado seria «sin sugerencia».</p>
  */
 @ActiveProfiles("prod")
 @TestPropertySource(properties = {
@@ -54,7 +61,10 @@ import pe.edu.upc.viasegura.support.AbstractPostgisIT;
         "CORREO_TIPO=smtp",
         "NOTIF_FROM=Ciudad Viva <no-reply@ciudadviva.test>",
         // NC-08: obligatoria en prod. `ninguno` para no llamar a Google.
-        "CAPTCHA_TIPO=ninguno"})
+        "CAPTCHA_TIPO=ninguno",
+        // NC-04b: obligatoria en prod; con `http`, tambien la URL.
+        "CLASIFICACION_TIPO=http",
+        "CLASIFICACION_URL=http://127.0.0.1:1"})
 class PerfilProdIT extends AbstractPostgisIT {
 
     private static final String SECRETO_PROPIO = secretoAleatorio();
@@ -69,6 +79,8 @@ class PerfilProdIT extends AbstractPostgisIT {
     ObjectMapper objectMapper;
     @Autowired
     Environment environment;
+    @Autowired
+    ClasificadorDano clasificador;
 
     private static String secretoAleatorio() {
         byte[] clave = new byte[48];
@@ -110,6 +122,18 @@ class PerfilProdIT extends AbstractPostgisIT {
                 .isEqualTo("Ciudad Viva <no-reply@ciudadviva.test>");
         // NC-08: en prod el captcha sale de CAPTCHA_TIPO, sin default.
         assertThat(environment.getProperty("app.captcha.tipo")).isEqualTo("ninguno");
+        // NC-04b: en prod la clasificacion sale de CLASIFICACION_TIPO, sin default.
+        assertThat(environment.getProperty("app.clasificacion.tipo")).isEqualTo("http");
+        assertThat(environment.getProperty("app.clasificacion.http.url")).isEqualTo("http://127.0.0.1:1");
+        // ...y la respuesta del falso sigue literal y vacia, aunque el perfil test
+        // diga otra: CLASIFICACION_TIPO=falso apaga la clasificacion.
+        assertThat(environment.getProperty("app.clasificacion.falso.respuesta")).isEmpty();
+    }
+
+    @Test
+    void conClasificacionHttp_elClasificadorEsElDelServicioDeInferencia() {
+        assertThat(clasificador).isInstanceOf(InferenciaHttpAdapter.class);
+        assertThat(clasificador.estaDisponible()).isTrue();
     }
 
     @Test
