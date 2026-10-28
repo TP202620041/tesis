@@ -1,7 +1,7 @@
 # Términos de uso y política de privacidad de Ciudad Viva
 
 > **BORRADOR para revisión** (versión `2026-10-v2`, 2026-10-26; ampliado el 2026-10-28). Reemplaza a `terminos-y-privacidad-v1.md` (`2026-10-v1`). Lo redactó la sesión coordinadora a partir de lo que hace la aplicación en `develop` con NC-04b (v0.8.0). El 28/10 se le sumaron la confirmación del correo de NC-09 (PR #122) y la moderación de contenido de NC-10 y NC-11 (`decisions/propuestas/2026-10-28-moderacion-de-contenido.md`). **No es asesoría legal.** Antes de publicarlo debe revisarlo el usuario (o su asesor), en especial:
-> - lo marcado `[COMPLETAR]` (el domicilio del titular) y `[REVISAR]` (el flujo transfronterizo en §6, la cita de RDD2022 en §14 y el plazo de las cuentas sin confirmar en §8);
+> - lo marcado `[REVISAR]`: si basta el correo de contacto sin domicilio (§1), el flujo transfronterizo (§6) y la cita de RDD2022 (§14);
 > - la inscripción del banco de datos ante la Autoridad Nacional de Protección de Datos Personales;
 > - si el *share-alike* de RDD2022 alcanza a los pesos del modelo (§14, decisión 7).
 >
@@ -10,7 +10,11 @@
 > - Plazos (§8): los reportes se conservan mientras opere la plataforma, con el autor anonimizado al cerrar la cuenta; las consultas de soporte, 3 meses después de respondidas. Los cumplen BE-13 y BE-14 (plan del S7).
 > - Sesión: 120 minutos (`JWT_EXPIRATION_MINUTES`, runbook §5.2).
 >
-> **Decisiones del usuario (28/10):** la moderación va dentro de esta versión (no hay v3), y un reporte que oculta el ADMIN no cuenta en el índice de desempeño.
+> **Decisiones del usuario (28/10):**
+> - la moderación va dentro de esta versión (no hay v3), y un reporte que oculta el ADMIN no cuenta en el índice de desempeño;
+> - **no se publica un domicilio:** el §1 queda con el titular y el correo de contacto;
+> - las cuentas que nunca se confirman se borran a los 30 días (tarea BE-15);
+> - una cuenta sin confirmar no puede restablecer la contraseña.
 >
 > **Antes de publicar:** este texto promete lo que hacen NC-09, NC-10 y NC-11. Se publica en la versión en que salgan las tres. Si alguna no llega, se quita su párrafo:
 > - la confirmación del correo en §2 y §8;
@@ -33,7 +37,7 @@
 
 Ciudad Viva es una plataforma de reporte ciudadano de daños en la infraestructura vial de Lima Metropolitana. La desarrollan Fabrizio Leon y Mario Lopez como parte de una tesis de la Universidad Peruana de Ciencias Aplicadas (UPC).
 
-El titular del banco de datos personales es Fabrizio Leon, con domicilio en [COMPLETAR: domicilio]. Para cualquier consulta sobre tus datos puedes escribir a contacto@ciudadviva.app o usar la sección **Soporte** de la aplicación.
+El titular del banco de datos personales es Fabrizio Leon. Para cualquier consulta sobre tus datos puedes escribir a contacto@ciudadviva.app o usar la sección **Soporte** de la aplicación. [REVISAR con el asesor: el art. 18 de la Ley N.° 29733 parece incluir el domicilio del titular del banco de datos entre lo que se informa. Hay que confirmar si basta con el correo de contacto. Pendiente de cotejar con el texto oficial.]
 
 ## 2. Qué datos tratamos
 
@@ -51,7 +55,7 @@ El titular del banco de datos personales es Fabrizio Leon, con domicilio en [COM
 | Datos de suscripción a notificaciones push del navegador (dirección técnica del servicio de push, claves de cifrado y tipo de navegador) | Si activas las notificaciones push | Avisarte cuando cambie el estado de tus reportes |
 | Historial de tus consentimientos (qué aceptaste, qué versión y cuándo, y cuándo lo revocaste) | Al aceptar o revocar | Demostrar que aceptaste, como exige la ley |
 
-**Confirmación del correo.** Al crear tu cuenta te enviamos un enlace de confirmación que vale **24 horas**. Hasta que lo abras no puedes iniciar sesión; si vence, puedes pedir otro.
+**Confirmación del correo.** Al crear tu cuenta te enviamos un enlace de confirmación que vale **24 horas**. Hasta que lo abras no puedes iniciar sesión ni recuperar tu contraseña. Si vence, puedes pedir otro.
 
 Antes de enviarlo comprobamos que el correo sea real:
 - **Consultamos el DNS** (el directorio público de internet) para saber si el **dominio** de tu correo puede recibir mensajes. El dominio es lo que va después de la @, por ejemplo `gmail.com`. La consulta lleva solo el dominio, nunca tu dirección completa, y no guardamos su resultado.
@@ -134,7 +138,8 @@ Retirar un consentimiento no invalida lo que hicimos antes con él. Para dejar d
 
 ## 8. Cuánto tiempo guardamos tus datos
 
-- **Cuenta:** mientras esté activa. Si la cierras (§9), borramos tus datos de cuenta. [REVISAR: plazo para borrar las cuentas que nunca se confirmaron y los enlaces de confirmación vencidos; propuesta `decisions/propuestas/2026-10-28-cuentas-sin-confirmar.md`.]
+- **Cuenta:** mientras esté activa. Si la cierras (§9), borramos tus datos de cuenta.
+- **Cuenta sin confirmar:** si nunca confirmas tu correo (§2), borramos la cuenta y sus datos 30 días después de crearla.
 - **Reportes y sus fotos:** mientras la plataforma esté en funcionamiento, porque forman parte del registro público de daños y del índice de desempeño de cada periodo de gestión. Si cierras tu cuenta, tus reportes, adhesiones, comentarios y calificaciones se conservan **sin ningún dato que te identifique** (anonimizados). Un reporte o una foto ocultos (§5) se conservan sin publicarse, por si hay que deshacer el ocultamiento.
 - **Sugerencia automática del tipo de daño:** mientras exista el reporte.
 - **Fotos y textos rechazados en la revisión (§5):** no se guardan.
