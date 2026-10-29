@@ -79,7 +79,7 @@ import pe.edu.upc.viasegura.support.AbstractPostgisIT;
         // yendo a GreenMail y no a un proveedor real.
         "CORREO_TIPO=smtp",
         "NOTIF_FROM=Ciudad Viva <no-reply@ciudadviva.test>",
-        // NC-08: obligatoria en prod. `ninguno` para no llamar a Google.
+        // NC-08: obligatoria en prod. `ninguno` para no llamar a Cloudflare.
         "CAPTCHA_TIPO=ninguno",
         // NC-04b: obligatoria en prod; con `http`, tambien la URL.
         "CLASIFICACION_TIPO=http",
@@ -167,6 +167,10 @@ class PerfilProdIT extends AbstractPostgisIT {
                 .isEqualTo("Ciudad Viva <no-reply@ciudadviva.test>");
         // NC-08: en prod el captcha sale de CAPTCHA_TIPO, sin default.
         assertThat(environment.getProperty("app.captcha.tipo")).isEqualTo("ninguno");
+        // NC-08b: con turnstile, en prod el hostname del token se compara con
+        // los de la PWA sin que haga falta una variable.
+        assertThat(environment.getProperty("app.captcha.turnstile.hostnames"))
+                .isEqualTo("ciudadviva.app,www.ciudadviva.app");
         // NC-04b: en prod la clasificacion sale de CLASIFICACION_TIPO, sin default.
         assertThat(environment.getProperty("app.clasificacion.tipo")).isEqualTo("http");
         assertThat(environment.getProperty("app.clasificacion.http.url")).isEqualTo("http://127.0.0.1:1");

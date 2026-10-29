@@ -58,7 +58,7 @@ public class AuthService {
      *
      * <p>Orden, todo antes de crear nada:</p>
      * <ol>
-     *   <li><b>Captcha</b> (NC-08), si esta activo ({@code CAPTCHA_TIPO=recaptcha}):
+     *   <li><b>Captcha</b> (NC-08), si esta activo ({@code CAPTCHA_TIPO=turnstile}):
      *       primero, antes que los terminos y el correo duplicado; si no, el
      *       endpoint serviria para averiguar sin captcha que correos tienen
      *       cuenta.</li>
@@ -68,7 +68,7 @@ public class AuthService {
      *       primer enlace, en {@link RegistroCuentaService} (D-12).</li>
      * </ol>
      *
-     * <p>Los dos primeros pasos son I/O (Google, el DNS) y corren <b>sin
+     * <p>Los dos primeros pasos son I/O (Cloudflare, el DNS) y corren <b>sin
      * transaccion</b> (por eso este metodo no es {@code @Transactional}): la
      * espera no debe retener una conexion del pool (D-13). La cuenta la crea
      * despues {@link RegistroCuentaService}, en su propia transaccion.</p>

@@ -15,7 +15,7 @@ import pe.edu.upc.viasegura.common.exception.BusinessException;
  * La parte transaccional del registro de cuenta (US-01), separada de
  * {@link AuthService#registrar} en NC-08.
  *
- * <p>El registro verifica primero el captcha, una llamada HTTP a Google. Esa
+ * <p>El registro verifica primero el captcha, una llamada HTTP a Cloudflare. Esa
  * espera no debe ocurrir dentro de una transaccion ni retener una conexion
  * del pool (D-13, ARCHITECTURE.md §4.5): {@code AuthService#registrar} ya no
  * es transaccional, verifica el captcha y recien entonces llama a este bean,
