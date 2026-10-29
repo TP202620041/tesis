@@ -23,6 +23,8 @@ import pe.edu.upc.viasegura.common.port.ArchivoSubido;
 import pe.edu.upc.viasegura.common.port.FotoStorageService;
 import pe.edu.upc.viasegura.common.security.JwtService;
 import pe.edu.upc.viasegura.distritos.service.DistritoService;
+import pe.edu.upc.viasegura.moderacion.domain.CampoDeTexto;
+import pe.edu.upc.viasegura.moderacion.service.ModeracionService;
 
 /**
  * Casos de uso de acceso: registro (US-01) e inicio de sesion (US-02).
@@ -49,6 +51,7 @@ public class AuthService {
     private final DistritoService distritoService;
     private final FotoStorageService fotoStorageService;
     private final ConsentimientoService consentimientoService;
+    private final ModeracionService moderacionService;
     private final ApplicationEventPublisher eventPublisher;
 
     /**
@@ -62,6 +65,10 @@ public class AuthService {
      *       primero, antes que los terminos y el correo duplicado; si no, el
      *       endpoint serviria para averiguar sin captcha que correos tienen
      *       cuenta.</li>
+     *   <li><b>Nombre y apellido sin groserias</b> (NC-10b, D-15): el nombre se
+     *       muestra junto a cada comentario publico. Despues del captcha, como
+     *       las demas validaciones, y antes del DNS: es una regla pura y no
+     *       revela nada de las cuentas.</li>
      *   <li><b>Dominio del correo</b> (NC-09): ni desechable ni sin MX
      *       ({@link DominioCorreoService}). No revela nada de las cuentas.</li>
      *   <li><b>Terminos vigentes y correo duplicado</b>, y la cuenta con su
@@ -80,6 +87,8 @@ public class AuthService {
             }
             verificadorDeCaptcha.verificar(request.captchaToken());
         }
+        moderacionService.exigirTextoPermitido(CampoDeTexto.NOMBRE, request.nombre());
+        moderacionService.exigirTextoPermitido(CampoDeTexto.APELLIDO, request.apellido());
         dominioCorreoService.exigirQueRecibaCorreo(request.email());
         Usuario guardado = registroCuentaService.crearCuentaCiudadana(request);
         return new RegistroResponse(guardado.getEmail(), ConfirmacionCorreoService.VIGENCIA.toHours());
@@ -152,6 +161,8 @@ public class AuthService {
                 throw new IllegalArgumentException("El nombre no puede quedar vacío");
             }
             exigirLargoMaximo(nombre, "El nombre");
+            // NC-10b (D-15): el nombre se muestra junto a cada comentario publico.
+            moderacionService.exigirTextoPermitido(CampoDeTexto.NOMBRE, nombre);
             usuario.setNombre(nombre);
         }
         if (apellido != null) {
@@ -159,6 +170,7 @@ public class AuthService {
                 throw new IllegalArgumentException("El apellido no puede quedar vacío");
             }
             exigirLargoMaximo(apellido, "El apellido");
+            moderacionService.exigirTextoPermitido(CampoDeTexto.APELLIDO, apellido);
             usuario.setApellido(apellido);
         }
         if (distritoId != null) {

@@ -26,6 +26,8 @@ import pe.edu.upc.viasegura.common.port.FotoStorageService;
 import pe.edu.upc.viasegura.common.port.SaneadorDeImagen;
 import pe.edu.upc.viasegura.distritos.domain.Distrito;
 import pe.edu.upc.viasegura.distritos.port.GeoAssignmentStrategy;
+import pe.edu.upc.viasegura.moderacion.domain.CampoDeTexto;
+import pe.edu.upc.viasegura.moderacion.service.ModeracionService;
 import pe.edu.upc.viasegura.municipalidades.service.MunicipalidadService;
 import pe.edu.upc.viasegura.reportes.domain.AdhesionReporte;
 import pe.edu.upc.viasegura.reportes.domain.CategoriaDano;
@@ -82,6 +84,7 @@ public class ReporteService {
     private final HistorialEstadoReporteRepository historialRepository;
     private final IdempotencyKeyService idempotencyKeyService;
     private final MunicipalidadService municipalidadService;
+    private final ModeracionService moderacionService;
     private final ApplicationEventPublisher eventPublisher;
     /** La transaccion de la creacion (BE-11): el bean {@code TransactionTemplate} de Spring Boot. */
     private final TransactionOperations transaccion;
@@ -100,10 +103,12 @@ public class ReporteService {
      * <ol>
      *   <li>el usuario y el reenvio idempotente, cada lectura en su propia
      *       transaccion corta: un reenvio con respuesta guardada vuelve aqui,
-     *       sin sanear ni subir nada;</li>
-     *   <li>los campos, sin tocar la base;</li>
-     *   <li>la foto se sanea <b>una sola vez</b> y se sube, sin transaccion
-     *       abierta;</li>
+     *       sin sanear, moderar ni subir nada (NC-10b: aunque la moderacion
+     *       este caida, el reporte que ya entro recibe su respuesta);</li>
+     *   <li>los campos y el texto (NC-10b: sin groserias), sin tocar la
+     *       base;</li>
+     *   <li>la foto se sanea <b>una sola vez</b>, se modera (NC-10b, D-15) y
+     *       recien entonces se sube, sin transaccion abierta;</li>
      *   <li>recien entonces la transaccion: la categoria, el distrito, la
      *       deduplicacion, el reporte o la adhesion, la clave y el evento;</li>
      *   <li>al volver de ella, sin conexion tomada, la foto se borra si no
@@ -135,12 +140,21 @@ public class ReporteService {
         if (cmd.severidad() == null) {
             throw new IllegalArgumentException("La severidad es obligatoria (Baja, Media o Alta)");
         }
+        // NC-10b (D-15): el texto que se va a publicar, sin groserias (400
+        // TEXTO_NO_PERMITIDO). Tambien en una adhesion: llega en el mismo pedido.
+        moderacionService.exigirTextoPermitido(CampoDeTexto.TITULO, titulo);
+        moderacionService.exigirTextoPermitido(CampoDeTexto.DESCRIPCION, cmd.descripcion());
 
         // BE-11: la foto se sanea una sola vez y se sube sin transaccion
         // abierta. Se guardan los mismos bytes saneados, sin volver a sanearlos
-        // (D-08). La moderacion de NC-10b (D-15) va entre los dos pasos, sobre
-        // `saneada`: una foto rechazada no llega a subirse.
+        // (D-08). NC-10b (D-15): entre los dos pasos se modera `saneada`, sin
+        // transaccion: una foto rechazada (400 FOTO_NO_PERMITIDA) o que no se
+        // pudo revisar (503 MODERACION_NO_DISPONIBLE, falla cerrada) no llega a
+        // subirse, y no se crea ni el reporte ni la adhesion.
         FotoSaneada saneada = sanearSiHayFoto(cmd.foto());
+        if (saneada != null) {
+            moderacionService.exigirFotoPermitida(saneada, ciudadano.getId());
+        }
         FotoProvisional foto = saneada == null ? null
                 : new FotoProvisional(fotoStorageService, fotoStorageService.almacenarFotoReporteSaneada(saneada));
         try {
@@ -341,6 +355,12 @@ public class ReporteService {
     public ReporteResumenResponse editar(String emailCiudadano, Long reporteId, EditarReporteRequest req) {
         Reporte reporte = reportePendienteDelCreador(emailCiudadano, reporteId);
 
+        // NC-10b (D-15): el texto nuevo, sin groserias, antes de cambiar nada
+        // (400 TEXTO_NO_PERMITIDO). La edicion no cambia la foto.
+        String tituloNuevo = req.titulo() != null ? Reporte.normalizarTitulo(req.titulo()) : null;
+        moderacionService.exigirTextoPermitido(CampoDeTexto.TITULO, tituloNuevo);
+        moderacionService.exigirTextoPermitido(CampoDeTexto.DESCRIPCION, req.descripcion());
+
         Long categoriaAnterior = reporte.getCategoria() != null ? reporte.getCategoria().getId() : null;
 
         // US-29: solo se valida (activa y del distrito) al CAMBIAR de categoria.
@@ -358,8 +378,8 @@ public class ReporteService {
             validarCategoriaParaDistrito(categoria, reporte.getDistrito());
             reporte.setCategoria(categoria);
         }
-        if (req.titulo() != null) {
-            reporte.setTitulo(Reporte.normalizarTitulo(req.titulo()));
+        if (tituloNuevo != null) {
+            reporte.setTitulo(tituloNuevo);
         }
         if (req.descripcion() != null) {
             reporte.setDescripcion(req.descripcion());

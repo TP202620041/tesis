@@ -34,6 +34,12 @@ import pe.edu.upc.viasegura.common.exception.ServicioNoDisponibleException;
 import pe.edu.upc.viasegura.common.port.ArchivoSubido;
 import pe.edu.upc.viasegura.common.port.FotoSaneada;
 import pe.edu.upc.viasegura.common.port.SaneadorDeImagen;
+import pe.edu.upc.viasegura.moderacion.domain.FiltroDeGroserias;
+import pe.edu.upc.viasegura.moderacion.domain.OrigenDeModeracion;
+import pe.edu.upc.viasegura.moderacion.domain.PuntajeDeModeracion;
+import pe.edu.upc.viasegura.moderacion.port.ModeracionNoDisponibleException;
+import pe.edu.upc.viasegura.moderacion.port.ModeradorDeImagen;
+import pe.edu.upc.viasegura.moderacion.service.ModeracionService;
 
 /**
  * Orquestacion de {@link ClasificacionService} (NC-04) sin Spring: la vista
@@ -52,7 +58,11 @@ class ClasificacionServiceTest {
     private final ClasificadorDano clasificador = mock(ClasificadorDano.class);
     private final CategoriasClasificables categorias = mock(CategoriasClasificables.class);
     private final SaneadorDeImagen saneador = mock(SaneadorDeImagen.class);
-    private final ClasificacionService servicio = new ClasificacionService(clasificador, categorias, saneador, 0.50);
+    /** NC-10b: la moderacion real, con el puerto simulado (apagado salvo en los casos de moderacion). */
+    private final ModeradorDeImagen moderador = mock(ModeradorDeImagen.class);
+    private final ModeracionService moderacion = new ModeracionService(moderador,
+            FiltroDeGroserias.desdeLineas(List.of("# version: prueba", "puta")), 0.70);
+    private final ClasificacionService servicio = new ClasificacionService(clasificador, categorias, saneador, moderacion, 0.50);
 
     @BeforeEach
     void clasificacionEncendida() {
@@ -69,7 +79,7 @@ class ClasificacionServiceTest {
         when(clasificador.detectar(SANEADA, VISTA_PREVIA)).thenReturn(detecto(new Deteccion("bache", 0.87)));
         when(categorias.activas()).thenReturn(List.of(BACHE));
 
-        assertThat(servicio.vistaPrevia(ORIGINAL)).isEqualTo(new ClasificacionResponse(1L, "Bache"));
+        assertThat(servicio.vistaPrevia(ORIGINAL)).isEqualTo(new ClasificacionResponse(1L, "Bache", false));
         verify(clasificador, never()).detectar(eq(ORIGINAL), any());
         // NC-04c: la vista previa le dice al adaptador que no espere turno.
         verify(clasificador).detectar(SANEADA, VISTA_PREVIA);
@@ -81,7 +91,7 @@ class ClasificacionServiceTest {
         when(clasificador.detectar(SANEADA, VISTA_PREVIA)).thenReturn(detecto(new Deteccion("bache", 0.20)));
         when(categorias.activas()).thenReturn(List.of(BACHE));
 
-        assertThat(servicio.vistaPrevia(ORIGINAL)).isEqualTo(new ClasificacionResponse(null, null));
+        assertThat(servicio.vistaPrevia(ORIGINAL)).isEqualTo(new ClasificacionResponse(null, null, false));
     }
 
     @Test
@@ -101,7 +111,7 @@ class ClasificacionServiceTest {
         assertThatThrownBy(() -> servicio.vistaPrevia(ORIGINAL)).isInstanceOf(BusinessException.class);
         verify(clasificador, never()).detectar(any(), any());
         // El turno de la vista previa volvió aunque el saneado lanzó: la siguiente clasifica.
-        assertThat(servicio.vistaPrevia(ORIGINAL)).isEqualTo(new ClasificacionResponse(1L, "Bache"));
+        assertThat(servicio.vistaPrevia(ORIGINAL)).isEqualTo(new ClasificacionResponse(1L, "Bache", false));
     }
 
     @Test
@@ -174,7 +184,7 @@ class ClasificacionServiceTest {
         // El turno de la vista previa volvió: con saneado disponible, la siguiente clasifica.
         when(clasificador.detectar(SANEADA, VISTA_PREVIA)).thenReturn(detecto(new Deteccion("bache", 0.87)));
         when(categorias.activas()).thenReturn(List.of(BACHE));
-        assertThat(servicio.vistaPrevia(ORIGINAL)).isEqualTo(new ClasificacionResponse(1L, "Bache"));
+        assertThat(servicio.vistaPrevia(ORIGINAL)).isEqualTo(new ClasificacionResponse(1L, "Bache", false));
     }
 
     @Test
@@ -195,16 +205,80 @@ class ClasificacionServiceTest {
         // Mientras la primera sanea, la segunda no espera ni toma otro turno del saneado.
         assertThat(servicio.vistaPrevia(ORIGINAL)).isEqualTo(ClasificacionResponse.sinSugerencia());
         soltar.countDown();
-        assertThat(primera.get(5, TimeUnit.SECONDS)).isEqualTo(new ClasificacionResponse(1L, "Bache"));
+        assertThat(primera.get(5, TimeUnit.SECONDS)).isEqualTo(new ClasificacionResponse(1L, "Bache", false));
         verify(saneador, times(1)).sanear(ORIGINAL);
 
         // Y el turno se devuelve: la siguiente vuelve a clasificar.
-        assertThat(servicio.vistaPrevia(ORIGINAL)).isEqualTo(new ClasificacionResponse(1L, "Bache"));
+        assertThat(servicio.vistaPrevia(ORIGINAL)).isEqualTo(new ClasificacionResponse(1L, "Bache", false));
+    }
+
+    // --- NC-10b: la moderacion en la vista previa ------------------------------
+
+    @Test
+    void vistaPrevia_conLaFotoRechazada_avisaYNoClasifica() {
+        when(moderador.estaActivo()).thenReturn(true);
+        when(saneador.sanear(ORIGINAL)).thenReturn(FOTO_SANEADA);
+        when(moderador.medir(FOTO_SANEADA, OrigenDeModeracion.VISTA_PREVIA))
+                .thenReturn(new PuntajeDeModeracion("nsfw-prueba", 0.70));
+
+        assertThat(servicio.vistaPrevia(ORIGINAL)).isEqualTo(new ClasificacionResponse(null, null, true));
+        verify(clasificador, never()).detectar(any(), any());
+        verifyNoInteractions(categorias);
+    }
+
+    @Test
+    void vistaPrevia_conLaFotoAceptada_modera_yClasificaLaMismaFotoSaneada() {
+        when(moderador.estaActivo()).thenReturn(true);
+        when(saneador.sanear(ORIGINAL)).thenReturn(FOTO_SANEADA);
+        when(moderador.medir(FOTO_SANEADA, OrigenDeModeracion.VISTA_PREVIA))
+                .thenReturn(new PuntajeDeModeracion("nsfw-prueba", 0.69));
+        when(clasificador.detectar(SANEADA, VISTA_PREVIA)).thenReturn(detecto(new Deteccion("bache", 0.87)));
+        when(categorias.activas()).thenReturn(List.of(BACHE));
+
+        assertThat(servicio.vistaPrevia(ORIGINAL)).isEqualTo(new ClasificacionResponse(1L, "Bache", false));
+        // Una sola vez: la moderacion y la clasificacion ven los mismos bytes saneados.
+        verify(saneador, times(1)).sanear(ORIGINAL);
+        verify(moderador).medir(FOTO_SANEADA, OrigenDeModeracion.VISTA_PREVIA);
+    }
+
+    @Test
+    void vistaPrevia_sinModeracionDisponible_noAvisa_yClasificaComoSiempre() {
+        when(moderador.estaActivo()).thenReturn(true);
+        when(saneador.sanear(ORIGINAL)).thenReturn(FOTO_SANEADA);
+        when(moderador.medir(any(), any())).thenThrow(new ModeracionNoDisponibleException("timeout"));
+        when(clasificador.detectar(SANEADA, VISTA_PREVIA)).thenReturn(detecto(new Deteccion("bache", 0.87)));
+        when(categorias.activas()).thenReturn(List.of(BACHE));
+
+        assertThat(servicio.vistaPrevia(ORIGINAL)).isEqualTo(new ClasificacionResponse(1L, "Bache", false));
+    }
+
+    @Test
+    void conLaClasificacionApagadaYLaModeracionEncendida_saneaYModera_sinClasificar() {
+        when(clasificador.estaDisponible()).thenReturn(false);
+        when(moderador.estaActivo()).thenReturn(true);
+        when(saneador.sanear(ORIGINAL)).thenReturn(FOTO_SANEADA);
+        when(moderador.medir(FOTO_SANEADA, OrigenDeModeracion.VISTA_PREVIA))
+                .thenReturn(new PuntajeDeModeracion("nsfw-prueba", 0.05))
+                .thenReturn(new PuntajeDeModeracion("nsfw-prueba", 0.95));
+
+        assertThat(servicio.vistaPrevia(ORIGINAL)).isEqualTo(ClasificacionResponse.sinSugerencia());
+        assertThat(servicio.vistaPrevia(ORIGINAL)).isEqualTo(ClasificacionResponse.fotoNoPermitida());
+        verify(clasificador, never()).detectar(any(), any());
+    }
+
+    @Test
+    void laSugerenciaOficial_noPasaPorLaModeracion() {
+        when(moderador.estaActivo()).thenReturn(true);
+        when(clasificador.detectar(SANEADA, SUGERENCIA_OFICIAL)).thenReturn(detecto(new Deteccion("bache", 0.87)));
+        when(categorias.activas()).thenReturn(List.of(BACHE));
+
+        assertThat(servicio.sugerenciaOficial(SANEADA)).isPresent();
+        verify(moderador, never()).medir(any(), any());
     }
 
     @Test
     void umbralMalConfigurado_noArranca() {
-        assertThatThrownBy(() -> new ClasificacionService(clasificador, categorias, saneador, 0))
+        assertThatThrownBy(() -> new ClasificacionService(clasificador, categorias, saneador, moderacion, 0))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 }
