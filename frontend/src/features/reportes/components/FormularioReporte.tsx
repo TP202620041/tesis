@@ -276,14 +276,16 @@ export function FormularioReporte({
       </div>
 
       {/* NC-10c: solo mientras haya una foto que revisar; sin ella, el envío
-          normal ya no necesita la moderación. */}
+          normal ya no necesita la moderación. Las dos salidas piden lo mismo
+          que «Enviar reporte» (`puedeEnviar`): fuera de cobertura o sin
+          categoría, guardar en la cola solo dejaría un rechazo para después. */}
       {moderacionNoDisponible && foto && (
         <Aviso tono="advertencia" rol="alert">
           <p>{moderacionNoDisponible}</p>
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              disabled={enviando}
+              disabled={!puedeEnviar}
               onClick={() => void guardarDespues()}
               className={clasesDeBoton('secundario', 'compacto')}
             >
@@ -291,7 +293,7 @@ export function FormularioReporte({
             </button>
             <button
               type="button"
-              disabled={enviando}
+              disabled={!puedeEnviar}
               onClick={() => void enviarSinFoto()}
               className={clasesDeBoton('secundario', 'compacto')}
             >

@@ -663,6 +663,24 @@ describe('FormularioReporte: la moderación (NC-10c)', () => {
     expect(encolar).not.toHaveBeenCalled();
   });
 
+  it('503: las salidas piden lo mismo que «Enviar reporte» (sin categoría, deshabilitadas)', async () => {
+    vi.mocked(crearReporte).mockRejectedValueOnce(moderacionCaida());
+    const usuario = userEvent.setup();
+    render(<FormularioReporte usuarioId={7} onCreado={vi.fn()} onEncolado={vi.fn()} />);
+
+    await usuario.upload(campoFoto(), foto());
+    await llenarYEnviar(usuario);
+    const guardar = await screen.findByRole('button', { name: 'Guardar para enviar después' });
+    expect(guardar).toBeEnabled();
+
+    await usuario.selectOptions(screen.getByLabelText('Tipo de daño'), '');
+
+    expect(guardar).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Enviar sin foto' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Enviar reporte' })).toBeDisabled();
+    expect(encolar).not.toHaveBeenCalled();
+  });
+
   it('503: si el ciudadano quita la foto, las salidas ya no hacen falta', async () => {
     vi.mocked(crearReporte).mockRejectedValueOnce(moderacionCaida());
     const usuario = userEvent.setup();
