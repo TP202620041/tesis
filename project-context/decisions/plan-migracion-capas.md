@@ -657,6 +657,18 @@ No es migración, es funcionalidad. Se lista aquí para fijar **dónde** va cada
 - `MIN_SUREFIRE` y `MIN_IT_FAILSAFE` los sube la sesión de raíz.
 
 #### NC-10c · PWA: avisos de moderación
+
+**Hecha (2026-10-29, rama `feature/nc-10c-moderacion-pwa`, PR pendiente; se fusiona después del PR #134 de NC-10b).** La sesión de la tarea escribió este estado por pedido del coordinador; la sesión de raíz lo confirma al fusionar. La fila de la tabla no se tocó: está pegada a la de NC-10b, que cambia el PR #134, y chocaría.
+- **Tipos:** OpenAPI del backend de #134 levantado en el 8081 contra una base desechable (`viasegura_nc10_spec`, borrada al terminar). Solo cambia `ClasificacionResponse.fotoRechazada`, tipado `boolean` en `lib/types/domain.ts`. El handoff `handoffs/2026-10-29-moderacion.md` pasa a `atendido` (es el archivo de #134 con la cabecera cambiada: si #134 entra antes, el add/add se resuelve con esta versión).
+- **Reglas:** `lib/types/moderacion.ts` (códigos, campo rechazado y `errorDelCampo`, compartidos por `reportes` y `auth`) y `features/reportes/model/moderacion.ts` (la foto, el 503 y el motivo en la cola). Todo por `codigo` y `details`.
+- **Decisiones de la tarea** (README, «Moderación de contenido (NC-10c, D-15)»):
+  - el error de texto se muestra mientras el campo diga lo mismo que se envió (la regla del correo rechazado de NC-09);
+  - la foto no permitida se quita, sin `aria-invalid` (la foto es opcional), y el aviso queda hasta elegir otra;
+  - «Enviar sin foto» también quita la foto del formulario, y las dos salidas del 503 usan la misma clave;
+  - en la cola, el motivo de un rechazo de la moderación dice qué hacer desde la cola («Descártalo y vuelve a reportar…») en vez de «Toma otra» o «Cámbiala»;
+  - `mensajeDeError` deja de mostrar `details` en los códigos de la moderación (es el nombre del campo).
+- **Métricas (29/10):** `npm test` **1295 tests en 136 archivos** (base de `develop`: 1209 en 133; +86 y 3 archivos nuevos: `lib/types/moderacion.test.ts`, `reportes/model/moderacion.test.ts` y el primer test de `Comentarios`), con la guarda de completitud en verde. `npm run lint`: 0 errores y 0 avisos de capas. `npm run typecheck` y `npm run build` en verde.
+- **Prueba en el navegador (29/10, build de producción en Chrome, modo headed, contra el backend de #134 en una base desechable):** en vivo, el texto rechazado en la descripción, el título de la edición, el comentario, el apellido del perfil y el nombre del registro, siempre en su campo y sin la palabra; con `MODERACION_TIPO=http` y el servicio caído, el 503 real, «Enviar sin foto» (201 con la misma clave) y «Guardar para enviar después» (en la cola, reintentado con la misma clave y pendiente). Interceptados, la vista previa con `fotoRechazada: true` y el 400 `FOTO_NO_PERMITIDA` al crear.
 - **Foto rechazada:**
   - con 400 `FOTO_NO_PERMITIDA`, o con `fotoRechazada: true` en la vista previa, `FormularioReporte` muestra «La foto no está permitida. Toma otra.» junto a la foto;
   - quita la foto y no deja enviar con ella;
