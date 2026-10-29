@@ -68,6 +68,16 @@ describe('FormularioRegistro (NC-07b)', () => {
   // NC-09: recien registrado no hay sesion, solo la cuenta por confirmar.
   const CUENTA = { email: 'ana@lima.pe', vigenciaEnlaceHoras: 24 };
 
+  // Sin site key de Turnstile (NC-08b) no hay widget: estos tests no deben
+  // depender de que la variable este definida en el entorno de quien los corre.
+  beforeEach(() => {
+    vi.stubEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY', '');
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   function conRegistro(enviar = vi.fn().mockResolvedValue({ cuenta: CUENTA, terminosDesactualizados: false })) {
     vi.mocked(useRegistro).mockReturnValue({
       enviando: false,
@@ -111,7 +121,7 @@ describe('FormularioRegistro (NC-07b)', () => {
     await usuario.click(screen.getByRole('checkbox'));
     await usuario.click(screen.getByRole('button', { name: 'Crear cuenta' }));
 
-    // Sin site key de reCAPTCHA (NC-08) el token va como `null`.
+    // Sin site key de Turnstile (NC-08b) el token va como `null`.
     expect(enviar).toHaveBeenCalledWith(
       {
         nombre: 'Ana',

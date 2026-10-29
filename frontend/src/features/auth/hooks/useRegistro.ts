@@ -35,9 +35,10 @@ export type ResultadoRegistro =
  * casilla, QA-1 M-2: cualquier otro error, como un correo ya registrado, no
  * invalida la aceptacion).
  *
- * NC-08: `captchaToken` es el de reCAPTCHA v2, o `null` si el captcha no
- * esta configurado. Un 409 o 503 del captcha se muestra como cualquier otro
- * error (`mensajeDeError`); reiniciar el widget le toca al formulario.
+ * NC-08 / NC-08b: `captchaToken` es el de Cloudflare Turnstile, o `null` si
+ * el captcha no esta configurado. Un 409 o 503 del captcha se muestra como
+ * cualquier otro error (`mensajeDeError`); reiniciar el widget le toca al
+ * formulario.
  *
  * NC-09: si sale bien NO hay sesion: devuelve la {@link CuentaPorConfirmar}
  * (correo y vigencia del enlace) para la pantalla «Revisa tu correo». Los

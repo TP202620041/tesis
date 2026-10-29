@@ -22,10 +22,10 @@ const apiBaseUrlDelEntorno = process.env.NEXT_PUBLIC_API_BASE_URL?.trim() || und
 const esDespliegueDeVercel = process.env.VERCEL_ENV === 'production' || process.env.VERCEL_ENV === 'preview';
 
 /**
- * Site key publica de reCAPTCHA v2 (NC-08), sin espacios; vacia cuenta como
- * ausente, igual que en `src/features/auth/model/captcha.ts`.
+ * Site key publica de Cloudflare Turnstile (NC-08b), sin espacios; vacia
+ * cuenta como ausente, igual que en `src/features/auth/model/captcha.ts`.
  */
-const recaptchaSiteKeyDelEntorno = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY?.trim() || undefined;
+const turnstileSiteKeyDelEntorno = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim() || undefined;
 
 if (esDespliegueDeVercel) {
   const comoDefinirla =
@@ -40,11 +40,11 @@ if (esDespliegueDeVercel) {
   // NC-08: sin site key el registro no muestra el captcha ni envia token, y
   // el backend desplegado (con captcha activo) rechazaria todo registro con
   // 409. Se corta el build en vez de publicar un registro que nunca funciona.
-  if (!recaptchaSiteKeyDelEntorno) {
+  if (!turnstileSiteKeyDelEntorno) {
     throw new Error(
-      'Falta NEXT_PUBLIC_RECAPTCHA_SITE_KEY. Defínela en Vercel (Project Settings > Environment Variables, ' +
-        'para Production y Preview) con la site key pública de reCAPTCHA v2 del dominio, y vuelve a desplegar. ' +
-        'Ver frontend/.env.example.',
+      'Falta NEXT_PUBLIC_TURNSTILE_SITE_KEY. Defínela en Vercel (Project Settings > Environment Variables, ' +
+        'para Production y Preview) con la site key pública del widget de Cloudflare Turnstile, y vuelve a ' +
+        'desplegar. Ver frontend/.env.example.',
     );
   }
 }
@@ -55,23 +55,27 @@ const apiBaseUrl = apiBaseUrlDelEntorno ?? 'http://localhost:8080';
 const TILE_HOSTS = 'https://tile.openstreetmap.org';
 
 /**
- * reCAPTCHA v2 del registro (NC-08), limitado POR RUTA como recomienda la
- * guia de CSP de reCAPTCHA. Abrir `www.google.com` entero en `script-src`
- * es un rodeo conocido de la CSP (endpoints JSONP de Google que devuelven
- * script con un callback elegido por quien llama), y la CSP es la mitigacion
- * declarada del JWT en `localStorage`. Una fuente que termina en `/` admite
- * cualquier ruta bajo ese prefijo:
+ * Cloudflare Turnstile, la verificacion del registro (NC-08b; reemplazo a
+ * reCAPTCHA v2). Se lista el HOST, como pide la referencia de CSP de
+ * Turnstile, y no rutas como se hizo con Google:
  *
- * - `api.js` es `www.google.com/recaptcha/api.js`.
- * - El cargador trae el resto del widget de
- *   `www.gstatic.com/recaptcha/releases/<version>/recaptcha__es.js`.
- * - La casilla y el desafio son iframes de `www.google.com/recaptcha/api2/
- *   anchor` y `…/api2/bframe`; la guia lista ademas
- *   `recaptcha.google.com/recaptcha/` para el iframe del desafio, y se
- *   incluye para que nunca quede en blanco en produccion.
+ * - Con Google el limite por ruta tenia un motivo concreto: `www.google.com`
+ *   sirve de todo, incluidos endpoints JSONP que devuelven script con un
+ *   callback elegido por quien llama (un rodeo conocido de la CSP).
+ *   `challenges.cloudflare.com` es un host dedicado a los desafios de
+ *   Cloudflare.
+ * - Turnstile usa rutas internas que no documenta y cambia sin aviso: `api.js`
+ *   redirige a `/turnstile/v0/g/<version>/api.js` y se recarga a si mismo
+ *   cuando hay version nueva; el iframe y los avisos de diagnostico que manda
+ *   la pagina (`sendBeacon`/`fetch`) van a `/cdn-cgi/challenge-platform/…`.
+ *   Fijar esas rutas dejaria el registro roto en silencio tras una
+ *   actualizacion de Cloudflare.
+ *
+ * Repite `ORIGEN_DEL_CAPTCHA` de `src/features/auth/model/captcha.ts`
+ * (este archivo se evalua fuera del bundle); `src/app/csp.test.ts` los
+ * compara.
  */
-const RECAPTCHA_SCRIPTS = 'https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/';
-const RECAPTCHA_FRAMES = 'https://www.google.com/recaptcha/ https://recaptcha.google.com/recaptcha/';
+const TURNSTILE = 'https://challenges.cloudflare.com';
 
 /**
  * Content-Security-Policy.
@@ -91,21 +95,20 @@ const RECAPTCHA_FRAMES = 'https://www.google.com/recaptcha/ https://recaptcha.go
  * Worker solo muestra la notificacion y abre rutas de este origen; y la
  * clave VAPID y el registro de la suscripcion van al API, ya listado.
  *
- * reCAPTCHA v2 (NC-08, solo en el registro) necesita tres cosas, todas
- * limitadas a las rutas `/recaptcha/` (ver `RECAPTCHA_SCRIPTS`): sus
- * scripts en `script-src` (`api.js` de www.google.com, el resto de
- * www.gstatic.com), `frame-src` para el iframe de la casilla y del desafio
- * (www.google.com y recaptcha.google.com, que la guia de CSP de Google
- * lista para el desafio; sin la directiva rige `default-src 'self'` y el
- * widget queda en blanco) y las mismas rutas de script en `connect-src`,
- * por el Service Worker (ver el comentario de `connect-src`). Lo que pasa dentro
- * del iframe se rige por la CSP de Google, no por esta.
+ * Cloudflare Turnstile (NC-08b, solo en el registro) necesita su host
+ * (ver `TURNSTILE`) en tres directivas: `script-src` para `api.js`,
+ * `frame-src` para el iframe del widget (sin la directiva rige
+ * `default-src 'self'` y el widget queda en blanco) y `connect-src`, por el
+ * Service Worker (ver el comentario de `connect-src`) y por los avisos de
+ * diagnostico que `api.js` manda desde la pagina. Lo que pasa dentro del
+ * iframe se rige por la CSP de Cloudflare, no por esta. El `connect-src
+ * 'self'` que la referencia pide para el modo *pre-clearance* ya esta.
  */
 const csp = [
   "default-src 'self'",
   // 'unsafe-inline' es necesario para el script de arranque de hidratacion de
   // Next; 'unsafe-eval' solo en desarrollo, que es lo que usa el HMR.
-  `script-src 'self' 'unsafe-inline'${esDesarrollo ? " 'unsafe-eval'" : ''} ${RECAPTCHA_SCRIPTS}`,
+  `script-src 'self' 'unsafe-inline'${esDesarrollo ? " 'unsafe-eval'" : ''} ${TURNSTILE}`,
   "style-src 'self' 'unsafe-inline'",
   // blob:/data: para la vista previa de la foto del reporte (US-05).
   // Los tiles de OpenStreetMap son imagenes de otro origen: sin listarlas
@@ -120,14 +123,13 @@ const csp = [
   // `fetch()`, que se rige por `connect-src` y no por `img-src`. Sin listarlos,
   // en cuanto el SW controla la pagina el mapa queda sin calles en cualquier
   // navegador (en desarrollo no pasa porque el SW esta desactivado).
-  // Por lo mismo van las rutas de script de reCAPTCHA (NC-08): el SW repite
-  // con `fetch()` los `<script>` de www.google.com/recaptcha/ y
-  // www.gstatic.com/recaptcha/ (reglas `static-js-assets` y `cross-origin`
-  // de `defaultCache`); sin listarlas,
-  // con el SW activo la casilla del registro no aparece.
-  `connect-src 'self' ${apiBaseUrl} ${TILE_HOSTS} ${RECAPTCHA_SCRIPTS}${esDesarrollo ? ' ws: wss:' : ''}`,
-  // Iframe de la casilla «No soy un robot» y del desafio (NC-08).
-  `frame-src ${RECAPTCHA_FRAMES}`,
+  // Por lo mismo va Turnstile (NC-08b): el SW repite con `fetch()` el
+  // `<script>` de `api.js` (sin guardarlo: regla `NetworkOnly` de `sw.ts`,
+  // porque Cloudflare avisa que cachearlo rompe el widget); sin listarlo,
+  // con el SW activo el widget del registro no aparece.
+  `connect-src 'self' ${apiBaseUrl} ${TILE_HOSTS} ${TURNSTILE}${esDesarrollo ? ' ws: wss:' : ''}`,
+  // Iframe del widget «No soy un robot» (NC-08b).
+  `frame-src ${TURNSTILE}`,
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",

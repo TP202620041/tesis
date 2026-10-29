@@ -1,23 +1,24 @@
 /**
- * NC-08: reCAPTCHA v2 («No soy un robot») en el registro.
+ * NC-08 / NC-08b: verificación «No soy un robot» del registro con
+ * Cloudflare Turnstile (reemplazó a reCAPTCHA v2 el 28/10).
  *
  * Lógica pura: qué site key se usa, si el captcha está activo, de dónde se
  * baja el script y qué tamaño de widget cabe. Cargar el script y pintar el
  * widget (I/O sobre `document` y `window`) lo hace `hooks/useCaptcha.ts`.
  *
- * La site key es pública (Google la pone en el HTML de cualquier página con
- * captcha); la clave secreta vive solo en el backend.
+ * La site key es pública (Cloudflare la pone en el HTML de cualquier página
+ * con el widget); la clave secreta vive solo en el backend.
  */
 
 /**
- * Site key de reCAPTCHA v2, o `null` si no está configurada (vacía cuenta
- * como ausente). Se lee con el nombre literal `process.env.NEXT_PUBLIC_…`
- * porque Next solo hornea en el bundle las lecturas literales, no las
- * dinámicas. En Vercel es obligatoria (lo exige `next.config.ts`); en local
- * puede faltar: el backend local corre con `CAPTCHA_TIPO=ninguno`.
+ * Site key de Turnstile, o `null` si no está configurada (vacía cuenta como
+ * ausente). Se lee con el nombre literal `process.env.NEXT_PUBLIC_…` porque
+ * Next solo hornea en el bundle las lecturas literales, no las dinámicas. En
+ * Vercel es obligatoria (lo exige `next.config.ts`); en local puede faltar:
+ * el backend local corre con `CAPTCHA_TIPO=ninguno`.
  */
 export function siteKeyDelCaptcha(): string | null {
-  return process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY?.trim() || null;
+  return process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim() || null;
 }
 
 /** `true` si el registro debe mostrar el widget y exigir su token. */
@@ -26,27 +27,43 @@ export function captchaConfigurado(): boolean {
 }
 
 /**
- * Script de reCAPTCHA. `render=explicit`: el widget se pinta cuando lo pide
- * el hook (con `grecaptcha.render`), no buscando `.g-recaptcha` en el DOM al
- * cargar, que no encaja con un componente React. `hl=es`: textos en español.
+ * Origen de Turnstile: el script, el iframe del widget y lo que este pide.
+ * La CSP de `next.config.ts` y el Service Worker (`src/pwa/cachesDeSesion.ts`)
+ * lo repiten porque se arman fuera del bundle; sus tests lo comparan con este.
  */
-export const URL_SCRIPT_CAPTCHA = 'https://www.google.com/recaptcha/api.js?render=explicit&hl=es';
+export const ORIGEN_DEL_CAPTCHA = 'https://challenges.cloudflare.com';
 
-/** Error en línea al enviar sin haber resuelto la casilla. */
-export const MENSAJE_FALTA_CAPTCHA = 'Confirma que no eres un robot marcando la casilla de verificación.';
+/**
+ * Script de Turnstile, en la URL EXACTA que publica Cloudflare (avisa que
+ * copiarlo, fijarlo o servirlo desde una caché rompe el widget cuando lo
+ * actualizan). `render=explicit`: el widget se pinta cuando lo pide el hook
+ * (con `turnstile.render`), no buscando `.cf-turnstile` en el DOM al cargar,
+ * que no encaja con un componente React. El idioma va en los parámetros del
+ * widget ({@link IDIOMA_DEL_WIDGET}), no en la URL.
+ */
+export const URL_SCRIPT_CAPTCHA = `${ORIGEN_DEL_CAPTCHA}/turnstile/v0/api.js?render=explicit`;
 
-/** Texto cuando el script de Google no carga (sin red, bloqueado). */
+/**
+ * Textos del widget en español. Turnstile solo distingue `es` y `es-es`
+ * (no hay `es-419` ni `es-pe`); `es` es el neutro.
+ */
+export const IDIOMA_DEL_WIDGET = 'es';
+
+/** Error en línea al enviar sin haber completado la verificación. */
+export const MENSAJE_FALTA_CAPTCHA = 'Completa la verificación «No soy un robot» antes de crear la cuenta.';
+
+/** Texto cuando el script de Cloudflare no carga (sin red, bloqueado). */
 export const MENSAJE_CAPTCHA_SIN_CARGAR = 'No se pudo cargar la verificación. Revisa tu conexión y recarga.';
 
-/** Ancho fijo del widget `normal` de reCAPTCHA v2, en px. */
-export const ANCHO_WIDGET_NORMAL = 304;
+/** Ancho fijo del widget `normal` de Turnstile, en px (mide 300 × 65). */
+export const ANCHO_WIDGET_NORMAL = 300;
 
 export type TamanoDelWidget = 'normal' | 'compact';
 
 /**
  * Tamaño del widget según el ancho disponible en su contenedor. El `normal`
- * mide 304 × 78 px y no se adapta: en un teléfono angosto (o con zoom de
- * texto) desbordaría el formulario. El `compact` (164 × 144 px) cabe en
+ * mide 300 × 65 px y no se adapta: en un teléfono angosto (o con zoom de
+ * texto) desbordaría el formulario. El `compact` (150 × 140 px) cabe en
  * cualquier pantalla. Un ancho desconocido (0) se trata como angosto.
  */
 export function tamanoDelWidget(anchoDisponible: number): TamanoDelWidget {
@@ -54,20 +71,30 @@ export function tamanoDelWidget(anchoDisponible: number): TamanoDelWidget {
 }
 
 /**
- * Parámetros de `grecaptcha.render` que usa la app (solo esos: el tipado
- * completo de Google tiene más).
+ * Parámetros de `turnstile.render` que usa la app (solo esos: Turnstile
+ * acepta más).
+ *
+ * - `expired-callback`: el token vence a los 300 s. Turnstile renueva solo
+ *   el widget (`refresh-expired: auto`, el valor por defecto) y vuelve a
+ *   llamar a `callback` con uno nuevo.
+ * - `error-callback`: recibe el código de error. Devolver algo falso deja que
+ *   Turnstile lo anote en la consola y reintente solo (`retry: auto`).
+ * - `response-field: false`: sin el `<input hidden>` que Turnstile agrega por
+ *   defecto dentro del formulario; el token viaja por `callback`.
  */
 export interface ParametrosDelWidget {
   sitekey: string;
   size: TamanoDelWidget;
+  language: string;
+  'response-field': boolean;
   callback: (token: string) => void;
   'expired-callback': () => void;
-  'error-callback': () => void;
+  'error-callback': (codigo?: string) => void;
 }
 
-/** Miembros de `window.grecaptcha` que usa la app. */
-export interface ApiDeReCaptcha {
-  ready: (alListo: () => void) => void;
-  render: (contenedor: HTMLElement, parametros: ParametrosDelWidget) => number;
-  reset: (idDelWidget?: number) => void;
+/** Miembros de `window.turnstile` que usa la app. `render` devuelve el id del widget. */
+export interface ApiDeTurnstile {
+  render: (contenedor: HTMLElement, parametros: ParametrosDelWidget) => string | null | undefined;
+  reset: (idDelWidget: string) => void;
+  remove: (idDelWidget: string) => void;
 }
