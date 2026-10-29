@@ -36,3 +36,17 @@ class ModeloDeDeteccion(Protocol):
     def version(self) -> VersionModelo: ...
 
     def detectar(self, imagen: ImagenRGB) -> Sequence[Deteccion]: ...
+
+
+class ModeloDeModeracion(Protocol):
+    """Clasificador de contenido sexual explícito (D-15). No aplica el umbral de rechazo.
+
+    ``moderar`` devuelve la probabilidad en [0, 1] para **toda** la foto: el adaptador
+    decide cómo recortarla para su resolución y devuelve el máximo de los recortes.
+    Lanza ``ErrorDeInferencia`` si el motor falla.
+    """
+
+    @property
+    def version(self) -> VersionModelo: ...
+
+    def moderar(self, imagen: ImagenRGB) -> float: ...

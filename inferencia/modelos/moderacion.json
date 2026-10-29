@@ -1,0 +1,146 @@
+{
+  "nombre": "nsfw-vit-tiny-384",
+  "version": "nsfw-vit-tiny-384-0c26ec2-1ba7cf26",
+  "archivo": "nsfw-vit-tiny-384.onnx",
+  "sha256": "1ba7cf26c5fe7b9f2ef58381b378691ca27c2953bc3ca0bf814fdab5c3ed402e",
+  "bytes": 22489929,
+  "resolucion": 384,
+  "entrada": {
+    "nombre": "input",
+    "forma": [
+      1,
+      3,
+      384,
+      384
+    ],
+    "preprocesado": "RGB; Resize(384) bicúbico de Pillow sobre el lado menor (timm, crop_pct 1,0); dos recortes de 384 al principio y al final del lado mayor (si la foto es más alargada que 2:1, el lado mayor se comprime a 768); /255; media y desviación 0,5"
+  },
+  "salida": {
+    "nombre": "logits",
+    "forma": [
+      1,
+      2
+    ],
+    "puntaje": "softmax, columna NSFW, máximo de los recortes"
+  },
+  "etiquetas": [
+    "NSFW",
+    "SFW"
+  ],
+  "fuente": {
+    "repo_hf": "Marqo/nsfw-image-detection-384",
+    "revision": "0c26ec22111b83f106d72a55f611ec35962bcb65",
+    "archivo": "model.safetensors",
+    "sha256": "6bf2e0f64a1d20169736c2836e3a787b12379fdc08ba87f7d94a7a3d58eeefce",
+    "arquitectura": "timm vit_tiny_patch16_384 (5597762 parámetros)",
+    "modelo_base": "timm/vit_tiny_patch16_384.augreg_in21k_ft_in1k (Apache-2.0)",
+    "licencia_pesos": "Apache-2.0",
+    "licencia_arquitectura": "Apache-2.0 (timm)",
+    "atribucion": "Marqo AI, «nsfw-image-detection-384» (Hugging Face), Apache-2.0",
+    "datos": "Propios de Marqo (220 000 imágenes); la tarjeta no publica su procedencia"
+  },
+  "exportacion": {
+    "fecha": "2026-10-29",
+    "timm": "1.0.30",
+    "torch": "2.14.1+cpu",
+    "torchvision": "0.29.1+cpu",
+    "onnx": "1.23.2",
+    "onnxruntime": "1.31.0",
+    "numpy": "2.5.2",
+    "pillow": "12.3.0",
+    "opset": 17,
+    "exportador": "torch.onnx.export(dynamo=False)",
+    "python": "3.13.17",
+    "plataforma": "Linux x86_64"
+  },
+  "paridad": {
+    "imagenes": 11,
+    "recortes": 20,
+    "max_dif_preprocesado": 0.0,
+    "max_dif_recorte_central_timm": 0.0,
+    "max_dif_logits_misma_entrada": 2.15e-06,
+    "max_dif_logits": 2.15e-06,
+    "max_dif_puntajes": 2.01e-07,
+    "tolerancia_puntajes": 0.001
+  },
+  "huella_timm": {
+    "descripcion": "Puntaje de timm (PyTorch) por imagen de scripts/sinteticas.py (TAMANOS_MODERACION e imagenes_de_color): el máximo y el de cada recorte. Lo comprueba tests/test_modelo_real.py.",
+    "imagenes": {
+      "sintetica-384x384": {
+        "puntaje": 0.050789,
+        "recortes": [
+          0.050789
+        ]
+      },
+      "sintetica-640x480": {
+        "puntaje": 0.046794,
+        "recortes": [
+          0.046794,
+          0.046013
+        ]
+      },
+      "sintetica-1024x768": {
+        "puntaje": 0.044166,
+        "recortes": [
+          0.044166,
+          0.041982
+        ]
+      },
+      "sintetica-2048x1536": {
+        "puntaje": 0.052039,
+        "recortes": [
+          0.052039,
+          0.051902
+        ]
+      },
+      "sintetica-1080x1920": {
+        "puntaje": 0.052068,
+        "recortes": [
+          0.052068,
+          0.045345
+        ]
+      },
+      "sintetica-517x293": {
+        "puntaje": 0.050517,
+        "recortes": [
+          0.050517,
+          0.05009
+        ]
+      },
+      "sintetica-1600x400": {
+        "puntaje": 0.054477,
+        "recortes": [
+          0.054477,
+          0.050783
+        ]
+      },
+      "sintetica-300x1200": {
+        "puntaje": 0.056396,
+        "recortes": [
+          0.050857,
+          0.056396
+        ]
+      },
+      "color-640x480": {
+        "puntaje": 0.303149,
+        "recortes": [
+          0.246717,
+          0.303149
+        ]
+      },
+      "color-480x640": {
+        "puntaje": 0.190379,
+        "recortes": [
+          0.190379,
+          0.178834
+        ]
+      },
+      "color-800x800": {
+        "puntaje": 0.328646,
+        "recortes": [
+          0.328646
+        ]
+      }
+    }
+  }
+}

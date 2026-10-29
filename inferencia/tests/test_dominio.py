@@ -8,7 +8,8 @@ import pytest
 
 from app.domain.deteccion import Caja, ClaseDano, Deteccion, Detecciones, VersionModelo
 from app.domain.imagen import FORMATOS_PERMITIDOS, CabeceraDeImagen, ImagenRGB, LimitesDeImagen
-from tests.dobles import VERSION_FALSA, deteccion
+from app.domain.moderacion import PuntajeModeracion
+from tests.dobles import VERSION_FALSA, VERSION_MODERACION_FALSA, deteccion
 
 
 class TestClaseDano:
@@ -75,6 +76,26 @@ class TestDetecciones:
 
     def test_admite_cero_detecciones(self):
         assert Detecciones.de(VERSION_FALSA, []).detecciones == ()
+
+
+class TestPuntajeModeracion:
+    @pytest.mark.parametrize("puntaje", [0.0, 0.053, 0.7, 1.0])
+    def test_acepta_puntajes_en_el_rango(self, puntaje):
+        assert PuntajeModeracion(VERSION_MODERACION_FALSA, puntaje).puntaje == puntaje
+
+    @pytest.mark.parametrize("puntaje", [-0.001, 1.001, math.nan, math.inf])
+    def test_rechaza_puntajes_fuera_de_rango_o_no_finitos(self, puntaje):
+        with pytest.raises(ValueError, match="puntaje"):
+            PuntajeModeracion(VERSION_MODERACION_FALSA, puntaje)
+
+    def test_exige_una_version_del_modelo(self):
+        with pytest.raises(ValueError, match="versión"):
+            PuntajeModeracion("moderacion-1", 0.5)
+
+    def test_es_inmutable(self):
+        puntaje = PuntajeModeracion(VERSION_MODERACION_FALSA, 0.5)
+        with pytest.raises(AttributeError):
+            puntaje.puntaje = 0.9
 
 
 class TestImagen:
