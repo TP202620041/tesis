@@ -75,7 +75,8 @@ public class AuthService {
      *       primer enlace, en {@link RegistroCuentaService} (D-12).</li>
      * </ol>
      *
-     * <p>Los dos primeros pasos son I/O (Cloudflare, el DNS) y corren <b>sin
+     * <p>El primer y el tercer paso son I/O (Cloudflare, el DNS); el segundo es
+     * una regla pura. Los tres corren <b>sin
      * transaccion</b> (por eso este metodo no es {@code @Transactional}): la
      * espera no debe retener una conexion del pool (D-13). La cuenta la crea
      * despues {@link RegistroCuentaService}, en su propia transaccion.</p>

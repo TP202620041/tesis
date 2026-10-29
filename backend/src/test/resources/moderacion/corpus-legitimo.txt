@@ -132,6 +132,61 @@ V.E.S.
 V.M.T.
 S.M.P.
 UPIS Huáscar
+# Siglas frecuentes en Lima (revision del 29/10): ninguna puede chocar con las abreviaturas de la
+# lista (ctm, csm, ptm, hdp, mrd), ni sola ni con puntos o espacios.
+SJL
+SJM
+SMP
+VMT
+VES
+SJB
+MML
+PNP
+SAT
+ATU
+MTC
+SUTRAN
+SEDAPAL
+EMAPE
+SERPAR
+PROVÍAS
+INDECI
+MINSA
+EsSalud
+SUNARP
+SUNAT
+RENIEC
+DNI
+CSMC
+C.S.M.C. Santa Rosa
+OSINERGMIN
+UPC
+PUCP
+UNI
+UNMSM
+IEP
+I.E.P. San Martín
+C.E.I.
+PRONEI
+ONG
+SAC
+S.A.C.
+EIRL
+GLP
+GNV
+ATU corredor rojo
+Metropolitano
+Línea 1
+Línea 2
+Vía de Evitamiento
+Carretera Central
+Av. Javier Prado
+Av. Abancay
+Ca. 2 de Mayo
+Psje. Los Pinos
+Prolong. Arequipa
+Altura cdra. 15
+Frente al Mz. C Lt. 12
 km 1.5
 2do piso
 3er paradero

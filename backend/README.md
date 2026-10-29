@@ -3569,7 +3569,12 @@ secuencias de 2 a 4 palabras para las expresiones), **nunca por subcadena**:
   **ninguna línea ni palabra** del corpus legítimo
   (`test/resources/moderacion/corpus-legitimo.txt`: vocabulario vial, los 43
   distritos, apellidos y nombres frecuentes y las palabras legítimas de la
-  propuesta: 381 líneas) coincide con la lista. Si una palabra legítima
+  propuesta y siglas frecuentes de Lima: 434 líneas) coincide con la lista.
+  **Riesgo que queda: las abreviaturas.** «ctm», «csm», «ptm», «hdp» y «mrd»
+  coinciden como palabra entera, también escritas con puntos o espacios
+  («C. S. M.»): una sigla legítima con esas letras daría 400. Ninguna sigla
+  frecuente de Lima del corpus choca, pero el usuario decide al aprobar la
+  lista si se quedan. Si una palabra legítima
   empieza a coincidir, se corrige la lista, no el corpus.
 - `FiltroDeGroseriasTest`: cada paso de la normalización, en positivo y en
   negativo.
