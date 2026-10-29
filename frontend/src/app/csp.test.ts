@@ -42,8 +42,8 @@ describe('CSP del captcha (NC-08b, Turnstile)', () => {
     expect(ORIGEN_DEL_CAPTCHA).toBe('https://challenges.cloudflare.com');
     expect(csp['script-src']).toContain(ORIGEN_DEL_CAPTCHA);
     expect(csp['frame-src']).toContain(ORIGEN_DEL_CAPTCHA);
-    // El Service Worker repite con `fetch()` el script; `api.js` además manda
-    // sus avisos de diagnóstico desde la página.
+    // El Service Worker repite con `fetch()` el script (y `api.js`, según lo
+    // observado el 28/10, manda avisos de diagnóstico desde la página).
     expect(csp['connect-src']).toContain(ORIGEN_DEL_CAPTCHA);
   });
 

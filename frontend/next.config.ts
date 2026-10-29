@@ -64,12 +64,14 @@ const TILE_HOSTS = 'https://tile.openstreetmap.org';
  *   callback elegido por quien llama (un rodeo conocido de la CSP).
  *   `challenges.cloudflare.com` es un host dedicado a los desafios de
  *   Cloudflare.
- * - Turnstile usa rutas internas que no documenta y cambia sin aviso: `api.js`
- *   redirige a `/turnstile/v0/g/<version>/api.js` y se recarga a si mismo
- *   cuando hay version nueva; el iframe y los avisos de diagnostico que manda
- *   la pagina (`sendBeacon`/`fetch`) van a `/cdn-cgi/challenge-platform/…`.
- *   Fijar esas rutas dejaria el registro roto en silencio tras una
- *   actualizacion de Cloudflare.
+ * - Turnstile usa rutas internas que no documenta y puede cambiar. Lo
+ *   observado el 28/10 (build de produccion con la site key de prueba y el
+ *   `api.js` servido ese dia): `api.js` redirige a
+ *   `/turnstile/v0/g/<version>/api.js` y se recarga a si mismo cuando hay
+ *   version nueva; el iframe y los avisos de diagnostico que manda la pagina
+ *   (`sendBeacon`/`fetch`) van a `/cdn-cgi/challenge-platform/…`. Fijar esas
+ *   rutas dejaria el registro roto en silencio tras una actualizacion de
+ *   Cloudflare.
  *
  * Repite `ORIGEN_DEL_CAPTCHA` de `src/features/auth/model/captcha.ts`
  * (este archivo se evalua fuera del bundle); `src/app/csp.test.ts` los

@@ -44,8 +44,9 @@ export const ORIGEN_DEL_CAPTCHA = 'https://challenges.cloudflare.com';
 export const URL_SCRIPT_CAPTCHA = `${ORIGEN_DEL_CAPTCHA}/turnstile/v0/api.js?render=explicit`;
 
 /**
- * Textos del widget en español. Turnstile solo distingue `es` y `es-es`
- * (no hay `es-419` ni `es-pe`); `es` es el neutro.
+ * Textos del widget en español. En español Turnstile solo admite `es` y
+ * `es-es` (no hay `es-419` ni `es-pe`); `es` es el neutro. Con un código no
+ * admitido cae al inglés (guía de Cloudflare, «Widget configurations»).
  */
 export const IDIOMA_DEL_WIDGET = 'es';
 

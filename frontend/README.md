@@ -954,7 +954,9 @@ contrato no cambió al pasar de reCAPTCHA v2 a Turnstile.
   cuando lo actualizan. Se espera al `load` del `<script>` y no a
   `turnstile.ready()`, que `api.js` rechaza con un error cuando el script se
   cargó de forma asíncrona (y todo `<script>` insertado desde JavaScript lo
-  es). Al desmontar se llama a `turnstile.remove`, que detiene los
+  es; no está en la guía, se ve en el código de `api.js`, ver la nota de
+  abajo). Si `turnstile.render` lanza o no devuelve id, se muestra el mismo
+  aviso que cuando el script no carga. Al desmontar se llama a `turnstile.remove`, que detiene los
   reintentos y las renovaciones del widget.
 - **Callbacks.** `callback` entrega el token; `expired-callback` (el token
   vence a los 300 s; Turnstile renueva solo y vuelve a llamar a `callback`)
@@ -1005,7 +1007,8 @@ contrato no cambió al pasar de reCAPTCHA v2 a Turnstile.
   `connect-src` suma el host por dos motivos: el Service Worker vuelve a
   pedir con `fetch()` los scripts de otro origen (lo mismo que pasó con los
   tiles del mapa) y `api.js` manda desde la página avisos de diagnóstico
-  (`sendBeacon`/`fetch` a `/cdn-cgi/challenge-platform/…`). Se lista el
+  (`sendBeacon`/`fetch` a `/cdn-cgi/challenge-platform/…`; observado, ver
+  la nota de abajo). Se lista el
   **host** y no rutas, a diferencia de reCAPTCHA: allí el límite por ruta
   evitaba los endpoints JSONP de `www.google.com`, un host de propósito
   general y un rodeo conocido de la CSP; `challenges.cloudflare.com` está
@@ -1016,6 +1019,19 @@ contrato no cambió al pasar de reCAPTCHA v2 a Turnstile.
   silencio tras una actualización de Cloudflare. `src/app/csp.test.ts` fija
   las tres directivas, que no quede ningún origen de Google y la guarda de
   la variable en Vercel.
+- **Qué está documentado y qué se observó.** La guía de Cloudflare
+  documenta la URL de `api.js`, el aviso de no cachearlo, los parámetros
+  del widget (tamaños, idiomas: con un código no admitido cae al inglés),
+  los tokens de un solo uso que vencen a los 300 s y la CSP (`script-src` y
+  `frame-src` con el host, `connect-src 'self'` para *pre-clearance*). Lo
+  demás se **observó el 28/10** con la build de producción, Chromium y la
+  site key de prueba, y leyendo el `api.js` que servía Cloudflare ese día
+  (`/turnstile/v0/g/c787ce48cf6b/api.js`): la redirección 302 de `api.js`
+  a esa ruta con versión, la recarga de sí mismo (`_upgrade`), el error de
+  `turnstile.ready()` con scripts asíncronos, los avisos por
+  `sendBeacon`/`fetch` y el iframe bajo `/cdn-cgi/challenge-platform/…`.
+  Son detalles internos de Cloudflare que pueden cambiar; por eso la CSP no
+  depende de ellos (lista el host) y el hook tampoco (no usa `ready`).
 - **Service Worker.** `sw.ts` manda a la red (`NetworkOnly`) todo lo que va
   a `challenges.cloudflare.com` (`esPeticionAlCaptcha` en
   `pwa/cachesDeSesion.ts`), antes de que la regla `cross-origin` de

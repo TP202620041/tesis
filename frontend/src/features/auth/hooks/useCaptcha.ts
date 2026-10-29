@@ -14,7 +14,8 @@ type VentanaConCaptcha = Window & { turnstile?: ApiDeTurnstile };
  * `render=explicit`, `window.turnstile` ya está listo cuando el script
  * termina de ejecutarse, y `api.js` lanza un error si se llama a `ready`
  * con el script cargado de forma asíncrona (todo `<script>` insertado desde
- * JavaScript lo es).
+ * JavaScript lo es). Eso último no está en la guía: se ve en el código de
+ * `api.js` (28/10; README, «Captcha en el registro»).
  */
 let cargaDelScript: Promise<ApiDeTurnstile> | null = null;
 

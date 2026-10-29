@@ -47,7 +47,8 @@ describe('captcha (NC-08b, Turnstile)', () => {
   });
 
   it('pide los textos en español con un código que Turnstile admite', () => {
-    // Turnstile solo admite `es` y `es-es`; con otro código cae al inglés.
+    // En español Turnstile solo admite `es` y `es-es`; con un código no
+    // admitido cae al inglés (guía de Cloudflare, «Widget configurations»).
     expect(['es', 'es-es']).toContain(IDIOMA_DEL_WIDGET);
   });
 
