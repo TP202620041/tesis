@@ -116,7 +116,7 @@ Decisión del usuario (13/10), a partir de la observación del revisor en BE-04:
 ### [ ] BE-09 · (Opcional, después de BE-08) Partir `reportes`
 Si el tamaño lo justifica, separar `categorias` (CategoriaDano y su CRUD, US-29) y `participacion` (calificación, comentarios y reincidencia, US-26 y US-27). Requiere aprobación previa: mueve tablas de módulo y afecta `limpiezaFkSafe`.
 
-### [ ] BE-11 · La foto se sube fuera de la transacción de creación (S7)
+### [x] BE-11 · La foto se sube fuera de la transacción de creación (S7) (2026-10-28)
 Deuda de DEP-12 (`propuestas/2026-10-21-fotos-r2.md`, «La regla de §4.5…»). Es también la opción C de `propuestas/2026-10-22-refresco-indice-asincrono.md`. Hoy `ReporteService#crear` sanea y sube la foto a R2 **dentro** de su `@Transactional`, y retiene una conexión del pool durante la red (~100–500 ms).
 - La foto se sanea y se sube **sin transacción abierta**, antes de la transacción o después de ella con su compensación. No cambia el contrato del API.
 - Si la transacción se revierte, el objeto subido se borra en `afterCompletion`. Un reenvío idempotente (US-06) o una adhesión (US-09) no deja fotos huérfanas en el bucket.
@@ -125,6 +125,16 @@ Deuda de DEP-12 (`propuestas/2026-10-21-fotos-r2.md`, «La regla de §4.5…»).
 - un test con un `FotoStorageService` de prueba comprueba que no hay transacción activa al subir (`TransactionSynchronizationManager.isActualTransactionActive()`);
 - un IT de reversión deja el bucket sin el objeto;
 - Failsafe igual o mayor y ArchUnit en 0.
+
+**Cierre (2026-10-28, rama `feature/be-11-foto-fuera-de-transaccion`):**
+- `ReporteService#crear` ya no es `@Transactional`: lee el usuario y la clave de idempotencia en transacciones cortas, valida los campos, sanea la foto una sola vez y la sube sin transacción ni conexión tomada, y recién entonces abre la transacción (`TransactionTemplate`, inyectado como `TransactionOperations`). Rechaza correr dentro de otra transacción.
+- Puerto: `almacenarFotoReporteSaneada(FotoSaneada)` guarda tal cual la foto saneada y `eliminarFotoReporte` borra la que nadie usó. `SaneadorDeImagen#sanear` devuelve `common/port/FotoSaneada`; `FotoSaneadaSoloDelSaneadoTest` (ArchUnit, sin congelar) exige que en producción solo el saneado la construya. La de perfil la sigue saneando el adaptador.
+- `reportes/service/FotoProvisional`: la foto subida es una `TransactionSynchronization`; `afterCompletion` anota el desenlace y el borrado se hace al volver, ya sin conexión. Se borra si la transacción se revierte, no empieza o se confirma sin usarla (adhesión, reenvío idempotente que se cruzó); se conserva si la usa un reporte confirmado o si el desenlace es desconocido.
+- **Preparado para NC-10b:** el saneado y la subida son dos pasos separados en `crear`; la moderación va entre ellos, sobre `FotoSaneada` y sin transacción. NC-10b no tiene que agregar el método del puerto.
+- Cambio de comportamiento sin cambio de contrato: la foto se sanea también en una adhesión (un archivo que no es imagen da 409; sin turno o con R2 caído, 503), como pide NC-10b.
+- Aceptación: `FotoFueraDeTransaccionIT` (saneado, subida y borrado sin transacción ni recursos ligados al hilo; comprobado con un mutante que sube dentro de una transacción y lo hace fallar) y `FotoProvisionalTest`; reversión con el bucket sin el objeto en `S3FotoStorageServiceIT` (S3Mock) y en el IT local.
+- `mvn clean verify` con S3Mock (`FOTOS_S3_TEST_ENDPOINT`): Failsafe `completed` **493 → 502** (+7 `FotoFueraDeTransaccionIT`, +2 `S3FotoStorageServiceIT`), 0 errores, 0 fallos, 8 omitidos (los IT de servicios reales sin su variable). Surefire **458 → 487**. ArchUnit: 9 reglas en verde, almacén **0 → 0**. JaCoCo: instrucciones 93,1 %, ramas 84,5 %, líneas 93,6 %; `FotoProvisional` 24/24 líneas.
+- Queda: la foto de perfil todavía se sube dentro de la transacción de `AuthService#editarPerfil` (deuda del README). La prueba de carga de 16 creaciones se repite con BE-12.
 
 ### [ ] BE-12 · Refresco asíncrono y coalescido del índice de desempeño (S7)
 Decisión del usuario (25/10): opción A de `propuestas/2026-10-22-refresco-indice-asincrono.md`. Va junto con BE-11. Mientras no entre, producción corre con el pool en 20 (runbook §5.2).
