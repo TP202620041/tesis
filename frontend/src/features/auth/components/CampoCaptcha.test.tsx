@@ -130,6 +130,25 @@ describe('CampoCaptcha (NC-08b, Turnstile)', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(MENSAJE_CAPTCHA_SIN_CARGAR);
   });
 
+  it('si `render` lanza o no devuelve id, avisa en vez de dejar un hueco', async () => {
+    const { stub } = instalarTurnstile();
+    stub.render.mockImplementationOnce(() => {
+      throw new Error('[Cloudflare Turnstile] Invalid sitekey');
+    });
+    const { unmount } = render(<CampoCaptcha siteKey="clave" onToken={vi.fn()} reinicios={0} />);
+    expect(await screen.findByRole('alert')).toHaveTextContent(MENSAJE_CAPTCHA_SIN_CARGAR);
+    unmount();
+
+    stub.render.mockImplementationOnce(() => undefined as unknown as string);
+    const onToken = vi.fn();
+    const { rerender } = render(<CampoCaptcha siteKey="clave" onToken={onToken} reinicios={0} />);
+    expect(await screen.findByRole('alert')).toHaveTextContent(MENSAJE_CAPTCHA_SIN_CARGAR);
+    // Sin id no hay nada que reiniciar ni que quitar.
+    rerender(<CampoCaptcha siteKey="clave" onToken={onToken} reinicios={1} />);
+    expect(stub.reset).not.toHaveBeenCalled();
+    expect(stub.remove).not.toHaveBeenCalled();
+  });
+
   it('agrupa el widget con un nombre accesible', () => {
     instalarTurnstile();
     render(<CampoCaptcha siteKey="clave" onToken={vi.fn()} reinicios={0} />);

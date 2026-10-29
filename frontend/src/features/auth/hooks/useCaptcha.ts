@@ -100,17 +100,26 @@ export function useCaptcha(
       (turnstile) => {
         if (!vigente) return;
         api.current = turnstile;
-        idDelWidget.current =
-          turnstile.render(destino, {
-            sitekey: siteKey,
-            size: tamanoDelWidget(padre.clientWidth),
-            language: IDIOMA_DEL_WIDGET,
-            'response-field': false,
-            callback: (token) => alToken.current(token),
-            'expired-callback': () => alToken.current(null),
-            'error-callback': () => alToken.current(null),
-          }) ?? null;
-        setEstado('listo');
+        // `render` lanza ante parámetros que no acepta y puede no devolver
+        // id: en los dos casos no hay widget que mostrar ni que reiniciar,
+        // así que se avisa como si el script no hubiera cargado.
+        let id: string | null = null;
+        try {
+          id =
+            turnstile.render(destino, {
+              sitekey: siteKey,
+              size: tamanoDelWidget(padre.clientWidth),
+              language: IDIOMA_DEL_WIDGET,
+              'response-field': false,
+              callback: (token) => alToken.current(token),
+              'expired-callback': () => alToken.current(null),
+              'error-callback': () => alToken.current(null),
+            }) || null;
+        } catch {
+          id = null;
+        }
+        idDelWidget.current = id;
+        setEstado(id === null ? 'error' : 'listo');
       },
       () => {
         if (vigente) setEstado('error');
