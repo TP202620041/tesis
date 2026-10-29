@@ -2111,9 +2111,10 @@ rechaza con 401 `validation_error` (clave inválida, no el 403 de un
 >   (hasta 20 widgets por cuenta); el nivel gratuito de reCAPTCHA, hoy en
 >   Google Cloud, cubre 10 000 evaluaciones al mes y después se cobra.
 > - **Una CSP más simple.** El widget es un solo origen,
->   `https://challenges.cloudflare.com` (`script-src` y `frame-src`), en lugar
->   de las rutas de `www.google.com`, `www.gstatic.com` y
->   `recaptcha.google.com` que pedía reCAPTCHA.
+>   `https://challenges.cloudflare.com` (en `script-src`, `frame-src` y
+>   `connect-src`, ver `frontend/README.md`), en lugar de las rutas de
+>   `www.google.com`, `www.gstatic.com` y `recaptcha.google.com` que pedía
+>   reCAPTCHA.
 >
 > `CAPTCHA_TIPO=recaptcha` ya no arranca, y el mensaje dice que cambiar.
 

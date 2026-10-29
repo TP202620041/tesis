@@ -437,7 +437,9 @@ No es migración, es funcionalidad. Se lista aquí para fijar **dónde** va cada
 
 **Métricas (`mvn clean verify`, 28/10):** Failsafe `completed` 493 → **500** (errors 0, failures 0, skipped 14: los de `InferenciaHttpAdapterIT` y `S3FotoStorageServiceIT`, que dependen de variables de entorno); Surefire 458 → **503** (−20 de `RecaptchaV2AdapterTest`, +61 de `TurnstileAdapterTest`, +4 de `ValidacionTipoCaptchaTest`), 0 fallos; ArchUnit 9 reglas en verde y almacén vacío (0 → 0). JaCoCo total: instrucciones 93,13 %, ramas 84,22 %, líneas 93,69 %; `TurnstileAdapter` 460/476 instrucciones, 55/62 ramas, 113/116 líneas; `ValidacionTipoCaptcha` 100 %.
 
-**Pendiente fuera del backend:** el frontend, en el PR #131, que se fusiona después de este y también cambia §5.2 y §6 de `docs/despliegue.md`; `docs/arquitectura/c4-despliegue.md` todavía dice `CAPTCHA_TIPO=recaptcha` (es del arquitecto).
+**Pendiente fuera del backend:** el frontend, en el PR #131, que se fusiona después de este. Ese PR también cambia §5.2 y §6 de `docs/despliegue.md` y los tres diagramas C4 (`c4-contexto.md`, `c4-contenedores.md` y `c4-despliegue.md`), que todavía nombran reCAPTCHA en `develop`. Falta que §5.2 sume la fila de `CAPTCHA_HOSTNAMES` (pedida en el handoff): esta rama no toca el runbook para no chocar con el #131.
+
+**Revisión del 28/10 (`revisor-arquitectura`):** APTO con observaciones, las tres menores y de documentación, atendidas en un commit aparte: el pedido de la fila de `CAPTCHA_HOSTNAMES` para el runbook (en el handoff, porque el runbook lo cambia el #131), esta nota de pendientes (el #131 cubre los tres C4) y la frase del handoff sobre `connect-src`, alineada con lo que hizo el frontend.
 
 ### [ ] NC-10 · Moderación automática de la foto y del texto (decidida el 28/10, v0.8.0)
 
