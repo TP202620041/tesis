@@ -33,6 +33,13 @@ security:
 # red. RegistroDominioCorreoIT simula el puerto; la lista de desechables se
 # aplica igual.
 #
+# Sin moderacion de fotos (NC-10b), literal por la misma razon: un
+# MODERACION_TIPO del entorno no debe hacer que la suite llame al servicio de
+# inferencia ni que cada reporte con foto reciba un 503. Los IT de la
+# moderacion simulan el puerto ModeradorDeImagen; InferenciaModeracionHttpAdapterIT
+# usa el servicio real solo si existe MODERACION_TEST_URL. El filtro de
+# groserias del texto corre siempre, con la lista real.
+#
 # Sin encabezado de origen (DEP-14), literal por la misma razon: un
 # ORIGEN_SECRETO del entorno no debe hacer que la suite reciba 403 en cada
 # peticion. PerfilProdIT y EncabezadoDeOrigenIT lo encienden con el perfil
@@ -58,6 +65,9 @@ app:
     falso:
       respuesta: "bache:0.87,grieta:0.30"
       version-modelo: falso-0
+  moderacion:
+    tipo: ninguna
+    umbral: 0.70
   origen:
     secreto: ninguno
     secreto-anterior: ""

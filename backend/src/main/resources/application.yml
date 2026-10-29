@@ -210,6 +210,26 @@ app:
       # CLASIFICACION_TIPO=falso apaga la clasificacion.
       respuesta: ${CLASIFICACION_FALSO_RESPUESTA:}
       version-modelo: falso-0
+  # Moderacion de la foto antes de publicarla (NC-10b, D-15): puerto
+  # moderacion/port/ModeradorDeImagen, con el adaptador elegido aqui:
+  #   ninguna -> SinModeracionAdapter, acepta toda foto sin revisarla (local y
+  #              tests; en produccion, el interruptor de emergencia, con un WARN)
+  #   http    -> InferenciaModeracionHttpAdapter, POST /v1/moderacion del
+  #              servicio inferencia/ en MODERACION_URL (produccion)
+  # Con `http`, si el servicio no responde, un reporte con foto recibe 503
+  # MODERACION_NO_DISPONIBLE (falla cerrada). El filtro de groserias del texto
+  # no depende de esto: corre siempre (resources/moderacion/groserias-es-pe.txt).
+  # En prod MODERACION_TIPO es obligatoria (application-prod.yml).
+  moderacion:
+    tipo: ${MODERACION_TIPO:ninguna}
+    http:
+      # URL base del servicio, sin la ruta (el adaptador agrega /v1/moderacion);
+      # la misma que CLASIFICACION_URL. Obligatoria con MODERACION_TIPO=http
+      # (ValidacionTipoModeracion).
+      url: ${MODERACION_URL:}
+    # Se rechaza la foto si el puntaje es >= umbral (PoliticaDeModeracion),
+    # entre 0.5 y 0.9. 0.70 inicial (decision del usuario del 28/10).
+    umbral: ${MODERACION_UMBRAL:0.70}
   # Executors asincronos acotados (AsyncConfig): el general, para avisos al
   # ciudadano y correos, y uno propio para la sugerencia de categoria (D-08,
   # NC-04c), que puede esperar hasta 10 s un turno de inferencia sin
