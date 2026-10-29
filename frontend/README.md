@@ -633,7 +633,8 @@ Reglas de la cola:
   cambia la respuesta, así que queda «No se pudo enviar: <motivo>» con un
   botón para descartarlo (con confirmación). Los de la moderación (NC-10c)
   también, con un motivo que dice qué hacer desde la cola (ver «Moderación de
-  contenido»); su 503 es transitorio, como cualquier 5xx.
+  contenido»). Su 503 es transitorio, pero no detiene la cola: solo esperan
+  los reportes con foto.
 - **Incompletos (NC-02)**: un reporte guardado por la versión anterior, sin
   título ni severidad, no se reenvía solo ni se purga; el ciudadano lo completa
   con la misma clave (ver «Título y severidad del reporte (NC-02)»).
@@ -1647,10 +1648,14 @@ Verificado end-to-end contra el backend real:
     salidas: «Enviar sin foto» creó el reporte con la misma clave, y «Guardar
     para enviar después» lo dejó en la cola, que lo reintentó con la misma
     clave y lo mantuvo pendiente;
-  - **interceptado** (el backend no rechaza fotos sin el servicio real): la
-    vista previa con `fotoRechazada: true` y el 400 `FOTO_NO_PERMITIDA` al
-    crear quitan la foto y avisan junto al campo; el reenvío sin foto creó el
-    reporte con la misma clave.
+  - **interceptado**: la vista previa con `fotoRechazada: true` y el 400
+    `FOTO_NO_PERMITIDA` al crear quitan la foto y avisan junto al campo; el
+    reenvío sin foto creó el reporte con la misma clave. La foto rechazada no
+    se pudo provocar en vivo: con `MODERACION_TIPO=ninguna` no se rechaza
+    ninguna, el doble del puerto que rechaza solo existe en los IT del backend
+    (`ModeracionCreacionIT`), y el servicio real no rechaza fotos de pistas.
+    Por eso el navegador recibió el cuerpo exacto del contrato y el resto del
+    flujo fue al backend real.
 
 ### 404 e ids inválidos (QA-1 M-11)
 
