@@ -58,6 +58,8 @@ class ArranqueCorreoIT {
                 "--NOTIF_FROM=Ciudad Viva <no-reply@ciudadviva.test>",
                 "--CAPTCHA_TIPO=ninguno",
                 "--CLASIFICACION_TIPO=falso",
+                // DEP-14: obligatoria en prod. Un valor de prueba evidente.
+                "--ORIGEN_SECRETO=secreto-de-origen-de-prueba-0123456789",
         };
     }
 

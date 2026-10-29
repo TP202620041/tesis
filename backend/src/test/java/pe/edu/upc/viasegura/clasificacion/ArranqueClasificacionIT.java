@@ -51,7 +51,9 @@ class ArranqueClasificacionIT {
                 "--FOTOS_ALMACEN=local",
                 "--CORREO_TIPO=smtp",
                 "--NOTIF_FROM=Ciudad Viva <no-reply@ciudadviva.test>",
-                "--CAPTCHA_TIPO=ninguno"));
+                "--CAPTCHA_TIPO=ninguno",
+                // DEP-14: obligatoria en prod. Un valor de prueba evidente.
+                "--ORIGEN_SECRETO=secreto-de-origen-de-prueba-0123456789"));
     }
 
     @Test
