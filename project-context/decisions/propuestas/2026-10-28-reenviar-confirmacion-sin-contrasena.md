@@ -1,6 +1,6 @@
 # Propuesta: pedir el enlace de confirmación sin la contraseña
 
-- **Estado:** abierta <!-- abierta | aceptada | rechazada -->
+- **Estado:** aceptada (opción C, 2026-10-28; decidida por el usuario) <!-- abierta | aceptada | rechazada -->
 - **Fecha:** 2026-10-28
 - **Origen:** agente de backend, tarea NC-09b (hallazgo 2 de la revisión de `revisor-arquitectura`)
 - **Decide:** el usuario. Si se acepta, la sesión de raíz abre la tarea del frontend en el plan.
@@ -33,3 +33,13 @@ El backend ya tiene lo necesario: `POST /api/auth/reenviar-confirmacion` solo pi
 
 ## Qué queda bloqueado mientras no se decida
 Nada del backend. NC-09b funciona con la opción A. La guía de despliegue (`docs/despliegue.md` §7.2, paso 1) todavía manda al funcionario con el correo ocupado a «¿Olvidaste tu contraseña?», que desde NC-09b no le envía nada: la sesión de raíz la corrige con el camino de arriba, en la misma versión que NC-09b.
+
+## Decisión
+
+Del usuario, el **2026-10-28**: **opción C**. Tras pedir la recuperación, el mensaje genérico de éxito suma «Si todavía no confirmaste tu cuenta, no te llegará este correo: pide el enlace de confirmación» y, al lado, «Reenviar el enlace» (`ReenviarConfirmacion` / `useReenvioDeConfirmacion`) con el correo ya escrito.
+
+- Se muestra **siempre**, haya o no cuenta y esté o no confirmada, así que no revela nada.
+- El reenvío usa `POST /api/auth/reenviar-confirmacion` (202 siempre) con su mensaje neutro y la espera de 60 s.
+- Sin cambio de contrato ni de backend. B no se toma.
+
+Implementada en **NC-09c** (rama `feature/nc-09c-reenviar-desde-recuperacion`); ver «Confirmación del correo (NC-09)» en `frontend/README.md`. `docs/despliegue.md` §7.2 (paso 1) y la prueba de humo de §7.3 describen el camino real.

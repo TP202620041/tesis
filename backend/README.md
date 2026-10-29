@@ -382,8 +382,10 @@ ADMIN.
    no se asigna hasta que ella recupere la cuenta: abre el enlace del correo
    de confirmación que recibió cuando el otro se registró (si venció, la
    página del enlace le deja pedir otro), y después cambia la contraseña con
-   «¿Olvidaste tu contraseña?», que solo funciona con la cuenta confirmada
-   (ver «Cuentas sin confirmar (NC-09b)», también si ya no tiene ese correo).
+   «¿Olvidaste tu contraseña?», que solo funciona con la cuenta confirmada.
+   Si ya no tiene ese correo, pide el enlace de nuevo con «Reenviar el
+   enlace», que «¿Olvidaste tu contraseña?» ofrece tras pedir el token
+   (NC-09c; ver «Cuentas sin confirmar (NC-09b)»).
    El script muestra la fecha de registro de la
    cuenta (`created_at`, hora de Lima) y si confirmó su correo, para
    compararlo con lo que la persona recuerda.
@@ -2388,17 +2390,18 @@ a la que lleva (`/confirmar-cuenta`) le deja pedir otro escribiendo su
 correo. El enlace de confirmación sigue siendo la única prueba de que el
 correo es suyo, como decidió el usuario.
 
-**Hueco de la PWA (revisión del 28/10).** Si ya no tiene ese correo, la
-PWA no le muestra dónde pedir el enlace sin la contraseña: el «Reenviar el
-enlace» del inicio de sesión solo aparece con el 409
-`CORREO_NO_CONFIRMADO`, que exige la contraseña correcta, y a
-`/confirmar-cuenta` (que sin token también ofrece pedir uno) no lleva ningún
-enlace. Antes de NC-09b la sacaba de ahí «¿Olvidaste tu contraseña?». El
-backend ya lo permite: `POST /api/auth/reenviar-confirmacion` solo pide el
-correo. Cómo mostrarlo en la PWA lo decide el usuario en
+**Si ya no tiene ese correo (NC-09c).** La revisión del 28/10 encontró un
+hueco: la PWA no mostraba dónde pedir el enlace sin la contraseña. El
+«Reenviar el enlace» del inicio de sesión solo aparece con el 409
+`CORREO_NO_CONFIRMADO`, que exige la contraseña correcta, y antes de NC-09b
+la sacaba de ahí «¿Olvidaste tu contraseña?». El usuario decidió el 28/10 la
+opción C de
 `project-context/decisions/propuestas/2026-10-28-reenviar-confirmacion-sin-contrasena.md`.
-Mientras tanto, la otra salida es esperar la purga de BE-15 y registrarse de
-nuevo.
+Tras pedir el token, «¿Olvidaste tu contraseña?» dice siempre que a una
+cuenta sin confirmar no le llegará el correo y ofrece «Reenviar el enlace»
+de confirmación al correo escrito. Usa `POST /api/auth/reenviar-confirmacion`,
+que solo pide el correo y responde 202 siempre, así que no revela nada. Está
+implementado en NC-09c, solo en el frontend: el backend no cambia.
 
 Riesgo que queda: entre la
 confirmación y el cambio de contraseña, quien registró la cuenta puede
