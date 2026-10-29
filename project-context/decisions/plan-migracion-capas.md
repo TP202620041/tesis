@@ -457,16 +457,25 @@ No es migración, es funcionalidad. Se lista aquí para fijar **dónde** va cada
   La exportación es reproducible byte a byte, y el hash de RF-DETR no cambió.
 - **Preprocesado:** dos recortes y el máximo. Una foto más alargada que 2:1 se comprime a 768 para que los dos recortes la cubran entera (ver «Dudas» abajo).
 - **Medición** en Docker con `--cpus=2` (README, «Cifras medidas con la moderación»):
-  - RAM: 212 MiB en reposo con los dos modelos; como máximo, 388 MiB con 4 clientes mezclados y fotos saneadas y 498 MiB con fotos crudas de 8 MP;
-  - antes de sumar `MALLOC_ARENA_MAX=2` y `MALLOC_MMAP_THRESHOLD_` a la imagen, ese peor caso llegaba a 847 MiB;
-  - `/v1/moderacion` sola: p50 124 ms y p95 259 ms, con 350 fotos saneadas;
-  - con 4 clientes mezclados: p50 255 ms y p95 1194 ms.
-- **Calibración** con 350 fotos negativas de RDD2022, 50 por país: mediana 0,059 y máximo 0,112. La regla da el piso de 0,50. **Se recomienda mantener 0,70** hasta sumar las ≥ 50 fotos de calles con gente y las de Lima, que no existen todavía.
-- **Pruebas:** `pytest`, 133 → **261 ejecutados** sin pesos (9 omitidos, todos de `test_modelo_real.py`); 270 de 270 con los dos modelos. `lint-imports`: 3 contratos, 0 rotos. `MIN_PYTEST_INFERENCIA` lo sube la sesión de raíz al fusionar.
-- **Revisión:** pendiente.
+  - RAM en reposo con los dos modelos: 210–335 MiB.
+  - RAM máxima con 4 clientes mezclados:
+    - 388–390 MiB con fotos saneadas, que es lo que envía el backend;
+    - 498–507 MiB con fotos crudas de 8 MP;
+    - 755–858 MiB en el tope de 16 MP del servicio, por encima de 700 pero por debajo de 1 GB (ver «Dudas»).
+  - Antes de sumar `MALLOC_ARENA_MAX=2` y `MALLOC_MMAP_THRESHOLD_` a la imagen, el caso de 8 MP llegaba a 845–847 MiB.
+  - `/v1/moderacion` sola: p50 124 ms y p95 259 ms, con 350 fotos saneadas.
+  - Con 4 clientes mezclados y fotos saneadas: p50 229–255 ms y p95 1194–1228 ms.
+- **Calibración** con 350 fotos negativas de RDD2022, 50 por país: mediana 0,059 y máximo 0,112. La regla da el piso de 0,50, y el script lo marca como provisional porque faltan las partes `--gente` y `--lima`. **Se recomienda mantener 0,70** hasta sumar las ≥ 50 fotos de calles con gente y las de Lima, que no existen todavía.
+- **Pruebas:** `pytest`, 133 → **264 ejecutados** sin pesos (9 omitidos, todos de `test_modelo_real.py`); 273 de 273 con los dos modelos. `lint-imports`: 3 contratos, 0 rotos. `MIN_PYTEST_INFERENCIA` lo sube la sesión de raíz al fusionar.
+- **Revisión del 28/10** (`revisor-arquitectura`): **APTO con observaciones**, sin hallazgos bloqueantes ni importantes. Las cuatro menores se atendieron en un commit aparte:
+  - la cifra de RAM, alineada en todos los documentos;
+  - el docstring del limitador (4 imágenes decodificadas a la vez) y la medición en el tope de 16 MP;
+  - los avisos por cada parte del conjunto de calibración;
+  - el comando reproducible para el entorno de exportación.
 - **Dudas para el usuario:**
-  - la compresión a 768 de las fotos más alargadas que 2:1, que la decisión de «dos recortes» no cubría;
-  - completar el conjunto de calibración.
+  - **Fotos más alargadas que 2:1:** se comprimen a 768 para que los dos recortes las cubran, un caso que la decisión de «dos recortes» no contemplaba. La alternativa que señaló la revisión es hasta 3 o 4 recortes y comprimir solo por encima de 3:1 o 4:1.
+  - **Tope de `INFERENCIA_MAX_MEGAPIXELES`:** bajarlo de 16 a 8 dejaría el peor caso de RAM en ~510 MiB. Cambia el 413 de los dos endpoints, aunque el backend nunca envía más de 4,2 MP.
+  - **Calibración pendiente:** completar el conjunto. Conviene que la sesión de raíz lo deje como tarea propia, o dentro de NC-03b.
 
 - **Modelo:**
   - `Marqo/nsfw-image-detection-384`, revisión `0c26ec22111b83f106d72a55f611ec35962bcb65` (Apache-2.0; `vit_tiny_patch16_384`, 5,6 M de parámetros);

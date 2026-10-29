@@ -23,15 +23,19 @@ PROCESOS_SIMULTANEOS = 2
 
 El modelo ya corre de a una inferencia (``OnnxModelo`` las serializa). Con 2, la
 siguiente foto se decodifica mientras la anterior está en el modelo, y la
-memoria queda acotada a dos imágenes decodificadas aunque lleguen muchas
-solicitudes juntas.
+memoria de las detecciones queda acotada a dos imágenes decodificadas aunque
+lleguen muchas solicitudes juntas.
 """
 
 PROCESOS_SIMULTANEOS_MODERACION = 2
 """Lo mismo para la moderación, con un limitador **aparte** (y un candado aparte en
-``OnnxModeracion``): una moderación nunca espera detrás de las detecciones. El tope de
-conexiones de uvicorn (``INFERENCIA_MAX_CONCURRENCIA``), en cambio, es uno solo para
-todo el proceso y cuenta las de los dos endpoints."""
+``OnnxModeracion``): una moderación nunca espera detrás de las detecciones.
+
+Por eso el proceso puede tener hasta **4 imágenes decodificadas a la vez** (2 por
+endpoint). Es lo que fija el máximo de memoria con fotos grandes (README, «Cifras
+medidas con la moderación»). El tope de conexiones de uvicorn
+(``INFERENCIA_MAX_CONCURRENCIA``), en cambio, es uno solo para todo el proceso y
+cuenta las de los dos endpoints."""
 
 
 def construir_api(detectar: DetectarDanos, moderar: ModerarImagen) -> FastAPI:

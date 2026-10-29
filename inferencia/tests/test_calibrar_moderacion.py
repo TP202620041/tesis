@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from scripts.calibrar_moderacion import REPOSITORIO, dentro_del_repositorio, histograma, umbral_sugerido
+from scripts.calibrar_moderacion import REPOSITORIO, dentro_del_repositorio, faltantes, histograma, umbral_sugerido
 
 
 @pytest.mark.parametrize(
@@ -30,6 +30,22 @@ def test_con_el_umbral_sugerido_ninguna_foto_negativa_se_rechaza_si_no_toca_el_t
 def test_sin_puntajes_no_hay_umbral():
     with pytest.raises(ValueError):
         umbral_sugerido([])
+
+
+def test_avisa_de_cada_parte_del_conjunto_que_falta():
+    # Lo que había el 28/10: solo pistas de RDD2022.
+    avisos = faltantes({"pistas": 350})
+    assert len(avisos) == 2
+    assert any("--gente" in a and "50" in a for a in avisos)
+    assert any("--lima" in a and "200" in a for a in avisos)
+
+
+def test_avisa_de_una_parte_por_debajo_de_su_minimo():
+    assert faltantes({"pistas": 120, "gente": 60, "lima": 200}) == ["«pistas y veredas de RDD2022» tiene 120 fotos y el mínimo es 300"]
+
+
+def test_con_el_conjunto_completo_no_hay_avisos():
+    assert faltantes({"pistas": 300, "gente": 50, "lima": 200}) == []
 
 
 def test_se_niega_a_leer_fotos_dentro_del_repositorio(tmp_path):

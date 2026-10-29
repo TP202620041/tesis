@@ -39,7 +39,7 @@ FROM ${PYTHON_IMAGEN}
 # la apaga antes de que el motor arranque (también lo hace app/infrastructure/onnx_modelo.py).
 # MALLOC_*: con varios hilos decodificando fotos grandes, glibc abre un arena por hilo y se
 # queda con la memoria liberada. Dos arenas y los bloques de 1 MiB o más por mmap (se
-# devuelven al liberarlos) bajan el máximo con 4 clientes y fotos de 8 MP de 847 a 487 MiB,
+# devuelven al liberarlos) bajan el máximo con 4 clientes y fotos de 8 MP de 847 a 487-507 MiB,
 # con la misma latencia y los mismos resultados (README, «Cifras medidas»).
 ENV PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \

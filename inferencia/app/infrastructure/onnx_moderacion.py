@@ -91,8 +91,11 @@ def redimensionar(imagen: ImagenRGB, geometria: GeometriaDeRecortes) -> np.ndarr
     Es la misma llamada que hace torchvision con una imagen de Pillow
     (``Image.resize(..., BICUBIC)``, con antialias al reducir). Si el tamaño ya es
     el pedido, no se toca, como torchvision.
+
+    ``frombuffer`` comparte la memoria de ``imagen.pixeles`` (solo lectura) en vez de
+    copiarla: con una foto de 16 MP son 48 MB menos por moderación en curso.
     """
-    pil = Image.frombytes("RGB", (imagen.ancho, imagen.alto), imagen.pixeles)
+    pil = Image.frombuffer("RGB", (imagen.ancho, imagen.alto), imagen.pixeles, "raw", "RGB", 0, 1)
     if pil.size != (geometria.ancho, geometria.alto):
         pil = pil.resize((geometria.ancho, geometria.alto), Image.Resampling.BICUBIC)
     return np.asarray(pil, dtype=np.uint8)

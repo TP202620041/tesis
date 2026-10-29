@@ -2,7 +2,7 @@
 
 - **Estado:** pendiente <!-- pendiente | atendido -->
 - **Fecha:** 2026-10-28
-- **Origen:** inferencia, rama `feature/nc-10a-moderacion-inferencia`, commits `2abb769` (endpoint, exportación y tests) y `679c5c0` (calibración y medición), más el README y este handoff (PR por abrir; lo abre el coordinador)
+- **Origen:** inferencia, rama `feature/nc-10a-moderacion-inferencia`: commits `2abb769` (endpoint, exportación y tests), `679c5c0` (calibración y medición), `e956234` (README, este handoff y el plan) y las observaciones de la revisión en el commit siguiente (PR por abrir; lo abre el coordinador)
 - **Historia o tarea:** NC-10a (D-15, propuesta decidida `decisions/propuestas/2026-10-28-moderacion-de-contenido.md`); lo consume **NC-10b** (`moderacion/infra/InferenciaModeracionHttpAdapter`)
 - **Destinatario:** backend, NC-10b
 - **Atendido por:** —
@@ -90,10 +90,11 @@ Los campos desconocidos se ignoran.
 | Carga | p50 | p95 | Máx. |
 |---|---|---|---|
 | Una moderación a la vez, 350 fotos saneadas | 124 ms | 259 ms | 296 ms |
-| 4 clientes mezclando moderación y detección, fotos saneadas | 255 ms | 1194 ms | 1510 ms |
-| Lo mismo con fotos crudas de hasta 8 MP (peor caso) | 271 ms | 1467 ms | 1752 ms |
+| 4 clientes mezclando moderación y detección, fotos saneadas | 229–255 ms | 1194–1228 ms | 1510 ms |
+| Lo mismo con fotos crudas de hasta 8 MP | 234–271 ms | 1467–1485 ms | 1752 ms |
+| Lo mismo con fotos de 16 MP (el tope del servicio; el backend no las envía) | 1591–1679 ms | 1773–2062 ms | 2105 ms |
 
-Con los 500 + 2 500 ms del adaptador hay holgura. La espera de hasta 1 s por un turno en la creación se suma aparte, del lado del backend.
+Con los 500 + 2 500 ms del adaptador hay holgura para lo que envía el backend (≤ 4,2 MP). La espera de hasta 1 s por un turno en la creación se suma aparte, del lado del backend.
 
 **Determinismo.** La moderación corre con 1 hilo fijo (`INFERENCIA_MODERACION_HILOS=1`). Con la misma foto y la misma `version_modelo`, el puntaje es el mismo en la vista previa y en la creación. Lo prueban los tests y las corridas repetidas.
 
@@ -106,6 +107,6 @@ Con los 500 + 2 500 ms del adaptador hay holgura. La espera de hasta 1 s por un 
 
 **Despliegue (DEP-13).**
 - El servicio no suma variables obligatorias: `INFERENCIA_MODERACION_HILOS=1` viene en la imagen.
-- RAM medida: 212 MiB en reposo con los dos modelos, 388 MiB como máximo con 4 clientes mezclados y fotos saneadas, y 498 MiB en el peor caso con fotos de 8 MP. Cabe en 1 GB.
+- RAM medida con 4 clientes mezclados: 210–335 MiB en reposo con los dos modelos; 388–390 MiB como máximo con fotos saneadas (lo que envía el backend); 498–507 MiB con fotos de 8 MP; y 755–858 MiB en el tope de 16 MP del servicio. Cabe en 1 GB en todos los casos.
 - Imagen de 680 MB.
 - El backend con `MODERACION_TIPO=http` se despliega solo después de esta imagen (plan, NC-10).

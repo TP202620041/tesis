@@ -196,10 +196,10 @@ La exportación es **reproducible byte a byte**: el mismo sha256 en tres corrida
 | **Límite del cuerpo** en un middleware ASGI (`Content-Length` y bytes recibidos) además de los límites del caso de uso. | Solo leer `UploadFile` con tope: Starlette guarda todo el multipart en un temporal antes del endpoint, así que un archivo enorme ya habría llenado disco o memoria. |
 | `app/main.py` como **raíz de composición** (no listada en §6). | Armar los adaptadores en `api/`: la presentación dependería de la infraestructura. Es el papel que cumple Spring en el backend. |
 | **Moderación en su propio endpoint** (`/v1/moderacion`, D-15) y el servicio **solo mide**: el umbral de rechazo es del backend. | Sumar el puntaje a `/v1/detecciones`: la creación correría RF-DETR solo para moderar y la sugerencia oficial correría la moderación sin usarla (propuesta, §2, opción B). |
-| **Dos recortes de 384 y el máximo**, en vez del recorte central de timm. Más de 2:1, el lado mayor se comprime a 768. | El recorte central deja fuera el 12,5 % de cada lado de una foto 4:3: alcanza con poner el contenido en un borde. Más recortes en una panorámica: el costo crecería con la proporción, que el cliente controla (16 MP admiten 160 000 × 100). |
+| **Dos recortes de 384 y el máximo**, en vez del recorte central de timm. Más de 2:1, el lado mayor se comprime a 768. | El recorte central deja fuera el 12,5 % de cada lado de una foto 4:3: alcanza con poner el contenido en un borde. Un recorte por cada 384 px de una panorámica: el costo crecería con la proporción, que el cliente controla (16 MP admiten 160 000 × 100). **Queda como duda para el usuario** una vía intermedia: hasta 3 o 4 recortes y comprimir solo por encima de 3:1 o 4:1. Deformaría menos una panorámica, que hoy es el caso que más baja la sensibilidad (una vía de evasión acotada: la foto la sube la PWA desde la cámara, 4:3 o 16:9), a cambio de hasta el doble de costo en esas fotos. |
 | **Limitador (2) y candado propios** de la moderación, `INFERENCIA_MODERACION_HILOS=1` fijo. | Compartir los de RF-DETR: una moderación (~0,1 s por recorte) esperaría detrás de detecciones de ~0,4 s, y la creación del reporte la espera de forma síncrona. Con 1 hilo, la otra vCPU queda para RF-DETR, y con un número fijo la misma foto da el mismo puntaje en la vista previa y en la creación. |
 | **La misma validación** (`ValidacionDeImagen`) en los dos casos de uso. | Copiarla en `ModerarImagen`: los dos endpoints podrían responder distinto a la misma foto, y el contrato dice que los errores son los mismos. |
-| **`MALLOC_ARENA_MAX=2` y `MALLOC_MMAP_THRESHOLD_=1048576`** en la imagen. | El comportamiento por defecto de glibc: con 4 clientes y fotos de 8 MP, el máximo llegó a 847 MiB (656 MiB solo con RF-DETR, en la imagen de NC-03), porque cada hilo abre su arena y se queda con lo liberado. Con los dos ajustes, 487 MiB, con la misma latencia y los mismos resultados. No cambia ningún número del modelo. |
+| **`MALLOC_ARENA_MAX=2` y `MALLOC_MMAP_THRESHOLD_=1048576`** en la imagen. | El comportamiento por defecto de glibc: con 4 clientes y fotos de 8 MP, el máximo llegó a 845–847 MiB (656 MiB solo con RF-DETR, en la imagen de NC-03), porque cada hilo abre su arena y se queda con lo liberado. Con los dos ajustes, 487–507 MiB en tres corridas, con la misma latencia y los mismos resultados. No cambia ningún número del modelo. |
 
 ## Obtener el modelo
 
@@ -224,12 +224,15 @@ python -m venv .venv-exportar
 .venv-exportar/Scripts/python scripts/exportar_moderacion.py --imagenes /ruta/a/fotos
 ```
 
-En Windows, torch puede no instalarse por las rutas largas. Entonces sirve un contenedor con el entorno de exportación y `inferencia/` montado. Así se generó `moderacion.json` el 28/10: con un Dockerfile aparte que copia las líneas del `Dockerfile` hasta `RUN pip install -r requirements-exportar.txt` (la etapa `exportador` entera fallaría en `--comprobar` mientras el `.json` no exista o esté viejo):
+En Windows, torch puede no instalarse por las rutas largas. Entonces sirve un contenedor con el entorno de exportación y `inferencia/` montado. Así se generó `moderacion.json` el 28/10. La imagen se arma con las líneas del `Dockerfile` hasta `RUN pip install -r requirements-exportar.txt`, porque la etapa `exportador` entera fallaría en `--comprobar` mientras el `.json` no exista o esté viejo:
 
 ```bash
-docker build -f Dockerfile.entorno -t ciudadviva-inferencia-exportador inferencia/
+sed -n '1,/^RUN pip install -r requirements-exportar.txt/p' inferencia/Dockerfile \
+  | docker build -f- -t ciudadviva-inferencia-exportador inferencia/
 docker run --rm -v "$PWD/inferencia:/src/repo" -w /src/repo ciudadviva-inferencia-exportador python scripts/exportar_moderacion.py
 ```
+
+La fecha de `exportacion.fecha` en `moderacion.json` (`2026-10-29`) es la del reloj UTC del contenedor; en Lima era el 28/10 por la noche.
 
 `exportar_onnx.py` verifica el sha256 de los pesos descargados, exporta (opset 17), mide la paridad ONNX/PyTorch (falla si el preprocesado difiere en más de 10⁻⁴ o los puntajes en más de 10⁻³) y escribe en `modelo.json` la **huella**: los 10 mejores pares de PyTorch en cada imagen sintética de `scripts/sinteticas.py`. `exportar_moderacion.py` hace lo mismo con timm (paridad de preprocesado, logits y puntajes; huella de puntajes por recorte en `moderacion.json`). Si el hash cambia respecto del registrado, lo avisan; `--comprobar` lo convierte en error. No necesitan token de Hugging Face (los repos son públicos).
 
@@ -254,7 +257,7 @@ cd inferencia
 python -m venv .venv
 .venv/Scripts/python -m pip install --require-hashes --no-deps -r requirements-dev.lock   # macOS/Linux: .venv/bin/python
 .venv/Scripts/lint-imports                                           # guarda de capas
-.venv/Scripts/python -m pytest -rs                                   # sin pesos: 261 pasan y 9 se omiten
+.venv/Scripts/python -m pytest -rs                                   # sin pesos: 264 pasan y 9 se omiten
 .venv/Scripts/uvicorn app.main:crear_app --factory --port 8090       # con el modelo en modelos/
 ```
 
@@ -312,38 +315,42 @@ Medición con `scripts/medir_latencia.py` contra el contenedor con **`--cpus=2`*
 
 ## Cifras medidas con la moderación (28/10/2026, NC-10a)
 
-Misma máquina y mismo método (`--cpus=2`, `docker stats`), con la imagen `ciudadviva-inferencia:nc10a` (los dos modelos y los ajustes `MALLOC_*`). `scripts/medir_latencia.py --ruta moderacion|detecciones|mezcla`. La muestra de RDD2022 son **350 fotos** del test, 50 por país (China con dron y en moto, Chequia, India, Japón, Noruega y EE. UU.; de 512 × 512 a 4040 × 2035), elegidas al azar con semilla fija y guardadas fuera del repo. «Saneadas» son esas fotos llevadas a JPEG de ≤ 2048 px por lado y calidad 85, como las envía el backend; «crudas», tal cual (las de Noruega pasan de 7 MP).
+Misma máquina y mismo método (`--cpus=2`, `docker stats`), con la imagen `ciudadviva-inferencia:nc10a` (los dos modelos y los ajustes `MALLOC_*`). `scripts/medir_latencia.py --ruta moderacion|detecciones|mezcla`. Los rangos son de dos construcciones de la imagen: la de la entrega y la que atendió la revisión. La muestra de RDD2022 son **350 fotos** del test, 50 por país (China con dron y en moto, Chequia, India, Japón, Noruega y EE. UU.; de 512 × 512 a 4040 × 2035), elegidas al azar con semilla fija y guardadas fuera del repo. «Saneadas» son esas fotos llevadas a JPEG de ≤ 2048 px por lado y calidad 85, como las envía el backend; «crudas», tal cual (las de Noruega pasan de 7 MP).
 
 | Carga | Endpoint | Solicitudes | p50 | p95 | Máx. |
 |---|---|---|---|---|---|
 | Secuencial, sintéticas | `/v1/moderacion` | 30 | 220 ms | 274 ms | 284 ms |
 | Secuencial, 350 fotos saneadas | `/v1/moderacion` | 350 | **124 ms** | **259 ms** | 296 ms |
 | Secuencial, sintéticas | `/v1/detecciones` | 30 | 209 ms | 250 ms | 333 ms |
-| 4 clientes, mitad y mitad, 350 fotos saneadas | `/v1/moderacion` | 175 | 255 ms | 1194 ms | 1510 ms |
-| | `/v1/detecciones` | 175 | 1026 ms | 1278 ms | 1613 ms |
-| 4 clientes, mitad y mitad, 350 fotos crudas | `/v1/moderacion` | 175 | 271 ms | 1467 ms | 1752 ms |
-| | `/v1/detecciones` | 175 | 1114 ms | 1313 ms | 1641 ms |
+| 4 clientes, mitad y mitad, 350 fotos saneadas | `/v1/moderacion` | 175 | 229–255 ms | 1194–1228 ms | 1499–1510 ms |
+| | `/v1/detecciones` | 175 | 978–1026 ms | 1139–1278 ms | 1495–1613 ms |
+| 4 clientes, mitad y mitad, 350 fotos crudas | `/v1/moderacion` | 175 | 234–271 ms | 1467–1485 ms | 1628–1752 ms |
+| | `/v1/detecciones` | 175 | 997–1114 ms | 1277–1313 ms | 1641–1788 ms |
 | 4 clientes, mitad y mitad, sintéticas | `/v1/moderacion` | 18 | 1187 ms | 1390 ms | 1501 ms |
 | | `/v1/detecciones` | 18 | 790 ms | 1053 ms | 1085 ms |
+| 4 clientes, mitad y mitad, 4 sintéticas de 16 MP (el tope del servicio) | `/v1/moderacion` | 30 × 2 | 1591–1679 ms | 1773–2062 ms | 1827–2105 ms |
+| | `/v1/detecciones` | 30 × 2 | 1419–1508 ms | 1775–1840 ms | 1818–2025 ms |
 
 | Memoria del contenedor | MiB |
 |---|---|
-| Recién arrancado, con los dos modelos cargados | **212** (la imagen de NC-03, medida igual ese día: 252) |
+| Recién arrancado, con los dos modelos cargados | **210–335** según el arranque (la imagen de NC-03, medida igual ese día: 252) |
 | Máximo con moderaciones secuenciales | 253 |
-| Máximo con 4 clientes mezclados, fotos saneadas | **388** |
-| Máximo con 4 clientes mezclados, fotos crudas (peor caso) | **498** |
+| Máximo con 4 clientes mezclados, fotos saneadas (lo que envía el backend) | **388–390** |
+| Máximo con 4 clientes mezclados, fotos crudas de hasta 8 MP | **498–507** |
+| Máximo con 4 clientes mezclados, sintéticas de 16 MP (el tope de `INFERENCIA_MAX_MEGAPIXELES`) | **755–858** |
 | Lo mismo **sin** los ajustes `MALLOC_*` | saneadas 493; crudas 845–847 (la imagen de NC-03, solo detección: 656) |
 
-- **Cabe en 1 GB con holgura:** el peor caso medido es 498 MiB, por debajo de los 700 MiB de la aceptación. Sin los ajustes de glibc, las fotos crudas llevaban el máximo a 847 MiB (ver «Decisiones»).
+- **La aceptación (menos de 700 MiB con los dos modelos y 4 clientes mezclados) se cumple con lo que envía el backend** (fotos saneadas de ≤ 2048 px, ≤ 4,2 MP: 390 MiB) **y con fotos de hasta 8 MP** (507 MiB). En el tope de 16 MP que el servicio admite, el máximo llega a 755–858 MiB: por encima de 700, pero por debajo de 1 GB. Ahí pesan las 4 imágenes decodificadas a la vez (2 por endpoint, 48 MB cada copia RGB). La moderación ya no copia la foto al redimensionarla (`Image.frombuffer`). Bajar `INFERENCIA_MAX_MEGAPIXELES` a 8 acotaría el peor caso a ~510 MiB. Cambia el 413 de los dos endpoints, aunque el backend nunca envía más de 4,2 MP: **queda como duda para el usuario**.
+- Sin los ajustes de glibc, las fotos crudas de 8 MP llevaban el máximo a 847 MiB (ver «Decisiones»).
 - **Arranque** hasta que `/salud` responde: 2,4 s (comprueba el sha256 de los dos `.onnx`).
-- Una moderación sola cuesta ~0,1 s por recorte; con 1 hilo y los dos recortes, 124 ms de p50 en fotos saneadas. Con carga mezclada compite por la CPU con RF-DETR (2 hilos en 2 vCPU), y su p95 sube a 1,2–1,5 s. Eso queda dentro de los 2,5 s de lectura del adaptador del backend (propuesta, §2).
-- **Determinismo:** las cinco corridas mezcladas sobre las fotos crudas dieron el mismo número de detecciones (1103) y los mismos puntajes (mediana 0,059 y máximo 0,111), con y sin los ajustes `MALLOC_*`. Los tests comparan puntajes repetidos.
+- Una moderación sola cuesta ~0,1 s por recorte; con 1 hilo y los dos recortes, 124 ms de p50 en fotos saneadas. Con carga mezclada compite por la CPU con RF-DETR (2 hilos en 2 vCPU), y su p95 sube a 1,2–1,5 s. Eso queda dentro de los 2,5 s de lectura del adaptador del backend (propuesta, §2). Con fotos de 16 MP, que el backend no envía, el máximo llegó a 2,1 s.
+- **Determinismo:** las seis corridas mezcladas sobre las fotos crudas dieron el mismo número de detecciones (1103) y los mismos puntajes (mediana 0,059 y máximo 0,111), con y sin los ajustes `MALLOC_*` y antes y después de `frombuffer`. Los tests comparan puntajes repetidos.
 - Imagen final: **680 MB** (+43 MB: el `.onnx` de 22 MB y la capa de la aplicación).
 - En Railway hay que volver a medir (DEP-13) con `scripts/medir_latencia.py --ruta mezcla`.
 
 ### Calibración del umbral (28/10/2026)
 
-`scripts/calibrar_moderacion.py --url … CARPETA` sobre el **conjunto negativo** disponible: las 350 fotos saneadas de RDD2022 de arriba. El equipo no junta material explícito. No hay imágenes en el repo; solo estas cifras.
+`scripts/calibrar_moderacion.py --url … --pistas DIR [--gente DIR] [--lima DIR]` sobre el **conjunto negativo** disponible: las 350 fotos saneadas de RDD2022 de arriba (`--pistas`). El script avisa siempre de las partes que faltan o no llegan a su mínimo (`--gente` ≥ 50, `--lima` ≥ 200) y marca el umbral como provisional mientras falten. El equipo no junta material explícito. No hay imágenes en el repo; solo estas cifras.
 
 | País (RDD2022) | Fotos | Mediana | Máximo |
 |---|---|---|---|
@@ -363,7 +370,7 @@ Misma máquina y mismo método (`--cpus=2`, `docker stats`), con la imagen `ciud
 
 ## Pruebas
 
-`python -m pytest -rs`: **270 tests**; sin los pesos, **261 pasan y 9 se omiten** (los de `test_modelo_real.py`). Con los dos modelos en `modelos/` pasan los 270.
+`python -m pytest -rs`: **273 tests**; sin los pesos, **264 pasan y 9 se omiten** (los de `test_modelo_real.py`). Con los dos modelos en `modelos/` pasan los 273.
 
 | Archivo | Qué prueba | Pesos |
 |---|---|---|
@@ -374,20 +381,20 @@ Misma máquina y mismo método (`--cpus=2`, `docker stats`), con la imagen `ciud
 | `test_api.py` | Contrato JSON exacto de los dos endpoints, OpenAPI (`maxLength` 40 de las versiones; `puntaje` entre 0 y 1), `/salud` con `version_moderacion`, **todos los errores en los dos endpoints** (400, 413 por bytes, píxeles, `Content-Length` y cuerpo por trozos, 500 del modelo y por falta de memoria, 405) y 404. Concurrencia: a lo sumo 2 procesos por endpoint y **limitadores independientes** (con las dos plazas de un endpoint tomadas, el otro responde). El 503 de la cola es de uvicorn y se probó contra el contenedor. | No |
 | `test_onnx_modelo.py` | Redimensión frente a una fórmula escalar independiente, normalización, decodificación (fondo, piso, recorte, una detección por consulta y clase, máximo de 300 pares) y el adaptador completo con un **`.onnx` sintético** (hash, metadatos, forma, ranura de fondo que no es la última columna, fallo del motor). | No |
 | `test_onnx_moderacion.py` | Geometría de los recortes (4:3, vertical, 16:9, truncado como torchvision, cuadrada, 2:1, más alargada que 2:1, que cubren todo), preprocesado frente al bicúbico de Pillow, softmax estable y el adaptador con un **`.onnx` sintético de 2 salidas**: los dos recortes en una foto apaisada y en una vertical, el máximo, una franja que el recorte central dejaría fuera, el orden de las etiquetas, el hash, la forma y el fallo del motor. | No |
-| `test_calibrar_moderacion.py` | La regla del umbral sugerido (máximo + 0,15, entre 0,5 y 0,9), el histograma y la negativa a leer fotos dentro del repo. | No |
+| `test_calibrar_moderacion.py` | La regla del umbral sugerido (máximo + 0,15, entre 0,5 y 0,9), los avisos por cada parte del conjunto decidido que falta o no llega a su mínimo, el histograma y la negativa a leer fotos dentro del repo. | No |
 | `test_configuracion.py` | Valores por defecto y errores de cada variable. | No |
 | `test_main.py` | Raíz de composición con adaptadores reales y los dos `.onnx` sintéticos; sin cualquiera de los modelos, o con el hash de la moderación cambiado, no arranca; moderación de punta a punta. | No |
 | `test_modelo_real.py` | Detección: versión registrada, **reproduce la huella de PyTorch** de `modelo.json`, contrato y determinismo. Moderación: versión, revisión y licencia registradas, paridad dentro de la tolerancia, **reproduce la huella de timm** de `moderacion.json` (puntaje por recorte y máximo) y determinismo. Servicio completo con los dos. | **Sí: cada prueba se omite sin sus pesos** |
 
 Las imágenes de los tests son sintéticas (generadas con código). **Ninguna imagen real de ninguna clase** está en el repo ni pasa por la CI. Las fotos de RDD2022 (CC BY-SA 4.0) solo se usaron fuera del repo para medir, comprobar el mapeo y calibrar.
 
-**CI** (job `inferencia` de `.github/workflows/ci.yml`, `docs/ci.md`): instala `requirements-dev.lock` con hashes, corre `lint-imports`, `pytest` sin pesos y la guarda `scripts/verificar_tests.py`, que falla si algo falló, si un `tests/test_*.py` no tiene casos, si se omitió algo fuera de `test_modelo_real.py` o si los ejecutados bajan de `MIN_PYTEST_INFERENCIA` (133 hasta NC-10a; con NC-10a se ejecutan 261, y el mínimo lo sube la sesión de raíz al fusionar).
+**CI** (job `inferencia` de `.github/workflows/ci.yml`, `docs/ci.md`): instala `requirements-dev.lock` con hashes, corre `lint-imports`, `pytest` sin pesos y la guarda `scripts/verificar_tests.py`, que falla si algo falló, si un `tests/test_*.py` no tiene casos, si se omitió algo fuera de `test_modelo_real.py` o si los ejecutados bajan de `MIN_PYTEST_INFERENCIA` (133 hasta NC-10a; con NC-10a se ejecutan 264, y el mínimo lo sube la sesión de raíz al fusionar).
 
 ## Pendiente
 
 - **NC-03b**: conjunto de validación de Lima (≥ 200 fotos del equipo), calibración del umbral y precisión y cobertura por categoría. `scripts/exportar_onnx.py --imagenes` ya compara contra PyTorch; falta el script de evaluación con etiquetas.
 - **NC-04b**: `InferenciaHttpAdapter` en el backend (multipart `imagen`, timeout 3 s) y despliegue en Railway por la red privada, con `INFERENCIA_HILOS` igual a las vCPU del plan, y volver a medir allí.
 - **Atribución** de RDD2022 y de los pesos en «Acerca de» o en los términos, y la pregunta abierta del *share-alike*. Con NC-10a se suma la de Marqo (`moderacion.json`, `fuente.atribucion`), en §13 de los términos v2.
-- **Calibración completa de la moderación**: las ≥ 50 fotos de calles con gente y las de Lima de NC-03b, con `scripts/calibrar_moderacion.py`. Hasta entonces, umbral 0,70.
+- **Calibración completa de la moderación**: las ≥ 50 fotos de calles con gente (`--gente`) y las de Lima de NC-03b (`--lima`), con `scripts/calibrar_moderacion.py`. Hasta entonces, umbral 0,70.
 - **NC-10b**: el adaptador `moderacion/infra/InferenciaModeracionHttpAdapter` según `project-context/handoffs/2026-10-28-contrato-moderacion-v1.md`, y volver a medir en Railway (DEP-13) con los dos modelos.
 - Construir la imagen Docker en la CI (como el job `imagen` pendiente del backend): hoy no se hace porque su primera etapa descarga torch y los pesos en cada corrida.
