@@ -29,11 +29,12 @@ import { RegistroEnviado } from './RegistroEnviado';
  * pestana ni navegando a `/privacidad`: asi no se pierde lo ya escrito.
  * `textoLegal` lo compone la pagina porque es de la feature `legal`.
  *
- * NC-08: con site key configurada, la casilla «No soy un robot» de
- * reCAPTCHA v2 tambien es obligatoria (sin token no se envia nada) y tras
- * CUALQUIER error del registro se reinicia: el token es de un solo uso y el
- * backend ya lo consumio al verificarlo. Sin site key (local, backend con
- * `CAPTCHA_TIPO=ninguno`) no se muestra el widget ni se envia token.
+ * NC-08 / NC-08b: con site key configurada, la verificacion «No soy un
+ * robot» de Cloudflare Turnstile tambien es obligatoria (sin token no se
+ * envia nada) y tras CUALQUIER error del registro se reinicia: el token es
+ * de un solo uso y el backend ya lo consumio al verificarlo. Sin site key
+ * (local, backend con `CAPTCHA_TIPO=ninguno`) no se muestra el widget ni se
+ * envia token.
  *
  * NC-09: crear la cuenta NO inicia sesion. Si sale bien, el formulario se
  * reemplaza por «Revisa tu correo» ({@link RegistroEnviado}); el enlace al
@@ -83,7 +84,7 @@ export function FormularioRegistro({ textoLegal }: { textoLegal: ReactNode }) {
       conCaptcha ? captchaToken : null,
     );
     if (!creada && conCaptcha) {
-      // NC-08: el token ya se gasto (o lo rechazo Google): casilla nueva.
+      // NC-08: el token ya se gasto (o lo rechazo Cloudflare): verificacion nueva.
       setCaptchaToken(null);
       setReiniciosCaptcha((n) => n + 1);
     }

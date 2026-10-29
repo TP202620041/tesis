@@ -5,37 +5,37 @@ import { olvidarCargaDelCaptcha } from '../hooks/useCaptcha';
 import { MENSAJE_CAPTCHA_SIN_CARGAR, URL_SCRIPT_CAPTCHA, type ParametrosDelWidget } from '../model/captcha';
 import { CampoCaptcha } from './CampoCaptcha';
 
-type VentanaConCaptcha = Window & { grecaptcha?: unknown };
+type VentanaConCaptcha = Window & { turnstile?: unknown };
 
-/** Stub de `window.grecaptcha`: guarda los parámetros de cada `render`. */
-function instalarGrecaptcha() {
+/** Stub de `window.turnstile`: guarda los parámetros de cada `render`. */
+function instalarTurnstile() {
   const widgets: ParametrosDelWidget[] = [];
   const stub = {
-    ready: vi.fn((alListo: () => void) => alListo()),
     render: vi.fn((_el: HTMLElement, parametros: ParametrosDelWidget) => {
       widgets.push(parametros);
-      return widgets.length - 1;
+      return `widget-${widgets.length - 1}`;
     }),
     reset: vi.fn(),
+    remove: vi.fn(),
   };
-  (window as VentanaConCaptcha).grecaptcha = stub;
+  (window as VentanaConCaptcha).turnstile = stub;
   return { stub, widgets };
 }
 
-/** Scripts de reCAPTCHA en el documento. */
+/** Scripts de Turnstile en el documento. */
 function scriptsDelCaptcha() {
   return document.head.querySelectorAll(`script[src="${URL_SCRIPT_CAPTCHA}"]`);
 }
 
-describe('CampoCaptcha (NC-08)', () => {
+describe('CampoCaptcha (NC-08b, Turnstile)', () => {
   beforeEach(() => {
     olvidarCargaDelCaptcha();
-    delete (window as VentanaConCaptcha).grecaptcha;
+    delete (window as VentanaConCaptcha).turnstile;
     scriptsDelCaptcha().forEach((s) => s.remove());
   });
 
   afterEach(() => {
-    delete (window as VentanaConCaptcha).grecaptcha;
+    delete (window as VentanaConCaptcha).turnstile;
   });
 
   it('inyecta el script una sola vez aunque se monte dos veces (StrictMode)', async () => {
@@ -47,7 +47,7 @@ describe('CampoCaptcha (NC-08)', () => {
     );
     expect(scriptsDelCaptcha()).toHaveLength(1);
 
-    const { stub } = instalarGrecaptcha();
+    const { stub } = instalarTurnstile();
     act(() => {
       scriptsDelCaptcha()[0]!.dispatchEvent(new Event('load'));
     });
@@ -58,8 +58,16 @@ describe('CampoCaptcha (NC-08)', () => {
     expect(scriptsDelCaptcha()).toHaveLength(1);
   });
 
-  it('entrega el token al resolver y null al expirar o fallar', async () => {
-    const { widgets } = instalarGrecaptcha();
+  it('pinta en español y sin el campo oculto que Turnstile agrega al formulario', async () => {
+    const { widgets } = instalarTurnstile();
+    render(<CampoCaptcha siteKey="clave" onToken={vi.fn()} reinicios={0} />);
+    await waitFor(() => expect(widgets).toHaveLength(1));
+    expect(widgets[0]!.language).toBe('es');
+    expect(widgets[0]!['response-field']).toBe(false);
+  });
+
+  it('entrega el token al resolver y null al vencer o fallar', async () => {
+    const { widgets } = instalarTurnstile();
     const onToken = vi.fn();
     render(<CampoCaptcha siteKey="clave" onToken={onToken} reinicios={0} />);
     await waitFor(() => expect(widgets).toHaveLength(1));
@@ -70,12 +78,12 @@ describe('CampoCaptcha (NC-08)', () => {
     act(() => widget['expired-callback']());
     expect(onToken).toHaveBeenLastCalledWith(null);
     act(() => widget.callback('token-2'));
-    act(() => widget['error-callback']());
+    act(() => widget['error-callback']('300030'));
     expect(onToken).toHaveBeenLastCalledWith(null);
   });
 
   it('usa el widget compacto si el contenedor es angosto', async () => {
-    const { widgets } = instalarGrecaptcha();
+    const { widgets } = instalarTurnstile();
     render(<CampoCaptcha siteKey="clave" onToken={vi.fn()} reinicios={0} />);
     // jsdom no hace layout: el ancho es 0, así que elige el compacto.
     await waitFor(() => expect(widgets).toHaveLength(1));
@@ -83,16 +91,25 @@ describe('CampoCaptcha (NC-08)', () => {
   });
 
   it('se reinicia cuando sube el contador de reinicios', async () => {
-    const { stub, widgets } = instalarGrecaptcha();
+    const { stub, widgets } = instalarTurnstile();
     const onToken = vi.fn();
     const { rerender } = render(<CampoCaptcha siteKey="clave" onToken={onToken} reinicios={0} />);
     await waitFor(() => expect(widgets).toHaveLength(1));
     expect(stub.reset).not.toHaveBeenCalled();
 
     rerender(<CampoCaptcha siteKey="clave" onToken={onToken} reinicios={1} />);
-    expect(stub.reset).toHaveBeenCalledWith(0);
+    expect(stub.reset).toHaveBeenCalledWith('widget-0');
     expect(onToken).toHaveBeenLastCalledWith(null);
     expect(stub.render).toHaveBeenCalledTimes(1);
+  });
+
+  it('al desmontar quita el widget (sin reintentos ni renovaciones pendientes)', async () => {
+    const { stub, widgets } = instalarTurnstile();
+    const { unmount } = render(<CampoCaptcha siteKey="clave" onToken={vi.fn()} reinicios={0} />);
+    await waitFor(() => expect(widgets).toHaveLength(1));
+
+    unmount();
+    expect(stub.remove).toHaveBeenCalledWith('widget-0');
   });
 
   it('si el script no carga, lo dice en vez de dejar un hueco', async () => {
@@ -105,8 +122,35 @@ describe('CampoCaptcha (NC-08)', () => {
     expect(scriptsDelCaptcha()).toHaveLength(0);
   });
 
+  it('si el script carga pero no deja `window.turnstile`, también lo dice', async () => {
+    render(<CampoCaptcha siteKey="clave" onToken={vi.fn()} reinicios={0} />);
+    act(() => {
+      scriptsDelCaptcha()[0]!.dispatchEvent(new Event('load'));
+    });
+    expect(await screen.findByRole('alert')).toHaveTextContent(MENSAJE_CAPTCHA_SIN_CARGAR);
+  });
+
+  it('si `render` lanza o no devuelve id, avisa en vez de dejar un hueco', async () => {
+    const { stub } = instalarTurnstile();
+    stub.render.mockImplementationOnce(() => {
+      throw new Error('[Cloudflare Turnstile] Invalid sitekey');
+    });
+    const { unmount } = render(<CampoCaptcha siteKey="clave" onToken={vi.fn()} reinicios={0} />);
+    expect(await screen.findByRole('alert')).toHaveTextContent(MENSAJE_CAPTCHA_SIN_CARGAR);
+    unmount();
+
+    stub.render.mockImplementationOnce(() => undefined as unknown as string);
+    const onToken = vi.fn();
+    const { rerender } = render(<CampoCaptcha siteKey="clave" onToken={onToken} reinicios={0} />);
+    expect(await screen.findByRole('alert')).toHaveTextContent(MENSAJE_CAPTCHA_SIN_CARGAR);
+    // Sin id no hay nada que reiniciar ni que quitar.
+    rerender(<CampoCaptcha siteKey="clave" onToken={onToken} reinicios={1} />);
+    expect(stub.reset).not.toHaveBeenCalled();
+    expect(stub.remove).not.toHaveBeenCalled();
+  });
+
   it('agrupa el widget con un nombre accesible', () => {
-    instalarGrecaptcha();
+    instalarTurnstile();
     render(<CampoCaptcha siteKey="clave" onToken={vi.fn()} reinicios={0} />);
     expect(screen.getByRole('group', { name: 'Verificación «No soy un robot»' })).toBeInTheDocument();
   });

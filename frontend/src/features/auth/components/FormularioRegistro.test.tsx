@@ -29,19 +29,20 @@ vi.mock('next/link', () => ({
 
 const registrarMock = vi.mocked(registrar);
 
-type VentanaConCaptcha = Window & { grecaptcha?: unknown };
+type VentanaConCaptcha = Window & { turnstile?: unknown };
 
-function instalarGrecaptcha() {
+/** Stub de `window.turnstile` (NC-08b): guarda los parámetros de cada `render`. */
+function instalarTurnstile() {
   const widgets: ParametrosDelWidget[] = [];
   const stub = {
-    ready: vi.fn((alListo: () => void) => alListo()),
     render: vi.fn((_el: HTMLElement, parametros: ParametrosDelWidget) => {
       widgets.push(parametros);
-      return widgets.length - 1;
+      return `widget-${widgets.length - 1}`;
     }),
     reset: vi.fn(),
+    remove: vi.fn(),
   };
-  (window as VentanaConCaptcha).grecaptcha = stub;
+  (window as VentanaConCaptcha).turnstile = stub;
   return { stub, widgets };
 }
 
@@ -57,21 +58,21 @@ async function llenarYEnviar() {
 
 const CUENTA: CuentaPorConfirmar = { email: 'ana@correo.pe', vigenciaEnlaceHoras: 24 };
 
-describe('FormularioRegistro con captcha (NC-08)', () => {
+describe('FormularioRegistro con captcha (NC-08b, Turnstile)', () => {
   beforeEach(() => {
     registrarMock.mockReset();
     push.mockReset();
     olvidarCargaDelCaptcha();
-    vi.stubEnv('NEXT_PUBLIC_RECAPTCHA_SITE_KEY', 'clave-de-prueba');
+    vi.stubEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY', 'clave-de-prueba');
   });
 
   afterEach(() => {
     vi.unstubAllEnvs();
-    delete (window as VentanaConCaptcha).grecaptcha;
+    delete (window as VentanaConCaptcha).turnstile;
   });
 
-  it('sin resolver la casilla no envía y muestra el error en línea', async () => {
-    instalarGrecaptcha();
+  it('sin completar la verificación no envía y muestra el error en línea', async () => {
+    instalarTurnstile();
     render(<FormularioRegistro textoLegal={<p>Términos</p>} />);
     await llenarYEnviar();
 
@@ -79,21 +80,21 @@ describe('FormularioRegistro con captcha (NC-08)', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(MENSAJE_FALTA_CAPTCHA);
   });
 
-  it('con la casilla resuelta manda el token en el cuerpo', async () => {
-    const { widgets } = instalarGrecaptcha();
+  it('con la verificación resuelta manda el token en el cuerpo', async () => {
+    const { widgets } = instalarTurnstile();
     registrarMock.mockResolvedValue(CUENTA);
     render(<FormularioRegistro textoLegal={<p>Términos</p>} />);
     await waitFor(() => expect(widgets).toHaveLength(1));
-    act(() => widgets[0]!.callback('token-google'));
+    act(() => widgets[0]!.callback('token-turnstile'));
 
     await llenarYEnviar();
 
-    expect(registrarMock).toHaveBeenCalledWith(expect.objectContaining({ captchaToken: 'token-google' }));
+    expect(registrarMock).toHaveBeenCalledWith(expect.objectContaining({ captchaToken: 'token-turnstile' }));
     expect(screen.queryByText(MENSAJE_FALTA_CAPTCHA)).not.toBeInTheDocument();
   });
 
-  it('tras un 409 del captcha reinicia el widget y exige una casilla nueva', async () => {
-    const { stub, widgets } = instalarGrecaptcha();
+  it('tras un 409 del captcha reinicia el widget y exige una verificación nueva', async () => {
+    const { stub, widgets } = instalarTurnstile();
     registrarMock.mockRejectedValue(new ApiError(409, 'No pudimos confirmar que no eres un robot. Vuelve a intentarlo.'));
     render(<FormularioRegistro textoLegal={<p>Términos</p>} />);
     await waitFor(() => expect(widgets).toHaveLength(1));
@@ -102,7 +103,7 @@ describe('FormularioRegistro con captcha (NC-08)', () => {
     await llenarYEnviar();
 
     expect(await screen.findByText(/No pudimos confirmar que no eres un robot/)).toBeInTheDocument();
-    expect(stub.reset).toHaveBeenCalledWith(0);
+    expect(stub.reset).toHaveBeenCalledWith('widget-0');
     // La casilla de términos sigue marcada (QA-1 M-2): solo el captcha se repite.
     expect(screen.getByRole('checkbox')).toBeChecked();
 
@@ -113,8 +114,8 @@ describe('FormularioRegistro con captcha (NC-08)', () => {
   });
 
   it('sin site key no muestra el widget y envía sin captchaToken', async () => {
-    vi.stubEnv('NEXT_PUBLIC_RECAPTCHA_SITE_KEY', '');
-    const { stub } = instalarGrecaptcha();
+    vi.stubEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY', '');
+    const { stub } = instalarTurnstile();
     registrarMock.mockResolvedValue(CUENTA);
     render(<FormularioRegistro textoLegal={<p>Términos</p>} />);
 
@@ -133,12 +134,12 @@ describe('FormularioRegistro: confirmación del correo (NC-09)', () => {
     vi.mocked(reenviarConfirmacion).mockReset();
     push.mockReset();
     busqueda.actual = new URLSearchParams();
-    vi.stubEnv('NEXT_PUBLIC_RECAPTCHA_SITE_KEY', '');
+    vi.stubEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY', '');
   });
 
   afterEach(() => {
     vi.unstubAllEnvs();
-    delete (window as VentanaConCaptcha).grecaptcha;
+    delete (window as VentanaConCaptcha).turnstile;
   });
 
   it('al crear la cuenta no entra: muestra «Revisa tu correo» con el correo y la vigencia', async () => {
@@ -194,19 +195,19 @@ describe('FormularioRegistro: confirmación del correo (NC-09)', () => {
   });
 
   it('tras un dominio rechazado también reinicia el captcha (ya se gastó)', async () => {
-    vi.stubEnv('NEXT_PUBLIC_RECAPTCHA_SITE_KEY', 'clave-de-prueba');
+    vi.stubEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY', 'clave-de-prueba');
     olvidarCargaDelCaptcha();
-    const { stub, widgets } = instalarGrecaptcha();
+    const { stub, widgets } = instalarTurnstile();
     registrarMock.mockRejectedValue(
       new ApiError(409, 'El dominio «gmail.con» no puede recibir correos.', '', [], 'DOMINIO_SIN_CORREO'),
     );
     render(<FormularioRegistro textoLegal={<p>Términos</p>} />);
     await waitFor(() => expect(widgets).toHaveLength(1));
-    act(() => widgets[0]!.callback('token-google'));
+    act(() => widgets[0]!.callback('token-turnstile'));
 
     await llenarYEnviar();
 
     expect(await screen.findByText(/no puede recibir correos/)).toBeInTheDocument();
-    expect(stub.reset).toHaveBeenCalledWith(0);
+    expect(stub.reset).toHaveBeenCalledWith('widget-0');
   });
 });

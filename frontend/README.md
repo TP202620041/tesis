@@ -74,11 +74,13 @@ la ignoraba: en un clon limpio el `cp` de arriba fallaba.
   `VERCEL=1` (con `VERCEL_ENV=development`) en `.env.local` y la guarda
   rompería el desarrollo local. En local y en la CI no se exige y vale el
   respaldo `http://localhost:8080`. Ver `.env.example`.
-- **Variable** `NEXT_PUBLIC_RECAPTCHA_SITE_KEY` (Production y Preview): la
-  site key **pública** de reCAPTCHA v2 del dominio (NC-08). También se hornea
-  en el build y, si falta o está vacía, **el build de Vercel falla**: el
-  backend desplegado exige el captcha y sin widget ningún registro pasaría.
-  En local puede faltar (ver «Captcha en el registro (NC-08)»).
+- **Variable** `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (Production y Preview): la
+  site key **pública** del widget de Cloudflare Turnstile (NC-08b; reemplazó
+  a `NEXT_PUBLIC_RECAPTCHA_SITE_KEY`, que ya no se lee y puede borrarse del
+  panel). También se hornea en el build y, si falta o está vacía, **el build
+  de Vercel falla**: el backend desplegado exige el captcha y sin widget
+  ningún registro pasaría. En local puede faltar (ver «Captcha en el
+  registro (NC-08, Turnstile desde NC-08b)»).
 - **CORS**: el backend debe aceptar el dominio de Vercel
   (`app.cors.allowed-origins`). Las *Preview* tienen una URL por despliegue,
   así que contra el API de producción solo funcionan si se agrega su origen.
@@ -927,57 +929,117 @@ Los avisos opcionales llevan su propia versión de texto
 (`push-2026-10-v1`, `correo-2026-10-v1`, en `model/consentimientos.ts`): el
 backend la guarda tal cual para saber qué texto vio el usuario.
 
-### Captcha en el registro (NC-08)
+### Captcha en el registro (NC-08, Turnstile desde NC-08b)
 
-El registro pide la casilla «No soy un robot» de **Google reCAPTCHA v2**. El
-backend verifica el token con la clave secreta; la PWA solo pinta el widget
-y manda `captchaToken` en `POST /api/auth/registro`.
+El registro pide la verificación «No soy un robot» de **Cloudflare
+Turnstile**. El backend verifica el token con la clave secreta
+(`CAPTCHA_TIPO=turnstile`, contra `siteverify` de Cloudflare); la PWA solo
+pinta el widget y manda `captchaToken` en `POST /api/auth/registro`. El
+contrato no cambió al pasar de reCAPTCHA v2 a Turnstile.
 
-- **Sin librería** (`react-google-recaptcha` y similares): es una sola
-  pantalla y bastan tres llamadas (`ready`, `render`, `reset`). Así no se
+- **Reemplaza a reCAPTCHA v2 por completo** (decisión del usuario, 28/10):
+  no quedan su código, su variable ni los orígenes de Google en la CSP. En
+  modo *Managed* Turnstile casi siempre se resuelve solo, sin casilla ni
+  desafío de imágenes.
+- **Sin librería** (`@marsidev/react-turnstile` y similares): es una sola
+  pantalla y bastan tres llamadas (`render`, `reset`, `remove`). Así no se
   suma peso ni una dependencia más que auditar, y quedan bajo control propio
   la carga del script (una sola vez por documento, aunque StrictMode monte
   el efecto dos veces: `hooks/useCaptcha.ts`), el momento del reset y los
-  hosts de la CSP. La lógica pura (site key, URL del script, tamaño del
-  widget, mensajes) está en `model/captcha.ts`.
-- **Sin site key no hay widget.** `NEXT_PUBLIC_RECAPTCHA_SITE_KEY` es
-  opcional en local: sin ella el formulario no muestra la casilla ni manda
+  orígenes de la CSP. La lógica pura (site key, URL del script, idioma,
+  tamaño del widget, mensajes) está en `model/captcha.ts`.
+- **Renderizado explícito.** El script es la URL exacta que publica
+  Cloudflare, `https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit`:
+  Cloudflare avisa que servirlo desde otro lado o cachearlo rompe el widget
+  cuando lo actualizan. Se espera al `load` del `<script>` y no a
+  `turnstile.ready()`, que `api.js` rechaza con un error cuando el script se
+  cargó de forma asíncrona (y todo `<script>` insertado desde JavaScript lo
+  es; no está en la guía, se ve en el código de `api.js`, ver la nota de
+  abajo). Si `turnstile.render` lanza o no devuelve id, se muestra el mismo
+  aviso que cuando el script no carga. Al desmontar se llama a `turnstile.remove`, que detiene los
+  reintentos y las renovaciones del widget.
+- **Callbacks.** `callback` entrega el token; `expired-callback` (el token
+  vence a los 300 s; Turnstile renueva solo y vuelve a llamar a `callback`)
+  y `error-callback` lo borran. El `error-callback` no marca el error como
+  atendido: Turnstile lo anota en la consola y reintenta solo. Con
+  `response-field: false` no agrega el `<input hidden>` que pondría dentro
+  del formulario: el token ya viaja por `callback`. Textos con
+  `language: 'es'` (en español Turnstile solo admite `es` y `es-es`).
+- **Sin site key no hay widget.** `NEXT_PUBLIC_TURNSTILE_SITE_KEY` es
+  opcional en local: sin ella el formulario no muestra el widget ni manda
   token, porque el backend local corre con `CAPTCHA_TIPO=ninguno` y lo
-  ignora. Así el desarrollo y los tests no dependen de Google. Para ver el
-  widget en local está la site key de prueba de Google (en `.env.example`),
-  que siempre aprueba y nunca va a producción. En Vercel la variable es
-  obligatoria (ver «Despliegue en Vercel»).
-- **Reset tras cada error.** El token de reCAPTCHA es de un solo uso: el
-  backend lo gasta al verificarlo, aunque después el registro falle por otra
-  causa (correo duplicado, validación). Por eso, tras **cualquier** error
-  del registro, el formulario borra el token y sube un contador
-  (`reinicios`) que hace `grecaptcha.reset`; reenviar exige marcar la casilla
-  de nuevo. Se eligió un contador como prop y no una ref imperativa porque el
-  formulario ya reacciona al error cambiando estado. La casilla de términos
-  conserva su regla (QA-1 M-2). Los 409 y 503 del captcha se muestran con
-  `mensajeDeError`, como cualquier otro error: la PWA no decide nada por el
-  texto del mensaje.
-- **Móvil.** El widget normal mide 304 px fijos; si el contenedor es más
-  angosto se pinta el `compact` (164 × 144 px), y el contenedor lleva
+  ignora. Así el desarrollo y los tests no dependen de Cloudflare. Para ver
+  el widget en local están las **claves de prueba** de Cloudflare (en
+  `.env.example`), que funcionan en cualquier dominio y nunca van a
+  producción: `1x00000000000000000000AA` (siempre aprueba),
+  `2x00000000000000000000AB` (siempre falla) y `3x00000000000000000000FF`
+  (obliga a un desafío interactivo). Dan el token ficticio
+  `XXXX.DUMMY.TOKEN.XXXX`, que solo pasa con una secreta de prueba en el
+  backend (`1x0000000000000000000000000000000AA`) y con `CAPTCHA_HOSTNAMES`
+  vacía, como está fuera del perfil `prod`: las claves de prueba responden
+  el *hostname* `example.com`. En producción el backend solo acepta tokens
+  resueltos en `ciudadviva.app` y `www.ciudadviva.app` (`docs/despliegue.md`
+  §5.2). En Vercel la variable es obligatoria (ver «Despliegue en Vercel»).
+- **Reset tras cada error.** El token es de un solo uso: el backend lo
+  gasta al verificarlo, aunque después el registro falle por otra causa
+  (correo duplicado, validación). Por eso, tras **cualquier** error del
+  registro, el formulario borra el token y sube un contador (`reinicios`)
+  que hace `turnstile.reset`; reenviar exige una verificación nueva (en modo
+  Managed suele resolverse sola). Se eligió un contador como prop y no una
+  ref imperativa porque el formulario ya reacciona al error cambiando
+  estado. La casilla de términos conserva su regla (QA-1 M-2). Los 409 y 503
+  del captcha se muestran con `mensajeDeError`, como cualquier otro error:
+  la PWA no decide nada por el texto del mensaje.
+- **Móvil.** El widget normal mide 300 × 65 px fijos; si el contenedor es
+  más angosto se pinta el `compact` (150 × 140 px), y el contenedor lleva
   `overflow-x-auto` como red de seguridad para que nunca desborde el
   formulario.
-- **Sin red.** Si el script no carga se muestra «No se pudo cargar la
-  verificación. Revisa tu conexión y recarga.» (`role="alert"`) en lugar de
-  un hueco vacío.
-- **CSP** (`next.config.ts`), limitada **por ruta** como recomienda la guía
-  de CSP de reCAPTCHA: `script-src` suma `https://www.google.com/recaptcha/`
-  (`api.js`) y `https://www.gstatic.com/recaptcha/` (el resto del widget, en
-  `/recaptcha/releases/<versión>/…`); la nueva directiva `frame-src
-  https://www.google.com/recaptcha/ https://recaptcha.google.com/recaptcha/`
-  deja pasar los iframes de la casilla y del desafío (`/recaptcha/api2/anchor`
-  y `/recaptcha/api2/bframe`; sin ella regía `default-src 'self'`;
-  `recaptcha.google.com` lo lista la guía para el desafío y se incluye para
-  que nunca quede en blanco en producción); y `connect-src` repite las dos
-  rutas de script porque el Service Worker vuelve a pedir con `fetch()` los
-  scripts de otro origen (lo mismo que pasó con los tiles del mapa). No se
-  abre `www.google.com` entero: en `script-src` eso es un rodeo conocido de
-  la CSP (endpoints JSONP de Google), y la CSP es la mitigación declarada del
-  JWT en `localStorage` (ver «Seguridad: dónde vive el JWT»).
+- **Accesibilidad.** El widget es un iframe de Cloudflare con su propia
+  etiqueta y manejo de teclado; la PWA lo agrupa con el nombre accesible
+  «Verificación «No soy un robot»» y, si se envía sin token, muestra en línea
+  «Completa la verificación «No soy un robot» antes de crear la cuenta.»
+  (`role="alert"`, ligado al grupo con `aria-describedby`).
+- **Sin red.** Si el script no carga (o carga sin dejar `window.turnstile`)
+  se muestra «No se pudo cargar la verificación. Revisa tu conexión y
+  recarga.» (`role="alert"`) en lugar de un hueco vacío.
+- **CSP** (`next.config.ts`): `https://challenges.cloudflare.com` en
+  `script-src` (`api.js`), `frame-src` (el iframe del widget; sin la
+  directiva rige `default-src 'self'` y queda en blanco) y `connect-src`.
+  La referencia de CSP de Turnstile pide las dos primeras, más
+  `connect-src 'self'` para el modo *pre-clearance*, que ya estaba.
+  `connect-src` suma el host por dos motivos: el Service Worker vuelve a
+  pedir con `fetch()` los scripts de otro origen (lo mismo que pasó con los
+  tiles del mapa) y `api.js` manda desde la página avisos de diagnóstico
+  (`sendBeacon`/`fetch` a `/cdn-cgi/challenge-platform/…`; observado, ver
+  la nota de abajo). Se lista el
+  **host** y no rutas, a diferencia de reCAPTCHA: allí el límite por ruta
+  evitaba los endpoints JSONP de `www.google.com`, un host de propósito
+  general y un rodeo conocido de la CSP; `challenges.cloudflare.com` está
+  dedicado a los desafíos, y Turnstile usa rutas internas no documentadas
+  que cambian (`api.js` redirige a `/turnstile/v0/g/<versión>/api.js` y se
+  recarga a sí mismo cuando hay versión nueva; el iframe vive bajo
+  `/cdn-cgi/challenge-platform/…`). Fijarlas dejaría el registro roto en
+  silencio tras una actualización de Cloudflare. `src/app/csp.test.ts` fija
+  las tres directivas, que no quede ningún origen de Google y la guarda de
+  la variable en Vercel.
+- **Qué está documentado y qué se observó.** La guía de Cloudflare
+  documenta la URL de `api.js`, el aviso de no cachearlo, los parámetros
+  del widget (tamaños, idiomas: con un código no admitido cae al inglés),
+  los tokens de un solo uso que vencen a los 300 s y la CSP (`script-src` y
+  `frame-src` con el host, `connect-src 'self'` para *pre-clearance*). Lo
+  demás se **observó el 28/10** con la build de producción, Chromium y la
+  site key de prueba, y leyendo el `api.js` que servía Cloudflare ese día
+  (`/turnstile/v0/g/c787ce48cf6b/api.js`): la redirección 302 de `api.js`
+  a esa ruta con versión, la recarga de sí mismo (`_upgrade`), el error de
+  `turnstile.ready()` con scripts asíncronos, los avisos por
+  `sendBeacon`/`fetch` y el iframe bajo `/cdn-cgi/challenge-platform/…`.
+  Son detalles internos de Cloudflare que pueden cambiar; por eso la CSP no
+  depende de ellos (lista el host) y el hook tampoco (no usa `ready`).
+- **Service Worker.** `sw.ts` manda a la red (`NetworkOnly`) todo lo que va
+  a `challenges.cloudflare.com` (`esPeticionAlCaptcha` en
+  `pwa/cachesDeSesion.ts`), antes de que la regla `cross-origin` de
+  `defaultCache` guarde `api.js`: Cloudflare avisa que cachearlo hace fallar
+  el widget cuando publican una versión nueva.
 
 ### Confirmación del correo (NC-09)
 
@@ -996,7 +1058,7 @@ el README del backend («Confirmación del correo»). Lo que cambia en la PWA:
 - **Dominio del correo rechazado.** Los 409 `CORREO_DESECHABLE` y
   `DOMINIO_SIN_CORREO` van en línea en el campo del correo (no como error
   general) y se borran en cuanto se cambia lo escrito. Como cualquier error
-  del registro, reinician la casilla del captcha (NC-08): el token ya se gastó.
+  del registro, reinician el captcha (NC-08): el token ya se gastó.
 - **Login.** El 409 `CORREO_NO_CONFIRMADO` muestra el mensaje del backend y
   «Reenviar el enlace» al correo con el que se intentó entrar (no al que
   quede después en el campo). El backend solo responde ese 409 con la
