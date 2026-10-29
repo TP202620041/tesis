@@ -975,8 +975,11 @@ contrato no cambió al pasar de reCAPTCHA v2 a Turnstile.
   `2x00000000000000000000AB` (siempre falla) y `3x00000000000000000000FF`
   (obliga a un desafío interactivo). Dan el token ficticio
   `XXXX.DUMMY.TOKEN.XXXX`, que solo pasa con una secreta de prueba en el
-  backend (`1x0000000000000000000000000000000AA`). En Vercel la variable es
-  obligatoria (ver «Despliegue en Vercel»).
+  backend (`1x0000000000000000000000000000000AA`) y con `CAPTCHA_HOSTNAMES`
+  vacía, como está fuera del perfil `prod`: las claves de prueba responden
+  el *hostname* `example.com`. En producción el backend solo acepta tokens
+  resueltos en `ciudadviva.app` y `www.ciudadviva.app` (`docs/despliegue.md`
+  §5.2). En Vercel la variable es obligatoria (ver «Despliegue en Vercel»).
 - **Reset tras cada error.** El token es de un solo uso: el backend lo
   gasta al verificarlo, aunque después el registro falle por otra causa
   (correo duplicado, validación). Por eso, tras **cualquier** error del
