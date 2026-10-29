@@ -283,6 +283,41 @@ describe('sincronizarCola', () => {
       );
       expect(await claves()).toEqual([]);
     });
+
+    it('503 MODERACION_NO_DISPONIBLE no detiene la cola: los sin foto se envían, los con foto esperan', async () => {
+      await encolar('k1', ANA, en(0), conFoto());
+      await encolar('k2', ANA, en(1));
+      await encolar('k3', ANA, en(2), conFoto());
+      await encolar('k4', ANA, en(3));
+      const enviar = vi.fn(async (nuevo: NuevoReporte) => {
+        if (nuevo.foto) {
+          throw new ApiError(503, 'No pudimos revisar la foto…', '/api/reportes', [], 'MODERACION_NO_DISPONIBLE');
+        }
+        return creado(nuevo.idempotencyKey === 'k2' ? 46 : 47);
+      });
+
+      const resultado = await sincronizarCola(ANA, 1, undefined, deps(enviar, { ahora: en(4) }));
+
+      expect(resultado).toEqual({ enviados: [creado(46), creado(47)], detenidaPor: 'sin-conexion' });
+      // k3 (con foto) ni se intenta: daría el mismo 503 y subiría su foto.
+      expect(enviar.mock.calls.map(([n]) => n.idempotencyKey)).toEqual(['k1', 'k2', 'k4']);
+      const cola = await colaDeReportes.listar();
+      expect(cola.map((r) => [r.idempotencyKey, r.estado]).sort()).toEqual([
+        ['k1', 'pendiente'],
+        ['k3', 'pendiente'],
+      ]);
+    });
+
+    it('sin red no cambia: se detiene en el primero, con o sin foto', async () => {
+      await encolar('k1', ANA, en(0), conFoto());
+      await encolar('k2', ANA, en(1));
+      const enviar = vi.fn().mockRejectedValue(new NetworkError());
+
+      const resultado = await sincronizarCola(ANA, 1, undefined, deps(enviar, { ahora: en(2) }));
+
+      expect(resultado.detenidaPor).toBe('sin-conexion');
+      expect(enviar).toHaveBeenCalledTimes(1);
+    });
   });
 
   it('solo envia los reportes del usuario con sesion (dispositivo compartido)', async () => {

@@ -1206,11 +1206,21 @@ D-15)»). Lo que cambia en la PWA:
     DEP-11/12) sigue siendo un error común.
 - **Cola sin conexión.** Un reenvío que recibe `FOTO_NO_PERMITIDA` o
   `TEXTO_NO_PERMITIDO` queda `rechazado`, como cualquier 4xx, y no se
-  reintenta. El 503 lo deja pendiente. El motivo no es el del backend tal
-  cual: «Toma otra» o «Cámbiala para continuar» no se pueden hacer desde la
-  cola, donde solo se descarta. `motivoDeRechazoEnLaCola` dice, por ejemplo,
-  «La foto no está permitida. Descártalo y vuelve a reportar el daño con otra
-  foto o sin ella.».
+  reintenta. El motivo no es el del backend tal cual: «Toma otra» o «Cámbiala
+  para continuar» no se pueden hacer desde la cola, donde solo se descarta.
+  `motivoDeRechazoEnLaCola` dice, por ejemplo, «La foto no está permitida.
+  Descártalo y vuelve a reportar el daño con otra foto o sin ella.».
+- **El 503 de la moderación no detiene la cola** (observación de la
+  revisión). Un 5xx cualquiera la detiene en el primer reporte, pero la
+  moderación caída solo afecta a los que llevan foto. El reporte queda
+  pendiente con su clave, y la vuelta sigue:
+  - los siguientes con foto no se intentan (darían el mismo 503 y cada uno
+    subiría su foto);
+  - los que no tienen foto sí se envían, así que no esperan al servicio ni
+    caducan a las 48 h por su culpa.
+
+  Los que quedan se reintentan en la vuelta siguiente (al volver la conexión
+  o la pestaña, y cada 30 s).
 - **Lo que no hace la PWA:** no filtra nada antes de enviar (la lista vive
   solo en el backend y no se publica), no analiza la foto y no permite
   cambiar la foto de un reporte que ya está en la cola.
