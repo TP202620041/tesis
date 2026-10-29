@@ -14,7 +14,8 @@ def test_valores_por_defecto():
     assert c.hilos == 2
     assert c.hilos_moderacion == 1  # INFERENCIA_MODERACION_HILOS: fijo, deja la otra vCPU a RF-DETR
     assert c.limites.max_bytes == 10 * 1024 * 1024  # el mismo máximo que el backend (10 MB)
-    assert c.limites.max_pixeles == 16_000_000
+    assert c.limites.max_pixeles == 8_000_000  # peor caso de RAM ~505 MiB con los dos modelos (NC-10a)
+    assert 2048 * 2048 <= c.limites.max_pixeles  # la foto saneada del backend (≤ 2048 px) nunca es 413
     assert c.confianza_minima == pytest.approx(0.10)
     assert c.max_detecciones == 100
     assert c.dir_modelo == DIR_MODELO_POR_DEFECTO

@@ -19,7 +19,7 @@ El contrato es el de ARCHITECTURE.md §6 y §7 (D-15). Lo define `inferencia/` (
 ## Solicitud
 | Parte | Tipo | Límite | Nota |
 |---|---|---|---|
-| `imagen` (multipart/form-data) | archivo JPEG, PNG o WEBP | **10 MiB** (`INFERENCIA_MAX_BYTES`) y **16 MP** (`INFERENCIA_MAX_MEGAPIXELES`) | Igual que `/v1/detecciones`: se mira el contenido, no el `Content-Type` ni la extensión. Enviar la foto **ya saneada** (la misma que se va a subir, saneada una sola vez; ficha NC-10b, pasos 3 a 5), igual en la vista previa y en la creación: así las dos dan el mismo puntaje. |
+| `imagen` (multipart/form-data) | archivo JPEG, PNG o WEBP | **10 MiB** (`INFERENCIA_MAX_BYTES`) y **8 MP** (`INFERENCIA_MAX_MEGAPIXELES`; era 16 hasta el 28/10, se bajó para acotar la RAM) | Igual que `/v1/detecciones`: se mira el contenido, no el `Content-Type` ni la extensión. Enviar la foto **ya saneada** (la misma que se va a subir, saneada una sola vez; ficha NC-10b, pasos 3 a 5), igual en la vista previa y en la creación: así las dos dan el mismo puntaje. |
 
 ## Respuesta 200
 | Campo (JSON, snake_case) | Tipo | ¿Nulo? | Nota |
@@ -38,7 +38,7 @@ Los **mismos** que `/v1/detecciones`, con la misma validación previa: bytes, de
 |---|---|---|
 | 400 | `imagen_invalida` | Archivo vacío, que no es imagen, dañado o de otro formato (GIF, TIFF…). |
 | 400 | `solicitud_invalida` | Falta la parte `imagen` o el cuerpo no es multipart. |
-| 413 | `imagen_demasiado_grande` | Más de 10 MiB, más de 16 MP, o cuerpo por encima del límite (se corta sin leerlo). |
+| 413 | `imagen_demasiado_grande` | Más de 10 MiB, más de 8 MP, o cuerpo por encima del límite (se corta sin leerlo). La foto saneada del backend (≤ 2048 px, ≤ 4,2 MP) nunca llega a este tope. |
 | 500 | `error_de_inferencia` | Falló el motor (onnxruntime). |
 | 500 | `error_interno` | Cualquier otro error, incluido quedarse sin memoria al decodificar. |
 | 503 | — (texto plano de uvicorn) | Cola llena: `INFERENCIA_MAX_CONCURRENCIA` (10) conexiones o tareas abiertas **en todo el proceso** (ver «Tope de conexiones»). |
@@ -91,8 +91,8 @@ Los campos desconocidos se ignoran.
 |---|---|---|---|
 | Una moderación a la vez, 350 fotos saneadas | 124 ms | 259 ms | 296 ms |
 | 4 clientes mezclando moderación y detección, fotos saneadas | 229–255 ms | 1194–1228 ms | 1510 ms |
-| Lo mismo con fotos crudas de hasta 8 MP | 234–271 ms | 1467–1485 ms | 1752 ms |
-| Lo mismo con fotos de 16 MP (el tope del servicio; el backend no las envía) | 1591–1679 ms | 1773–2062 ms | 2105 ms |
+| Lo mismo con fotos crudas de hasta 8 MP (el tope del servicio) | 234–271 ms | 1467–1485 ms | 1752 ms |
+| Lo mismo con fotos de 16 MP (el tope anterior; hoy responden 413) | 1591–1679 ms | 1773–2062 ms | 2105 ms |
 
 Con los 500 + 2 500 ms del adaptador hay holgura para lo que envía el backend (≤ 4,2 MP). La espera de hasta 1 s por un turno en la creación se suma aparte, del lado del backend.
 
@@ -107,6 +107,6 @@ Con los 500 + 2 500 ms del adaptador hay holgura para lo que envía el backend (
 
 **Despliegue (DEP-13).**
 - El servicio no suma variables obligatorias: `INFERENCIA_MODERACION_HILOS=1` viene en la imagen.
-- RAM medida con 4 clientes mezclados: 210–335 MiB en reposo con los dos modelos; 388–390 MiB como máximo con fotos saneadas (lo que envía el backend); 498–507 MiB con fotos de 8 MP; y 755–858 MiB en el tope de 16 MP del servicio. Cabe en 1 GB en todos los casos.
+- RAM medida con 4 clientes mezclados: 210–335 MiB en reposo con los dos modelos; 388–390 MiB como máximo con fotos saneadas (lo que envía el backend); 498–507 MiB (~505) con fotos de 8 MP, que es el tope del servicio. Con el tope anterior de 16 MP llegaba a 755–858 MiB; por eso se bajó a 8 el 28/10.
 - Imagen de 680 MB.
 - El backend con `MODERACION_TIPO=http` se despliega solo después de esta imagen (plan, NC-10).
