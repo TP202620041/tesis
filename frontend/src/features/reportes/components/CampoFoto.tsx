@@ -74,6 +74,13 @@ export function CampoFoto({ valor, onCambiar, rechazo = null, aviso, noPermitida
     return () => URL.revokeObjectURL(previsualizacion);
   }, [previsualizacion]);
 
+  // NC-10c: el formulario puede quitar la foto desde fuera (la moderacion la
+  // rechazo, o «Enviar sin foto»). El selector nativo seguiria con ese archivo
+  // y elegirlo de nuevo no dispararia `change`: se vacia con el valor.
+  useEffect(() => {
+    if (!valor && inputRef.current) inputRef.current.value = '';
+  }, [valor]);
+
   function seleccionar(input: HTMLInputElement) {
     const archivo = input.files?.[0];
     setError(null);
