@@ -13,6 +13,7 @@ from app.domain.errores import ErrorDeInferencia
 from app.domain.imagen import CabeceraDeImagen, ImagenRGB
 
 VERSION_FALSA = VersionModelo("modelo-falso-1")
+VERSION_MODERACION_FALSA = VersionModelo("moderacion-falsa-1")
 
 
 def deteccion(clase: ClaseDano = ClaseDano.BACHE, confianza: float = 0.9, caja=(1.0, 2.0, 30.0, 40.0)) -> Deteccion:
@@ -33,6 +34,22 @@ class ModeloFalso:
         if self.falla:
             raise ErrorDeInferencia("fallo simulado del motor")
         return list(self.respuesta)
+
+
+@dataclass
+class ModeradorFalso:
+    """Devuelve un puntaje fijo y registra las imágenes que recibió."""
+
+    puntaje: float = 0.05
+    falla: bool = False
+    version: VersionModelo = VERSION_MODERACION_FALSA
+    recibidas: list[ImagenRGB] = field(default_factory=list)
+
+    def moderar(self, imagen: ImagenRGB) -> float:
+        self.recibidas.append(imagen)
+        if self.falla:
+            raise ErrorDeInferencia("fallo simulado del motor de moderación")
+        return self.puntaje
 
 
 @dataclass

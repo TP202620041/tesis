@@ -852,6 +852,15 @@ Ambos conviven sin pisarse: la clave de idempotencia se resuelve antes de
 tocar la lógica de US-09; si la clave no se ha visto antes (o venció), la
 deduplicación de US-09 se ejecuta exactamente igual que sin idempotencia.
 
+**Dos lecturas de la clave desde BE-11.** La foto se sanea y se sube antes
+de abrir la transacción (ver [La foto del reporte, fuera de la
+transacción](#la-foto-del-reporte-fuera-de-la-transacción-be-11)), así que la
+clave se lee dos veces: antes de la foto, para que un reenvío con respuesta
+guardada vuelva **sin sanear ni subir nada** (y, con NC-10b, sin moderar), y
+otra vez al empezar la transacción, porque mientras la foto subía otro envío
+con la misma clave pudo confirmarse. En ese caso se devuelve su respuesta y
+la foto de este envío, que ningún reporte usa, se borra.
+
 **Concurrencia — limitación conocida y acotada.** La lectura de la clave
 es la ruta rápida, no la garantía. Si dos requests con la misma clave
 llegan *simultáneamente*, ambos pueden leer "no hay respuesta previa" y
@@ -1718,8 +1727,16 @@ Las fotos de los teléfonos traen **EXIF**: la ubicación GPS del teléfono, el
 modelo del equipo y la fecha. La foto de un reporte es pública, así que
 publicarlo expondría dónde vive o por dónde anda quien reporta. Toda foto
 pasa por `common/port/SaneadorDeImagen` (implementado por
-`common/infra/ImageIoSaneadorDeImagen`) al principio de los `almacenar…` de
-**los dos** adaptadores, venga del caso de uso que venga:
+`common/infra/ImageIoSaneadorDeImagen`) antes de guardarse: la de perfil, al
+principio de `almacenarFotoPerfil` de **los dos** adaptadores; la de reporte,
+en `ReporteService#crear`, antes de subirla, y el adaptador la guarda tal
+cual con `almacenarFotoReporteSaneada` (BE-11, abajo). El saneado devuelve
+un tipo propio, `common/port/FotoSaneada`, y ese método solo acepta ese
+tipo: una foto cruda del cliente no compila donde se espera una saneada. Como
+un record no puede ocultar su constructor, una regla de ArchUnit
+(`FotoSaneadaSoloDelSaneadoTest`) exige que en el código de producción solo
+un `SaneadorDeImagen` construya una `FotoSaneada`. Así una foto no puede
+publicarse con su EXIF por error. El saneado:
 
 1. Valida la extensión (jpg, jpeg, png, webp) y luego **el contenido**: el
    lector se elige por los bytes, no por el nombre, y solo se aceptan JPEG,
@@ -1790,18 +1807,102 @@ encabezados):
   `VP8` con pérdida): el decodificador arma un raster entero de 4 bytes por
   píxel (64 MB con 16 MP). Un teléfono no produce estos archivos.
 
+### La foto del reporte, fuera de la transacción (BE-11)
+
+Hasta BE-11, `ReporteService#crear` era un `@Transactional` que saneaba y
+subía la foto adentro: con R2, ~100–500 ms de red, y antes hasta 10 s de
+espera de turno de saneado, con una conexión del pool tomada (con 16
+creaciones con foto simultáneas el pool se agotaba, ver [Prueba de
+memoria](#prueba-de-memoria-dep-12)). Ahora `crear` no abre una transacción
+propia y sigue este orden:
+
+1. El usuario y el reenvío idempotente (US-06), cada lectura en su propia
+   transacción corta. Un reenvío con respuesta guardada vuelve aquí, sin
+   sanear ni subir nada.
+2. Los campos (NC-02), sin tocar la base.
+3. La foto se sanea **una sola vez** y se sube con
+   `FotoStorageService#almacenarFotoReporteSaneada`, que la guarda **tal
+   cual**, sin volver a sanearla: los mismos bytes que vio la vista previa
+   (D-08). Todo esto sin transacción ni conexión tomada.
+4. Recién entonces la transacción: categoría, distrito, deduplicación
+   (US-09), reporte o adhesión, la clave de idempotencia y
+   `ReporteCreadoEvent`.
+5. Al volver de ella, la foto se borra si ningún reporte confirmado la usa.
+
+**La compensación** (`reportes/service/FotoProvisional`). La foto subida se
+registra como `TransactionSynchronization` de esa transacción, y
+`afterCompletion` da su desenlace real:
+
+| Desenlace de la transacción | ¿La usa el reporte nuevo? | La foto |
+|---|---|---|
+| Confirmada | Sí | Se conserva |
+| Confirmada | No: adhesión (US-09) o reenvío que se cruzó (US-06) | Se borra |
+| Revertida | — | Se borra |
+| Desconocido (falló el commit sin saber si llegó a la base) | Sí | Se conserva, con un WARN: un reporte publicado sin su foto es peor que un objeto huérfano |
+| No llegó a empezar (sin conexión en el pool) | — | Se borra |
+
+- **El borrado no va dentro de `afterCompletion`.** Spring la llama antes de
+  devolver la conexión al pool (`cleanupAfterCompletion` va después), y
+  borrar en R2 es otra llamada de red. `afterCompletion` solo anota el
+  desenlace; el borrado lo hace `FotoProvisional#resolver` apenas vuelve la
+  transacción, ya sin conexión. Nunca lanza: si falla, queda un WARN con el
+  nombre del objeto y la respuesta al ciudadano no cambia.
+- **Transacción programática.** Tiene que empezar después de la subida y
+  terminar antes de la compensación, dentro del mismo caso de uso. Un
+  `@Transactional` en un método del mismo bean no se aplicaría (el proxy no
+  intercepta llamadas internas), y partir el caso de uso en dos beans solo
+  para eso escondería el orden. `ReporteService` usa el `TransactionTemplate`
+  de Spring Boot (inyectado como `TransactionOperations`): el borde queda a la
+  vista y sigue en `service/` (ARCHITECTURE.md §4.5).
+- **`crear` no corre dentro de otra transacción.** Su transacción se uniría a
+  la de afuera y no habría terminado al volver: la foto se decidiría antes de
+  saber si el reporte se confirma. Lanza `IllegalStateException` antes de
+  tocar nada. Se prefirió esa comprobación a
+  `@Transactional(propagation = NEVER)`, que abre un ámbito con
+  sincronización: ahí una consulta sin transacción propia ligaría un
+  `EntityManager` al hilo, con su conexión, durante todo el método.
+- **Preparado para la moderación (NC-10b, D-15).** El saneado y la subida
+  son dos pasos separados en `crear`. La moderación va entre ellos, sobre la
+  foto ya saneada y sin transacción, y una foto rechazada no llega a subirse.
+  Como el puerto ya recibe la foto saneada (`FotoSaneada`), NC-10b no tiene
+  que agregar ese método ni volver a sanear, y el puerto de moderación puede
+  recibir el mismo tipo.
+
+**Cambios de comportamiento, sin cambio de contrato.**
+
+- La foto se sanea antes de saber si el pedido termina en adhesión. Un
+  archivo que no es una imagen da el 409 de siempre también al adherirse
+  (antes se descartaba sin mirarlo), y sin turno de saneado o con R2 caído
+  una adhesión con foto da 503. Es el orden que pide NC-10b, que también
+  revisa la foto de una adhesión.
+- Si el pedido trae una foto inválida y además una categoría o una ubicación
+  inválidas, ahora se responde primero el error de la foto. Los códigos de
+  cada error son los mismos de antes.
+- Una adhesión con foto sube la foto y la borra: dos llamadas a R2 que antes
+  no había, sin conexión tomada.
+
+**Lo que no cubre.** La foto de perfil todavía se sube dentro de la
+transacción de `AuthService#editarPerfil` (deuda técnica). La prueba de carga
+de 16 creaciones con foto simultáneas se repite al cerrar BE-12, que saca el
+refresco del índice del hilo de la petición.
+
 ### Pruebas de las fotos
 
 | Prueba | Tipo | Qué afirma |
 |---|---|---|
 | `ImageIoSaneadorDeImagenTest` | unitaria | Un JPEG con GPS y fabricante en el EXIF sale sin APP1; las 8 orientaciones EXIF dejan los píxeles donde se verían; una foto de 4200 px sale de 1400 px (submuestreo al decodificar, no reescalado); PNG transparente → fondo blanco; mismos bytes → mismos bytes; no imagen, GIF disfrazado o PNG roto → 409; más de 40 MP se rechaza **sin decodificar**, y más de 16 MP si el archivo se decodifica entero (JPEG progresivo, WEBP sin pérdida o con alfa sin pérdida, con encabezados armados en el test), mientras un JPEG secuencial o un WEBP con alfa sin comprimir de 20 MP no se rechaza por tamaño; con los turnos ocupados, la tercera espera y a los 10 s es 503, y si un turno se libera a tiempo, pasa. |
-| `S3FotoStorageServiceTest` | unitaria, `S3Client` simulado | Cada foto a su bucket con `image/jpeg`; la misma URL que el local; nombres que no son `<uuid>.<ext>` no llegan al bucket; inexistente → `null`; bucket caído → 503; no arranca sin endpoint, token o bucket, ni con un solo bucket para las dos visibilidades. |
-| `LocalFotoStorageServiceTest` | unitaria | Lo de antes, más que se guarda el JPEG saneado y `cargarFotoReporte` y `eliminarFotoPerfil` no salen del directorio. |
+| `S3FotoStorageServiceTest` | unitaria, `S3Client` simulado | Cada foto a su bucket con `image/jpeg`; la de reporte se sube tal cual, sin llamar al saneado (BE-11), y la de perfil saneada; la misma URL que el local; nombres que no son `<uuid>.<ext>` no llegan al bucket; inexistente → `null`; bucket caído → 503; `eliminarFotoReporte` borra del bucket de reportes y no lanza; no arranca sin endpoint, token o bucket, ni con un solo bucket para las dos visibilidades. |
+| `LocalFotoStorageServiceTest` | unitaria | Lo de antes, más que se guarda el JPEG saneado, que la foto de reporte ya saneada se guarda sin volver a sanearla (BE-11) y que `cargarFotoReporte`, `eliminarFotoPerfil` y `eliminarFotoReporte` no salen del directorio. |
+| `FotoSaneadaTest` | unitaria | Una foto saneada no puede estar vacía, pasa al clasificador con los mismos bytes y no vuelca sus bytes en un log. |
+| `FotoSaneadaSoloDelSaneadoTest` | ArchUnit, sin congelar | En el código de producción, solo un `SaneadorDeImagen` construye una `FotoSaneada` (BE-11). |
+| `NombreDeArchivoDeFotoTest` | unitaria | `FotoStorageService.nombreDeArchivo` saca `<uuid>.<ext>` de una URL del servidor y da `null` para lo demás (vacío, `..`, otro nombre u otra extensión), así que nada de eso llega al almacenamiento. |
+| `FotoProvisionalTest` | unitaria, gestor de transacciones de prueba | BE-11: la foto subida se conserva si la usa un reporte confirmado o si el desenlace es desconocido; se borra si la transacción se revierte, si se confirma sin usarla o si no llega a empezar; el borrado ocurre después de la transacción, nunca dentro. |
+| `FotoFueraDeTransaccionIT` | IT (`local`) | BE-11 con PostGIS: el saneado, la subida y el borrado corren sin transacción y sin recursos transaccionales en el hilo; una reversión en el commit, una adhesión y un reenvío que se cruza con la subida no dejan su foto; un reenvío idempotente no sanea ni sube otra vez; `crear` dentro de una transacción se rechaza sin tocar nada. |
 | `FotoReporteIT`, `FotoPerfilIT` | IT (`local`) | Misma URL y visibilidad; la foto descargada ya no trae EXIF y se ve derecha; `Cache-Control`, 304 y 206; nombres raros → 404; foto inválida → 409; al reemplazar la foto de perfil, la anterior se borra. |
 | `ArranqueAlmacenDeFotosIT` | IT | Con el perfil `prod` y sin `FOTOS_ALMACEN`, la aplicación no arranca. |
 | `ValidacionAlmacenDeFotosTest` | unitaria, sin base | `local` y `s3` (sin distinguir mayúsculas) pasan; otro valor (`r2`, vacío, `s3 ` con espacio) no arranca con un mensaje que nombra `FOTOS_ALMACEN` y los valores admitidos, también con la aplicación real y antes de tocar la base. |
 | `FotoDePerfilReemplazadaListenerTest` | unitaria | El listener solo encola el borrado de la foto reemplazada; ni la cola llena ni un almacenamiento caído lanzan. |
-| `S3FotoStorageServiceIT` | IT, **solo si existe `FOTOS_S3_TEST_ENDPOINT`** | La aplicación entera con `app.storage.tipo=s3` contra un servicio S3 real: cada foto solo en su bucket, servida por la misma URL e idéntica a la del bucket, sin EXIF; la de perfil solo para su dueño; la reemplazada se borra del bucket; inexistente → 404. Sin la variable se omite y la suite local no cambia. |
+| `S3FotoStorageServiceIT` | IT, **solo si existe `FOTOS_S3_TEST_ENDPOINT`** | La aplicación entera con `app.storage.tipo=s3` contra un servicio S3 real: cada foto solo en su bucket, servida por la misma URL e idéntica a la del bucket, sin EXIF; la de perfil solo para su dueño; la reemplazada se borra del bucket; inexistente → 404; una adhesión o una creación que se revierte no dejan su objeto en el bucket (BE-11). Sin la variable se omite y la suite local no cambia. |
 
 El emulador es **Adobe S3Mock** (Apache-2.0), no MinIO: el repositorio de
 MinIO quedó archivado y su imagen ya no se distribuye, y LocalStack exige un
@@ -1846,12 +1947,14 @@ available»): los refrescos fallan (se registran y el reporte ya está
 creado), y lo que no consigue conexión en ese lapso falla también (el
 filtro JWT no puede cargar al usuario → 401; una transacción que no puede
 empezar → 500). Las mismas 16 creaciones **sin foto** terminan en 201 en
-menos de 0,5 s: el saneado y la subida dentro de la transacción (deuda
-aceptada, ver «Deuda técnica conocida») alargan las transacciones lo
-suficiente para que el refresco existente agote el pool. Se resuelve
-sacando la subida de la transacción (NC-04) y el refresco del hilo de la
-petición (como las notificaciones, D-13); mientras tanto, un pool más
-grande en producción amplía el margen.
+menos de 0,5 s: el saneado y la subida dentro de la transacción alargaban
+las transacciones lo suficiente para que el refresco existente agotara el
+pool. **BE-11 sacó el saneado y la subida de la transacción** (ver [La foto
+del reporte, fuera de la
+transacción](#la-foto-del-reporte-fuera-de-la-transacción-be-11)); queda
+sacar el refresco del hilo de la petición (BE-12, como las notificaciones,
+D-13). Mientras tanto, un pool más grande en producción amplía el margen.
+Esta medición es anterior a BE-11 y se repite al cerrar BE-12.
 
 ### Migración futura a una CDN
 
@@ -2935,8 +3038,9 @@ la elige a mano, como siempre.
   distingue esos casos del de una foto sin un daño claro.
 - **La vista previa no compite con las subidas por el saneado** (la IA nunca
   bloquea un reporte, §4.3). El saneado admite 2 fotos a la vez en todo el
-  servidor y la creación sanea dentro de su transacción, con una conexión
-  tomada (ver la deuda técnica). Por eso la vista previa tiene un **turno
+  servidor, y cada turno que ocupa una vista previa lo puede estar esperando
+  un ciudadano que envía su reporte (desde BE-11 esa espera ya no retiene una
+  conexión, pero sigue demorando la creación). Por eso la vista previa tiene un **turno
   propio que no espera** (`ClasificacionService`, uno a la vez): si está
   ocupado, la respuesta es «sin sugerencia» al instante. Así las vistas
   previas nunca ocupan más de uno de los dos turnos y siempre queda otro para
@@ -3253,30 +3357,25 @@ vista previa siguen dando dos «sin turno» al instante.
     compatible con Docker 29 (o se fije `<testcontainers.version>` a una que lo
     soporte). La migración es local a `AbstractPostgisIT` — el resto de los
     tests no cambia.
-- **La foto se sube dentro de la transacción** de la creación del reporte y
-  de la edición del perfil (DEP-12). Con el disco local era instantáneo; con
-  R2 son ~100–500 ms de red con una conexión del pool retenida, y antes, si
-  no hay turno de saneado, hasta 10 s de espera también con la conexión
-  tomada (el pool de Hikari tiene 10). Se acepta para el MVP, acotado por los
-  timeouts del cliente (10 s) y del semáforo (10 s). Sacar la subida de la
-  transacción cambia la estructura del caso de uso (idempotencia,
-  deduplicación) y queda para una tarea propia: la fase 0 de NC-04 agregó la
-  sugerencia **después** del commit sin tocar la subida (§4.5, D-13).
-  Medido: con 16 creaciones con foto simultáneas, sumado al refresco del
-  índice en `AFTER_COMMIT` (que pide una segunda conexión), el pool se agota
-  durante 30 s (ver [Prueba de memoria](#prueba-de-memoria-dep-12)). NC-04
-  lo acota así: la sugerencia oficial corre en el executor asíncrono y solo
+- **La foto de perfil se sube dentro de la transacción** de la edición del
+  perfil (DEP-12). Con R2 son ~100–500 ms de red con una conexión del pool
+  retenida, y antes, si no hay turno de saneado, hasta 10 s de espera también
+  con la conexión tomada. Se acepta: cambiar la foto de perfil es poco
+  frecuente, y está acotado por los timeouts del cliente (10 s) y del
+  semáforo (10 s). La foto de un reporte ya no tiene esta deuda: BE-11 la
+  sanea y la sube sin transacción (ver [La foto del reporte, fuera de la
+  transacción](#la-foto-del-reporte-fuera-de-la-transacción-be-11)). NC-04 ya
+  lo acotaba así: la sugerencia oficial corre en el executor asíncrono y solo
   toma una conexión para leer la URL de la foto y para el `UPDATE` final,
   nunca durante la descarga ni la clasificación; y la vista previa ocupa como
-  mucho uno de los dos turnos de saneado y no espera el suyo, así que una
-  creación puede esperar a lo sumo a una vista previa en curso (unos cientos de
-  ms), no a una fila de ellas. Con la clasificación apagada
-  (`CLASIFICACION_TIPO=falso`) ninguna de las dos sanea ni descarga nada; con
-  el modelo real (NC-04b), la inferencia (hasta 3 s) tampoco retiene una
-  conexión.
-- **Fotos huérfanas.** Si la transacción falla después de subir la foto, el
-  archivo u objeto queda en el disco o el bucket (aceptable en el MVP).
-  Mejora posible: borrarlo en `afterCompletion` con estado `ROLLED_BACK`.
+  mucho uno de los dos turnos de saneado y no espera el suyo. Con el modelo
+  real (NC-04b), la inferencia (hasta 3 s) tampoco retiene una conexión.
+- **Fotos huérfanas.** Desde BE-11 la foto de un reporte que no llega a
+  usarse (la transacción se revierte, o el pedido termina en adhesión o en un
+  reenvío idempotente) se borra después de la transacción. Quedan huérfanas
+  solo si ese borrado falla (R2 caído: un WARN con el nombre), si no se sabe
+  si el commit llegó a la base (se conserva a propósito) o si la edición del
+  perfil se revierte después de subir la foto nueva.
 - **Correo sin reintentos ni registro de envíos (DEP-08).** Si el proveedor
   rechaza o no responde, el correo de recuperación o de soporte se pierde y
   solo queda un WARN con el id (la persona puede volver a pedir el token; la

@@ -103,7 +103,7 @@ class InferenciaHttpAdapterIT extends AbstractPostgisIT {
     /** Como en la creacion: la foto pasa por el saneado antes de clasificarse. */
     private ArchivoSubido fotoSaneada(int ancho, int alto) {
         return saneador.sanear(new ArchivoSubido(ImagenesDePrueba.jpegConExif(ancho, alto, 6), "image/jpeg",
-                "IMG_0001.JPG"));
+                "IMG_0001.JPG")).comoArchivo();
     }
 
     private static void cumpleElContrato(ResultadoDeteccion resultado) {

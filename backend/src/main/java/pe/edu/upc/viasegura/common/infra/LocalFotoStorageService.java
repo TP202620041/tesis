@@ -12,9 +12,11 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
+import org.springframework.util.Assert;
 import org.springframework.util.StringUtils;
 import pe.edu.upc.viasegura.common.exception.BusinessException;
 import pe.edu.upc.viasegura.common.port.ArchivoSubido;
+import pe.edu.upc.viasegura.common.port.FotoSaneada;
 import pe.edu.upc.viasegura.common.port.FotoStorageService;
 import pe.edu.upc.viasegura.common.port.SaneadorDeImagen;
 
@@ -31,8 +33,10 @@ import pe.edu.upc.viasegura.common.port.SaneadorDeImagen;
  * {@value #SUBDIR_PERFILES} solo a traves del endpoint que verifica al
  * dueno.</p>
  *
- * <p>Toda foto pasa antes por {@link SaneadorDeImagen} (DEP-12): se guarda el
- * JPEG saneado, sin EXIF, con extension {@code .jpg}.</p>
+ * <p>Toda foto se guarda saneada por {@link SaneadorDeImagen} (DEP-12): el
+ * JPEG sin EXIF, con extension {@code .jpg}. La de perfil la sanea este
+ * adaptador; la de reporte llega ya saneada (BE-11, ver
+ * {@link FotoStorageService#almacenarFotoReporteSaneada}).</p>
  */
 @Slf4j
 @Service
@@ -66,13 +70,14 @@ public class LocalFotoStorageService implements FotoStorageService {
     }
 
     @Override
-    public String almacenarFotoReporte(ArchivoSubido foto) {
-        return guardar(foto, directorioReportes, urlBaseReportes);
+    public String almacenarFotoReporteSaneada(FotoSaneada fotoSaneada) {
+        Assert.notNull(fotoSaneada, "La foto de reporte debe llegar saneada");
+        return guardar(fotoSaneada.contenido(), directorioReportes, urlBaseReportes);
     }
 
     @Override
     public String almacenarFotoPerfil(ArchivoSubido foto) {
-        return guardar(foto, directorioPerfiles, urlBasePerfiles);
+        return guardar(saneador.sanear(foto).contenido(), directorioPerfiles, urlBasePerfiles);
     }
 
     /**
@@ -103,14 +108,23 @@ public class LocalFotoStorageService implements FotoStorageService {
 
     @Override
     public void eliminarFotoPerfil(String nombreArchivo) {
-        Path archivo = dentroDe(directorioPerfiles, nombreArchivo);
+        eliminar(directorioPerfiles, nombreArchivo, "la foto de perfil reemplazada");
+    }
+
+    @Override
+    public void eliminarFotoReporte(String nombreArchivo) {
+        eliminar(directorioReportes, nombreArchivo, "la foto de reporte sin usar");
+    }
+
+    private void eliminar(Path directorio, String nombreArchivo, String queFoto) {
+        Path archivo = dentroDe(directorio, nombreArchivo);
         if (archivo == null) {
             return;
         }
         try {
             Files.deleteIfExists(archivo);
         } catch (IOException | RuntimeException e) {
-            log.warn("No se pudo borrar la foto de perfil reemplazada {}: {}", nombreArchivo, e.toString());
+            log.warn("No se pudo borrar {} {}: {}", queFoto, nombreArchivo, e.toString());
         }
     }
 
@@ -140,15 +154,14 @@ public class LocalFotoStorageService implements FotoStorageService {
         return destino;
     }
 
-    private String guardar(ArchivoSubido foto, Path directorio, String urlBase) {
-        ArchivoSubido saneada = saneador.sanear(foto);
+    private String guardar(byte[] jpegSaneado, Path directorio, String urlBase) {
         // El nombre lo genera el servidor (UUID): el nombre original del
         // cliente nunca llega al filesystem.
         String nombreArchivo = UUID.randomUUID() + ".jpg";
         Path destino = directorio.resolve(nombreArchivo).normalize();
 
         try {
-            Files.write(destino, saneada.contenido());
+            Files.write(destino, jpegSaneado);
         } catch (IOException e) {
             throw new BusinessException("No se pudo almacenar la foto");
         }

@@ -24,24 +24,27 @@ package pe.edu.upc.viasegura.common.port;
  *       bytes de salida. La sugerencia de categoria (D-08) depende de eso.</li>
  * </ul>
  *
- * <p>Vive en {@code common/port} porque lo usan los adaptadores de
- * almacenamiento de {@code common} (fotos de {@code reportes} y de
- * {@code auth}) y, con NC-04, la vista previa de {@code clasificacion}
- * (D-11). No expone tipos de ImageIO.</p>
+ * <p>Vive en {@code common/port} porque lo usan varios modulos (D-11): la
+ * creacion de un reporte ({@code reportes.service.ReporteService}, que sanea
+ * la foto una sola vez y sin transaccion antes de subirla, BE-11), el
+ * adaptador de almacenamiento para la foto de perfil de {@code auth} y, con
+ * NC-04, la vista previa de {@code clasificacion}. No expone tipos de
+ * ImageIO.</p>
  */
 public interface SaneadorDeImagen {
 
     /**
-     * Foto saneada, lista para guardar.
+     * Foto saneada, lista para guardar o clasificar.
      *
      * @param foto archivo tal como lo envio el cliente
-     * @return la foto como JPEG sin metadatos ({@code contentType}
-     *         {@code image/jpeg} y nombre terminado en {@code .jpg})
+     * @return la foto como JPEG sin metadatos, con el nombre terminado en
+     *         {@code .jpg}; un tipo propio ({@link FotoSaneada}) para que una
+     *         foto cruda no pueda pasar por saneada (BE-11)
      * @throws pe.edu.upc.viasegura.common.exception.BusinessException si esta
      *         vacia, no es una imagen JPEG, PNG o WEBP valida o es demasiado
      *         grande (409, el mismo error que una extension no permitida)
      * @throws pe.edu.upc.viasegura.common.exception.ServicioNoDisponibleException
      *         si no hay turno para sanearla dentro del plazo (503)
      */
-    ArchivoSubido sanear(ArchivoSubido foto);
+    FotoSaneada sanear(ArchivoSubido foto);
 }

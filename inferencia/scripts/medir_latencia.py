@@ -2,14 +2,17 @@
 
 Uso (con el servicio corriendo en Docker limitado a 2 vCPU; README, «Cifras medidas»):
 
-    docker run -d --name inferencia-medicion -p 8090:8000 --cpus=2 ciudadviva-inferencia:nc03
+    docker run -d --name inferencia-medicion -p 8090:8000 --cpus=2 ciudadviva-inferencia:nc10a
     python scripts/medir_latencia.py --url http://localhost:8090 --contenedor inferencia-medicion \
-        [--imagenes DIR] [--repeticiones 3] [--concurrencia 1]
+        [--ruta detecciones|moderacion|mezcla] [--imagenes DIR] [--repeticiones 3] [--concurrencia 1]
 
 Sin ``--imagenes`` usa las imágenes sintéticas de ``scripts/sinteticas.py`` en JPEG de calidad
 0,85, como las fotos saneadas por el backend. Con ``--imagenes`` (por ejemplo, una muestra de
 RDD2022 guardada **fuera** del repositorio) mide sobre fotos reales. La latencia es la del
 cliente: HTTP, decodificación, preprocesado, modelo y respuesta.
+
+``--ruta mezcla`` alterna ``/v1/detecciones`` y ``/v1/moderacion`` (NC-10a: los dos modelos a la
+vez, como cuando el backend crea reportes y pide sugerencias) y da la latencia de cada uno.
 """
 
 from __future__ import annotations
@@ -50,14 +53,17 @@ def fotos_de(directorio: Path) -> list[tuple[str, bytes]]:
     ]
 
 
-def enviar(url: str, nombre: str, datos: bytes) -> tuple[float, dict]:
+RUTAS = {"detecciones": "/v1/detecciones", "moderacion": "/v1/moderacion"}
+
+
+def enviar(url: str, nombre: str, datos: bytes, ruta: str = RUTAS["detecciones"]) -> tuple[float, dict]:
     limite = uuid.uuid4().hex
     cuerpo = (
         f"--{limite}\r\nContent-Disposition: form-data; name=\"imagen\"; filename=\"{nombre}\"\r\n"
         "Content-Type: application/octet-stream\r\n\r\n"
     ).encode() + datos + f"\r\n--{limite}--\r\n".encode()
     solicitud = urllib.request.Request(
-        f"{url}/v1/detecciones",
+        f"{url}{ruta}",
         data=cuerpo,
         headers={"Content-Type": f"multipart/form-data; boundary={limite}"},
         method="POST",
@@ -125,6 +131,7 @@ def main() -> None:
     parser.add_argument("--repeticiones", type=int, default=3)
     parser.add_argument("--calentamiento", type=int, default=3)
     parser.add_argument("--concurrencia", type=int, default=1)
+    parser.add_argument("--ruta", choices=[*RUTAS, "mezcla"], default="detecciones")
     argumentos = parser.parse_args()
 
     fotos = fotos_de(argumentos.imagenes) if argumentos.imagenes else fotos_sinteticas()
@@ -134,32 +141,40 @@ def main() -> None:
     muestreo = MuestreoDeMemoria(argumentos.contenedor) if argumentos.contenedor else None
     reposo = muestreo.leer()[0] if muestreo else None
 
-    for nombre, datos in fotos[: argumentos.calentamiento]:
-        enviar(argumentos.url, nombre, datos)
+    rutas = list(RUTAS.values()) if argumentos.ruta == "mezcla" else [RUTAS[argumentos.ruta]]
+    for i, (nombre, datos) in enumerate(fotos[: argumentos.calentamiento * len(rutas)]):
+        enviar(argumentos.url, nombre, datos, rutas[i % len(rutas)])
 
     if muestreo:
         muestreo.start()
-    trabajos = [f for _ in range(argumentos.repeticiones) for f in fotos]
+    fotos_por_pasada = [f for _ in range(argumentos.repeticiones) for f in fotos]
+    trabajos = [(rutas[i % len(rutas)], *f) for i, f in enumerate(fotos_por_pasada)]
     inicio = time.perf_counter()
     with ThreadPoolExecutor(argumentos.concurrencia) as grupo:
-        resultados = list(grupo.map(lambda f: enviar(argumentos.url, *f), trabajos))
+        resultados = list(grupo.map(lambda t: (t[0], *enviar(argumentos.url, t[1], t[2], t[0])), trabajos))
     total = time.perf_counter() - inicio
     if muestreo:
         muestreo.parar()
 
-    latencias = [ms for ms, _ in resultados]
-    versiones = {r["version_modelo"] for _, r in resultados}
-    detecciones = sum(len(r["detecciones"]) for _, r in resultados)
     print(
-        f"Imágenes: {len(fotos)} × {argumentos.repeticiones} = {len(latencias)} solicitudes, "
-        f"concurrencia {argumentos.concurrencia}"
+        f"Imágenes: {len(fotos)} × {argumentos.repeticiones} = {len(resultados)} solicitudes, "
+        f"concurrencia {argumentos.concurrencia}, ruta {argumentos.ruta}"
     )
-    print(f"Versión del modelo: {', '.join(sorted(versiones))}; detecciones devueltas: {detecciones}")
-    print(
-        f"Latencia (ms): media {statistics.mean(latencias):.0f} · p50 {percentil(latencias, 0.5):.0f} · "
-        f"p95 {percentil(latencias, 0.95):.0f} · mín {min(latencias):.0f} · máx {max(latencias):.0f}"
-    )
-    print(f"Rendimiento: {len(latencias) / total:.2f} imágenes/s")
+    for ruta in rutas:
+        propios = [(ms, r) for r_ruta, ms, r in resultados if r_ruta == ruta]
+        latencias = [ms for ms, _ in propios]
+        versiones = {r["version_modelo"] for _, r in propios}
+        if ruta == RUTAS["detecciones"]:
+            extra = f"detecciones devueltas: {sum(len(r['detecciones']) for _, r in propios)}"
+        else:
+            puntajes = [r["puntaje"] for _, r in propios]
+            extra = f"puntaje mediana {statistics.median(puntajes):.3f} · máx {max(puntajes):.3f}"
+        print(f"{ruta} ({len(latencias)}): versión {', '.join(sorted(versiones))}; {extra}")
+        print(
+            f"  Latencia (ms): media {statistics.mean(latencias):.0f} · p50 {percentil(latencias, 0.5):.0f} · "
+            f"p95 {percentil(latencias, 0.95):.0f} · mín {min(latencias):.0f} · máx {max(latencias):.0f}"
+        )
+    print(f"Rendimiento: {len(resultados) / total:.2f} imágenes/s")
     if muestreo:
         print(
             f"Memoria del contenedor (MiB): en reposo {reposo:.0f} · máximo durante la medición {muestreo.maximo_mib:.0f} "

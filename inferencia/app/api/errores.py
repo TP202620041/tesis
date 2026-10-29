@@ -1,6 +1,7 @@
 """Traducción de errores a HTTP. Es el único lugar que conoce los códigos de estado.
 
-Todas las respuestas de error tienen la forma ``{"codigo": str, "mensaje": str}``:
+Todas las respuestas de error tienen la forma ``{"codigo": str, "mensaje": str}``, y son
+las mismas en ``/v1/detecciones`` y ``/v1/moderacion``:
 
 | Error | Estado | ``codigo`` |
 |---|---|---|
