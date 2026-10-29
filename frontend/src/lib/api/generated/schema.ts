@@ -722,6 +722,7 @@ export interface components {
             /** Format: int64 */
             categoriaId?: number;
             categoriaNombre?: string;
+            fotoRechazada?: boolean;
         };
         CrearCategoriaRequest: {
             nombre: string;
@@ -897,10 +898,12 @@ export interface components {
             preferenciaNotificacion: "PUSH" | "EMAIL" | "AMBAS";
         };
         PageTicketAdminResponse: {
-            /** Format: int32 */
-            totalPages?: number;
             /** Format: int64 */
             totalElements?: number;
+            /** Format: int32 */
+            totalPages?: number;
+            first?: boolean;
+            last?: boolean;
             /** Format: int32 */
             size?: number;
             content?: components["schemas"]["TicketAdminResponse"][];
@@ -910,19 +913,17 @@ export interface components {
             /** Format: int32 */
             numberOfElements?: number;
             pageable?: components["schemas"]["PageableObject"];
-            first?: boolean;
-            last?: boolean;
             empty?: boolean;
         };
         PageableObject: {
             /** Format: int64 */
             offset?: number;
             sort?: components["schemas"]["SortObject"];
-            /** Format: int32 */
-            pageSize?: number;
+            paged?: boolean;
             /** Format: int32 */
             pageNumber?: number;
-            paged?: boolean;
+            /** Format: int32 */
+            pageSize?: number;
             unpaged?: boolean;
         };
         SortObject: {
@@ -952,10 +953,12 @@ export interface components {
             sort?: string[];
         };
         PageReporteResumenResponse: {
-            /** Format: int32 */
-            totalPages?: number;
             /** Format: int64 */
             totalElements?: number;
+            /** Format: int32 */
+            totalPages?: number;
+            first?: boolean;
+            last?: boolean;
             /** Format: int32 */
             size?: number;
             content?: components["schemas"]["ReporteResumenResponse"][];
@@ -965,8 +968,6 @@ export interface components {
             /** Format: int32 */
             numberOfElements?: number;
             pageable?: components["schemas"]["PageableObject"];
-            first?: boolean;
-            last?: boolean;
             empty?: boolean;
         };
         HistorialEntradaResponse: {
