@@ -29,7 +29,13 @@ import org.springframework.core.io.Resource;
  *
  * <p>Toda foto pasa por {@link SaneadorDeImagen} antes de guardarse (DEP-12):
  * sale como JPEG sin EXIF, asi que las URL nuevas siempre terminan en
- * {@code .jpg}. Para el cliente la URL sigue siendo una cadena opaca.</p>
+ * {@code .jpg}. Para el cliente la URL sigue siendo una cadena opaca.
+ * <b>Quien sanea depende del tipo de foto</b> (BE-11): la de perfil la sanea
+ * el adaptador dentro de {@link #almacenarFotoPerfil}; la de reporte llega
+ * <b>ya saneada</b> a {@link #almacenarFotoReporteSaneada}, porque la
+ * creacion del reporte la sanea una sola vez, sin transaccion abierta, y
+ * guarda esos mismos bytes (los que vio la vista previa, D-08, y los que
+ * revisara la moderacion, D-15).</p>
  *
  * <p>El archivo llega como {@link ArchivoSubido}, no como el
  * {@code MultipartFile} de Spring Web: el puerto no conoce HTTP (BE-10).</p>
@@ -54,15 +60,32 @@ public interface FotoStorageService {
     }
 
     /**
-     * Almacena la foto de evidencia de un reporte (US-05).
+     * Almacena la foto de evidencia de un reporte (US-05) <b>tal como llega</b>:
+     * no la vuelve a sanear (BE-11).
      *
+     * <p>La foto tiene que salir de {@link SaneadorDeImagen#sanear}: es lo que
+     * se publica en el mapa, asi que una foto cruda llevaria el EXIF del
+     * telefono (la ubicacion GPS de quien reporta). Volver a sanearla aqui
+     * la recomprimiria y daria otros pixeles que los que ya vio la vista
+     * previa (D-08) y que revisa la moderacion (D-15).</p>
+     *
+     * <p>Se llama <b>sin transaccion abierta</b> (BE-11): con R2 es una
+     * llamada de red, y dentro de la transaccion retendria una conexion del
+     * pool. Si el reporte no llega a guardarse, quien la subio la borra con
+     * {@link #eliminarFotoReporte}.</p>
+     *
+     * @param fotoSaneada la foto que devolvio {@link SaneadorDeImagen#sanear}
      * @return URL relativa <b>publica</b> de la foto almacenada
+     * @throws IllegalArgumentException si la foto es {@code null} o esta vacia
+     *         (un error de programacion: el saneado nunca devuelve eso)
      */
-    String almacenarFotoReporte(ArchivoSubido foto);
+    String almacenarFotoReporteSaneada(ArchivoSubido fotoSaneada);
 
     /**
-     * Almacena la foto de perfil de un ciudadano (US-30).
+     * Sanea con {@link SaneadorDeImagen} y almacena la foto de perfil de un
+     * ciudadano (US-30).
      *
+     * @param foto archivo tal como lo envio el cliente
      * @return URL relativa <b>autenticada</b>: apunta al endpoint que valida
      *         que quien la pide sea el dueno
      */
@@ -97,4 +120,18 @@ public interface FotoStorageService {
      * @param nombreArchivo nombre simple del archivo ({@code <uuid>.<ext>})
      */
     void eliminarFotoPerfil(String nombreArchivo);
+
+    /**
+     * Borra una foto de reporte que ningun reporte llego a usar (BE-11): la
+     * transaccion de creacion se revirtio, o el pedido termino en una
+     * adhesion (US-09) o en un reenvio idempotente (US-06). Nunca lanza: si
+     * no se puede borrar, se registra con el nombre y el objeto queda
+     * huerfano; la respuesta al ciudadano no cambia.
+     *
+     * <p>No es para retirar la foto de un reporte publicado: hoy ningun caso
+     * de uso lo hace.</p>
+     *
+     * @param nombreArchivo nombre simple del archivo ({@code <uuid>.<ext>})
+     */
+    void eliminarFotoReporte(String nombreArchivo);
 }

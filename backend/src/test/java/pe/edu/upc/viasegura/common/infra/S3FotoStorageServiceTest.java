@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -51,8 +52,12 @@ class S3FotoStorageServiceTest {
     private S3Client s3;
     private S3FotoStorageService storage;
 
+    /** Cuantas veces se llamo al saneado (BE-11: la foto de reporte llega ya saneada). */
+    private final AtomicInteger saneados = new AtomicInteger();
+
     /** Saneado de mentira: cualquier foto sale como {@link #SANEADA}. */
     private final SaneadorDeImagen saneador = foto -> {
+        saneados.incrementAndGet();
         if (foto == null || foto.vacio()) {
             throw new BusinessException("La foto está vacía");
         }
@@ -78,33 +83,48 @@ class S3FotoStorageServiceTest {
     }
 
     @Test
-    void fotoDeReporte_subeLaSaneadaAlBucketDeReportesYDevuelveLaUrlPublica() throws IOException {
-        String url = storage.almacenarFotoReporte(new ArchivoSubido(new byte[] {9}, "image/png", "a.png"));
+    void fotoDeReporte_subeTalCualLaSaneadaAlBucketDeReportesYDevuelveLaUrlPublica() throws IOException {
+        byte[] yaSaneada = {(byte) 0xFF, (byte) 0xD8, 7, 7};
+        String url = storage.almacenarFotoReporteSaneada(new ArchivoSubido(yaSaneada, "image/jpeg", "a.jpg"));
 
         ArgumentCaptor<RequestBody> cuerpo = ArgumentCaptor.forClass(RequestBody.class);
         PutObjectRequest pedido = subidaCapturada(cuerpo);
         assertThat(pedido.bucket()).isEqualTo(REPORTES);
         assertThat(pedido.key()).matches("[0-9a-f-]{36}\\.jpg");
         assertThat(pedido.contentType()).isEqualTo("image/jpeg");
-        assertThat(pedido.contentLength()).isEqualTo(SANEADA.length);
-        assertThat(bytes(cuerpo.getValue())).isEqualTo(SANEADA);
+        assertThat(pedido.contentLength()).isEqualTo(yaSaneada.length);
+        // BE-11: los mismos bytes, sin volver a sanearlos (D-08).
+        assertThat(bytes(cuerpo.getValue())).isEqualTo(yaSaneada);
+        assertThat(saneados).hasValue(0);
         // La misma URL que con el disco local.
         assertThat(url).isEqualTo("/media/fotos/reportes/" + pedido.key());
     }
 
     @Test
-    void fotoDePerfil_vaAlBucketDePerfilesYDevuelveLaUrlAutenticada() {
+    void fotoDePerfil_subeLaSaneadaAlBucketDePerfilesYDevuelveLaUrlAutenticada() throws IOException {
         String url = storage.almacenarFotoPerfil(new ArchivoSubido(new byte[] {9}, "image/png", "yo.png"));
 
-        PutObjectRequest pedido = subidaCapturada(ArgumentCaptor.forClass(RequestBody.class));
+        ArgumentCaptor<RequestBody> cuerpo = ArgumentCaptor.forClass(RequestBody.class);
+        PutObjectRequest pedido = subidaCapturada(cuerpo);
         assertThat(pedido.bucket()).isEqualTo(PERFILES);
+        assertThat(bytes(cuerpo.getValue())).isEqualTo(SANEADA);
+        assertThat(saneados).hasValue(1);
         assertThat(url).isEqualTo("/api/perfiles/fotos/" + pedido.key());
     }
 
     @Test
-    void unaFotoQueNoPasaElSaneado_noLlegaAlBucket() {
-        assertThatThrownBy(() -> storage.almacenarFotoReporte(new ArchivoSubido(new byte[0], null, "a.png")))
+    void unaFotoDePerfilQueNoPasaElSaneado_noLlegaAlBucket() {
+        assertThatThrownBy(() -> storage.almacenarFotoPerfil(new ArchivoSubido(new byte[0], null, "a.png")))
                 .isInstanceOf(BusinessException.class);
+        verifyNoInteractions(s3);
+    }
+
+    @Test
+    void unaFotoDeReporteNulaOVacia_esUnErrorDeProgramacionYNoLlegaAlBucket() {
+        assertThatThrownBy(() -> storage.almacenarFotoReporteSaneada(null))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> storage.almacenarFotoReporteSaneada(new ArchivoSubido(new byte[0], null, "a.jpg")))
+                .isInstanceOf(IllegalArgumentException.class);
         verifyNoInteractions(s3);
     }
 
@@ -113,7 +133,7 @@ class S3FotoStorageServiceTest {
         when(s3.putObject(any(PutObjectRequest.class), any(RequestBody.class)))
                 .thenThrow(SdkClientException.create("timeout"));
 
-        assertThatThrownBy(() -> storage.almacenarFotoReporte(new ArchivoSubido(new byte[] {9}, null, "a.png")))
+        assertThatThrownBy(() -> storage.almacenarFotoReporteSaneada(new ArchivoSubido(SANEADA, null, "a.jpg")))
                 .isInstanceOf(ServicioNoDisponibleException.class)
                 .hasMessage(S3FotoStorageService.MENSAJE_SIN_ALMACENAMIENTO);
     }
@@ -185,6 +205,7 @@ class S3FotoStorageServiceTest {
         assertThat(storage.cargarFotoReporte(nombre)).isNull();
         assertThat(storage.cargarFotoPerfil(nombre)).isNull();
         storage.eliminarFotoPerfil(nombre);
+        storage.eliminarFotoReporte(nombre);
         verifyNoInteractions(s3);
     }
 
@@ -199,6 +220,18 @@ class S3FotoStorageServiceTest {
         assertThat(pedido.getValue().bucket()).isEqualTo(PERFILES);
         assertThat(pedido.getValue().key()).isEqualTo(UUID_JPG);
         verify(s3, never()).putObject(any(PutObjectRequest.class), any(RequestBody.class));
+    }
+
+    @Test
+    void eliminarFotoReporte_borraDelBucketDeReportesYNoLanzaSiFalla() {
+        when(s3.deleteObject(any(DeleteObjectRequest.class))).thenThrow(SdkClientException.create("caido"));
+
+        storage.eliminarFotoReporte(UUID_JPG);
+
+        ArgumentCaptor<DeleteObjectRequest> pedido = ArgumentCaptor.forClass(DeleteObjectRequest.class);
+        verify(s3).deleteObject(pedido.capture());
+        assertThat(pedido.getValue().bucket()).isEqualTo(REPORTES);
+        assertThat(pedido.getValue().key()).isEqualTo(UUID_JPG);
     }
 
     @Test
