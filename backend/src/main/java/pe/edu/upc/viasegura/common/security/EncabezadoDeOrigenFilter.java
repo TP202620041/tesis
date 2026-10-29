@@ -35,9 +35,12 @@ import pe.edu.upc.viasegura.common.exception.ApiError;
  * 403 toda peticion que no lo traiga con ese valor.</p>
  *
  * <ul>
- *   <li><b>Primero de la cadena</b> ({@code EncabezadoDeOrigenConfig} lo
- *   registra con la maxima precedencia, antes que Spring Security y CORS):
- *   una peticion rechazada no llega al JWT ni a ningun controlador.</li>
+ *   <li><b>Con la maxima precedencia, antes que Spring Security</b>
+ *   ({@code EncabezadoDeOrigenConfig}): una peticion rechazada no llega a
+ *   CORS, al JWT ni a ningun controlador. Empata con el
+ *   {@code CharacterEncodingFilter} y el {@code ForwardedHeaderFilter} de
+ *   Spring Boot, que pueden correr antes sin cambiar lo que este filtro mira
+ *   (ver {@link #esHealthcheck}).</li>
  *   <li><b>Sin pistas:</b> el 403 es el mismo {@link ApiError} «Acceso
  *   denegado» de cualquier otro 403 de la cadena de seguridad, igual sin el
  *   encabezado que con un valor equivocado.</li>

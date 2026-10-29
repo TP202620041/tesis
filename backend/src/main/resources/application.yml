@@ -226,8 +226,8 @@ app:
   # Encabezado de origen (DEP-14): el API solo atiende las peticiones que
   # pasaron por Cloudflare. Una Request Header Transform Rule agrega
   # `encabezado` con el secreto, y common/security/EncabezadoDeOrigenFilter,
-  # el primer filtro, responde 403 a toda peticion que no lo traiga, salvo
-  # GET /actuator/health (el health check de Railway entra directo).
+  # antes que Spring Security, responde 403 a toda peticion que no lo traiga,
+  # salvo GET /actuator/health (el health check de Railway entra directo).
   #   ninguno -> apagado: por defecto fuera de prod; en prod, el interruptor
   #   otro    -> el secreto: 32 caracteres ASCII visibles o mas
   #              (`openssl rand -hex 32`); mas corto o con espacios, no arranca

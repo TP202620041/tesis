@@ -16,8 +16,9 @@ import org.springframework.core.env.Profiles;
 import org.springframework.core.type.AnnotatedTypeMetadata;
 
 /**
- * Registra {@link EncabezadoDeOrigenFilter} (DEP-14) como el primer filtro
- * del contenedor, cuando {@code app.origen.secreto} no es {@code ninguno}.
+ * Registra {@link EncabezadoDeOrigenFilter} (DEP-14) con la maxima
+ * precedencia, antes que Spring Security, cuando {@code app.origen.secreto}
+ * no es {@code ninguno}.
  *
  * <ul>
  *   <li><b>Fuera de {@code prod}</b> vale {@code ninguno} por defecto

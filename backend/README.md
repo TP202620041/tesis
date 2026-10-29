@@ -284,11 +284,15 @@ la IP de Railway llegaba al backend sin pasar por ninguna de esas defensas
 
 Las decisiones:
 
-- **Es el primer filtro del contenedor.** `EncabezadoDeOrigenConfig` lo
-  registra con un `FilterRegistrationBean` de precedencia máxima, antes que
-  Spring Security (−100). Una petición rechazada no llega a CORS, al JWT ni a
-  ningún controlador. No es un `@Component`, para no quedar registrado dos
-  veces.
+- **Va con la máxima precedencia, antes que Spring Security.**
+  `EncabezadoDeOrigenConfig` lo registra con un `FilterRegistrationBean` de
+  orden `Ordered.HIGHEST_PRECEDENCE`, antes que Spring Security (−100). Una
+  petición rechazada no llega a CORS, al JWT ni a ningún controlador. Empata
+  con el `CharacterEncodingFilter` y el `ForwardedHeaderFilter` de Spring
+  Boot, que pueden correr antes sin cambiar lo que mira: la ruta exenta se
+  compara contra el *context path* más la ruta, que ese filtro cambia en
+  conjunto si aplica un `X-Forwarded-Prefix`. No es un `@Component`, para no
+  quedar registrado dos veces.
 - **El 403 no da pistas.** Es el mismo `ApiError` «Acceso denegado» de
   cualquier 403 de la cadena de seguridad, igual sin el encabezado que con un
   valor equivocado: no dice qué falta ni cómo se llama.
@@ -1554,7 +1558,8 @@ de sesión, adhesiones, reportes) sin ningún límite, o probar rutas que la
 regla de Cloudflare no deja pasar.
 
 **La corrección.** Cloudflare agrega un encabezado con un secreto, y el
-primer filtro del backend rechaza con 403 lo que no lo trae. Ver
+backend, en un filtro que corre antes que Spring Security, rechaza con 403
+lo que no lo trae. Ver
 [Encabezado de origen (DEP-14)](#encabezado-de-origen-dep-14).
 
 **Regresión:** `EncabezadoDeOrigenFilterTest`, `EncabezadoDeOrigenConfigTest`,
