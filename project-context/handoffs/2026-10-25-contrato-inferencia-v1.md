@@ -18,7 +18,7 @@ El contrato es el de ARCHITECTURE.md §6 y §7. Lo define `inferencia/` (`app/ap
 ## Solicitud
 | Parte | Tipo | Límite | Nota |
 |---|---|---|---|
-| `imagen` (multipart/form-data) | archivo JPEG, PNG o WEBP | **10 MiB** (`INFERENCIA_MAX_BYTES`) y **16 MP** (`INFERENCIA_MAX_MEGAPIXELES`) | Se mira el contenido, no el `Content-Type` ni la extensión. El adaptador debe enviar la foto **ya saneada** por `common/port/SaneadorDeImagen` (JPEG ≤ 2048 px, orientada), igual en la vista previa y en la sugerencia oficial (D-08). |
+| `imagen` (multipart/form-data) | archivo JPEG, PNG o WEBP | **10 MiB** (`INFERENCIA_MAX_BYTES`) y **8 MP** (`INFERENCIA_MAX_MEGAPIXELES`; era 16 hasta el 28/10, se bajó para acotar la RAM con los dos modelos) | Se mira el contenido, no el `Content-Type` ni la extensión. El adaptador debe enviar la foto **ya saneada** por `common/port/SaneadorDeImagen` (JPEG ≤ 2048 px, orientada), igual en la vista previa y en la sugerencia oficial (D-08). |
 
 ## Respuesta 200
 | Campo (JSON, snake_case) | Tipo | ¿Nulo? | Nota |
@@ -46,7 +46,7 @@ Cuerpo `{"codigo": str, "mensaje": str}`, salvo el 503:
 |---|---|---|
 | 400 | `imagen_invalida` | Archivo vacío, que no es imagen, dañado o de otro formato (GIF, TIFF…). |
 | 400 | `solicitud_invalida` | Falta la parte `imagen` o el cuerpo no es multipart. |
-| 413 | `imagen_demasiado_grande` | Más de 10 MiB, más de 16 MP, o cuerpo por encima del límite (se corta sin leerlo). |
+| 413 | `imagen_demasiado_grande` | Más de 10 MiB, más de 8 MP, o cuerpo por encima del límite (se corta sin leerlo). La foto saneada del backend (≤ 2048 px, ≤ 4,2 MP) nunca llega a este tope. |
 | 500 | `error_de_inferencia` | Falló el motor (onnxruntime). |
 | 500 | `error_interno` | Cualquier otro error, incluido quedarse sin memoria al decodificar. |
 | 503 | — (texto plano de uvicorn) | Cola llena: `INFERENCIA_MAX_CONCURRENCIA` (10) conexiones o tareas abiertas. |

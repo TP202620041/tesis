@@ -527,6 +527,7 @@ No es migración, es funcionalidad. Se lista aquí para fijar **dónde** va cada
 - **Dudas para el usuario:**
   - **Fotos más alargadas que 2:1:** se comprimen a 768 para que los dos recortes las cubran, un caso que la decisión de «dos recortes» no contemplaba. La alternativa que señaló la revisión es hasta 3 o 4 recortes y comprimir solo por encima de 3:1 o 4:1.
   - **Tope de `INFERENCIA_MAX_MEGAPIXELES`:** bajarlo de 16 a 8 dejaría el peor caso de RAM en ~510 MiB. Cambia el 413 de los dos endpoints, aunque el backend nunca envía más de 4,2 MP.
+- **Tope de 8 MP (28/10, rama `feature/inferencia-tope-8mp`):** el usuario resolvió la duda del tope y `INFERENCIA_MAX_MEGAPIXELES` baja de 16 a **8**. El peor caso de RAM queda en ~505 MiB (498–507, medido en NC-10a), y las fotos de más de 8 MP responden 413 en los dos endpoints; el backend envía ≤ 4,2 MP. README y los dos handoffs, actualizados.
   - **Calibración pendiente:** completar el conjunto. Conviene que la sesión de raíz lo deje como tarea propia, o dentro de NC-03b.
 
 - **Modelo:**

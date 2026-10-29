@@ -58,7 +58,7 @@ Documentación interactiva en `/docs` y esquema en `/openapi.json`.
 |---|---|---|
 | Archivo vacío, que no es imagen, dañado o de formato no permitido (GIF, TIFF…: Pillow ni siquiera prueba esos lectores) | 400 | `imagen_invalida` |
 | Falta el campo `imagen` o la solicitud no es multipart | 400 | `solicitud_invalida` |
-| Más de 10 MiB, más de 16 MP, o cuerpo por encima del límite | 413 | `imagen_demasiado_grande` |
+| Más de 10 MiB, más de 8 MP, o cuerpo por encima del límite | 413 | `imagen_demasiado_grande` |
 | Falla el motor de inferencia | 500 | `error_de_inferencia` |
 | Cualquier otro error (incluido quedarse sin memoria al decodificar) | 500 | `error_interno` |
 | Cola llena: `INFERENCIA_MAX_CONCURRENCIA` conexiones o tareas abiertas | 503 | — (texto plano de uvicorn) |
@@ -196,10 +196,11 @@ La exportación es **reproducible byte a byte**: el mismo sha256 en tres corrida
 | **Límite del cuerpo** en un middleware ASGI (`Content-Length` y bytes recibidos) además de los límites del caso de uso. | Solo leer `UploadFile` con tope: Starlette guarda todo el multipart en un temporal antes del endpoint, así que un archivo enorme ya habría llenado disco o memoria. |
 | `app/main.py` como **raíz de composición** (no listada en §6). | Armar los adaptadores en `api/`: la presentación dependería de la infraestructura. Es el papel que cumple Spring en el backend. |
 | **Moderación en su propio endpoint** (`/v1/moderacion`, D-15) y el servicio **solo mide**: el umbral de rechazo es del backend. | Sumar el puntaje a `/v1/detecciones`: la creación correría RF-DETR solo para moderar y la sugerencia oficial correría la moderación sin usarla (propuesta, §2, opción B). |
-| **Dos recortes de 384 y el máximo**, en vez del recorte central de timm. Más de 2:1, el lado mayor se comprime a 768. | El recorte central deja fuera el 12,5 % de cada lado de una foto 4:3: alcanza con poner el contenido en un borde. Un recorte por cada 384 px de una panorámica: el costo crecería con la proporción, que el cliente controla (16 MP admiten 160 000 × 100). **Queda como duda para el usuario** una vía intermedia: hasta 3 o 4 recortes y comprimir solo por encima de 3:1 o 4:1. Deformaría menos una panorámica, que hoy es el caso que más baja la sensibilidad (una vía de evasión acotada: la foto la sube la PWA desde la cámara, 4:3 o 16:9), a cambio de hasta el doble de costo en esas fotos. |
+| **Dos recortes de 384 y el máximo**, en vez del recorte central de timm. Más de 2:1, el lado mayor se comprime a 768. | El recorte central deja fuera el 12,5 % de cada lado de una foto 4:3: alcanza con poner el contenido en un borde. Un recorte por cada 384 px de una panorámica: el costo crecería con la proporción, que el cliente controla (8 MP admiten 80 000 × 100). **Queda como duda para el usuario** una vía intermedia: hasta 3 o 4 recortes y comprimir solo por encima de 3:1 o 4:1. Deformaría menos una panorámica, que hoy es el caso que más baja la sensibilidad (una vía de evasión acotada: la foto la sube la PWA desde la cámara, 4:3 o 16:9), a cambio de hasta el doble de costo en esas fotos. |
 | **Limitador (2) y candado propios** de la moderación, `INFERENCIA_MODERACION_HILOS=1` fijo. | Compartir los de RF-DETR: una moderación (~0,1 s por recorte) esperaría detrás de detecciones de ~0,4 s, y la creación del reporte la espera de forma síncrona. Con 1 hilo, la otra vCPU queda para RF-DETR, y con un número fijo la misma foto da el mismo puntaje en la vista previa y en la creación. |
 | **La misma validación** (`ValidacionDeImagen`) en los dos casos de uso. | Copiarla en `ModerarImagen`: los dos endpoints podrían responder distinto a la misma foto, y el contrato dice que los errores son los mismos. |
 | **`MALLOC_ARENA_MAX=2` y `MALLOC_MMAP_THRESHOLD_=1048576`** en la imagen. | El comportamiento por defecto de glibc: con 4 clientes y fotos de 8 MP, el máximo llegó a 845–847 MiB (656 MiB solo con RF-DETR, en la imagen de NC-03), porque cada hilo abre su arena y se queda con lo liberado. Con los dos ajustes, 487–507 MiB en tres corridas, con la misma latencia y los mismos resultados. No cambia ningún número del modelo. |
+| **Tope de 8 MP** (`INFERENCIA_MAX_MEGAPIXELES=8`), decidido por el usuario el 28/10: por encima, 413 en `/v1/detecciones` y `/v1/moderacion`. | 16 MP, el tope con el que se entregó NC-10a: con 4 clientes mezclados y fotos en el tope, la RAM llegaba a 755–858 MiB, por encima de los 700 de la aceptación. Con 8 MP el peor caso medido es ~505 MiB (498–507). El backend sanea a ≤ 2048 px por lado (≤ 4,2 MP), así que ninguna foto suya llega al 413: solo lo ve un cliente que envíe fotos crudas de más de 8 MP. |
 
 ## Obtener el modelo
 
@@ -281,7 +282,7 @@ Ninguna variable es un secreto (el servicio no usa credenciales).
 | `INFERENCIA_HILOS` | `2` | `intra_op_num_threads` de RF-DETR. Debe ser igual al número de vCPU y no cambiar entre despliegues (D-08). |
 | `INFERENCIA_MODERACION_HILOS` | `1` | `intra_op_num_threads` de la moderación. **Fijo**: con el mismo número de hilos, la misma foto da el mismo puntaje en la vista previa y en la creación. Deja la otra vCPU para RF-DETR. |
 | `INFERENCIA_MAX_BYTES` | `10485760` (10 MiB) | Máximo del archivo; el mismo que el backend. |
-| `INFERENCIA_MAX_MEGAPIXELES` | `16` | Máximo de la imagen. El backend envía fotos saneadas de ≤ 2048 px por lado (≤ 4,2 MP). |
+| `INFERENCIA_MAX_MEGAPIXELES` | `8` | Máximo de la imagen; por encima, 413 en los dos endpoints. Acota el peor caso de RAM a ~505 MiB con los dos modelos (ver «Decisiones»). El backend envía fotos saneadas de ≤ 2048 px por lado (≤ 4,2 MP). |
 | `INFERENCIA_CONFIANZA_MINIMA` | `0.10` | Piso técnico (no es el umbral de sugerencia). |
 | `INFERENCIA_MAX_DETECCIONES` | `100` | Tope de detecciones por respuesta. |
 | `INFERENCIA_MAX_CONCURRENCIA` | `10` (Docker) | `--limit-concurrency` de uvicorn: con ese número de conexiones o tareas abiertas responde **503** (texto plano, no JSON). Las conexiones en keep-alive cuentan, y el tope es **uno para todo el proceso**: cuenta los dos endpoints y `/salud`. |
@@ -328,7 +329,7 @@ Misma máquina y mismo método (`--cpus=2`, `docker stats`), con la imagen `ciud
 | | `/v1/detecciones` | 175 | 997–1114 ms | 1277–1313 ms | 1641–1788 ms |
 | 4 clientes, mitad y mitad, sintéticas | `/v1/moderacion` | 18 | 1187 ms | 1390 ms | 1501 ms |
 | | `/v1/detecciones` | 18 | 790 ms | 1053 ms | 1085 ms |
-| 4 clientes, mitad y mitad, 4 sintéticas de 16 MP (el tope del servicio) | `/v1/moderacion` | 30 × 2 | 1591–1679 ms | 1773–2062 ms | 1827–2105 ms |
+| 4 clientes, mitad y mitad, 4 sintéticas de 16 MP (el tope de entonces; con el de 8 MP responden 413) | `/v1/moderacion` | 30 × 2 | 1591–1679 ms | 1773–2062 ms | 1827–2105 ms |
 | | `/v1/detecciones` | 30 × 2 | 1419–1508 ms | 1775–1840 ms | 1818–2025 ms |
 
 | Memoria del contenedor | MiB |
@@ -336,14 +337,14 @@ Misma máquina y mismo método (`--cpus=2`, `docker stats`), con la imagen `ciud
 | Recién arrancado, con los dos modelos cargados | **210–335** según el arranque (la imagen de NC-03, medida igual ese día: 252) |
 | Máximo con moderaciones secuenciales | 253 |
 | Máximo con 4 clientes mezclados, fotos saneadas (lo que envía el backend) | **388–390** |
-| Máximo con 4 clientes mezclados, fotos crudas de hasta 8 MP | **498–507** |
-| Máximo con 4 clientes mezclados, sintéticas de 16 MP (el tope de `INFERENCIA_MAX_MEGAPIXELES`) | **755–858** |
+| Máximo con 4 clientes mezclados, fotos crudas de hasta 8 MP (el tope de `INFERENCIA_MAX_MEGAPIXELES`) | **498–507** |
+| Máximo con 4 clientes mezclados, sintéticas de 16 MP (el tope de entonces; hoy responden 413) | 755–858 |
 | Lo mismo **sin** los ajustes `MALLOC_*` | saneadas 493; crudas 845–847 (la imagen de NC-03, solo detección: 656) |
 
-- **La aceptación (menos de 700 MiB con los dos modelos y 4 clientes mezclados) se cumple con lo que envía el backend** (fotos saneadas de ≤ 2048 px, ≤ 4,2 MP: 390 MiB) **y con fotos de hasta 8 MP** (507 MiB). En el tope de 16 MP que el servicio admite, el máximo llega a 755–858 MiB: por encima de 700, pero por debajo de 1 GB. Ahí pesan las 4 imágenes decodificadas a la vez (2 por endpoint, 48 MB cada copia RGB). La moderación ya no copia la foto al redimensionarla (`Image.frombuffer`). Bajar `INFERENCIA_MAX_MEGAPIXELES` a 8 acotaría el peor caso a ~510 MiB. Cambia el 413 de los dos endpoints, aunque el backend nunca envía más de 4,2 MP: **queda como duda para el usuario**.
+- **La aceptación (menos de 700 MiB con los dos modelos y 4 clientes mezclados) se cumple con lo que envía el backend** (fotos saneadas de ≤ 2048 px, ≤ 4,2 MP: 390 MiB) **y en el tope de 8 MP** del servicio (498–507 MiB, ~505 MiB). Con el tope original de 16 MP, el máximo llegaba a 755–858 MiB: por encima de 700, aunque por debajo de 1 GB. Ahí pesan las 4 imágenes decodificadas a la vez (2 por endpoint, 48 MB cada copia RGB a 16 MP; 24 MB a 8 MP). La moderación ya no copia la foto al redimensionarla (`Image.frombuffer`). **El usuario decidió el 28/10 bajar `INFERENCIA_MAX_MEGAPIXELES` a 8** (ver «Decisiones»).
 - Sin los ajustes de glibc, las fotos crudas de 8 MP llevaban el máximo a 847 MiB (ver «Decisiones»).
 - **Arranque** hasta que `/salud` responde: 2,4 s (comprueba el sha256 de los dos `.onnx`).
-- Una moderación sola cuesta ~0,1 s por recorte; con 1 hilo y los dos recortes, 124 ms de p50 en fotos saneadas. Con carga mezclada compite por la CPU con RF-DETR (2 hilos en 2 vCPU), y su p95 sube a 1,2–1,5 s. Eso queda dentro de los 2,5 s de lectura del adaptador del backend (propuesta, §2). Con fotos de 16 MP, que el backend no envía, el máximo llegó a 2,1 s.
+- Una moderación sola cuesta ~0,1 s por recorte; con 1 hilo y los dos recortes, 124 ms de p50 en fotos saneadas. Con carga mezclada compite por la CPU con RF-DETR (2 hilos en 2 vCPU), y su p95 sube a 1,2–1,5 s. Eso queda dentro de los 2,5 s de lectura del adaptador del backend (propuesta, §2). Con fotos de 16 MP, que el backend no envía y que hoy responden 413, el máximo llegó a 2,1 s.
 - **Determinismo:** las seis corridas mezcladas sobre las fotos crudas dieron el mismo número de detecciones (1103) y los mismos puntajes (mediana 0,059 y máximo 0,111), con y sin los ajustes `MALLOC_*` y antes y después de `frombuffer`. Los tests comparan puntajes repetidos.
 - Imagen final: **680 MB** (+43 MB: el `.onnx` de 22 MB y la capa de la aplicación).
 - En Railway hay que volver a medir (DEP-13) con `scripts/medir_latencia.py --ruta mezcla`.
