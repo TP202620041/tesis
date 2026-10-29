@@ -90,8 +90,9 @@ preferible que no arranque y que el log diga qué falta.
 | `CORREO_TIPO` | sí | `resend` (el plan de Railway bloquea el SMTP saliente); `smtp` solo en local y en los tests. Sin ella no arranca (DEP-08, ver «Correo saliente»). Con otro valor tampoco: `common/config/ValidacionCorreoSaliente` lo rechaza antes de crear ningún bean, con un mensaje que nombra la variable y los valores admitidos. |
 | `NOTIF_FROM` | sí | Remitente de todos los correos: `Ciudad Viva <no-reply@<dominio verificado en Resend>>`. Sin ella no arranca. |
 | `CORREO_API_KEY` | con `CORREO_TIPO=resend` | Clave de la API de Resend (secreto). Sin ella el adaptador no arranca. |
-| `CAPTCHA_TIPO` | sí | Captcha del registro de cuenta (NC-08): `recaptcha` (Google reCAPTCHA v2, casilla «No soy un robot») o `ninguno` (no se exige). Sin ella no arranca: con el `ninguno` de desarrollo, un despliegue que la olvidara dejaría el registro sin captcha sin que nada lo advierta. Con otro valor tampoco: `auth/infra/ValidacionTipoCaptcha` lo rechaza antes de crear ningún bean (ver «Captcha en el registro»). |
-| `CAPTCHA_SECRET` | con `CAPTCHA_TIPO=recaptcha` | Clave secreta del sitio en la consola de reCAPTCHA (secreto). Sin ella el adaptador no arranca. La clave del sitio (pública) la usa el frontend, no el backend. |
+| `CAPTCHA_TIPO` | sí | Captcha del registro de cuenta (NC-08): `turnstile` (Cloudflare Turnstile, desde NC-08b) o `ninguno` (no se exige). Sin ella no arranca: con el `ninguno` de desarrollo, un despliegue que la olvidara dejaría el registro sin captcha sin que nada lo advierta. Con otro valor tampoco: `auth/infra/ValidacionTipoCaptcha` lo rechaza antes de crear ningún bean; `recaptcha`, el valor de NC-08 hasta el 28/10, ya no existe y el mensaje lo dice (ver «Captcha en el registro»). |
+| `CAPTCHA_SECRET` | con `CAPTCHA_TIPO=turnstile` | Clave secreta del widget de Turnstile en el panel de Cloudflare (secreto). Sin ella el adaptador no arranca. La clave del sitio (pública) la usa el frontend, no el backend. |
+| `CAPTCHA_HOSTNAMES` | no (`ciudadviva.app,www.ciudadviva.app` en `prod`) | Hostnames donde puede resolverse el widget, separados por coma, sin esquema ni puerto: un token aprobado en otro es 409. Con valor por defecto **a propósito**, el de la PWA en producción; solo hace falta si la PWA se sirve en otro dominio. Vacía, no se compara (es lo que pasa fuera de `prod`, donde las claves de prueba responden `example.com`). Una entrada que no es un hostname no arranca. |
 | `DOMINIO_CORREO_TIPO` | no (`dns` en `prod`) | Verificación del dominio del correo al registrarse (NC-09): `dns` consulta el MX; `ninguno` la apaga (la lista de desechables se aplica igual). Con valor por defecto **a propósito**: no es una variable obligatoria nueva, porque `dns` no necesita ninguna clave y falla abierto si el DNS no responde. Otro valor no arranca (`auth/infra/ValidacionTipoDominioCorreo`). Ver «Confirmación del correo». |
 | `FRONTEND_URL` | no (el primer origen de `CORS_ALLOWED_ORIGINS`) | Origen de la PWA para el enlace de confirmación (`<origen>/confirmar-cuenta?token=…`), sin ruta. Sin ella se usa el primer origen de `CORS_ALLOWED_ORIGINS`, que es el de la PWA (`https://ciudadviva.app`); solo hace falta si ese primer origen no lo es (por ejemplo, si la lista empieza por `https://www.…`: funcionaría por la redirección 308, pero con un salto de más). Una URL que no es un origen `http(s)` no arranca. |
 | `PORT` | no (8080) | Lo inyecta la plataforma. |
@@ -2092,37 +2093,82 @@ rechaza con 401 `validation_error` (clave inválida, no el 403 de un
 
 ## Captcha en el registro (NC-08)
 
-`POST /api/auth/registro` exige, cuando está activo, la casilla «No soy un
-robot» de **Google reCAPTCHA v2**. El frontend la muestra con la clave del
-sitio (pública) y envía la respuesta en `captchaToken`; el backend la
-comprueba contra `POST https://www.google.com/recaptcha/api/siteverify` con la
+> **De reCAPTCHA a Turnstile, decisión del usuario del 28/10 (NC-08b).** NC-08
+> se hizo con la casilla de Google reCAPTCHA v2; antes de llegar a
+> producción se reemplazó por **Cloudflare Turnstile**. El contrato del API
+> no cambió (`RegistroRequest.captchaToken`, los mismos 409 y 503); cambiaron
+> el adaptador, el valor de `CAPTCHA_TIPO` y la clave de `CAPTCHA_SECRET`.
+> Los motivos:
+>
+> - **Privacidad.** Cloudflare ya es proveedor del sistema (DNS, correo
+>   entrante y las fotos en R2) y Google no lo es: reCAPTCHA habría sumado un
+>   encargado más que recibe datos del navegador de cada ciudadano que se
+>   registra (Ley N.° 29733). Cloudflare declara que las señales que recoge
+>   Turnstile son las estrictamente necesarias para detectar bots, «no para
+>   identificar, perfilar ni dirigirse a ninguna persona» (política de
+>   privacidad de Turnstile).
+> - **Costo.** El plan gratuito de Turnstile no limita las verificaciones
+>   (hasta 20 widgets por cuenta); el nivel gratuito de reCAPTCHA, hoy en
+>   Google Cloud, cubre 10 000 evaluaciones al mes y después se cobra.
+> - **Una CSP más simple.** El widget es un solo origen,
+>   `https://challenges.cloudflare.com` (`script-src` y `frame-src`), en lugar
+>   de las rutas de `www.google.com`, `www.gstatic.com` y
+>   `recaptcha.google.com` que pedía reCAPTCHA.
+>
+> `CAPTCHA_TIPO=recaptcha` ya no arranca, y el mensaje dice que cambiar.
+
+`POST /api/auth/registro` exige, cuando está activo, el widget de
+**Cloudflare Turnstile**. El frontend lo muestra con la clave del sitio
+(pública) y envía su respuesta en `captchaToken`; el backend la comprueba
+contra `POST https://challenges.cloudflare.com/turnstile/v0/siteverify` con la
 clave secreta (`CAPTCHA_SECRET`). Es I/O externo, así que va detrás del puerto
 `auth/port/VerificadorDeCaptcha`, con dos adaptadores elegidos por
 `app.captcha.tipo` (`CAPTCHA_TIPO`), como los de correo:
 
 | Valor | Adaptador | Uso |
 |---|---|---|
-| `recaptcha` | `auth/infra/RecaptchaV2Adapter` | Producción. |
+| `turnstile` | `auth/infra/TurnstileAdapter` | Producción. |
 | `ninguno` | `auth/infra/SinCaptchaAdapter` | Por defecto fuera de `prod`; fijo en los tests. `captchaToken` se ignora. |
 
-**Por qué v2 de casilla y no v3.** Lo pidió el usuario, y el jurado puede
-verlo y comprobarlo: la casilla aparece en el formulario y sin marcarla el
-registro no pasa. reCAPTCHA v3 es invisible y devuelve un puntaje entre 0 y 1;
-exigiría elegir y calibrar un umbral sin datos de tráfico real, y su efecto no
-se puede demostrar en la sustentación.
+**Por qué un widget visible.** Lo pidió el usuario, y el jurado puede verlo y
+comprobarlo: el widget aparece en el formulario y sin resolverlo el registro
+no pasa. Turnstile decide solo si basta con una comprobación invisible o si
+pide un clic, pero siempre devuelve un token que el backend verifica: no hay
+un puntaje que calibrar (como el de reCAPTCHA v3) sin datos de tráfico real.
 
-**Falla cerrado.** Solo una respuesta `{"success": true}` de Google deja pasar
-el registro. `success: false` es **409** «No pudimos confirmar que no eres un
-robot. Vuelve a intentarlo.» (una precondición del pedido que el ciudadano
-puede corregir marcando la casilla otra vez, la convención de
-`BusinessException`); un token ausente o en blanco es **409** «Confirma que no
-eres un robot». Si Google no responde (3 s de conexión, 5 s de lectura), da
-un error HTTP o un cuerpo ilegible o sin `success` booleano, es **503** «No
-pudimos verificar el captcha en este momento…» (`ServicioNoDisponibleException`):
-no es culpa del ciudadano y puede reintentar en unos minutos, y la PWA lo
-muestra en vez de tomarlo como error de red. Dejar pasar el registro cuando
-Google no responde abriría el registro masivo justo cuando un atacante
-consiga degradar esa llamada. Sin reintentos ni redirecciones.
+**Falla cerrado.** Solo una respuesta `{"success": true}` de Cloudflare (y,
+en `prod`, con un `hostname` de la PWA) deja pasar el registro:
+
+| Respuesta de Cloudflare | Registro | Por qué |
+|---|---|---|
+| `success: true` y, si hay lista, un `hostname` de `CAPTCHA_HOSTNAMES` | sigue | — |
+| `success: false` con `invalid-input-response`, `timeout-or-duplicate`, `missing-input-response` u otro código | **409** «No pudimos confirmar que no eres un robot. Vuelve a intentarlo.» | El token venció (dura 5 minutos), ya se usó o no es válido: el ciudadano lo corrige resolviendo el widget otra vez (la convención de `BusinessException`). |
+| `success: true` en un `hostname` fuera de la lista | **409**, el mismo mensaje | El token no es de la PWA. |
+| `success: false` con `invalid-input-secret`, `missing-input-secret`, `bad-request` o `internal-error` | **503** «No pudimos verificar el captcha en este momento…» | No es culpa del ciudadano (la clave secreta está mal o Cloudflare falló): un 409 «vuelve a intentarlo» lo haría reintentar sin remedio. |
+| Error HTTP (Cloudflare responde **400** a una clave secreta inválida), timeout (3 s de conexión, 5 s de lectura), error de conexión, cuerpo ilegible, sin `success` booleano, o `success: true` sin `hostname` cuando hay lista | **503** | Lo mismo: `ServicioNoDisponibleException`, y la PWA lo muestra en vez de tomarlo como error de red. |
+
+Un token ausente o en blanco es **409** «Confirma que no eres un robot», sin
+llamar a Cloudflare. Dejar pasar el registro cuando Cloudflare no responde
+abriría el registro masivo justo cuando un atacante consiga degradar esa
+llamada. **Sin reintentos ni redirecciones:** el token es de un solo uso, y
+reintentar un pedido que sí llegó daría `timeout-or-duplicate`. Por eso
+tampoco se envía `idempotency_key`, que Cloudflare ofrece solo para
+reintentar.
+
+**El hostname, sí; la acción, no.** Cloudflare devuelve el `hostname` donde se
+resolvió el widget y recomienda compararlo. Es una comparación exacta contra
+una lista corta, así que se hace: `CAPTCHA_HOSTNAMES` (en `prod`, por defecto
+`ciudadviva.app,www.ciudadviva.app`; sin comodines ni sufijos, sin
+distinguir mayúsculas). Fuera de `prod` va vacía y no se compara, porque las
+claves de prueba de Cloudflare responden `example.com`. De paso cubre un
+error de despliegue: una clave secreta de **prueba** en producción aprobaría
+cualquier token, pero con `hostname` `example.com`, así que el registro no
+pasa y el log lo dice («la clave secreta es una de prueba de Cloudflare»).
+Una entrada que no es un hostname (`https://…`, con puerto o comodín) no
+arranca, porque no coincidiría nunca y bloquearía todos los registros. La
+`action` del widget **no** se compara: la PWA tiene un solo widget (el
+registro) y el token es de un solo uso, así que no agrega nada, y exigiría
+que el frontend fije `data-action`, un cambio de contrato.
 
 **Antes que todo lo demás.** `AuthService#registrar` verifica el captcha antes
 de la versión de los términos y del correo duplicado. Si lo hiciera después,
@@ -2130,7 +2176,7 @@ el 409 «El correo ya está registrado» respondería sin captcha y el endpoint
 serviría para averiguar qué correos tienen cuenta (`RegistroCaptchaIT` lo
 comprueba con un correo existente y un token rechazado).
 
-**Fuera de la transacción.** La llamada a Google puede tardar segundos;
+**Fuera de la transacción.** La llamada a Cloudflare puede tardar segundos;
 dentro de una transacción retendría una conexión del pool mientras tanto
 (D-13, ARCHITECTURE.md §4.5). Por eso `registrar` dejó de ser
 `@Transactional`: verifica el captcha y recién entonces llama a
@@ -2140,27 +2186,48 @@ a un método del mismo bean no abriría la transacción). Con
 `spring.jpa.open-in-view: false` (application.yml) tampoco hay una sesión de
 Hibernate abierta por la petición que retenga la conexión.
 
-**Sin `remoteip`.** Google lo acepta como opcional; enviarlo cedería a un
-tercero la IP de cada ciudadano que se registra, un dato personal que no hace
-falta para verificar (principio de proporcionalidad o minimización, Ley
-N.° 29733). En el log solo quedan los `error-codes` de Google que tienen forma
-de código (`timeout-or-duplicate`); nunca el token ni el secreto.
+**Sin `remoteip`.** Cloudflare lo acepta como opcional; enviarlo cedería al
+proveedor la IP de cada ciudadano que se registra, un dato personal que no
+hace falta para verificar (principio de proporcionalidad o minimización, Ley
+N.° 29733). El pedido lleva solo `secret` y `response`. En el log solo quedan
+los `error-codes` que tienen forma de código (`timeout-or-duplicate`) y el
+`hostname` si tiene forma de hostname; nunca el token ni el secreto. Un 400 de
+Cloudflare también deja sus códigos: `invalid-input-secret` dice que revisar.
 
 **Por qué `ninguno` por defecto fuera de `prod`.** Los IT y el desarrollo local
-corren sin red y sin claves; con `recaptcha` por defecto cada registro de la
-suite llamaría a Google. En `prod`, `CAPTCHA_TIPO` no tiene valor por defecto
-(no arranca sin ella, `ArranqueCaptchaIT`), así que desactivar el captcha en
-producción exige escribir `ninguno` a propósito. Para probar el flujo real en
-local, Google publica claves de prueba que siempre aprueban (anotadas en
-`.env.example`); nunca van a producción.
+corren sin red y sin claves; con `turnstile` por defecto cada registro de la
+suite llamaría a Cloudflare. En `prod`, `CAPTCHA_TIPO` no tiene valor por
+defecto (no arranca sin ella, `ArranqueCaptchaIT`), así que desactivar el
+captcha en producción exige escribir `ninguno` a propósito. Para probar el
+flujo real en local, Cloudflare publica claves de prueba (una que siempre
+aprueba, una que siempre rechaza y una que responde «token ya usado»,
+anotadas en `.env.example`); nunca van a producción, y si llegaran, la lista
+de hostnames lo detecta.
 
-**Pruebas.** `RecaptchaV2AdapterTest` (`MockRestServiceServer`: formulario
-enviado sin `remoteip`, `success` verdadero y falso, 4xx/5xx, cuerpos
-ilegibles, timeout real contra un socket local y conexión rechazada);
-`RegistroCaptchaIT` (con un `VerificadorDeCaptcha` simulado que exige el
-captcha: sin token, rechazado, Google caído, correo existente y token válido);
-`ValidacionTipoCaptchaTest` y `ArranqueCaptchaIT` (valores no admitidos y
-`prod` sin la variable).
+**Pruebas.** `TurnstileAdapterTest` (`MockRestServiceServer`, con las
+respuestas reales del `siteverify`: formulario sin `remoteip`, aprobación,
+rechazo con varios `error-codes`, los códigos que son del servidor, 4xx/5xx,
+el 400 de una clave inválida, cuerpos mal formados, timeout real contra un
+socket local, conexión rechazada, el hostname contra la lista y que el log
+no lleve el token ni el secreto); `RegistroTurnstileIT` (el adaptador real,
+elegido por la configuración y con la lista de hostnames de `prod`, contra un
+`siteverify` local: 201, 409 rechazado, 409 por hostname, 503 y 409 sin
+token); `RegistroCaptchaIT` (con un `VerificadorDeCaptcha` simulado que exige
+el captcha: sin token, rechazado, proveedor caído, correo existente y token
+válido); `ValidacionTipoCaptchaTest` y `ArranqueCaptchaIT` (valores no
+admitidos, `recaptcha` incluido, y `prod` sin la variable); `PerfilProdIT`
+(la lista de hostnames por defecto en `prod`).
+
+**Prueba en vivo (28/10).** Con la app en `:8081` y `CAPTCHA_TIPO=turnstile`
+contra el `siteverify` real: la clave de prueba que aprueba y el token
+`XXXX.DUMMY.TOKEN.XXXX` dan **201** (y un WARN «clave secreta de prueba»);
+sin token, **409** «Confirma que no eres un robot»; la clave que siempre
+rechaza, **409** (`invalid-input-response`), también con un correo que ya
+tiene cuenta; la clave que aprueba con
+`CAPTCHA_HOSTNAMES=ciudadviva.app,www.ciudadviva.app`, **409** (hostname
+`example.com`, «la clave secreta es una de prueba de Cloudflare»); una clave
+secreta inventada, **503** (HTTP 400, `invalid-input-secret`). Ni el token ni
+el secreto aparecen en el log.
 
 ## Confirmación del correo (NC-09)
 
