@@ -64,7 +64,7 @@ class ImageIoSaneadorDeImagenTest {
         assertThat(ImagenesDePrueba.tieneApp1(jpeg)).isFalse();
         assertThat(ImagenesDePrueba.contiene(jpeg, "Exif")).isFalse();
         assertThat(ImagenesDePrueba.contiene(jpeg, ImagenesDePrueba.MARCA_EXIF)).isFalse();
-        assertThat(saneada.contentType()).isEqualTo("image/jpeg");
+        // El tipo es la constante FotoSaneada.TIPO; que sea un JPEG lo dicen los bytes FF D8 de arriba.
         assertThat(saneada.nombreOriginal()).isEqualTo("IMG_0001.jpg");
     }
 

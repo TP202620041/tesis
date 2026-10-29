@@ -1534,8 +1534,11 @@ principio de `almacenarFotoPerfil` de **los dos** adaptadores; la de reporte,
 en `ReporteService#crear`, antes de subirla, y el adaptador la guarda tal
 cual con `almacenarFotoReporteSaneada` (BE-11, abajo). El saneado devuelve
 un tipo propio, `common/port/FotoSaneada`, y ese método solo acepta ese
-tipo: una foto cruda del cliente no compila donde se espera una saneada, así
-que no puede publicarse con su EXIF por error. El saneado:
+tipo: una foto cruda del cliente no compila donde se espera una saneada. Como
+un record no puede ocultar su constructor, una regla de ArchUnit
+(`FotoSaneadaSoloDelSaneadoTest`) exige que en el código de producción solo
+un `SaneadorDeImagen` construya una `FotoSaneada`. Así una foto no puede
+publicarse con su EXIF por error. El saneado:
 
 1. Valida la extensión (jpg, jpeg, png, webp) y luego **el contenido**: el
    lector se elige por los bytes, no por el nombre, y solo se aceptan JPEG,
@@ -1693,6 +1696,8 @@ refresco del índice del hilo de la petición.
 | `S3FotoStorageServiceTest` | unitaria, `S3Client` simulado | Cada foto a su bucket con `image/jpeg`; la de reporte se sube tal cual, sin llamar al saneado (BE-11), y la de perfil saneada; la misma URL que el local; nombres que no son `<uuid>.<ext>` no llegan al bucket; inexistente → `null`; bucket caído → 503; `eliminarFotoReporte` borra del bucket de reportes y no lanza; no arranca sin endpoint, token o bucket, ni con un solo bucket para las dos visibilidades. |
 | `LocalFotoStorageServiceTest` | unitaria | Lo de antes, más que se guarda el JPEG saneado, que la foto de reporte ya saneada se guarda sin volver a sanearla (BE-11) y que `cargarFotoReporte`, `eliminarFotoPerfil` y `eliminarFotoReporte` no salen del directorio. |
 | `FotoSaneadaTest` | unitaria | Una foto saneada no puede estar vacía, pasa al clasificador con los mismos bytes y no vuelca sus bytes en un log. |
+| `FotoSaneadaSoloDelSaneadoTest` | ArchUnit, sin congelar | En el código de producción, solo un `SaneadorDeImagen` construye una `FotoSaneada` (BE-11). |
+| `NombreDeArchivoDeFotoTest` | unitaria | `FotoStorageService.nombreDeArchivo` saca `<uuid>.<ext>` de una URL del servidor y da `null` para lo demás (vacío, `..`, otro nombre u otra extensión), así que nada de eso llega al almacenamiento. |
 | `FotoProvisionalTest` | unitaria, gestor de transacciones de prueba | BE-11: la foto subida se conserva si la usa un reporte confirmado o si el desenlace es desconocido; se borra si la transacción se revierte, si se confirma sin usarla o si no llega a empezar; el borrado ocurre después de la transacción, nunca dentro. |
 | `FotoFueraDeTransaccionIT` | IT (`local`) | BE-11 con PostGIS: el saneado, la subida y el borrado corren sin transacción y sin recursos transaccionales en el hilo; una reversión en el commit, una adhesión y un reenvío que se cruza con la subida no dejan su foto; un reenvío idempotente no sanea ni sube otra vez; `crear` dentro de una transacción se rechaza sin tocar nada. |
 | `FotoReporteIT`, `FotoPerfilIT` | IT (`local`) | Misma URL y visibilidad; la foto descargada ya no trae EXIF y se ve derecha; `Cache-Control`, 304 y 206; nombres raros → 404; foto inválida → 409; al reemplazar la foto de perfil, la anterior se borra. |

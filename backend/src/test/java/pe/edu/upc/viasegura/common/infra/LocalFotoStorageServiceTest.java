@@ -135,11 +135,8 @@ class LocalFotoStorageServiceTest {
     }
 
     @Test
-    void fotoDeReporteNulaOVacia_esUnErrorDeProgramacion() throws IOException {
+    void fotoDeReporteNula_esUnErrorDeProgramacion() throws IOException {
         assertThatThrownBy(() -> storage.almacenarFotoReporteSaneada(null))
-                .isInstanceOf(IllegalArgumentException.class);
-        // Una foto saneada vacia no se puede ni construir.
-        assertThatThrownBy(() -> new FotoSaneada(new byte[0], "a.jpg"))
                 .isInstanceOf(IllegalArgumentException.class);
         try (var archivos = Files.list(base.resolve("reportes"))) {
             assertThat(archivos).isEmpty();
