@@ -102,6 +102,9 @@ preferible que no arranque y que el log diga qué falta.
 | `CLASIFICACION_URL` | con `CLASIFICACION_TIPO=http` | URL base del servicio de inferencia, sin la ruta: `http://${{inferencia.RAILWAY_PRIVATE_DOMAIN}}:8000` en Railway. Sin ella, sin esquema `http(s)` y host, o con ruta (`…:8000/v1`), query, fragmento o usuario, no arranca: el adaptador agrega `/v1/detecciones`, y una ruta de más daría un 404 en cada llamada que solo se vería en el log. No es un secreto. |
 | `CLASIFICACION_UMBRAL` | no (`0.50`) | Confianza mínima para sugerir, en (0, 1]. Se calibra en NC-03b. |
 | `CLASIFICACION_ESPERA_TURNO_MS` | no (`10000`) | Cuánto espera la sugerencia oficial un turno del servicio de inferencia (NC-04c), entre 0 y 60000 ms; fuera de rango no arranca. La vista previa nunca espera. |
+| `MODERACION_TIPO` | sí | Moderación de la foto antes de publicarla (NC-10b, D-15): `http` (`POST /v1/moderacion` del servicio `inferencia/`) en el despliegue. Con `http`, si el servicio no responde, un reporte con foto recibe **503 `MODERACION_NO_DISPONIBLE`** (falla cerrada). `ninguna` es el **interruptor de emergencia** ante una caída larga: mientras está puesto **se publican fotos sin revisar**, y cada arranque deja un WARN. Sin ella no arranca: con el `ninguna` de desarrollo por defecto, un despliegue que la olvidara publicaría fotos sin revisar sin que nada lo advierta. Otro valor tampoco arranca (`moderacion/infra/ValidacionTipoModeracion`). **Se despliega con `http` solo después del servicio con el modelo de moderación** (DEP-13, NC-10a). Ver [Moderación de contenido](#moderación-de-contenido-nc-10b-d-15). |
+| `MODERACION_URL` | con `MODERACION_TIPO=http` | URL base del servicio de inferencia, sin la ruta; la misma que `CLASIFICACION_URL`. Las mismas reglas: sin ella, sin esquema `http(s)` y host, o con ruta, query, fragmento o usuario, no arranca (el adaptador agrega `/v1/moderacion`). No es un secreto. |
+| `MODERACION_UMBRAL` | no (`0.70`) | Se rechaza la foto si el puntaje es mayor o igual. Entre 0.5 y 0.9 (con punto decimal); fuera de rango o no numérico, no arranca. 0.70 es la decisión del usuario del 28/10; la calibración de NC-10a sugiere mantenerlo hasta medir fotos de calles con gente. |
 | `ORIGEN_SECRETO` | sí | El secreto que la *Transform Rule* de Cloudflare agrega en `X-Origen-Secreto` (DEP-14): sin ese encabezado, toda petición recibe 403, salvo `GET /actuator/health`. 32 caracteres ASCII visibles o más (`openssl rand -hex 32`); el mismo valor va en Cloudflare. Sin ella no arranca: con el `ninguno` de desarrollo por defecto, el API volvería a atender las peticiones que se saltan Cloudflare sin que nada lo advierta. Vacía, más corta o con espacios, tampoco. `ninguno` es el **interruptor** para apagarlo a propósito (deja un WARN en cada arranque). Ver [Encabezado de origen](#encabezado-de-origen-dep-14). |
 | `ORIGEN_SECRETO_ANTERIOR` | solo durante una rotación | El secreto viejo, que se sigue aceptando mientras Cloudflare pasa al nuevo. Fuera de una rotación, vacía; si queda puesta, cada arranque deja un WARN. Igual a `ORIGEN_SECRETO`, o débil, no arranca. |
 | `JWT_EXPIRATION_MINUTES`, `VAPID_*`, `PUSH_*`, `MAIL_*` (solo con `smtp`), `LEGAL_VERSION_TERMINOS`, `ASYNC_*` | no | Las mismas de `application.yml`, con sus valores por defecto. |
@@ -781,6 +784,9 @@ src/main/java/pe/edu/upc/viasegura/
 ├── clasificacion/     # Sugerencia de categoría por la foto (NC-04): port/ClasificadorDano,
 │                      #   infra/InferenciaHttpAdapter (NC-04b) y FalsoClasificadorAdapter,
 │                      #   domain/PoliticaDeSugerencia
+├── moderacion/        # Moderacion de contenido (NC-10b, D-15): port/ModeradorDeImagen,
+│                      #   infra/InferenciaModeracionHttpAdapter y SinModeracionAdapter,
+│                      #   domain/PoliticaDeModeracion y FiltroDeGroserias (resources/moderacion/)
 ├── reportes/          # Reporte + CategoriaDano, Adhesion, Historial, Asignacion,
 │                      #   Calificacion, ComentarioPublico  (+ port/ + infra/ para Strategy geo)
 ├── notificaciones/    # Notificacion  (+ port/ + infra/ para Strategy push/email)
@@ -1819,9 +1825,11 @@ propia y sigue este orden:
 
 1. El usuario y el reenvío idempotente (US-06), cada lectura en su propia
    transacción corta. Un reenvío con respuesta guardada vuelve aquí, sin
-   sanear ni subir nada.
-2. Los campos (NC-02), sin tocar la base.
-3. La foto se sanea **una sola vez** y se sube con
+   sanear, moderar ni subir nada.
+2. Los campos (NC-02) y, desde NC-10b, el texto sin groserías, sin tocar la
+   base.
+3. La foto se sanea **una sola vez**, se **modera** (NC-10b: una foto
+   rechazada o que no se pudo revisar no llega a subirse) y se sube con
    `FotoStorageService#almacenarFotoReporteSaneada`, que la guarda **tal
    cual**, sin volver a sanearla: los mismos bytes que vio la vista previa
    (D-08). Todo esto sin transacción ni conexión tomada.
@@ -3084,8 +3092,8 @@ la elige a mano, como siempre.
 |---|---|
 | Quién | Solo `CIUDADANO` con los términos vigentes (401 sin token, 403 con otro rol): es el único que crea reportes. |
 | Entrada | `multipart/form-data` con la parte `foto` (JPEG, PNG o WEBP, hasta 10 MB). |
-| Respuesta | **200** `{"categoriaId": 1, "categoriaNombre": "Bache"}`, o `{"categoriaId": null, "categoriaNombre": null}` sin sugerencia. |
-| Errores | Sin la parte `foto`, o vacía: 400. No es una imagen válida: 409, el mismo de la creación (solo con la clasificación encendida: apagada no se sanea y la respuesta es 200 «sin sugerencia»). **Nunca 503**: sin turno, 200 «sin sugerencia». |
+| Respuesta | **200** `{"categoriaId": 1, "categoriaNombre": "Bache", "fotoRechazada": false}`, o `{"categoriaId": null, "categoriaNombre": null, "fotoRechazada": false}` sin sugerencia. Desde NC-10b, `fotoRechazada: true` (y sin categoría) si la moderación rechazaría la foto: ver [Moderación de contenido](#moderación-de-contenido-nc-10b-d-15). |
+| Errores | Sin la parte `foto`, o vacía: 400. No es una imagen válida: 409, el mismo de la creación (solo con la clasificación o la moderación encendidas: con las dos apagadas no se sanea y la respuesta es 200 «sin sugerencia»). **Nunca 503**: sin turno, o con la moderación caída, 200 «sin sugerencia» y `fotoRechazada: false`. |
 | Persistencia | **Ninguna**: ni la foto ni el resultado (`ClasificacionVistaPreviaIT` cuenta reportes y archivos antes y después). |
 
 - **La foto pasa por el mismo `SaneadorDeImagen` que el almacenamiento**
@@ -3115,7 +3123,9 @@ la elige a mano, como siempre.
   las creaciones. Si las creaciones ocupan los dos, la vista previa que tiene
   su turno espera el del saneado como cualquier subida (hasta 10 s) y, sin él,
   responde «sin sugerencia», nunca 503.
-- **Con la clasificación apagada no se sanea nada.** `ClasificadorDano`
+- **Con la clasificación apagada no se sanea nada** (salvo que la moderación
+  esté encendida: desde NC-10b la vista previa también avisa si la foto se
+  rechazaría, y para eso la sanea). `ClasificadorDano`
   declara si puede detectar algo (`estaDisponible()`); el falso sin respuesta,
   que es como corre producción con `CLASIFICACION_TIPO=falso`, dice que no.
   Entonces la vista previa responde «sin sugerencia» sin sanear la foto (por eso ahí una foto
@@ -3404,6 +3414,239 @@ vista previa siguen dando dos «sin turno» al instante.
   analiza automáticamente para sugerir una categoría y que la decisión es del
   ciudadano (DS 016-2024-JUS, art. 6.1).
 
+## Moderación de contenido (NC-10b, D-15)
+
+> Decisión del usuario del 28/10 (propuesta
+> `project-context/decisions/propuestas/2026-10-28-moderacion-de-contenido.md`,
+> ARCHITECTURE.md §4.3 y D-15). El servicio lo publica NC-10a
+> (`handoffs/2026-10-28-contrato-moderacion-v1.md`); los avisos de la PWA son
+> NC-10c (`handoffs/2026-10-29-moderacion.md`). Ocultar y denunciar lo ya
+> publicado es NC-11.
+
+Antes de publicar, el backend rechaza **una foto con contenido sexual u
+obsceno** y **un texto con groserías**. Lo rechazado **no se guarda**: ni la
+foto, ni el puntaje, ni el texto.
+
+### Las piezas
+
+Módulo nuevo `moderacion`, que solo usa `common`; lo usan `reportes`,
+`clasificacion` (vista previa) y `auth` (nombre del perfil). Sin ciclos:
+ocultar y denunciar (NC-11) viven en `reportes`, no aquí.
+
+| Pieza | Capa | Qué hace |
+|---|---|---|
+| `port/ModeradorDeImagen` | Puerto | Mide una `FotoSaneada` (la misma que se guarda) y devuelve `PuntajeDeModeracion` (versión y puntaje). Solo mide. |
+| `infra/InferenciaModeracionHttpAdapter` | Adaptador | `POST /v1/moderacion` del servicio `inferencia/` (`MODERACION_TIPO=http`). |
+| `infra/SinModeracionAdapter` | Adaptador | `ninguna`: no revisa nada (local, tests y el interruptor de emergencia en `prod`, con un WARN al arrancar). |
+| `infra/ValidacionTipoModeracion` | Arranque | Tipo, URL base y umbral, antes de crear ningún bean. |
+| `infra/ListaDeGroseriasConfig` | Arranque | Lee `resources/moderacion/groserias-es-pe.txt`; sin archivo, sin versión, con una entrada inválida o vacío, no arranca. |
+| `domain/PoliticaDeModeracion` | Dominio | Rechaza si `puntaje ≥ umbral` (0,70; entre 0,5 y 0,9). |
+| `domain/FiltroDeGroserias` | Dominio | Regla pura: normaliza el texto y lo compara con la lista. |
+| `service/ModeracionService` | Aplicación | `exigirTextoPermitido`, `exigirFotoPermitida` (creación) y `fotoRechazadaEnVistaPrevia`. Sin `@Transactional`. |
+
+`common/exception/ContenidoNoPermitidoException` (400 con `codigo` y el campo
+en `details`) y el `codigo` opcional de `ServicioNoDisponibleException` viven
+en `common` porque `GlobalExceptionHandler` no puede depender de un módulo.
+
+### Dónde se modera cada cosa
+
+| Momento | Foto | Texto | Si el servicio no responde |
+|---|---|---|---|
+| Creación (`POST /api/reportes`) | Sí: saneada una vez, **sin transacción**, antes de subirla | `titulo`, `descripcion` | **503 `MODERACION_NO_DISPONIBLE`** (falla cerrada). Sin foto, el reporte se crea igual |
+| Adhesión (US-09, mismo `POST`) | Sí: llega en el mismo pedido, se modera antes de saber si es adhesión | Igual | Igual |
+| Reenvío idempotente (US-06) | **No**: la respuesta guardada vuelve antes de moderar | No | Recibe su respuesta aunque el servicio esté caído |
+| Edición (`PATCH /api/reportes/{id}`) | — (no cambia la foto) | `titulo`, `descripcion` | — |
+| Comentario (`POST /api/reportes/{id}/comentarios`) | — | `contenido` | — |
+| Registro (`POST /api/auth/registro`) | — | `nombre`, `apellido`, **después del captcha** y antes del DNS | — |
+| Perfil (`PATCH /api/auth/me`) | — (la foto de perfil es privada) | `nombre`, `apellido` | — |
+| Vista previa (`POST /api/clasificaciones`) | Sí, sin esperar turno: `fotoRechazada` | — | `fotoRechazada: false` y la sugerencia de siempre |
+| Sugerencia oficial (D-08) | **No**: la foto guardada ya pasó al crear | — | — |
+
+No se filtran los tickets de soporte, el responsable asignado ni las
+categorías: son privados o los escribe el personal municipal.
+
+### Contrato
+
+| Respuesta | Cuándo | Cuerpo |
+|---|---|---|
+| **400 `FOTO_NO_PERMITIDA`** | La foto supera el umbral | `message`: «La foto no está permitida. Toma otra.»; `details: ["foto"]` |
+| **400 `TEXTO_NO_PERMITIDO`** | Un texto tiene una grosería de la lista | `message`: «La descripción tiene palabras que no están permitidas. Cámbiala para continuar.» (uno por campo); `details`: el campo del pedido (`titulo`, `descripcion`, `contenido`, `nombre` o `apellido`). **Nunca repite la palabra** |
+| **503 `MODERACION_NO_DISPONIBLE`** | Sin respuesta, sin turno en 1 s, un 4xx/5xx del servicio o un 200 fuera de contrato, al crear con foto | `message`: «No pudimos revisar la foto en este momento. Guarda el reporte para enviarlo después o envíalo sin foto.» |
+| `ClasificacionResponse.fotoRechazada` (`boolean`, nunca nulo) | Vista previa | `true` solo si la moderación rechazó la foto; entonces no se clasifica y la categoría es nula |
+
+- **Por qué 400 y no 409.** Es la entrada la que no se puede publicar, no una
+  precondición de estado (convención del proyecto: validación 400, negocio
+  409, relación o rol 403). La PWA marca el campo con `details`.
+- **Por qué el 503 no entra solo a la cola.** La PWA ya reintenta los 5xx
+  desde la cola de US-06 con la misma `Idempotency-Key`; con el `codigo`
+  puede además ofrecer «Enviar sin foto» (NC-10c).
+- **`fotoRechazada` no es una señal interna.** Habla de la foto que el propio
+  ciudadano acaba de subir, y la creación le daría el mismo veredicto. Por el
+  mismo criterio que la confianza de la sugerencia, **no lleva el puntaje**:
+  sería un instrumento para sondear el modelo foto a foto. Ningún DTO lleva el
+  puntaje ni la versión del modelo de moderación.
+
+### Falla cerrada y el interruptor
+
+Decisión del usuario del 28/10 (propuesta §4, opción B): si el servicio no
+responde, la foto **no** se acepta. Fallar abierto rompería «nunca se guarda
+ni se publica» justo cuando el servicio cae (bastan 10 conexiones abiertas
+para su 503). Los resguardos:
+
+1. **`MODERACION_TIPO=ninguna`** es la salida de emergencia ante una caída
+   larga. Mientras está puesto se publican fotos sin revisar; el filtro de
+   texto sigue activo.
+2. **Orden de despliegue:** primero el servicio con el modelo (NC-10a,
+   DEP-13), después el backend con `http`. Hasta entonces, `ninguna`.
+3. Un reporte **sin foto** nunca depende del servicio.
+
+La vista previa, en cambio, **nunca falla** por la moderación: su veredicto
+es solo un aviso, y el oficial es el de la creación.
+
+### El adaptador HTTP
+
+Sigue el patrón de `InferenciaHttpAdapter` (NC-04b): `RestClient` sobre el
+`HttpClient` del JDK con HTTP/1.1 explícito, 500 + 2 500 ms, sin reintentos,
+validación solo de la estructura (sin `version_modelo` o `puntaje`, tipos
+distintos, un puntaje no finito o fuera de [0, 1], o una versión de más de 40
+caracteres: fuera de contrato) y una línea de log con la duración de cada
+llamada (sin el puntaje de una foto aceptada). **No se reutiliza el de
+`clasificacion`**: es `infra` de otro módulo (ARCHITECTURE.md §4.3), así que
+se copia el patrón.
+
+- **Turno propio de 4 llamadas** (`Semaphore`), aparte del de la detección. El
+  servicio responde 503 desde 10 conexiones abiertas **sumando los dos
+  endpoints**, y 4 + 4 = 8 cabe con margen de una (handoff de NC-10a). No se
+  puede subir uno sin bajar el otro, y con más de una réplica del backend hay
+  que repartirlos.
+- **La creación espera un turno hasta 1 s**: sin turno, el ciudadano recibe
+  un 503, no «sin sugerencia». **La vista previa no espera.**
+- Un 400 o 413 del servicio con la foto ya saneada es un defecto de un lado
+  del contrato: queda en `ERROR`, aparte de las caídas (`WARN`).
+
+**Latencia medida** contra el contenedor real (`InferenciaModeracionHttpAdapterIT`,
+29/10, portátil con `--cpus=2`): 230–360 ms por moderación sola; con 4
+moderaciones y 4 detecciones a la vez, la última moderación tardó ~2,1 s, cerca
+de los 2,5 s de lectura. En Railway hay que volver a medirlo (DEP-13): si la
+carga mixta pasa del timeout, una creación con foto recibiría 503.
+
+### La lista de groserías
+
+`resources/moderacion/groserias-es-pe.txt`, **propia del repositorio** (no
+copia ninguna lista de terceros), versión `2026-10-29.1`, **153 entradas**:
+137 palabras y 16 expresiones de varias palabras. La armó el agente de backend con los
+criterios de la propuesta §5, que van en su cabecera; **el usuario aprueba la
+versión inicial en el PR de NC-10b**.
+
+- **Entra:** insultos vulgares inequívocos en el uso peruano con sus formas
+  comunes (plural, femenino, aumentativo, abreviaturas como «ctm», «csm»,
+  «ptm»), vulgaridades sexuales y escatológicas fuertes, insultos homofóbicos
+  inequívocos y expresiones cuyas palabras sueltas son legítimas («concha de
+  tu madre», «hijo de perra»).
+- **No entra:** lo que tiene un sentido legítimo en un reporte o un nombre
+  propio (concha, huevo, polla, paja, Pajero, perra, cono, ano, cholo, negro,
+  chino…), los insultos que no son groserías (idiota, imbécil, estúpido: criticar
+  a una autoridad no es una grosería) y las interjecciones leves (carajo,
+  caramba). Lo que no atrapa la lista lo atrapa la denuncia (NC-11).
+
+**Normalización** (`FiltroDeGroserias`): NFKC, sin caracteres de formato y en
+minúsculas; sin tildes ni diéresis **pero con la ñ** («coño» no es «cono», ni
+«año» es «ano»); *leetspeak* solo dentro de palabras con letras (0→o, 3→e,
+4→a, 5→s, 7→t, @→a, $→s, y el 1 como i y como l), así que «km 15» no cambia;
+`*` o `#` dentro de una palabra valen por una letra («p*ta»), siempre que haya
+más letras que comodines; tres o más letras sueltas seguidas se unen («p u t
+a», «C.T.M.»); y cada palabra se compara con sus rachas de 3 o más letras
+reducidas a 2 y a 1 («putaaa»). Las entradas no se reducen: «pera» no es
+«perra».
+
+**El problema de Scunthorpe.** Se compara **por palabra entera** (o por
+secuencias de 2 a 4 palabras para las expresiones), **nunca por subcadena**:
+«vehículo», «obstáculo», «película», «disputa», «computadora» o el apellido
+«Culqui» no coinciden. Lo protegen dos guardas:
+
+- `ListaDeGroseriasTest`: el archivo tiene versión, ninguna entrada duplicada
+  y cada una escrita ya normalizada; el filtro detecta cada entrada; y
+  **ninguna línea ni palabra** del corpus legítimo
+  (`test/resources/moderacion/corpus-legitimo.txt`: vocabulario vial, los 43
+  distritos, apellidos y nombres frecuentes y las palabras legítimas de la
+  propuesta: 381 líneas) coincide con la lista. Si una palabra legítima
+  empieza a coincidir, se corrige la lista, no el corpus.
+- `FiltroDeGroseriasTest`: cada paso de la normalización, en positivo y en
+  negativo.
+
+**El texto no depende de ningún servicio**: es una regla pura, sin puerto
+(D-04). La PWA no duplica la lista: el 400 llega al instante y el formulario
+conserva lo escrito.
+
+### El orden de las validaciones
+
+- **Creación:** idempotencia → campos → **texto** → saneado → **foto** →
+  subida → transacción. El texto va antes que la foto: no cuesta nada y no
+  gasta un turno del servicio en un reporte que igual se rechaza. La
+  moderación de la foto corre **sin transacción**
+  (`ModeracionCreacionIT` lo comprueba desde el doble del puerto).
+- **Registro:** captcha (NC-08) → **nombre y apellido** → dominio del correo
+  (NC-09) → términos y correo duplicado. El captcha sigue primero; el filtro,
+  que es puro, va antes de la consulta DNS.
+- **Edición del reporte:** el texto nuevo se revisa antes de cambiar nada.
+- **Comentario:** el texto se revisa primero, como el resto de la validación
+  de la entrada.
+
+### Registro (log)
+
+- Foto rechazada al crear: `WARN` con el **id del usuario**, el puntaje
+  redondeado a dos decimales y la versión del modelo. Así se ve si alguien
+  insiste, sin datos de más. En la vista previa, el mismo `WARN` sin usuario
+  (el servicio de `clasificacion` no lo conoce).
+- Texto rechazado: `WARN` con el campo, la **entrada de la lista** que
+  coincidió y la versión de la lista. **Nunca el texto** del ciudadano.
+- Moderación no disponible al crear: `WARN` con el usuario y la causa.
+
+### Pruebas
+
+- Unitarias: `FiltroDeGroseriasTest`, `ListaDeGroseriasTest`,
+  `PoliticaDeModeracionTest` (el borde del umbral y el rango),
+  `ModeracionServiceTest` (códigos, mensajes, falla cerrada, la vista previa
+  que nunca falla y qué queda en el log), `ValidacionTipoModeracionTest` e
+  `InferenciaModeracionHttpAdapterTest` (con `MockRestServiceServer`: 200, 200
+  sin `version_modelo` o sin `puntaje`, `puntaje` 1,5, −0,01, de texto o no
+  finito, versión de 41 caracteres, 400, 413, 500, 503, timeout; con seis vistas
+  previas a la vez, a lo sumo cuatro llegan al servidor y las otras no
+  esperan; la creación espera un turno y sigue, o se rinde en el plazo; con
+  sockets locales, HTTP/1.1 en chunks, el timeout real y una conexión
+  rechazada). `ClasificacionServiceTest` suma la vista previa con la
+  moderación y que la sugerencia oficial no la llama.
+- Integración: `ModeracionCreacionIT` (foto rechazada: 400, sin reporte, sin
+  adhesión, sin `ReporteCreadoEvent` y sin objeto en el almacenamiento; sin
+  servicio: 503 y nada creado; sin foto, el moderador no se llama; el reenvío
+  idempotente con el servicio caído; sin transacción al moderar; **la
+  sugerencia oficial, cero llamadas al moderador**, contadas por el doble),
+  `VistaPreviaModeracionIT`, `ModeracionTextoIT` (edición, comentario, perfil
+  y registro, con el captcha primero) y `ArranqueModeracionIT` (en `prod`, sin
+  `MODERACION_TIPO`, con un valor no admitido, con `http` sin URL o con un
+  umbral fuera de rango, no arranca). `PerfilProdIT` arranca con `http`.
+- Contra el servicio real: `InferenciaModeracionHttpAdapterIT`, **solo si
+  existe `MODERACION_TEST_URL`** (fuera de `CLASES_OBLIGATORIAS`). Comprueba
+  el contrato, un 400 real, el mismo puntaje en la vista previa y en la
+  creación, que 4 moderaciones y 4 detecciones a la vez no reciben un 503, y
+  la creación y la vista previa con el servicio real. **No hay muestras
+  positivas y no se van a juntar**: el rechazo se prueba con el doble.
+  ```bash
+  docker run --rm -d --name inferencia-it -p 8010:8000 --cpus=2 ciudadviva-inferencia:nc10a
+  MODERACION_TEST_URL=http://localhost:8010 mvn verify -Dit.test=InferenciaModeracionHttpAdapterIT
+  docker stop inferencia-it
+  ```
+
+### Pendiente
+
+- **Despliegue (DEP-13):** `MODERACION_TIPO=http` y `MODERACION_URL` en
+  Railway, solo después del servicio con el modelo; la latencia con carga
+  mixta, medida allí; el interruptor y la purga manual van al runbook.
+- **Calibración del umbral** con fotos de calles con gente y de Lima (NC-10a,
+  «Dudas»): 0,70 se mantiene hasta entonces.
+- **Términos v2** (PR #116): el párrafo de la revisión del contenido sale en la
+  misma versión que este código (v0.8.0).
+
 ## Deuda técnica conocida
 
 - **Testcontainers bloqueado por Docker 29 / docker-java 1.20.x.** Los tests
@@ -3421,6 +3664,15 @@ vista previa siguen dando dos «sin turno» al instante.
     Sigue siendo PostGIS real (geography/GiST), aislado por nombre de base.
   - **Prerequisito para correr tests:** `docker compose up -d` y crear la base
     una vez: `docker exec viasegura-db psql -U viasegura -d viasegura -c "CREATE DATABASE viasegura_test;"`.
+  - **Conexiones (NC-10b):** la base es una sola para toda la suite, y Spring
+    guarda en cache cada contexto de test distinto (uno por combinación de
+    `@MockitoBean`, perfiles y propiedades) con su pool de Hikari abierto.
+    Con 11 contextos y los 10 ociosos por pool de Hikari se pasaba del
+    `max_connections` de 100 de PostgreSQL («too many clients already»).
+    `application-test.yml` deja cada pool con **1 conexión ociosa** y 10 s de
+    inactividad (el máximo sigue en 10). Al sumar un IT con un `@MockitoBean`
+    nuevo, conviene reutilizar el de otra clase (mismo tipo y mismo nombre de
+    campo) para compartir el contexto.
   - **A revertir cuando:** Testcontainers publique una versión con `docker-java`
     compatible con Docker 29 (o se fije `<testcontainers.version>` a una que lo
     soporte). La migración es local a `AbstractPostgisIT` — el resto de los
