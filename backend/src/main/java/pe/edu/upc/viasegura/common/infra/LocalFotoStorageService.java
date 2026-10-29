@@ -12,9 +12,11 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
+import org.springframework.util.Assert;
 import org.springframework.util.StringUtils;
 import pe.edu.upc.viasegura.common.exception.BusinessException;
 import pe.edu.upc.viasegura.common.port.ArchivoSubido;
+import pe.edu.upc.viasegura.common.port.FotoSaneada;
 import pe.edu.upc.viasegura.common.port.FotoStorageService;
 import pe.edu.upc.viasegura.common.port.SaneadorDeImagen;
 
@@ -68,8 +70,9 @@ public class LocalFotoStorageService implements FotoStorageService {
     }
 
     @Override
-    public String almacenarFotoReporteSaneada(ArchivoSubido fotoSaneada) {
-        return guardar(contenidoSaneado(fotoSaneada), directorioReportes, urlBaseReportes);
+    public String almacenarFotoReporteSaneada(FotoSaneada fotoSaneada) {
+        Assert.notNull(fotoSaneada, "La foto de reporte debe llegar saneada");
+        return guardar(fotoSaneada.contenido(), directorioReportes, urlBaseReportes);
     }
 
     @Override
@@ -164,14 +167,6 @@ public class LocalFotoStorageService implements FotoStorageService {
         }
         log.debug("Foto almacenada en {}", destino);
         return urlBase + "/" + nombreArchivo;
-    }
-
-    /** Los bytes de una foto que ya paso por el saneado; nunca vacia (BE-11). */
-    static byte[] contenidoSaneado(ArchivoSubido fotoSaneada) {
-        if (fotoSaneada == null || fotoSaneada.vacio()) {
-            throw new IllegalArgumentException("La foto de reporte debe llegar saneada y con contenido");
-        }
-        return fotoSaneada.contenido();
     }
 
     private static String sinBarraFinal(String url) {

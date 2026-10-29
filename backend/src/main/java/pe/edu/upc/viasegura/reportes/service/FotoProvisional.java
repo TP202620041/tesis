@@ -95,6 +95,6 @@ final class FotoProvisional implements TransactionSynchronization {
 
     /** {@code <uuid>.jpg}: el ultimo segmento de la URL que devolvio el almacenamiento. */
     private String nombre() {
-        return SugerenciaCategoriaService.nombreDeArchivo(url);
+        return FotoStorageService.nombreDeArchivo(url);
     }
 }

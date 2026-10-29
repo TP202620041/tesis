@@ -21,6 +21,7 @@ import pe.edu.upc.viasegura.common.exception.BusinessException;
 import pe.edu.upc.viasegura.common.exception.ResourceNotFoundException;
 import pe.edu.upc.viasegura.common.geo.GeometryUtils;
 import pe.edu.upc.viasegura.common.port.ArchivoSubido;
+import pe.edu.upc.viasegura.common.port.FotoSaneada;
 import pe.edu.upc.viasegura.common.port.FotoStorageService;
 import pe.edu.upc.viasegura.common.port.SaneadorDeImagen;
 import pe.edu.upc.viasegura.distritos.domain.Distrito;
@@ -139,7 +140,7 @@ public class ReporteService {
         // abierta. Se guardan los mismos bytes saneados, sin volver a sanearlos
         // (D-08). La moderacion de NC-10b (D-15) va entre los dos pasos, sobre
         // `saneada`: una foto rechazada no llega a subirse.
-        ArchivoSubido saneada = sanearSiHayFoto(cmd.foto());
+        FotoSaneada saneada = sanearSiHayFoto(cmd.foto());
         FotoProvisional foto = saneada == null ? null
                 : new FotoProvisional(fotoStorageService, fotoStorageService.almacenarFotoReporteSaneada(saneada));
         try {
@@ -152,7 +153,7 @@ public class ReporteService {
     }
 
     /** La foto saneada, o {@code null} si el pedido no trae foto (o llega vacia). */
-    private ArchivoSubido sanearSiHayFoto(ArchivoSubido foto) {
+    private FotoSaneada sanearSiHayFoto(ArchivoSubido foto) {
         return foto == null || foto.vacio() ? null : saneador.sanear(foto);
     }
 

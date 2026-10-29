@@ -12,9 +12,11 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
+import org.springframework.util.Assert;
 import org.springframework.util.StringUtils;
 import pe.edu.upc.viasegura.common.exception.ServicioNoDisponibleException;
 import pe.edu.upc.viasegura.common.port.ArchivoSubido;
+import pe.edu.upc.viasegura.common.port.FotoSaneada;
 import pe.edu.upc.viasegura.common.port.FotoStorageService;
 import pe.edu.upc.viasegura.common.port.SaneadorDeImagen;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -161,8 +163,9 @@ public class S3FotoStorageService implements FotoStorageService {
     }
 
     @Override
-    public String almacenarFotoReporteSaneada(ArchivoSubido fotoSaneada) {
-        return guardar(LocalFotoStorageService.contenidoSaneado(fotoSaneada), bucketReportes, urlBaseReportes);
+    public String almacenarFotoReporteSaneada(FotoSaneada fotoSaneada) {
+        Assert.notNull(fotoSaneada, "La foto de reporte debe llegar saneada");
+        return guardar(fotoSaneada.contenido(), bucketReportes, urlBaseReportes);
     }
 
     @Override

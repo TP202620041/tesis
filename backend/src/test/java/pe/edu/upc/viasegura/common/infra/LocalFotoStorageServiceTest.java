@@ -15,6 +15,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.core.io.Resource;
 import pe.edu.upc.viasegura.common.exception.BusinessException;
 import pe.edu.upc.viasegura.common.port.ArchivoSubido;
+import pe.edu.upc.viasegura.common.port.FotoSaneada;
 import pe.edu.upc.viasegura.support.ImagenesDePrueba;
 
 /**
@@ -42,7 +43,7 @@ class LocalFotoStorageServiceTest {
     }
 
     /** Lo que hace la creacion del reporte antes de llamar al adaptador (BE-11). */
-    private ArchivoSubido saneada(byte[] contenido, String nombre) {
+    private FotoSaneada saneada(byte[] contenido, String nombre) {
         return saneador.sanear(new ArchivoSubido(contenido, "image/png", nombre));
     }
 
@@ -111,7 +112,7 @@ class LocalFotoStorageServiceTest {
 
     @Test
     void fotoDeReporteSaneada_seGuardaTalCualComoJpgConUuidEnElDirectorioPublico() throws IOException {
-        ArchivoSubido saneada = saneada(PNG, "C:\\fotos\\a.PNG");
+        FotoSaneada saneada = saneada(PNG, "C:\\fotos\\a.PNG");
 
         String url = storage.almacenarFotoReporteSaneada(saneada);
 
@@ -128,7 +129,7 @@ class LocalFotoStorageServiceTest {
         // pixeles que los de la vista previa (D-08).
         byte[] yaSaneada = {(byte) 0xFF, (byte) 0xD8, 1, 2, 3};
 
-        String url = storage.almacenarFotoReporteSaneada(new ArchivoSubido(yaSaneada, "image/jpeg", "x.jpg"));
+        String url = storage.almacenarFotoReporteSaneada(new FotoSaneada(yaSaneada, "x.jpg"));
 
         assertThat(Files.readAllBytes(base.resolve("reportes").resolve(nombre(url)))).isEqualTo(yaSaneada);
     }
@@ -137,7 +138,8 @@ class LocalFotoStorageServiceTest {
     void fotoDeReporteNulaOVacia_esUnErrorDeProgramacion() throws IOException {
         assertThatThrownBy(() -> storage.almacenarFotoReporteSaneada(null))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> storage.almacenarFotoReporteSaneada(new ArchivoSubido(new byte[0], null, "a.jpg")))
+        // Una foto saneada vacia no se puede ni construir.
+        assertThatThrownBy(() -> new FotoSaneada(new byte[0], "a.jpg"))
                 .isInstanceOf(IllegalArgumentException.class);
         try (var archivos = Files.list(base.resolve("reportes"))) {
             assertThat(archivos).isEmpty();

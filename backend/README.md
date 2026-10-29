@@ -1532,7 +1532,10 @@ pasa por `common/port/SaneadorDeImagen` (implementado por
 `common/infra/ImageIoSaneadorDeImagen`) antes de guardarse: la de perfil, al
 principio de `almacenarFotoPerfil` de **los dos** adaptadores; la de reporte,
 en `ReporteService#crear`, antes de subirla, y el adaptador la guarda tal
-cual con `almacenarFotoReporteSaneada` (BE-11, abajo). El saneado:
+cual con `almacenarFotoReporteSaneada` (BE-11, abajo). El saneado devuelve
+un tipo propio, `common/port/FotoSaneada`, y ese método solo acepta ese
+tipo: una foto cruda del cliente no compila donde se espera una saneada, así
+que no puede publicarse con su EXIF por error. El saneado:
 
 1. Valida la extensión (jpg, jpeg, png, webp) y luego **el contenido**: el
    lector se elige por los bytes, no por el nombre, y solo se aceptan JPEG,
@@ -1660,8 +1663,9 @@ registra como `TransactionSynchronization` de esa transacción, y
 - **Preparado para la moderación (NC-10b, D-15).** El saneado y la subida
   son dos pasos separados en `crear`. La moderación va entre ellos, sobre la
   foto ya saneada y sin transacción, y una foto rechazada no llega a subirse.
-  Como el puerto ya recibe la foto saneada, NC-10b no tiene que agregar ese
-  método ni volver a sanear.
+  Como el puerto ya recibe la foto saneada (`FotoSaneada`), NC-10b no tiene
+  que agregar ese método ni volver a sanear, y el puerto de moderación puede
+  recibir el mismo tipo.
 
 **Cambios de comportamiento, sin cambio de contrato.**
 
@@ -1688,6 +1692,7 @@ refresco del índice del hilo de la petición.
 | `ImageIoSaneadorDeImagenTest` | unitaria | Un JPEG con GPS y fabricante en el EXIF sale sin APP1; las 8 orientaciones EXIF dejan los píxeles donde se verían; una foto de 4200 px sale de 1400 px (submuestreo al decodificar, no reescalado); PNG transparente → fondo blanco; mismos bytes → mismos bytes; no imagen, GIF disfrazado o PNG roto → 409; más de 40 MP se rechaza **sin decodificar**, y más de 16 MP si el archivo se decodifica entero (JPEG progresivo, WEBP sin pérdida o con alfa sin pérdida, con encabezados armados en el test), mientras un JPEG secuencial o un WEBP con alfa sin comprimir de 20 MP no se rechaza por tamaño; con los turnos ocupados, la tercera espera y a los 10 s es 503, y si un turno se libera a tiempo, pasa. |
 | `S3FotoStorageServiceTest` | unitaria, `S3Client` simulado | Cada foto a su bucket con `image/jpeg`; la de reporte se sube tal cual, sin llamar al saneado (BE-11), y la de perfil saneada; la misma URL que el local; nombres que no son `<uuid>.<ext>` no llegan al bucket; inexistente → `null`; bucket caído → 503; `eliminarFotoReporte` borra del bucket de reportes y no lanza; no arranca sin endpoint, token o bucket, ni con un solo bucket para las dos visibilidades. |
 | `LocalFotoStorageServiceTest` | unitaria | Lo de antes, más que se guarda el JPEG saneado, que la foto de reporte ya saneada se guarda sin volver a sanearla (BE-11) y que `cargarFotoReporte`, `eliminarFotoPerfil` y `eliminarFotoReporte` no salen del directorio. |
+| `FotoSaneadaTest` | unitaria | Una foto saneada no puede estar vacía, pasa al clasificador con los mismos bytes y no vuelca sus bytes en un log. |
 | `FotoProvisionalTest` | unitaria, gestor de transacciones de prueba | BE-11: la foto subida se conserva si la usa un reporte confirmado o si el desenlace es desconocido; se borra si la transacción se revierte, si se confirma sin usarla o si no llega a empezar; el borrado ocurre después de la transacción, nunca dentro. |
 | `FotoFueraDeTransaccionIT` | IT (`local`) | BE-11 con PostGIS: el saneado, la subida y el borrado corren sin transacción y sin recursos transaccionales en el hilo; una reversión en el commit, una adhesión y un reenvío que se cruza con la subida no dejan su foto; un reenvío idempotente no sanea ni sube otra vez; `crear` dentro de una transacción se rechaza sin tocar nada. |
 | `FotoReporteIT`, `FotoPerfilIT` | IT (`local`) | Misma URL y visibilidad; la foto descargada ya no trae EXIF y se ve derecha; `Cache-Control`, 304 y 206; nombres raros → 404; foto inválida → 409; al reemplazar la foto de perfil, la anterior se borra. |

@@ -60,14 +60,29 @@ public interface FotoStorageService {
     }
 
     /**
+     * El nombre del archivo de una URL que devolvio un {@code almacenar…}
+     * ({@code /media/fotos/reportes/<uuid>.jpg} da {@code <uuid>.jpg}), o
+     * {@code null} si no tiene la forma de un archivo generado por el servidor
+     * ({@link #esNombreDeArchivoValido}).
+     */
+    static String nombreDeArchivo(String url) {
+        if (url == null || url.isBlank()) {
+            return null;
+        }
+        String nombre = url.substring(url.lastIndexOf('/') + 1);
+        return esNombreDeArchivoValido(nombre) ? nombre : null;
+    }
+
+    /**
      * Almacena la foto de evidencia de un reporte (US-05) <b>tal como llega</b>:
      * no la vuelve a sanear (BE-11).
      *
-     * <p>La foto tiene que salir de {@link SaneadorDeImagen#sanear}: es lo que
-     * se publica en el mapa, asi que una foto cruda llevaria el EXIF del
-     * telefono (la ubicacion GPS de quien reporta). Volver a sanearla aqui
-     * la recomprimiria y daria otros pixeles que los que ya vio la vista
-     * previa (D-08) y que revisa la moderacion (D-15).</p>
+     * <p>La foto sale de {@link SaneadorDeImagen#sanear}, y el tipo
+     * {@link FotoSaneada} lo exige: es lo que se publica en el mapa, y una
+     * foto cruda llevaria el EXIF del telefono (la ubicacion GPS de quien
+     * reporta). Volver a sanearla aqui la recomprimiria y daria otros pixeles
+     * que los que ya vio la vista previa (D-08) y que revisa la moderacion
+     * (D-15).</p>
      *
      * <p>Se llama <b>sin transaccion abierta</b> (BE-11): con R2 es una
      * llamada de red, y dentro de la transaccion retendria una conexion del
@@ -76,10 +91,10 @@ public interface FotoStorageService {
      *
      * @param fotoSaneada la foto que devolvio {@link SaneadorDeImagen#sanear}
      * @return URL relativa <b>publica</b> de la foto almacenada
-     * @throws IllegalArgumentException si la foto es {@code null} o esta vacia
-     *         (un error de programacion: el saneado nunca devuelve eso)
+     * @throws IllegalArgumentException si la foto es {@code null} (un error de
+     *         programacion)
      */
-    String almacenarFotoReporteSaneada(ArchivoSubido fotoSaneada);
+    String almacenarFotoReporteSaneada(FotoSaneada fotoSaneada);
 
     /**
      * Sanea con {@link SaneadorDeImagen} y almacena la foto de perfil de un

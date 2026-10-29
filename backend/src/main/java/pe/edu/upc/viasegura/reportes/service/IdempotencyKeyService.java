@@ -55,9 +55,10 @@ import pe.edu.upc.viasegura.reportes.repository.IdempotencyKeyRepository;
  * {@code uk_idempotency_key_clave_usuario}: ambas transacciones intentan
  * insertar la misma clave, la perdedora aborta y hace rollback COMPLETO
  * -- incluido el reporte/adhesion que alcanzo a crear, porque
- * {@code registrar} corre dentro de la misma transaccion que
- * {@code ReporteService#crear}. Es decir, el invariante "una clave = un
- * efecto de negocio" se mantiene aun sin sincronizacion explicita.
+ * {@code registrar} corre dentro de la transaccion de la creacion (la
+ * programatica de {@code ReporteService#crear}, BE-11). Es decir, el
+ * invariante "una clave = un efecto de negocio" se mantiene aun sin
+ * sincronizacion explicita.
  * Consecuencia aceptada: el cliente perdedor recibe un 500 en vez de la
  * respuesta cacheada; su siguiente reintento (ya con la transaccion
  * ganadora confirmada) obtiene el 201 correcto. No se agrego un lock ni
@@ -66,6 +67,13 @@ import pe.edu.upc.viasegura.reportes.repository.IdempotencyKeyRepository;
  * Service Worker (reintento tras timeout, secuencial), no requests
  * concurrentes; la integridad de datos ya esta garantizada y el costo
  * seria complejidad sin beneficio en el alcance de la tesis.</p>
+ *
+ * <p><b>Dos lecturas desde BE-11.</b> {@code ReporteService#crear} sanea y
+ * sube la foto antes de abrir esa transaccion, asi que llama a
+ * {@link #respuestaPrevia} dos veces: antes de la foto (un reenvio con
+ * respuesta guardada no sanea ni sube nada) y al empezar la transaccion
+ * (otro envio con la misma clave pudo confirmarse mientras la foto subia; se
+ * devuelve su respuesta y la foto, sin usar, se borra).</p>
  */
 @Service
 @RequiredArgsConstructor

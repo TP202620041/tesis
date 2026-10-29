@@ -23,6 +23,7 @@ import org.springframework.core.io.Resource;
 import pe.edu.upc.viasegura.common.exception.BusinessException;
 import pe.edu.upc.viasegura.common.exception.ServicioNoDisponibleException;
 import pe.edu.upc.viasegura.common.port.ArchivoSubido;
+import pe.edu.upc.viasegura.common.port.FotoSaneada;
 import pe.edu.upc.viasegura.common.port.SaneadorDeImagen;
 import software.amazon.awssdk.core.ResponseBytes;
 import software.amazon.awssdk.core.exception.SdkClientException;
@@ -61,7 +62,7 @@ class S3FotoStorageServiceTest {
         if (foto == null || foto.vacio()) {
             throw new BusinessException("La foto está vacía");
         }
-        return new ArchivoSubido(SANEADA, "image/jpeg", "x.jpg");
+        return new FotoSaneada(SANEADA, "x.jpg");
     };
 
     @BeforeEach
@@ -85,7 +86,7 @@ class S3FotoStorageServiceTest {
     @Test
     void fotoDeReporte_subeTalCualLaSaneadaAlBucketDeReportesYDevuelveLaUrlPublica() throws IOException {
         byte[] yaSaneada = {(byte) 0xFF, (byte) 0xD8, 7, 7};
-        String url = storage.almacenarFotoReporteSaneada(new ArchivoSubido(yaSaneada, "image/jpeg", "a.jpg"));
+        String url = storage.almacenarFotoReporteSaneada(new FotoSaneada(yaSaneada, "a.jpg"));
 
         ArgumentCaptor<RequestBody> cuerpo = ArgumentCaptor.forClass(RequestBody.class);
         PutObjectRequest pedido = subidaCapturada(cuerpo);
@@ -120,10 +121,8 @@ class S3FotoStorageServiceTest {
     }
 
     @Test
-    void unaFotoDeReporteNulaOVacia_esUnErrorDeProgramacionYNoLlegaAlBucket() {
+    void unaFotoDeReporteNula_esUnErrorDeProgramacionYNoLlegaAlBucket() {
         assertThatThrownBy(() -> storage.almacenarFotoReporteSaneada(null))
-                .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> storage.almacenarFotoReporteSaneada(new ArchivoSubido(new byte[0], null, "a.jpg")))
                 .isInstanceOf(IllegalArgumentException.class);
         verifyNoInteractions(s3);
     }
@@ -133,7 +132,7 @@ class S3FotoStorageServiceTest {
         when(s3.putObject(any(PutObjectRequest.class), any(RequestBody.class)))
                 .thenThrow(SdkClientException.create("timeout"));
 
-        assertThatThrownBy(() -> storage.almacenarFotoReporteSaneada(new ArchivoSubido(SANEADA, null, "a.jpg")))
+        assertThatThrownBy(() -> storage.almacenarFotoReporteSaneada(new FotoSaneada(SANEADA, "a.jpg")))
                 .isInstanceOf(ServicioNoDisponibleException.class)
                 .hasMessage(S3FotoStorageService.MENSAJE_SIN_ALMACENAMIENTO);
     }

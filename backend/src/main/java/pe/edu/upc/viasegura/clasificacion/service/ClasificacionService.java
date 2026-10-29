@@ -162,7 +162,7 @@ public class ClasificacionService {
             return Optional.empty();
         }
         try {
-            return Optional.of(saneador.sanear(foto));
+            return Optional.of(saneador.sanear(foto).comoArchivo());
         } catch (ServicioNoDisponibleException e) {
             log.info("Vista previa sin turno de saneado, sin sugerencia: {}", e.getMessage());
             return Optional.empty();
