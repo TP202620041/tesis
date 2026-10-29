@@ -6,18 +6,23 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
@@ -26,10 +31,12 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.ResultActions;
 import pe.edu.upc.viasegura.common.port.FotoStorageService;
 import pe.edu.upc.viasegura.reportes.domain.CategoriaDano;
 import pe.edu.upc.viasegura.reportes.repository.CategoriaDanoRepository;
 import pe.edu.upc.viasegura.support.AbstractPostgisIT;
+import pe.edu.upc.viasegura.support.FallaAntesDelCommit;
 import pe.edu.upc.viasegura.support.ImagenesDePrueba;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
@@ -62,8 +69,13 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
  * {@code POST /api/reportes} y {@code PATCH /api/auth/me} y se descarga por
  * las mismas URL de siempre, con lo que se prueba tambien la eleccion del
  * adaptador y el {@code ResourceResolver} de {@code WebMvcConfig}.</p>
+ *
+ * <p>BE-11: la foto de un reporte se sube antes de la transaccion de la
+ * creacion. Una adhesion, o una creacion que se revierte
+ * ({@link FallaAntesDelCommit}), no dejan su objeto en el bucket.</p>
  */
 @EnabledIfEnvironmentVariable(named = "FOTOS_S3_TEST_ENDPOINT", matches = ".+")
+@Import(FallaAntesDelCommit.class)
 class S3FotoStorageServiceIT extends AbstractPostgisIT {
 
     // Parque Kennedy, Miraflores.
@@ -87,9 +99,16 @@ class S3FotoStorageServiceIT extends AbstractPostgisIT {
     CategoriaDanoRepository categoriaRepository;
     @Autowired
     FotoStorageService fotoStorageService;
+    @Autowired
+    FallaAntesDelCommit fallaAntesDelCommit;
 
     /** Claves subidas por el test en curso, por bucket, para borrarlas al final. */
     private final List<String[]> subidas = new ArrayList<>();
+
+    @BeforeEach
+    void sinFalla() {
+        fallaAntesDelCommit.desactivar();
+    }
 
     private static String env(String clave, String porDefecto) {
         String valor = System.getenv(clave);
@@ -156,6 +175,13 @@ class S3FotoStorageServiceIT extends AbstractPostgisIT {
         }
     }
 
+    /** Las claves que hay hoy en el bucket (el de un test, con pocas fotos). */
+    private static Set<String> claves(String bucket) {
+        return s3.listObjectsV2Paginator(b -> b.bucket(bucket)).contents().stream()
+                .map(objeto -> objeto.key())
+                .collect(Collectors.toSet());
+    }
+
     private static byte[] delBucket(String bucket, String clave) {
         return s3.getObjectAsBytes(GetObjectRequest.builder().bucket(bucket).key(clave).build()).asByteArray();
     }
@@ -179,14 +205,18 @@ class S3FotoStorageServiceIT extends AbstractPostgisIT {
                 .getId();
     }
 
+    private ResultActions crearReporteConFoto(byte[] foto) throws Exception {
+        return mockMvc.perform(multipart("/api/reportes")
+                .file(new MockMultipartFile("foto", "IMG_0001.JPG", "image/jpeg", foto))
+                .param("latitud", String.valueOf(LAT))
+                .param("longitud", String.valueOf(LON))
+                .param("titulo", "Dano de prueba").param("severidad", "MEDIA")
+                .param("categoriaId", String.valueOf(categoriaEstandarId()))
+                .header("Authorization", "Bearer " + tokenCiudadano()));
+    }
+
     private String subirFotoDeReporte(byte[] foto) throws Exception {
-        MvcResult res = mockMvc.perform(multipart("/api/reportes")
-                        .file(new MockMultipartFile("foto", "IMG_0001.JPG", "image/jpeg", foto))
-                        .param("latitud", String.valueOf(LAT))
-                        .param("longitud", String.valueOf(LON))
-                        .param("titulo", "Dano de prueba").param("severidad", "MEDIA")
-                        .param("categoriaId", String.valueOf(categoriaEstandarId()))
-                        .header("Authorization", "Bearer " + tokenCiudadano()))
+        MvcResult res = crearReporteConFoto(foto)
                 .andExpect(status().isCreated())
                 .andReturn();
         String url = objectMapper.readTree(res.getResponse().getContentAsString()).get("fotoUrl").asText();
@@ -294,7 +324,35 @@ class S3FotoStorageServiceIT extends AbstractPostgisIT {
                         .param("categoriaId", String.valueOf(categoriaEstandarId()))
                         .header("Authorization", "Bearer " + tokenCiudadano()))
                 .andExpect(status().isConflict());
-        assertThatThrownBy(() -> fotoStorageService.almacenarFotoReporte(null))
+        assertThatThrownBy(() -> fotoStorageService.almacenarFotoPerfil(null))
                 .hasMessage("La foto está vacía");
+        assertThatThrownBy(() -> fotoStorageService.almacenarFotoReporteSaneada(null))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void unaAdhesion_noDejaSuFotoEnElBucket() throws Exception {
+        String original = nombre(subirFotoDeReporte(ImagenesDePrueba.png(64, 48)));
+        Set<String> antes = claves(REPORTES);
+        assertThat(antes).contains(original);
+
+        // Mismo punto y categoria: el segundo ciudadano se adhiere (US-09). Su
+        // foto se subio antes de la transaccion (BE-11) y se borra al terminar.
+        crearReporteConFoto(ImagenesDePrueba.png(32, 32))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.esAdhesion").value(true));
+
+        assertThat(claves(REPORTES)).isEqualTo(antes);
+    }
+
+    @Test
+    void siLaCreacionSeRevierte_elBucketQuedaSinElObjeto() throws Exception {
+        Set<String> antes = claves(REPORTES);
+        fallaAntesDelCommit.activar();
+
+        crearReporteConFoto(ImagenesDePrueba.png(64, 48))
+                .andExpect(status().isInternalServerError());
+
+        assertThat(claves(REPORTES)).isEqualTo(antes);
     }
 }

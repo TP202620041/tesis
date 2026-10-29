@@ -32,6 +32,7 @@ import pe.edu.upc.viasegura.clasificacion.service.ClasificacionService;
 import pe.edu.upc.viasegura.common.exception.BusinessException;
 import pe.edu.upc.viasegura.common.exception.ServicioNoDisponibleException;
 import pe.edu.upc.viasegura.common.port.ArchivoSubido;
+import pe.edu.upc.viasegura.common.port.FotoSaneada;
 import pe.edu.upc.viasegura.common.port.SaneadorDeImagen;
 
 /**
@@ -43,7 +44,9 @@ import pe.edu.upc.viasegura.common.port.SaneadorDeImagen;
 class ClasificacionServiceTest {
 
     private static final ArchivoSubido ORIGINAL = new ArchivoSubido(new byte[] {1, 2, 3}, "image/png", "f.png");
-    private static final ArchivoSubido SANEADA = new ArchivoSubido(new byte[] {9, 9}, "image/jpeg", "f.jpg");
+    private static final FotoSaneada FOTO_SANEADA = new FotoSaneada(new byte[] {9, 9}, "f.jpg");
+    /** Lo que recibe el clasificador: los mismos bytes como archivo. */
+    private static final ArchivoSubido SANEADA = FOTO_SANEADA.comoArchivo();
     private static final CategoriaClasificable BACHE = new CategoriaClasificable(1L, "Bache", "bache");
 
     private final ClasificadorDano clasificador = mock(ClasificadorDano.class);
@@ -62,7 +65,7 @@ class ClasificacionServiceTest {
 
     @Test
     void vistaPrevia_clasificaLaFotoSaneada_noLaOriginal() {
-        when(saneador.sanear(ORIGINAL)).thenReturn(SANEADA);
+        when(saneador.sanear(ORIGINAL)).thenReturn(FOTO_SANEADA);
         when(clasificador.detectar(SANEADA, VISTA_PREVIA)).thenReturn(detecto(new Deteccion("bache", 0.87)));
         when(categorias.activas()).thenReturn(List.of(BACHE));
 
@@ -74,7 +77,7 @@ class ClasificacionServiceTest {
 
     @Test
     void vistaPrevia_sinSugerencia_respondeConLosCamposNulos() {
-        when(saneador.sanear(ORIGINAL)).thenReturn(SANEADA);
+        when(saneador.sanear(ORIGINAL)).thenReturn(FOTO_SANEADA);
         when(clasificador.detectar(SANEADA, VISTA_PREVIA)).thenReturn(detecto(new Deteccion("bache", 0.20)));
         when(categorias.activas()).thenReturn(List.of(BACHE));
 
@@ -83,7 +86,7 @@ class ClasificacionServiceTest {
 
     @Test
     void vistaPrevia_conElServicioCaido_esSinSugerencia() {
-        when(saneador.sanear(ORIGINAL)).thenReturn(SANEADA);
+        when(saneador.sanear(ORIGINAL)).thenReturn(FOTO_SANEADA);
         when(clasificador.detectar(any(), any())).thenThrow(new ClasificacionNoDisponibleException("timeout"));
 
         assertThat(servicio.vistaPrevia(ORIGINAL)).isEqualTo(ClasificacionResponse.sinSugerencia());
@@ -91,7 +94,7 @@ class ClasificacionServiceTest {
 
     @Test
     void vistaPrevia_unaFotoQueNoEsImagen_recibeElErrorDelSaneado_sinClasificar() {
-        when(saneador.sanear(ORIGINAL)).thenThrow(new BusinessException("Formato no permitido")).thenReturn(SANEADA);
+        when(saneador.sanear(ORIGINAL)).thenThrow(new BusinessException("Formato no permitido")).thenReturn(FOTO_SANEADA);
         when(clasificador.detectar(SANEADA, VISTA_PREVIA)).thenReturn(detecto(new Deteccion("bache", 0.87)));
         when(categorias.activas()).thenReturn(List.of(BACHE));
 
@@ -138,7 +141,7 @@ class ClasificacionServiceTest {
 
     @Test
     void unErrorInesperadoDelAdaptador_esSinSugerencia_nuncaUnErrorParaElCiudadano() {
-        when(saneador.sanear(ORIGINAL)).thenReturn(SANEADA);
+        when(saneador.sanear(ORIGINAL)).thenReturn(FOTO_SANEADA);
         when(clasificador.detectar(any(), any())).thenThrow(new IllegalStateException("respuesta fuera del contrato"));
 
         assertThat(servicio.vistaPrevia(ORIGINAL)).isEqualTo(ClasificacionResponse.sinSugerencia());
@@ -162,7 +165,7 @@ class ClasificacionServiceTest {
     void sinTurnoDeSaneado_esSinSugerencia_noUn503() {
         when(saneador.sanear(ORIGINAL))
                 .thenThrow(new ServicioNoDisponibleException("Hay muchas fotos en proceso"))
-                .thenReturn(SANEADA);
+                .thenReturn(FOTO_SANEADA);
 
         assertThat(servicio.vistaPrevia(ORIGINAL)).isEqualTo(ClasificacionResponse.sinSugerencia());
         verify(clasificador, never()).detectar(any(), any());
@@ -181,7 +184,7 @@ class ClasificacionServiceTest {
         when(saneador.sanear(ORIGINAL)).thenAnswer(invocacion -> {
             saneando.countDown();
             assertThat(soltar.await(5, TimeUnit.SECONDS)).isTrue();
-            return SANEADA;
+            return FOTO_SANEADA;
         });
         when(clasificador.detectar(SANEADA, VISTA_PREVIA)).thenReturn(detecto(new Deteccion("bache", 0.87)));
         when(categorias.activas()).thenReturn(List.of(BACHE));

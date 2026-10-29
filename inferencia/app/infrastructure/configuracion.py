@@ -10,7 +10,7 @@ from pathlib import Path
 from app.domain.imagen import LimitesDeImagen
 
 DIR_MODELO_POR_DEFECTO = Path(__file__).resolve().parents[2] / "modelos"
-"""``inferencia/modelos``: ahí deja el ``.onnx`` ``scripts/exportar_onnx.py``."""
+"""``inferencia/modelos``: ahí dejan sus ``.onnx`` ``scripts/exportar_onnx.py`` y ``scripts/exportar_moderacion.py``."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -22,11 +22,15 @@ class Configuracion:
     limites: LimitesDeImagen
     confianza_minima: float
     max_detecciones: int
+    hilos_moderacion: int = 1
 
     @classmethod
     def desde_entorno(cls, entorno: Mapping[str, str] | None = None) -> Configuracion:
         entorno = os.environ if entorno is None else entorno
         hilos = _entero(entorno, "INFERENCIA_HILOS", 2, minimo=1)
+        # Fijo entre despliegues, como INFERENCIA_HILOS: la misma foto da el mismo puntaje en la
+        # vista previa y en la creación. 1 hilo deja la otra vCPU para RF-DETR.
+        hilos_moderacion = _entero(entorno, "INFERENCIA_MODERACION_HILOS", 1, minimo=1)
         max_bytes = _entero(entorno, "INFERENCIA_MAX_BYTES", 10 * 1024 * 1024, minimo=1)
         max_megapixeles = _decimal(entorno, "INFERENCIA_MAX_MEGAPIXELES", 16.0, minimo=0.01, maximo=100.0)
         confianza_minima = _decimal(entorno, "INFERENCIA_CONFIANZA_MINIMA", 0.10, minimo=0.0, maximo=1.0)
@@ -38,6 +42,7 @@ class Configuracion:
             limites=LimitesDeImagen(max_bytes=max_bytes, max_pixeles=int(max_megapixeles * 1_000_000)),
             confianza_minima=confianza_minima,
             max_detecciones=max_detecciones,
+            hilos_moderacion=hilos_moderacion,
         )
 
 

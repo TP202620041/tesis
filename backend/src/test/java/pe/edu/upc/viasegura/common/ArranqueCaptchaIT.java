@@ -15,12 +15,14 @@ import pe.edu.upc.viasegura.ViaSeguraApplication;
  * <p><b>Sin {@code CAPTCHA_TIPO} en el perfil {@code prod}.</b> Con el
  * {@code ninguno} de desarrollo, un despliegue que olvidara la variable
  * dejaria el registro sin captcha sin que nada lo advierta. (Que con
- * {@code CAPTCHA_TIPO=recaptcha} falte {@code CAPTCHA_SECRET} lo cubre
- * {@code RecaptchaV2AdapterTest}: ese fallo llega al crear el adaptador.)</p>
+ * {@code CAPTCHA_TIPO=turnstile} falte {@code CAPTCHA_SECRET} o
+ * {@code CAPTCHA_HOSTNAMES} tenga algo que no es un hostname lo cubre
+ * {@code TurnstileAdapterTest}: ese fallo llega al crear el adaptador.)</p>
  *
- * <p><b>Con un valor que no elige ningun adaptador</b> ({@code hcaptcha}):
- * {@code auth/infra/ValidacionTipoCaptcha} lo rechaza antes de crear
- * ningun bean, con un mensaje que nombra la variable.</p>
+ * <p><b>Con un valor que no elige ningun adaptador</b>: {@code recaptcha},
+ * el de NC-08 hasta que Turnstile lo reemplazo (NC-08b, 28/10), o
+ * {@code hcaptcha}. {@code auth/infra/ValidacionTipoCaptcha} lo rechaza antes
+ * de crear ningun bean, con un mensaje que nombra la variable.</p>
  *
  * <p>Mismo montaje que {@code ArranqueCorreoIT}: la aplicacion real sin BD
  * (la URL apunta a un puerto cerrado) y todo lo demas obligatorio en prod por
@@ -50,6 +52,8 @@ class ArranqueCaptchaIT {
                 "--CORREO_TIPO=smtp",
                 "--NOTIF_FROM=Ciudad Viva <no-reply@ciudadviva.test>",
                 "--CLASIFICACION_TIPO=falso",
+                // DEP-14: obligatoria en prod. Un valor de prueba evidente.
+                "--ORIGEN_SECRETO=secreto-de-origen-de-prueba-0123456789",
         };
     }
 
@@ -62,6 +66,21 @@ class ArranqueCaptchaIT {
                 .run(argumentosDeProdSinTipoDeCaptcha()))
                 .rootCause()
                 .hasMessageContaining("Could not resolve placeholder 'CAPTCHA_TIPO'");
+    }
+
+    @Test
+    void conRecaptcha_queYaNoExiste_noArrancaAntesDeTocarLaBaseYDiceQueCambiar() {
+        // Un despliegue que conserve la variable de NC-08.
+        assertThatThrownBy(() -> new SpringApplication(ViaSeguraApplication.class).run(
+                "--app.captcha.tipo=recaptcha",
+                "--security.jwt.secret=" + secretoPropio(),
+                "--server.port=0",
+                "--spring.datasource.url=jdbc:postgresql://127.0.0.1:1/ninguna"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasNoCause()
+                .hasMessageStartingWith("CAPTCHA_TIPO (app.captcha.tipo) tiene un valor no admitido: 'recaptcha'")
+                .hasMessageContaining("Use 'turnstile'")
+                .hasMessageContaining("reCAPTCHA se reemplazo por Turnstile");
     }
 
     @Test

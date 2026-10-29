@@ -19,13 +19,17 @@ import org.springframework.stereotype.Component;
  *
  * <p>Los dos adaptadores de captcha se eligen con {@code @ConditionalOnProperty}:
  * {@code SinCaptchaAdapter} con {@code ninguno} (o sin la propiedad) y
- * {@code RecaptchaV2Adapter} con {@code recaptcha}. Con otro valor
- * ({@code hcaptcha}, {@code recaptcha } con un espacio, vacio) no se crea
+ * {@code TurnstileAdapter} con {@code turnstile} (NC-08b). Con otro valor
+ * ({@code hcaptcha}, {@code turnstile } con un espacio, vacio) no se crea
  * ninguno y el arranque fallaria con un generico «required a bean of type
  * VerificadorDeCaptcha» que no dice que variable revisar. Es un
  * {@link BeanFactoryPostProcessor} para que corra antes de crear cualquier
  * bean, y compara igual que la condicion: sin distinguir mayusculas y sin
  * recortar espacios.</p>
+ *
+ * <p>{@code recaptcha} fue el valor de produccion de NC-08 hasta que el
+ * usuario eligio Turnstile (28/10). Ya no existe, y el mensaje lo dice para
+ * que un despliegue con la variable vieja sepa que cambiar.</p>
  */
 @Component
 public class ValidacionTipoCaptcha implements BeanFactoryPostProcessor, EnvironmentAware {
@@ -50,10 +54,14 @@ public class ValidacionTipoCaptcha implements BeanFactoryPostProcessor, Environm
             return; // sin la propiedad: ninguno (matchIfMissing)
         }
         String valor = entorno.getProperty(PROPIEDAD);
-        if (!"recaptcha".equalsIgnoreCase(valor) && !"ninguno".equalsIgnoreCase(valor)) {
+        if (!"turnstile".equalsIgnoreCase(valor) && !"ninguno".equalsIgnoreCase(valor)) {
+            String aviso = "recaptcha".equalsIgnoreCase(valor)
+                    ? " reCAPTCHA se reemplazo por Turnstile (NC-08b): CAPTCHA_SECRET debe ser la clave secreta"
+                            + " del widget de Turnstile."
+                    : "";
             throw new IllegalStateException(("CAPTCHA_TIPO (" + PROPIEDAD + ") tiene un valor no admitido: '%s'."
-                    + " Use 'recaptcha' (Google reCAPTCHA v2, produccion) o 'ninguno' (desarrollo y tests).")
-                    .formatted(valor));
+                    + " Use 'turnstile' (Cloudflare Turnstile, produccion) o 'ninguno' (desarrollo y tests).%s")
+                    .formatted(valor, aviso));
         }
     }
 }

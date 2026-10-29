@@ -91,7 +91,7 @@ public class SugerenciaCategoriaService {
 
     /** La foto guardada del reporte, o vacio si no tiene o no se pudo leer. */
     private Optional<ArchivoSubido> fotoGuardada(Long reporteId) {
-        String nombre = nombreDeArchivo(reporteRepository.findFotoUrlById(reporteId).orElse(null));
+        String nombre = FotoStorageService.nombreDeArchivo(reporteRepository.findFotoUrlById(reporteId).orElse(null));
         if (nombre == null) {
             return Optional.empty();
         }
@@ -106,18 +106,5 @@ public class SugerenciaCategoriaService {
             log.warn("Reporte {}: no se pudo leer su foto {}, sin sugerencia: {}", reporteId, nombre, e.toString());
             return Optional.empty();
         }
-    }
-
-    /**
-     * Ultimo segmento de la URL guardada ({@code /media/fotos/reportes/<uuid>.jpg}),
-     * o {@code null}. El puerto rechaza cualquier nombre que no haya generado el
-     * servidor ({@link FotoStorageService#esNombreDeArchivoValido}).
-     */
-    static String nombreDeArchivo(String fotoUrl) {
-        if (fotoUrl == null || fotoUrl.isBlank()) {
-            return null;
-        }
-        String nombre = fotoUrl.substring(fotoUrl.lastIndexOf('/') + 1);
-        return FotoStorageService.esNombreDeArchivoValido(nombre) ? nombre : null;
     }
 }
