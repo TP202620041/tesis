@@ -6,7 +6,6 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.clearInvocations;
-import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -26,15 +25,12 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
-import org.mockito.InOrder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.context.event.ApplicationEvents;
 import org.springframework.test.context.event.RecordApplicationEvents;
 import org.springframework.test.web.servlet.MockMvc;
@@ -44,7 +40,6 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import pe.edu.upc.viasegura.auth.domain.Rol;
 import pe.edu.upc.viasegura.auth.domain.Usuario;
 import pe.edu.upc.viasegura.common.port.FotoSaneada;
-import pe.edu.upc.viasegura.common.port.FotoStorageService;
 import pe.edu.upc.viasegura.common.security.JwtService;
 import pe.edu.upc.viasegura.moderacion.domain.OrigenDeModeracion;
 import pe.edu.upc.viasegura.moderacion.domain.PuntajeDeModeracion;
@@ -64,9 +59,12 @@ import pe.edu.upc.viasegura.support.ImagenesDePrueba;
  * <p>El puerto {@link ModeradorDeImagen} es un doble de Mockito, encendido:
  * no hay muestras positivas reales en el repo ni se van a juntar (handoff de
  * NC-10a), asi que el rechazo se prueba con el puntaje que devuelve el doble.
- * El almacenamiento es el real (disco local), espiado, y los eventos se
- * graban: una foto rechazada o que no se pudo revisar no se sube, no crea el
- * reporte ni la adhesion y no publica {@link ReporteCreadoEvent}.</p>
+ * El almacenamiento es el real (disco local, se cuentan los archivos) y los
+ * eventos se graban: una foto rechazada o que no se pudo revisar no se sube,
+ * no crea el reporte ni la adhesion y no publica {@link ReporteCreadoEvent}.
+ * Sin espiar el almacenamiento a proposito: asi esta clase y
+ * {@code VistaPreviaModeracionIT} comparten un solo contexto de Spring (cada
+ * contexto distinto retiene su pool de conexiones durante toda la suite).</p>
  *
  * <p>El doble tambien <b>cuenta las llamadas</b>: la sugerencia oficial
  * asincrona (D-08) no llama al moderador, porque la foto guardada ya paso por
@@ -80,10 +78,9 @@ class ModeracionCreacionIT extends AbstractPostgisIT {
     private static final double LON = -77.0297;
     private static final String VERSION = "nsfw-vit-tiny-384-0c26ec2-1ba7cf26";
 
+    /** Mismo nombre y tipo que en {@code VistaPreviaModeracionIT}: las dos clases comparten contexto. */
     @MockitoBean
     ModeradorDeImagen moderador;
-    @MockitoSpyBean
-    FotoStorageService fotoStorageService;
 
     @Autowired
     MockMvc mockMvc;
@@ -185,7 +182,6 @@ class ModeracionCreacionIT extends AbstractPostgisIT {
         assertThat(cuerpo).doesNotContain("0.93").doesNotContainIgnoringCase("puntaje").doesNotContain(VERSION);
         assertThat(reporteRepository.count()).isZero();
         assertThat(adhesionRepository.count()).isZero();
-        verify(fotoStorageService, never()).almacenarFotoReporteSaneada(any());
         assertThat(fotosEnDisco()).isEqualTo(fotosAntes);
         assertThat(eventos.stream(ReporteCreadoEvent.class)).isEmpty();
     }
@@ -196,6 +192,7 @@ class ModeracionCreacionIT extends AbstractPostgisIT {
         long reporteId = objectMapper.readTree(crearConFoto(creador).andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString()).get("id").asLong();
         when(moderador.medir(any(), eq(OrigenDeModeracion.CREACION))).thenReturn(new PuntajeDeModeracion(VERSION, 0.88));
+        long fotosAntes = fotosEnDisco();
 
         // Otro ciudadano, mismo lugar y categoria: seria una adhesion (US-09).
         crearConFoto(ciudadano())
@@ -204,7 +201,7 @@ class ModeracionCreacionIT extends AbstractPostgisIT {
 
         assertThat(adhesionRepository.count()).isEqualTo(1);
         assertThat(reporteRepository.findById(reporteId).orElseThrow().getTotalAdhesiones()).isEqualTo(1);
-        verify(fotoStorageService, times(1)).almacenarFotoReporteSaneada(any());
+        assertThat(fotosEnDisco()).isEqualTo(fotosAntes);
     }
 
     // --- Sin servicio: falla cerrada ---------------------------------------------
@@ -212,6 +209,7 @@ class ModeracionCreacionIT extends AbstractPostgisIT {
     @Test
     void sinServicio_503ModeracionNoDisponible_sinNadaCreado() throws Exception {
         when(moderador.medir(any(), any())).thenThrow(new ModeracionNoDisponibleException("timeout"));
+        long fotosAntes = fotosEnDisco();
 
         crearConFoto(ciudadano())
                 .andExpect(status().isServiceUnavailable())
@@ -221,7 +219,7 @@ class ModeracionCreacionIT extends AbstractPostgisIT {
                                 + " o envíalo sin foto.")));
 
         assertThat(reporteRepository.count()).isZero();
-        verify(fotoStorageService, never()).almacenarFotoReporteSaneada(any());
+        assertThat(fotosEnDisco()).isEqualTo(fotosAntes);
         assertThat(eventos.stream(ReporteCreadoEvent.class)).isEmpty();
     }
 
@@ -257,30 +255,37 @@ class ModeracionCreacionIT extends AbstractPostgisIT {
     void laTransaccionNoEstaAbiertaMientrasSeModera_yLaFotoEsLaSaneada() throws Exception {
         List<String> conTransaccion = new CopyOnWriteArrayList<>();
         List<FotoSaneada> fotosModeradas = new CopyOnWriteArrayList<>();
+        List<Long> fotosEnDiscoAlModerar = new CopyOnWriteArrayList<>();
         when(moderador.medir(any(), any())).thenAnswer(invocacion -> {
             if (TransactionSynchronizationManager.isActualTransactionActive()
                     || TransactionSynchronizationManager.isSynchronizationActive()
                     || !TransactionSynchronizationManager.getResourceMap().isEmpty()) {
                 conTransaccion.add(String.valueOf(TransactionSynchronizationManager.getResourceMap().keySet()));
             }
-            FotoSaneada moderada = invocacion.getArgument(0);
-            fotosModeradas.add(moderada);
+            fotosModeradas.add(invocacion.getArgument(0));
+            fotosEnDiscoAlModerar.add(fotosEnDisco());
             return new PuntajeDeModeracion(VERSION, 0.05);
         });
+        long fotosAntes = fotosEnDisco();
+        MockMultipartFile original = new MockMultipartFile("foto", "IMG_0003.JPG", "image/jpeg",
+                ImagenesDePrueba.jpegConExif(1200, 900, 6));
 
-        crearConFoto(ciudadano()).andExpect(status().isCreated());
+        String cuerpo = crear(ciudadano(), original, "Hueco frente al parque", null, null)
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
 
         assertThat(conTransaccion).as("transaccion o recursos abiertos al moderar").isEmpty();
         // Moderada una vez, con la creacion como origen, y antes de subirla.
         verify(moderador, times(1)).medir(any(), eq(OrigenDeModeracion.CREACION));
-        InOrder orden = inOrder(moderador, fotoStorageService);
-        orden.verify(moderador).medir(any(), any());
-        orden.verify(fotoStorageService).almacenarFotoReporteSaneada(any());
-        // Lo que se modero es lo que se subio: la misma foto saneada, sin volver a sanearla.
-        ArgumentCaptor<FotoSaneada> subida = ArgumentCaptor.forClass(FotoSaneada.class);
-        verify(fotoStorageService).almacenarFotoReporteSaneada(subida.capture());
-        assertThat(fotosModeradas).singleElement().isSameAs(subida.getValue());
-        assertThat(ImagenesDePrueba.tieneApp1(subida.getValue().contenido())).isFalse();
+        assertThat(fotosEnDiscoAlModerar).containsExactly(fotosAntes);
+        assertThat(fotosEnDisco()).isEqualTo(fotosAntes + 1);
+        // Lo que se modero es lo que se guardo: la foto saneada (sin el EXIF del
+        // telefono), byte por byte, sin volver a sanearla.
+        FotoSaneada moderada = fotosModeradas.get(0);
+        assertThat(ImagenesDePrueba.tieneApp1(moderada.contenido())).isFalse();
+        String fotoUrl = objectMapper.readTree(cuerpo).get("fotoUrl").asText();
+        Path guardada = Paths.get(fotosDir, "reportes", fotoUrl.substring(fotoUrl.lastIndexOf('/') + 1));
+        assertThat(Files.readAllBytes(guardada)).isEqualTo(moderada.contenido());
     }
 
     // --- La sugerencia oficial no modera -------------------------------------------
@@ -313,6 +318,7 @@ class ModeracionCreacionIT extends AbstractPostgisIT {
     @Test
     void tituloODescripcionConGroserias_400TextoNoPermitido_sinLaPalabra_yLaFotoNiSeModera() throws Exception {
         Usuario ciudadano = ciudadano();
+        long fotosAntes = fotosEnDisco();
 
         String cuerpoTitulo = crear(ciudadano, foto(), "Pista de mierda en Kennedy", "Profundo", null)
                 .andExpect(status().isBadRequest())
@@ -332,7 +338,7 @@ class ModeracionCreacionIT extends AbstractPostgisIT {
         assertThat(cuerpoDescripcion).doesNotContainIgnoringCase("huevon");
         assertThat(reporteRepository.count()).isZero();
         verify(moderador, never()).medir(any(), any());
-        verify(fotoStorageService, never()).almacenarFotoReporteSaneada(any());
+        assertThat(fotosEnDisco()).isEqualTo(fotosAntes);
     }
 
     @Test

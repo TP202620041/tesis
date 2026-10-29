@@ -1,6 +1,20 @@
 # Perfil TEST (lo activa AbstractPostgisIT). La BD, el SMTP y el directorio
 # de fotos los fija AbstractPostgisIT con @DynamicPropertySource.
 #
+# Pool de conexiones (NC-10b): Spring guarda en cache cada contexto de test
+# distinto (uno por combinacion de @MockitoBean, perfiles y propiedades), y
+# con los valores por defecto de Hikari cada uno retiene 10 conexiones
+# ociosas hasta el final de la suite. Con 11 contextos se pasaba del
+# max_connections de 100 de PostgreSQL ("too many clients"). Con un minimo
+# ocioso de 1 y 10 s de inactividad, un contexto que ya no se usa conserva
+# una sola conexion; el maximo sigue en 10, asi que los IT con pedidos
+# simultaneos (hasta 6) no esperan conexion.
+spring:
+  datasource:
+    hikari:
+      minimum-idle: 1
+      idle-timeout: 10000
+
 # Secreto JWT de desarrollo (DEP-01): application.yml ya no trae un valor
 # por defecto, y los tests firman sus tokens con este secreto publicado.
 # Literal y no ${JWT_SECRET:...}: los tests no deben depender del entorno.
