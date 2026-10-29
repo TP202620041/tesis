@@ -5,6 +5,7 @@ import { useCallback, useState, type ReactNode } from 'react';
 import { EnlaceConDialogo } from '@/components/ui/dialogo';
 import { AlertaError, Boton, Campo } from '@/components/ui/form';
 import type { CuentaPorConfirmar } from '@/lib/types/domain';
+import { errorDelCampo } from '@/lib/types/moderacion';
 import { useRegistro } from '../hooks/useRegistro';
 import { captchaConfigurado, MENSAJE_FALTA_CAPTCHA, siteKeyDelCaptcha } from '../model/captcha';
 import { AYUDA_PASSWORD, errorDeLargoDePassword, PASSWORD_MAX, PASSWORD_MIN } from '../model/password';
@@ -41,10 +42,15 @@ import { RegistroEnviado } from './RegistroEnviado';
  * login conserva el `?redirect=`, para volver a donde iba tras confirmar.
  * Los 409 del dominio del correo (desechable, sin MX) se muestran en el
  * campo del correo mientras no se cambie lo escrito.
+ *
+ * NC-10c: si la moderacion rechaza el nombre o el apellido (400
+ * `TEXTO_NO_PERMITIDO`), el mensaje va en ese campo con la misma regla: hasta
+ * que se cambie lo escrito. Como todo error del registro, reinicia el captcha.
  */
 export function FormularioRegistro({ textoLegal }: { textoLegal: ReactNode }) {
   const searchParams = useSearchParams();
-  const { enviando, error, errorDelCorreo, terminosDesactualizados, enviar } = useRegistro();
+  const { enviando, error, errorDelCorreo, textoRechazado, terminosDesactualizados, enviar } =
+    useRegistro();
   const [cuenta, setCuenta] = useState<CuentaPorConfirmar | null>(null);
   const [campos, setCampos] = useState({ nombre: '', apellido: '', email: '', password: '' });
   // Correo del ultimo envio: el error del dominio se refiere a ese texto y
@@ -103,6 +109,8 @@ export function FormularioRegistro({ textoLegal }: { textoLegal: ReactNode }) {
   }
 
   const errorEmail = errorDelCorreo && campos.email === emailEnviado ? errorDelCorreo : undefined;
+  const errorNombre = errorDelCampo(textoRechazado, 'nombre', campos.nombre) ?? undefined;
+  const errorApellido = errorDelCampo(textoRechazado, 'apellido', campos.apellido) ?? undefined;
 
   return (
     <form onSubmit={alEnviar} className="flex flex-col gap-4" noValidate>
@@ -128,6 +136,7 @@ export function FormularioRegistro({ textoLegal }: { textoLegal: ReactNode }) {
         etiqueta="Nombre"
         autoComplete="given-name"
         required
+        error={errorNombre}
         value={campos.nombre}
         onChange={actualizar('nombre')}
       />
@@ -136,6 +145,7 @@ export function FormularioRegistro({ textoLegal }: { textoLegal: ReactNode }) {
         etiqueta="Apellido"
         autoComplete="family-name"
         required
+        error={errorApellido}
         value={campos.apellido}
         onChange={actualizar('apellido')}
       />

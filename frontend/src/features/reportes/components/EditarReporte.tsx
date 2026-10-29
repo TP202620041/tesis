@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { AlertaError, Boton } from '@/components/ui/form';
+import { AlertaError, Boton, CLASE_CONTROL_INVALIDO, ErrorDelCampo } from '@/components/ui/form';
 import type { Severidad } from '@/lib/types/domain';
+import { errorDelCampo } from '@/lib/types/moderacion';
 import { useEditarReporte } from '../hooks/useEditarReporte';
 import { etiquetaDeOpcion } from '../model/edicion';
 import { errorDelTitulo } from '../model/titulo';
@@ -16,6 +17,9 @@ import { clasesDeBoton } from '@/components/ui/Boton';
  * Solo se monta cuando el estado lo permite (ver `acciones.ts`); el backend
  * valida igual y responde 403 (no eres el creador) o 409 (ya no esta
  * PENDIENTE) si algo cambio mientras la pantalla estaba abierta.
+ *
+ * NC-10c: si la moderacion rechaza el titulo o la descripcion (400
+ * `TEXTO_NO_PERMITIDO`), el mensaje va en ese campo mientras diga lo mismo.
  */
 export function EditarReporte({
   reporte,
@@ -24,8 +28,14 @@ export function EditarReporte({
   reporte: ReporteResumen;
   onActualizado: () => void;
 }) {
-  const { opciones, guardar: guardarCambios, retirar: retirarReporte, enviando, error } =
-    useEditarReporte(reporte);
+  const {
+    opciones,
+    guardar: guardarCambios,
+    retirar: retirarReporte,
+    enviando,
+    error,
+    textoRechazado,
+  } = useEditarReporte(reporte);
   const [categoriaId, setCategoriaId] = useState<number | null>(reporte.categoriaId ?? null);
   const [titulo, setTitulo] = useState(reporte.titulo ?? '');
   const [severidad, setSeveridad] = useState<Severidad | null>(reporte.severidad ?? null);
@@ -33,7 +43,10 @@ export function EditarReporte({
   const [intentado, setIntentado] = useState(false);
   // Solo se valida el titulo si cambio (en el PATCH, lo que no cambia no viaja).
   const tituloCambio = titulo.trim() !== (reporte.titulo ?? '').trim();
-  const errorTitulo = intentado && tituloCambio ? errorDelTitulo(titulo) : null;
+  const errorTitulo =
+    (intentado && tituloCambio ? errorDelTitulo(titulo) : null) ??
+    errorDelCampo(textoRechazado, 'titulo', titulo);
+  const errorDescripcion = errorDelCampo(textoRechazado, 'descripcion', descripcion);
   const [confirmandoRetiro, setConfirmandoRetiro] = useState(false);
 
   async function guardar(evento: React.FormEvent) {
@@ -89,8 +102,11 @@ export function EditarReporte({
             maxLength={500}
             value={descripcion}
             onChange={(e) => setDescripcion(e.target.value)}
-            className="bg-superficie text-texto rounded-control border border-linea-campo px-3 py-2 text-sm"
+            aria-invalid={errorDescripcion ? true : undefined}
+            aria-describedby={errorDescripcion ? 'desc-edit-error' : undefined}
+            className={`bg-superficie text-texto rounded-control border border-linea-campo px-3 py-2 text-sm ${CLASE_CONTROL_INVALIDO}`}
           />
+          {errorDescripcion && <ErrorDelCampo id="desc-edit-error" mensaje={errorDescripcion} />}
         </div>
 
         <Boton cargando={enviando}>Guardar cambios</Boton>

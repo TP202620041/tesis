@@ -131,4 +131,43 @@ describe('useEditarReporte (US-08 + US-29)', () => {
     expect(ok).toBe(true);
     expect(result.current.error).toBeNull();
   });
+
+  it('NC-10c: un 400 TEXTO_NO_PERMITIDO queda para el campo, con lo que se envió, y no en error', async () => {
+    const mensaje = 'La descripción tiene palabras que no están permitidas. Cámbiala para continuar.';
+    vi.mocked(editarReporte).mockRejectedValueOnce(
+      new ApiError(400, mensaje, '/api/reportes/9', ['descripcion'], 'TEXTO_NO_PERMITIDO'),
+    );
+    const { result } = renderHook(() => useEditarReporte(REPORTE));
+    let ok = true;
+    await act(async () => {
+      ok = await result.current.guardar({ ...ELEGIDO, descripcion: 'Conos y algo feo' });
+    });
+
+    expect(ok).toBe(false);
+    expect(result.current.textoRechazado).toEqual({
+      campo: 'descripcion',
+      mensaje,
+      valor: 'Conos y algo feo',
+    });
+    expect(result.current.error).toBeNull();
+
+    // El siguiente intento lo borra.
+    vi.mocked(editarReporte).mockResolvedValueOnce(REPORTE);
+    await act(async () => {
+      await result.current.guardar(ELEGIDO);
+    });
+    expect(result.current.textoRechazado).toBeNull();
+  });
+
+  it('NC-10c: retirar no asigna textos a campos (no los envía)', async () => {
+    vi.mocked(cancelarReporte).mockRejectedValueOnce(
+      new ApiError(400, 'Algo', '/api/reportes/9', ['titulo'], 'TEXTO_NO_PERMITIDO'),
+    );
+    const { result } = renderHook(() => useEditarReporte(REPORTE));
+    await act(async () => {
+      await result.current.retirar();
+    });
+    expect(result.current.textoRechazado).toBeNull();
+    expect(result.current.error).toEqual({ mensaje: 'Algo', detalles: [] });
+  });
 });

@@ -1,8 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { AlertaError, Boton } from '@/components/ui/form';
+import { AlertaError, Boton, CLASE_CONTROL_INVALIDO, ErrorDelCampo } from '@/components/ui/form';
+import { errorDelCampo } from '@/lib/types/moderacion';
 import { useComentarios } from '../hooks/useComentarios';
+
+const ID_ERROR = 'comentario-publico-error';
 
 /**
  * US-27: comentarios publicos sobre un reporte resuelto.
@@ -20,6 +23,10 @@ import { useComentarios } from '../hooks/useComentarios';
  * (US-13), pero eso NO se muestra aqui ni viaja en la respuesta publica:
  * revelar que comentarios marca el detector permitiria sondear sus palabras
  * clave y manipular en que se fija el municipio.
+ *
+ * NC-10c: si la moderacion rechaza el comentario (400 `TEXTO_NO_PERMITIDO`),
+ * el texto se conserva y el mensaje del backend (que no repite la palabra) va
+ * en el campo mientras no se cambie.
  */
 export function Comentarios({
   reporteId,
@@ -29,8 +36,10 @@ export function Comentarios({
   /** `false` para visitantes sin sesion: ven los comentarios, no el formulario. */
   puedeComentar: boolean;
 }) {
-  const { cargando, comentarios, publicar, enviando, error } = useComentarios(reporteId);
+  const { cargando, comentarios, publicar, enviando, error, textoRechazado } =
+    useComentarios(reporteId);
   const [contenido, setContenido] = useState('');
+  const errorContenido = errorDelCampo(textoRechazado, 'contenido', contenido);
 
   async function enviar(evento: React.FormEvent) {
     evento.preventDefault();
@@ -79,8 +88,11 @@ export function Comentarios({
             value={contenido}
             onChange={(e) => setContenido(e.target.value)}
             placeholder="¿Pasaste por ahí? Cuéntanos si el daño quedó reparado o volvió a aparecer."
-            className="bg-superficie text-texto rounded-control border border-linea-campo px-3 py-2 text-sm"
+            aria-invalid={errorContenido ? true : undefined}
+            aria-describedby={errorContenido ? ID_ERROR : undefined}
+            className={`bg-superficie text-texto rounded-control border border-linea-campo px-3 py-2 text-sm ${CLASE_CONTROL_INVALIDO}`}
           />
+          {errorContenido && <ErrorDelCampo id={ID_ERROR} mensaje={errorContenido} />}
           <Boton cargando={enviando} disabled={!contenido.trim()}>
             Publicar comentario
           </Boton>

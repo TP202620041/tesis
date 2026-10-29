@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from 'react';
 import { AlertaError, Boton, Campo } from '@/components/ui/form';
 import { PREFERENCIAS_NOTIFICACION, type PreferenciaNotificacion, type Usuario } from '@/lib/types/domain';
+import { errorDelCampo } from '@/lib/types/moderacion';
 import { useConsentimientos } from '../hooks/useConsentimientos';
 import { useDistritosDeResidencia, usePerfil } from '../hooks/usePerfil';
 import { usePushEnEsteNavegador } from '../hooks/usePushEnEsteNavegador';
@@ -17,9 +18,12 @@ import { SelectorDeApariencia } from './SelectorDeApariencia';
  * US-30: el ciudadano edita sus datos, su foto y como quiere recibir avisos.
  * NC-07b: y revisa sus consentimientos (`textoLegal`: ver
  * {@link PrivacidadYConsentimientos}).
+ * NC-10c: si la moderacion rechaza el nombre o el apellido, el mensaje va en
+ * ese campo mientras no se cambie lo escrito.
  */
 export function EditarPerfil({ inicial, textoLegal }: { inicial: Usuario; textoLegal: ReactNode }) {
-  const { usuario, guardando, guardado, error, guardar, cambiarPreferencia } = usePerfil(inicial);
+  const { usuario, guardando, guardado, error, textoRechazado, guardar, cambiarPreferencia } =
+    usePerfil(inicial);
   const distritos = useDistritosDeResidencia();
   const consentimientos = useConsentimientos();
   const push = usePushEnEsteNavegador(consentimientos);
@@ -27,6 +31,8 @@ export function EditarPerfil({ inicial, textoLegal }: { inicial: Usuario; textoL
   const [apellido, setApellido] = useState(inicial.apellido);
   const [distritoId, setDistritoId] = useState<number | null>(inicial.distritoId ?? null);
   const [foto, setFoto] = useState<File | null>(null);
+  const errorNombre = errorDelCampo(textoRechazado, 'nombre', nombre) ?? undefined;
+  const errorApellido = errorDelCampo(textoRechazado, 'apellido', apellido) ?? undefined;
 
   async function alEnviar(evento: React.FormEvent) {
     evento.preventDefault();
@@ -63,6 +69,7 @@ export function EditarPerfil({ inicial, textoLegal }: { inicial: Usuario; textoL
           etiqueta="Nombre"
           required
           maxLength={100}
+          error={errorNombre}
           value={nombre}
           onChange={(e) => setNombre(e.target.value)}
         />
@@ -71,6 +78,7 @@ export function EditarPerfil({ inicial, textoLegal }: { inicial: Usuario; textoL
           etiqueta="Apellido"
           required
           maxLength={100}
+          error={errorApellido}
           value={apellido}
           onChange={(e) => setApellido(e.target.value)}
         />

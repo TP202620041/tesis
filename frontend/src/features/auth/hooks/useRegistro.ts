@@ -3,6 +3,7 @@
 import { useCallback, useState } from 'react';
 import { ApiError, mensajeDeError, type MensajeDeError } from '@/lib/api/errors';
 import type { CuentaPorConfirmar } from '@/lib/types/domain';
+import { textoRechazado as textoRechazadoDe, type TextoRechazado } from '@/lib/types/moderacion';
 import { registrar } from '../api';
 import { esCorreoRechazado } from '../model/confirmacion';
 import { esVersionDeTerminosNoVigente, VERSION_TERMINOS } from '../model/terminos';
@@ -44,17 +45,23 @@ export type ResultadoRegistro =
  * (correo y vigencia del enlace) para la pantalla «Revisa tu correo». Los
  * 409 del dominio del correo (`CORREO_DESECHABLE`, `DOMINIO_SIN_CORREO`) van
  * en `errorDelCorreo`, para mostrarlos en el campo, y no en `error`.
+ *
+ * NC-10c: el 400 `TEXTO_NO_PERMITIDO` del nombre o del apellido va en
+ * `textoRechazado` (campo, mensaje y lo que se envio), para el campo. El
+ * captcha sigue primero en el backend: sin token valido llega su 409 antes.
  */
 export function useRegistro() {
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<MensajeDeError | null>(null);
   const [errorDelCorreo, setErrorDelCorreo] = useState<string | null>(null);
+  const [textoRechazado, setTextoRechazado] = useState<TextoRechazado | null>(null);
   const [terminosDesactualizados, setTerminosDesactualizados] = useState(false);
 
   const enviar = useCallback(
     async (datos: DatosDeRegistro, captchaToken: string | null = null): Promise<ResultadoRegistro> => {
       setError(null);
       setErrorDelCorreo(null);
+      setTextoRechazado(null);
       setTerminosDesactualizados(false);
       setEnviando(true);
       try {
@@ -75,6 +82,14 @@ export function useRegistro() {
           setErrorDelCorreo(e.message);
           return { cuenta: null, terminosDesactualizados: false };
         }
+        const rechazo =
+          e instanceof ApiError
+            ? textoRechazadoDe(e, { nombre: datos.nombre, apellido: datos.apellido })
+            : null;
+        if (rechazo) {
+          setTextoRechazado(rechazo);
+          return { cuenta: null, terminosDesactualizados: false };
+        }
         const desactualizados = e instanceof ApiError && esVersionDeTerminosNoVigente(e.status, e.message);
         setError(mensajeDeError(e));
         setTerminosDesactualizados(desactualizados);
@@ -86,5 +101,5 @@ export function useRegistro() {
     [],
   );
 
-  return { enviando, error, errorDelCorreo, terminosDesactualizados, enviar };
+  return { enviando, error, errorDelCorreo, textoRechazado, terminosDesactualizados, enviar };
 }
