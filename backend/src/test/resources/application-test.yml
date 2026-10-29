@@ -33,6 +33,11 @@ security:
 # red. RegistroDominioCorreoIT simula el puerto; la lista de desechables se
 # aplica igual.
 #
+# Sin encabezado de origen (DEP-14), literal por la misma razon: un
+# ORIGEN_SECRETO del entorno no debe hacer que la suite reciba 403 en cada
+# peticion. PerfilProdIT y EncabezadoDeOrigenIT lo encienden con el perfil
+# prod (que va despues y gana) y un secreto de prueba.
+#
 # Primer ADMIN (DEP-04): vacio a proposito, aunque el entorno de quien corre
 # los tests defina ADMIN_INICIAL_*. El seeder del contexto no hace nada;
 # AdministradorInicialSeederIT lo instancia con los valores de cada caso.
@@ -53,6 +58,9 @@ app:
     falso:
       respuesta: "bache:0.87,grieta:0.30"
       version-modelo: falso-0
+  origen:
+    secreto: ninguno
+    secreto-anterior: ""
   admin-inicial:
     email: ""
     password: ""

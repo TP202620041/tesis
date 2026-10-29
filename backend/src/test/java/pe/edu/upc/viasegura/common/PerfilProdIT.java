@@ -21,6 +21,9 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.MockMvcBuilderCustomizer;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
 import org.springframework.core.env.Environment;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
@@ -60,6 +63,12 @@ import pe.edu.upc.viasegura.support.AbstractPostgisIT;
  * falta una variable. El puerto se simula ({@code lima.pe}, el dominio de los
  * correos de los IT, no existe en el DNS), y el registro ya no devuelve
  * sesion: los tests confirman la cuenta y entran por el login.</p>
+ *
+ * <p>DEP-14: en prod el API exige el encabezado de origen que agrega
+ * Cloudflare. Aqui cada peticion de {@link MockMvc} lo lleva, como si llegara
+ * por el proxy ({@link ComoSiLlegaraPorCloudflare}), asi que todos los casos
+ * de esta clase prueban tambien que con el encabezado el API funciona igual.
+ * Los rechazos sin el encabezado estan en {@code EncabezadoDeOrigenIT}.</p>
  */
 @ActiveProfiles("prod")
 @TestPropertySource(properties = {
@@ -74,8 +83,23 @@ import pe.edu.upc.viasegura.support.AbstractPostgisIT;
         "CAPTCHA_TIPO=ninguno",
         // NC-04b: obligatoria en prod; con `http`, tambien la URL.
         "CLASIFICACION_TIPO=http",
-        "CLASIFICACION_URL=http://127.0.0.1:1"})
+        "CLASIFICACION_URL=http://127.0.0.1:1",
+        // DEP-14: obligatoria en prod. Un valor de prueba evidente.
+        "ORIGEN_SECRETO=" + PerfilProdIT.SECRETO_DE_ORIGEN})
 class PerfilProdIT extends AbstractPostgisIT {
+
+    static final String SECRETO_DE_ORIGEN = "secreto-de-origen-de-prueba-0123456789";
+    private static final String ENCABEZADO_DE_ORIGEN = "X-Origen-Secreto";
+
+    /** DEP-14: cada peticion lleva el encabezado de origen, como si pasara por Cloudflare. */
+    @TestConfiguration
+    static class ComoSiLlegaraPorCloudflare {
+
+        @Bean
+        MockMvcBuilderCustomizer encabezadoDeOrigenEnCadaPeticion() {
+            return builder -> builder.defaultRequest(get("/").header(ENCABEZADO_DE_ORIGEN, SECRETO_DE_ORIGEN));
+        }
+    }
 
     private static final String SECRETO_PROPIO = secretoAleatorio();
 
@@ -156,6 +180,22 @@ class PerfilProdIT extends AbstractPostgisIT {
         // NC-09: en prod el registro consulta el MX sin que haga falta una
         // variable nueva (el perfil test dice `ninguno`; prod gana).
         assertThat(environment.getProperty("app.dominio-correo.tipo")).isEqualTo("dns");
+        // DEP-14: en prod el secreto de origen sale de ORIGEN_SECRETO, sin
+        // default (el perfil test dice `ninguno`; prod gana), y sin rotacion.
+        assertThat(environment.getProperty("app.origen.secreto")).isEqualTo(SECRETO_DE_ORIGEN);
+        assertThat(environment.getProperty("app.origen.secreto-anterior")).isEmpty();
+        assertThat(environment.getProperty("app.origen.encabezado")).isEqualTo(ENCABEZADO_DE_ORIGEN);
+    }
+
+    @Test
+    void conOtroSecretoDeOrigen_403AntesQueCualquierOtraRegla() throws Exception {
+        // El valor de la peticion reemplaza al de ComoSiLlegaraPorCloudflare.
+        // /api/categorias es publica: el 403 no es de Spring Security.
+        mockMvc.perform(get("/api/categorias")
+                        .header(ENCABEZADO_DE_ORIGEN, "secreto-equivocado-de-prueba-0123456789"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("Acceso denegado"));
+        mockMvc.perform(get("/api/categorias")).andExpect(status().isOk());
     }
 
     @Test

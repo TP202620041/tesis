@@ -229,6 +229,21 @@ app:
   # por coma; en dev, el servidor de desarrollo de Next (puerto 3000).
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
+  # Encabezado de origen (DEP-14): el API solo atiende las peticiones que
+  # pasaron por Cloudflare. Una Request Header Transform Rule agrega
+  # `encabezado` con el secreto, y common/security/EncabezadoDeOrigenFilter,
+  # antes que Spring Security, responde 403 a toda peticion que no lo traiga,
+  # salvo GET /actuator/health (el health check de Railway entra directo).
+  #   ninguno -> apagado: por defecto fuera de prod; en prod, el interruptor
+  #   otro    -> el secreto: 32 caracteres ASCII visibles o mas
+  #              (`openssl rand -hex 32`); mas corto o con espacios, no arranca
+  # En prod ORIGEN_SECRETO es obligatoria (application-prod.yml).
+  origen:
+    encabezado: X-Origen-Secreto
+    secreto: ${ORIGEN_SECRETO:ninguno}
+    # Solo durante una rotacion: el secreto viejo, que se sigue aceptando
+    # hasta que la Transform Rule envie el nuevo. Vacio fuera de una rotacion.
+    secreto-anterior: ${ORIGEN_SECRETO_ANTERIOR:}
 
 # Parametros de seguridad / JWT (leidos por JwtService)
 security:

@@ -116,7 +116,7 @@ Decisión del usuario (13/10), a partir de la observación del revisor en BE-04:
 ### [ ] BE-09 · (Opcional, después de BE-08) Partir `reportes`
 Si el tamaño lo justifica, separar `categorias` (CategoriaDano y su CRUD, US-29) y `participacion` (calificación, comentarios y reincidencia, US-26 y US-27). Requiere aprobación previa: mueve tablas de módulo y afecta `limpiezaFkSafe`.
 
-### [ ] BE-11 · La foto se sube fuera de la transacción de creación (S7)
+### [x] BE-11 · La foto se sube fuera de la transacción de creación (S7) (2026-10-28)
 Deuda de DEP-12 (`propuestas/2026-10-21-fotos-r2.md`, «La regla de §4.5…»). Es también la opción C de `propuestas/2026-10-22-refresco-indice-asincrono.md`. Hoy `ReporteService#crear` sanea y sube la foto a R2 **dentro** de su `@Transactional`, y retiene una conexión del pool durante la red (~100–500 ms).
 - La foto se sanea y se sube **sin transacción abierta**, antes de la transacción o después de ella con su compensación. No cambia el contrato del API.
 - Si la transacción se revierte, el objeto subido se borra en `afterCompletion`. Un reenvío idempotente (US-06) o una adhesión (US-09) no deja fotos huérfanas en el bucket.
@@ -125,6 +125,16 @@ Deuda de DEP-12 (`propuestas/2026-10-21-fotos-r2.md`, «La regla de §4.5…»).
 - un test con un `FotoStorageService` de prueba comprueba que no hay transacción activa al subir (`TransactionSynchronizationManager.isActualTransactionActive()`);
 - un IT de reversión deja el bucket sin el objeto;
 - Failsafe igual o mayor y ArchUnit en 0.
+
+**Cierre (2026-10-28, rama `feature/be-11-foto-fuera-de-transaccion`):**
+- `ReporteService#crear` ya no es `@Transactional`: lee el usuario y la clave de idempotencia en transacciones cortas, valida los campos, sanea la foto una sola vez y la sube sin transacción ni conexión tomada, y recién entonces abre la transacción (`TransactionTemplate`, inyectado como `TransactionOperations`). Rechaza correr dentro de otra transacción.
+- Puerto: `almacenarFotoReporteSaneada(FotoSaneada)` guarda tal cual la foto saneada y `eliminarFotoReporte` borra la que nadie usó. `SaneadorDeImagen#sanear` devuelve `common/port/FotoSaneada`; `FotoSaneadaSoloDelSaneadoTest` (ArchUnit, sin congelar) exige que en producción solo el saneado la construya. La de perfil la sigue saneando el adaptador.
+- `reportes/service/FotoProvisional`: la foto subida es una `TransactionSynchronization`; `afterCompletion` anota el desenlace y el borrado se hace al volver, ya sin conexión. Se borra si la transacción se revierte, no empieza o se confirma sin usarla (adhesión, reenvío idempotente que se cruzó); se conserva si la usa un reporte confirmado o si el desenlace es desconocido.
+- **Preparado para NC-10b:** el saneado y la subida son dos pasos separados en `crear`; la moderación va entre ellos, sobre `FotoSaneada` y sin transacción. NC-10b no tiene que agregar el método del puerto.
+- Cambio de comportamiento sin cambio de contrato: la foto se sanea también en una adhesión (un archivo que no es imagen da 409; sin turno o con R2 caído, 503), como pide NC-10b.
+- Aceptación: `FotoFueraDeTransaccionIT` (saneado, subida y borrado sin transacción ni recursos ligados al hilo; comprobado con un mutante que sube dentro de una transacción y lo hace fallar) y `FotoProvisionalTest`; reversión con el bucket sin el objeto en `S3FotoStorageServiceIT` (S3Mock) y en el IT local.
+- `mvn clean verify` con S3Mock (`FOTOS_S3_TEST_ENDPOINT`): Failsafe `completed` **493 → 502** (+7 `FotoFueraDeTransaccionIT`, +2 `S3FotoStorageServiceIT`), 0 errores, 0 fallos, 8 omitidos (los IT de servicios reales sin su variable). Surefire **458 → 487**. ArchUnit: 9 reglas en verde, almacén **0 → 0**. JaCoCo: instrucciones 93,1 %, ramas 84,5 %, líneas 93,6 %; `FotoProvisional` 24/24 líneas.
+- Queda: la foto de perfil todavía se sube dentro de la transacción de `AuthService#editarPerfil` (deuda del README). La prueba de carga de 16 creaciones se repite con BE-12.
 
 ### [ ] BE-12 · Refresco asíncrono y coalescido del índice de desempeño (S7)
 Decisión del usuario (25/10): opción A de `propuestas/2026-10-22-refresco-indice-asincrono.md`. Va junto con BE-11. Mientras no entre, producción corre con el pool en 20 (runbook §5.2).
@@ -161,6 +171,23 @@ Decisión del usuario (28/10), pregunta 2 de `propuestas/2026-10-28-cuentas-sin-
 - el correo de la cuenta borrada se puede volver a registrar;
 - la tarea es idempotente (una segunda corrida no borra nada) y registra cuántas borró;
 - Failsafe igual o mayor y ArchUnit en 0.
+
+### [x] DEP-14 · El API solo atiende peticiones que vienen de Cloudflare (2026-10-28, código; la activación en producción la hace el usuario con el runbook)
+Decisión del usuario (28/10), para la v0.8.0. `api.ciudadviva.app` pasa por el proxy de Cloudflare (WAF, regla «solo rutas de la app» y límite de escrituras), pero una petición con `Host: api.ciudadviva.app` enviada directo a la IP del borde de Railway respondía 200 en `/api/categorias`: se saltaba esas defensas, y el backend no limita por IP (SEC-05 en `backend/README.md`). La solución es la «HTTP Header Validation» que recomienda Cloudflare: una *Request Header Transform Rule* agrega un encabezado con un secreto y el origen rechaza lo que no lo trae.
+- `common/security/EncabezadoDeOrigenFilter`: filtro con la máxima precedencia (`EncabezadoDeOrigenConfig`, `FilterRegistrationBean` con `Ordered.HIGHEST_PRECEDENCE`), antes que Spring Security. Sin `X-Origen-Secreto` o con otro valor, 403 con el `ApiError` «Acceso denegado» de cualquier 403, sin pistas. Comparación en tiempo constante (`MessageDigest.isEqual` sobre bytes). Nunca registra el valor recibido ni el secreto.
+- Única excepción: `GET /actuator/health` exacto (el health check de Railway entra directo). El preflight CORS y las fotos de reporte pasan por Cloudflare y traen el encabezado.
+- `ORIGEN_SECRETO` es obligatoria en `prod`, sin valor por defecto, como `CAPTCHA_TIPO` y `CLASIFICACION_TIPO`. Sin ella, vacía, con menos de 32 caracteres o con caracteres que no son ASCII visibles, no arranca. `ninguno` es el interruptor para apagarlo a propósito (WARN en cada arranque en `prod`). Fuera de `prod` vale `ninguno`.
+- `ORIGEN_SECRETO_ANTERIOR`, opcional, para rotar el secreto sin cortar el servicio: durante la rotación se aceptan los dos.
+- El secreto lo genera y lo carga el usuario, en Cloudflare y en Railway. Los tests usan valores de prueba evidentes. El texto para el runbook (`docs/despliegue.md`) lo entrega el agente en su reporte; ese archivo lo edita la sesión de raíz.
+
+**Aceptación:**
+- un IT con el perfil `prod`: sin el encabezado, 403; con un valor equivocado, 403; con el valor correcto, pasa; `GET /actuator/health` sin el encabezado, 200;
+- el arranque en `prod` sin la variable o con un valor corto falla;
+- `PerfilProdIT` y los demás `Arranque*IT` con `prod` pasan la variable nueva;
+- unitarios del filtro;
+- Failsafe y Surefire iguales o mayores, ArchUnit en 0.
+
+**Cierre (2026-10-28):** commits `bd460fd` (filtro, configuración y tests), `673fbe0` (README: «Encabezado de origen (DEP-14)», SEC-05 y las variables; `.env.example`; `backend/CLAUDE.md`) y `24b629e` (observación de la revisión). Con `mvn clean verify`: Failsafe `completed` 493 → 515 (+22: `EncabezadoDeOrigenIT` 18, `ArranqueEncabezadoDeOrigenIT` 3, `PerfilProdIT` +1), 0 errores, 0 fallos, 14 omitidos (los mismos de antes); Surefire 458 → 525 (+67: `EncabezadoDeOrigenFilterTest` 51, `EncabezadoDeOrigenConfigTest` 16); ArchUnit en 0, sin cambios en el almacén. JaCoCo global: 93,3 % de instrucciones, 84,7 % de ramas y 93,8 % de líneas; las clases nuevas, al 100 % de instrucciones y ramas. Revisión: APTO CON OBSERVACIONES (métricas en la ficha, el texto del runbook en el reporte y la redacción de «primer filtro»), atendidas. Falta lo del usuario: la regla en Cloudflare, `ORIGEN_SECRETO` en Railway y el runbook, que lo edita la sesión de raíz.
 
 ---
 
@@ -399,7 +426,7 @@ No es migración, es funcionalidad. Se lista aquí para fijar **dónde** va cada
 | NC-08b | **Cloudflare Turnstile en lugar de reCAPTCHA v2** (decisión del usuario del 28/10: privacidad, costo y una CSP más simple). Reemplazo completo, **sin cambio de contrato**: `auth/infra/TurnstileAdapter` sustituye a `RecaptchaV2Adapter`, `CAPTCHA_TIPO` admite `turnstile` o `ninguno` y `CAPTCHA_SECRET` es la clave secreta de Turnstile. Ficha abajo. | §4.1 (`auth/infra`), §4.5, D-13 | NC-08 |
 | NC-09 | **El correo es verídico al crear la cuenta y la cuenta se confirma por correo**, pedido por el usuario el 28/10. Decisiones del usuario (28/10): (1) **una cuenta sin confirmar no puede iniciar sesión** hasta abrir el enlace del correo; (2) **las cuentas que ya existen se dan por confirmadas** (la migración las marca así: en producción hay usuarios reales y ninguno debe quedar fuera); (3) **el registro rechaza el correo** si su dominio no recibe correo (sin MX en el DNS) o es un desechable conocido, según una lista fija versionada. **Backend:** V20 (`usuario.correo_confirmado`, existentes `true` y nuevas `false`, y `correo_confirmado_en`; tabla `token_confirmacion_correo` con el SHA-256 del token, un solo uso, 24 h, `invalidated_at`). El registro ya no devuelve sesión (201 `RegistroResponse`); `POST /api/auth/confirmar-correo` (204, no inicia sesión) y `POST /api/auth/reenviar-confirmacion` (202 siempre; uno por minuto, 5 por hora y 10 por día por cuenta, con candado consultivo); el login con contraseña correcta y sin confirmar da 409 `CORREO_NO_CONFIRMADO` (`BusinessException` suma un `codigo` opcional). Correo por `CorreoSaliente` con evento y listener `AFTER_COMMIT` asíncrono (D-13); el token lo genera el hilo que envía y solo se guarda su hash. Dominio: puerto `auth/port/VerificadorDeDominioDeCorreo` con `auth/infra/DnsVerificadorDeDominioAdapter` (JNDI, plazo de 3 s, falla abierto; `dns` por defecto en `prod`, sin variable obligatoria nueva) y `SinVerificacionDeDominioAdapter` (`ninguno`, fuera de `prod` y en los tests); lista CC0 `disposable-email-domains` en `resources/data/` (regla pura en `auth/domain/DominiosDesechables`, subdominios incluidos). El ADMIN inicial y el seed de desarrollo nacen confirmados. **Frontend:** handoff `handoffs/2026-10-28-confirmacion-correo.md` (pantalla «revisa tu correo», `/confirmar-cuenta`, reenviar en el login); se fusiona con el backend en la misma versión. | §4.1 (`auth/port`, `auth/infra`, `auth/listener`), §4.5, D-13 | NC-08 |
 | NC-09c | **Pedir de nuevo el enlace de confirmación desde «¿Olvidaste tu contraseña?»**. Decisión del usuario del 28/10: opción C de `propuestas/2026-10-28-reenviar-confirmacion-sin-contrasena.md`. Desde NC-09b la recuperación no envía nada a una cuenta sin confirmar, y quien no confirmó y olvidó la contraseña no tenía salida. **Solo frontend**, sin cambio de contrato ni de backend: tras pedir el token, el mensaje genérico suma el aviso y «Reenviar el enlace» (`ReenviarConfirmacion`, `POST /api/auth/reenviar-confirmacion`) con el correo escrito; se muestra siempre, así que no revela nada. | §5 | NC-09b |
-| NC-10a | **Moderación de la foto en `inferencia/`:** `POST /v1/moderacion` con Marqo `nsfw-image-detection-384` en ONNX (Apache-2.0). Ficha abajo. | §6, §7, D-15 | NC-09 (hecha). Decidida el 28/10 (`propuestas/2026-10-28-moderacion-de-contenido.md`); entra en la v0.8.0 |
+| NC-10a | **Moderación de la foto en `inferencia/`:** `POST /v1/moderacion` con Marqo `nsfw-image-detection-384` en ONNX (Apache-2.0). Ficha abajo. | §6, §7, D-15 | NC-09 (hecha). Decidida el 28/10 (`propuestas/2026-10-28-moderacion-de-contenido.md`); entra en la v0.8.0. **Hecha** el 28/10 (rama `feature/nc-10a-moderacion-inferencia`, PR pendiente): estado y cifras al comienzo de la ficha. |
 | NC-10b | **Moderación en el backend:** módulo `moderacion` (puerto de foto y filtro de groserías). Rechaza la foto y el texto al crear y editar, y avisa en la vista previa. Falla cerrado (decidido el 28/10). Ficha abajo. | §4.1, §4.3, §4.5, D-13, D-08, D-15 | NC-10a en `develop` y BE-11 |
 | NC-10c | **Moderación en la PWA:** los avisos de foto y texto, el 503 con la cola y la vista previa. Ficha abajo. | §5 | NC-10b en `develop` (handoff) |
 | NC-11a | **Ocultar y denunciar, en el backend** (`reportes`): migración, rutas del ADMIN y del CIUDADANO, y la visibilidad de lo oculto. El reporte oculto sale del índice, de la exportación y de la bandeja (decidido el 28/10). Ficha abajo. | §4.3, §8, D-15 | NC-10b (mismo carril) |
@@ -469,6 +496,39 @@ No es migración, es funcionalidad. Se lista aquí para fijar **dónde** va cada
 **Orden:** va **después de NC-09** (confirmación del correo, ya fusionada en `develop`). Las piezas van en este orden de dependencia: NC-10a → NC-10b → NC-10c. NC-10b necesita además BE-11 (la foto se sube fuera de la transacción). En producción, el backend con `MODERACION_TIPO=http` se despliega solo después de DEP-13 y de NC-10a.
 
 #### NC-10a · `inferencia/`: `POST /v1/moderacion`
+
+**Hecha (2026-10-28, rama `feature/nc-10a-moderacion-inferencia`, PR pendiente).** La sesión de la tarea escribió este estado por pedido del coordinador; la sesión de raíz lo confirma al fusionar.
+- **Contrato:** `POST /v1/moderacion` → `{"version_modelo": "nsfw-vit-tiny-384-0c26ec2-1ba7cf26", "puntaje": …}`, con los errores y la validación de `/v1/detecciones` (la validación es una sola clase, `application/ValidacionDeImagen`). `/salud` suma `version_moderacion`.
+- **Handoff:** `handoffs/2026-10-28-contrato-moderacion-v1.md`, en estado `pendiente`. El nombre lo fijó el coordinador; reemplaza al `AAAA-MM-DD-contrato-inferencia-moderacion.md` de la aceptación.
+- **El tope de conexiones es compartido:** `--limit-concurrency 10` cuenta los dos endpoints y `/salud`. Se comprobó contra el contenedor: con 4 + 4 conexiones keep-alive abiertas, la novena se atiende; con 9 abiertas, la décima recibe 503 en cualquier endpoint. Los 4 + 4 turnos del backend caben con margen de una.
+- **Exportación y paridad,** dentro de Docker, en la etapa `exportador` (timm 1.0.30): el `.onnx` pesa 22 489 929 bytes y su sha256 es `1ba7cf26…ed402e`. Paridad con timm sobre 11 imágenes sintéticas (20 recortes):
+  - puntajes, 2,0 × 10⁻⁷;
+  - logits, 2,2 × 10⁻⁶;
+  - preprocesado, idéntico (0).
+
+  La exportación es reproducible byte a byte, y el hash de RF-DETR no cambió.
+- **Preprocesado:** dos recortes y el máximo. Una foto más alargada que 2:1 se comprime a 768 para que los dos recortes la cubran entera (ver «Dudas» abajo).
+- **Medición** en Docker con `--cpus=2` (README, «Cifras medidas con la moderación»):
+  - RAM en reposo con los dos modelos: 210–335 MiB.
+  - RAM máxima con 4 clientes mezclados:
+    - 388–390 MiB con fotos saneadas, que es lo que envía el backend;
+    - 498–507 MiB con fotos crudas de 8 MP;
+    - 755–858 MiB en el tope de 16 MP del servicio, por encima de 700 pero por debajo de 1 GB (ver «Dudas»).
+  - Antes de sumar `MALLOC_ARENA_MAX=2` y `MALLOC_MMAP_THRESHOLD_` a la imagen, el caso de 8 MP llegaba a 845–847 MiB.
+  - `/v1/moderacion` sola: p50 124 ms y p95 259 ms, con 350 fotos saneadas.
+  - Con 4 clientes mezclados y fotos saneadas: p50 229–255 ms y p95 1194–1228 ms.
+- **Calibración** con 350 fotos negativas de RDD2022, 50 por país: mediana 0,059 y máximo 0,112. La regla da el piso de 0,50, y el script lo marca como provisional porque faltan las partes `--gente` y `--lima`. **Se recomienda mantener 0,70** hasta sumar las ≥ 50 fotos de calles con gente y las de Lima, que no existen todavía.
+- **Pruebas:** `pytest`, 133 → **264 ejecutados** sin pesos (9 omitidos, todos de `test_modelo_real.py`); 273 de 273 con los dos modelos. `lint-imports`: 3 contratos, 0 rotos. `MIN_PYTEST_INFERENCIA` lo sube la sesión de raíz al fusionar.
+- **Revisión del 28/10** (`revisor-arquitectura`): **APTO con observaciones**, sin hallazgos bloqueantes ni importantes. Las cuatro menores se atendieron en un commit aparte:
+  - la cifra de RAM, alineada en todos los documentos;
+  - el docstring del limitador (4 imágenes decodificadas a la vez) y la medición en el tope de 16 MP;
+  - los avisos por cada parte del conjunto de calibración;
+  - el comando reproducible para el entorno de exportación.
+- **Dudas para el usuario:**
+  - **Fotos más alargadas que 2:1:** se comprimen a 768 para que los dos recortes las cubran, un caso que la decisión de «dos recortes» no contemplaba. La alternativa que señaló la revisión es hasta 3 o 4 recortes y comprimir solo por encima de 3:1 o 4:1.
+  - **Tope de `INFERENCIA_MAX_MEGAPIXELES`:** bajarlo de 16 a 8 dejaría el peor caso de RAM en ~510 MiB. Cambia el 413 de los dos endpoints, aunque el backend nunca envía más de 4,2 MP.
+  - **Calibración pendiente:** completar el conjunto. Conviene que la sesión de raíz lo deje como tarea propia, o dentro de NC-03b.
+
 - **Modelo:**
   - `Marqo/nsfw-image-detection-384`, revisión `0c26ec22111b83f106d72a55f611ec35962bcb65` (Apache-2.0; `vit_tiny_patch16_384`, 5,6 M de parámetros);
   - se exporta a ONNX en la etapa `exportador` del `Dockerfile` (`timm` fijado en `requirements-exportar.txt`), con el hash registrado en `modelos/moderacion.json` y `--comprobar`, como RF-DETR;

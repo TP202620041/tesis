@@ -12,6 +12,7 @@ from app.infrastructure.configuracion import DIR_MODELO_POR_DEFECTO, Configuraci
 def test_valores_por_defecto():
     c = Configuracion.desde_entorno({})
     assert c.hilos == 2
+    assert c.hilos_moderacion == 1  # INFERENCIA_MODERACION_HILOS: fijo, deja la otra vCPU a RF-DETR
     assert c.limites.max_bytes == 10 * 1024 * 1024  # el mismo máximo que el backend (10 MB)
     assert c.limites.max_pixeles == 16_000_000
     assert c.confianza_minima == pytest.approx(0.10)
@@ -24,6 +25,7 @@ def test_lee_cada_variable():
     c = Configuracion.desde_entorno(
         {
             "INFERENCIA_HILOS": "4",
+            "INFERENCIA_MODERACION_HILOS": "3",
             "INFERENCIA_MAX_BYTES": "1000",
             "INFERENCIA_MAX_MEGAPIXELES": "2.5",
             "INFERENCIA_CONFIANZA_MINIMA": "0.05",
@@ -32,6 +34,7 @@ def test_lee_cada_variable():
         }
     )
     assert (c.hilos, c.limites.max_bytes, c.limites.max_pixeles) == (4, 1000, 2_500_000)
+    assert c.hilos_moderacion == 3
     assert (c.confianza_minima, c.max_detecciones, c.dir_modelo) == (0.05, 7, Path("/opt/modelos"))
 
 
@@ -44,6 +47,8 @@ def test_una_variable_vacia_usa_el_valor_por_defecto():
     [
         ("INFERENCIA_HILOS", "0"),
         ("INFERENCIA_HILOS", "dos"),
+        ("INFERENCIA_MODERACION_HILOS", "0"),
+        ("INFERENCIA_MODERACION_HILOS", "uno"),
         ("INFERENCIA_MAX_BYTES", "-1"),
         ("INFERENCIA_CONFIANZA_MINIMA", "1.5"),
         ("INFERENCIA_CONFIANZA_MINIMA", "alta"),
