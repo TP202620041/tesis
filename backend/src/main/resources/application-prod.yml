@@ -4,8 +4,8 @@
 #
 # Obligatorias y SIN valor por defecto: DB_URL, DB_USERNAME, DB_PASSWORD,
 # CORS_ALLOWED_ORIGINS, FOTOS_ALMACEN, CORREO_TIPO, NOTIF_FROM, CAPTCHA_TIPO,
-# CLASIFICACION_TIPO y JWT_SECRET (este ultimo desde application.yml,
-# SEC-03). Con FOTOS_ALMACEN=s3, tambien FOTOS_S3_* (las valida
+# CLASIFICACION_TIPO, ORIGEN_SECRETO y JWT_SECRET (este ultimo desde
+# application.yml, SEC-03). Con FOTOS_ALMACEN=s3, tambien FOTOS_S3_* (las valida
 # S3FotoStorageService); con FOTOS_ALMACEN=local, FOTOS_DIR (la imagen ya
 # trae /data/fotos). Con CORREO_TIPO=resend, tambien CORREO_API_KEY (la
 # valida ResendCorreoAdapter). Con CAPTCHA_TIPO=recaptcha, tambien
@@ -68,6 +68,16 @@ app:
     # que corresponde a produccion y no depende de ninguna clave. Falla
     # abierto si el DNS no responde. DOMINIO_CORREO_TIPO=ninguno la apaga.
     tipo: ${DOMINIO_CORREO_TIPO:dns}
+  origen:
+    # DEP-14: el secreto que la Transform Rule de Cloudflare agrega en
+    # X-Origen-Secreto. Sin default: con el `ninguno` de desarrollo, el API
+    # volveria a atender las peticiones que se saltan Cloudflare (su WAF y su
+    # limite de peticiones) sin que nada lo advierta. `ninguno` es el
+    # interruptor para apagarlo a proposito (deja un WARN al arrancar).
+    secreto: ${ORIGEN_SECRETO}
+    # Solo durante una rotacion: el secreto viejo, aceptado hasta que la
+    # Transform Rule envie el nuevo (README). Vacia fuera de una rotacion.
+    secreto-anterior: ${ORIGEN_SECRETO_ANTERIOR:}
   notificaciones:
     # Remitente de todos los correos, de un dominio verificado en Resend
     # (p. ej. "Ciudad Viva <no-reply@<dominio>>"). Sin default: el de

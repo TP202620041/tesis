@@ -172,6 +172,23 @@ Decisión del usuario (28/10), pregunta 2 de `propuestas/2026-10-28-cuentas-sin-
 - la tarea es idempotente (una segunda corrida no borra nada) y registra cuántas borró;
 - Failsafe igual o mayor y ArchUnit en 0.
 
+### [x] DEP-14 · El API solo atiende peticiones que vienen de Cloudflare (2026-10-28, código; la activación en producción la hace el usuario con el runbook)
+Decisión del usuario (28/10), para la v0.8.0. `api.ciudadviva.app` pasa por el proxy de Cloudflare (WAF, regla «solo rutas de la app» y límite de escrituras), pero una petición con `Host: api.ciudadviva.app` enviada directo a la IP del borde de Railway respondía 200 en `/api/categorias`: se saltaba esas defensas, y el backend no limita por IP (SEC-05 en `backend/README.md`). La solución es la «HTTP Header Validation» que recomienda Cloudflare: una *Request Header Transform Rule* agrega un encabezado con un secreto y el origen rechaza lo que no lo trae.
+- `common/security/EncabezadoDeOrigenFilter`: filtro con la máxima precedencia (`EncabezadoDeOrigenConfig`, `FilterRegistrationBean` con `Ordered.HIGHEST_PRECEDENCE`), antes que Spring Security. Sin `X-Origen-Secreto` o con otro valor, 403 con el `ApiError` «Acceso denegado» de cualquier 403, sin pistas. Comparación en tiempo constante (`MessageDigest.isEqual` sobre bytes). Nunca registra el valor recibido ni el secreto.
+- Única excepción: `GET /actuator/health` exacto (el health check de Railway entra directo). El preflight CORS y las fotos de reporte pasan por Cloudflare y traen el encabezado.
+- `ORIGEN_SECRETO` es obligatoria en `prod`, sin valor por defecto, como `CAPTCHA_TIPO` y `CLASIFICACION_TIPO`. Sin ella, vacía, con menos de 32 caracteres o con caracteres que no son ASCII visibles, no arranca. `ninguno` es el interruptor para apagarlo a propósito (WARN en cada arranque en `prod`). Fuera de `prod` vale `ninguno`.
+- `ORIGEN_SECRETO_ANTERIOR`, opcional, para rotar el secreto sin cortar el servicio: durante la rotación se aceptan los dos.
+- El secreto lo genera y lo carga el usuario, en Cloudflare y en Railway. Los tests usan valores de prueba evidentes. El texto para el runbook (`docs/despliegue.md`) lo entrega el agente en su reporte; ese archivo lo edita la sesión de raíz.
+
+**Aceptación:**
+- un IT con el perfil `prod`: sin el encabezado, 403; con un valor equivocado, 403; con el valor correcto, pasa; `GET /actuator/health` sin el encabezado, 200;
+- el arranque en `prod` sin la variable o con un valor corto falla;
+- `PerfilProdIT` y los demás `Arranque*IT` con `prod` pasan la variable nueva;
+- unitarios del filtro;
+- Failsafe y Surefire iguales o mayores, ArchUnit en 0.
+
+**Cierre (2026-10-28):** commits `bd460fd` (filtro, configuración y tests), `673fbe0` (README: «Encabezado de origen (DEP-14)», SEC-05 y las variables; `.env.example`; `backend/CLAUDE.md`) y `24b629e` (observación de la revisión). Con `mvn clean verify`: Failsafe `completed` 493 → 515 (+22: `EncabezadoDeOrigenIT` 18, `ArranqueEncabezadoDeOrigenIT` 3, `PerfilProdIT` +1), 0 errores, 0 fallos, 14 omitidos (los mismos de antes); Surefire 458 → 525 (+67: `EncabezadoDeOrigenFilterTest` 51, `EncabezadoDeOrigenConfigTest` 16); ArchUnit en 0, sin cambios en el almacén. JaCoCo global: 93,3 % de instrucciones, 84,7 % de ramas y 93,8 % de líneas; las clases nuevas, al 100 % de instrucciones y ramas. Revisión: APTO CON OBSERVACIONES (métricas en la ficha, el texto del runbook en el reporte y la redacción de «primer filtro»), atendidas. Falta lo del usuario: la regla en Cloudflare, `ORIGEN_SECRETO` en Railway y el runbook, que lo edita la sesión de raíz.
+
 ---
 
 ## Frontend
