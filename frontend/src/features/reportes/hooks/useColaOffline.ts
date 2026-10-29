@@ -18,6 +18,7 @@ import {
   type EstadoVisible,
   type ReporteEnCola,
 } from '../model/colaOffline';
+import { motivoDeRechazoEnLaCola } from '../model/moderacion';
 import { errorDelTitulo, MENSAJE_SIN_SEVERIDAD } from '../model/titulo';
 import type { NuevoReporte, ReporteCreado } from '../model/tipos';
 
@@ -135,6 +136,10 @@ const enCurso = new Map<
  *   pero sin borrar el token; se reenvia tras aceptar los terminos.
  * - Otro 4xx: se marca `rechazado` con el motivo y se sigue con el resto.
  *   Nunca se borra: un 400 de validacion tampoco saca un reporte de la cola.
+ *   NC-10c: los 400 de la moderacion (`FOTO_NO_PERMITIDA`,
+ *   `TEXTO_NO_PERMITIDO`) tambien, con un motivo que dice que hacer en la
+ *   cola ({@link motivoDeRechazoEnLaCola}). El 503 `MODERACION_NO_DISPONIBLE`
+ *   es un 5xx: sigue pendiente, con la misma clave.
  *
  * **Nunca envia con la sesion de otro:** `generacionEsperada` es la
  * generacion de sesion en la que se identifico a `usuarioId` (la devuelve
@@ -200,7 +205,7 @@ async function sincronizar(
       if (desenlace === 'rechazado') {
         await deps.almacen.marcarRechazado(
           enCola.idempotencyKey,
-          e instanceof Error ? e.message : null,
+          e instanceof ApiError ? motivoDeRechazoEnLaCola(e) : e instanceof Error ? e.message : null,
         );
         continue;
       }

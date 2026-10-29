@@ -1,15 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { distritoPorCoordenadas, listarCategorias } from '@/lib/api/catalogos';
+import { ApiError, NetworkError } from '@/lib/api/errors';
 import type { CategoriaDano, Distrito } from '@/lib/types/domain';
-import { crearReporte } from '../api';
+import { clasificarFoto, crearReporte } from '../api';
 import { useEncolarReporte } from '../hooks/useColaOffline';
 import type { ReporteCreado } from '../model/tipos';
 import { NuevoReporte } from './NuevoReporte';
 
 vi.mock('next/dynamic', () => ({ default: () => () => null }));
-vi.mock('../api', () => ({ crearReporte: vi.fn() }));
+vi.mock('../api', () => ({ crearReporte: vi.fn(), clasificarFoto: vi.fn() }));
 vi.mock('@/lib/api/catalogos', () => ({ distritoPorCoordenadas: vi.fn(), listarCategorias: vi.fn() }));
 vi.mock('../hooks/useColaOffline', () => ({ useEncolarReporte: vi.fn() }));
 
@@ -26,6 +27,7 @@ const RESPUESTA: ReporteCreado = {
 
 beforeEach(() => {
   vi.mocked(useEncolarReporte).mockReturnValue(vi.fn());
+  vi.mocked(clasificarFoto).mockResolvedValue({ fotoNoPermitida: false, sugerencia: null });
   vi.mocked(listarCategorias).mockResolvedValue([{ id: 3, nombre: 'Bache', esEstandar: true } as CategoriaDano]);
   vi.mocked(distritoPorCoordenadas).mockResolvedValue({ id: 1, nombre: 'Miraflores' } as Distrito);
   vi.stubGlobal('navigator', {
@@ -92,5 +94,58 @@ describe('NuevoReporte: confirmación con título y severidad (NC-02)', () => {
     await reportar();
 
     expect(await screen.findByText('Sin título')).toBeInTheDocument();
+  });
+});
+
+describe('NuevoReporte: pendiente de envío (US-06, NC-10c)', () => {
+  beforeEach(() => {
+    // jsdom no implementa las URL `blob:` de la vista previa de la foto.
+    Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:x'), revokeObjectURL: vi.fn() });
+  });
+
+  afterEach(() => {
+    // Primero se desmonta: la vista previa llama a `revokeObjectURL` al limpiarse.
+    cleanup();
+    const urlMutable = URL as unknown as Record<string, unknown>;
+    delete urlMutable.createObjectURL;
+    delete urlMutable.revokeObjectURL;
+  });
+
+  it('sin conexión dice que no hay conexión', async () => {
+    vi.mocked(crearReporte).mockRejectedValue(new NetworkError());
+    vi.mocked(useEncolarReporte).mockReturnValue(vi.fn().mockResolvedValue(undefined));
+    await reportar();
+
+    expect(await screen.findByText('Pendiente de envío')).toBeInTheDocument();
+    expect(screen.getByText(/^No hay conexión, así que tu reporte quedó/)).toBeInTheDocument();
+  });
+
+  it('guardado porque no se pudo revisar la foto: no dice «No hay conexión»', async () => {
+    const encolar = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(useEncolarReporte).mockReturnValue(encolar);
+    vi.mocked(crearReporte).mockRejectedValue(
+      new ApiError(503, 'No pudimos revisar la foto…', '/api/reportes', [], 'MODERACION_NO_DISPONIBLE'),
+    );
+    const usuario = userEvent.setup();
+    render(<NuevoReporte usuarioId={7} />);
+    await usuario.upload(
+      screen.getByLabelText('Foto del daño (opcional)'),
+      new File(['x'], 'bache.jpg', { type: 'image/jpeg' }),
+    );
+    await usuario.click(screen.getByRole('button', { name: 'Usar mi ubicación (GPS)' }));
+    await screen.findByText('Municipalidad de Miraflores');
+    await usuario.selectOptions(screen.getByLabelText('Tipo de daño'), '3');
+    await usuario.type(screen.getByLabelText('Título'), 'Bache profundo');
+    await usuario.click(screen.getByRole('radio', { name: 'Alta' }));
+    await usuario.click(screen.getByRole('button', { name: 'Enviar reporte' }));
+
+    await usuario.click(await screen.findByRole('button', { name: 'Guardar para enviar después' }));
+
+    expect(await screen.findByText('Pendiente de envío')).toBeInTheDocument();
+    expect(
+      screen.getByText(/^No pudimos revisar la foto en este momento, así que tu reporte quedó/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/No hay conexión/)).not.toBeInTheDocument();
+    expect(encolar).toHaveBeenCalledTimes(1);
   });
 });

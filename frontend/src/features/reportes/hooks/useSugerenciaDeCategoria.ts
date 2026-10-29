@@ -1,16 +1,24 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react';
 import { ApiError, mensajeDeError } from '@/lib/api/errors';
 import { clasificarFoto } from '../api';
 import {
   ESPERA_MAXIMA_DE_SUGERENCIA_MS,
+  type ClasificacionDeLaFoto,
   type EstadoDeSugerencia,
 } from '../model/sugerencia';
 
 const INACTIVA: EstadoDeSugerencia = { estado: 'inactiva' };
 const ANALIZANDO: EstadoDeSugerencia = { estado: 'analizando' };
 const SIN_SUGERENCIA: EstadoDeSugerencia = { estado: 'lista', sugerencia: null };
+const FOTO_NO_PERMITIDA: EstadoDeSugerencia = { estado: 'foto-no-permitida' };
+
+function estadoDe(clasificacion: ClasificacionDeLaFoto): EstadoDeSugerencia {
+  return clasificacion.fotoNoPermitida
+    ? FOTO_NO_PERMITIDA
+    : { estado: 'lista', sugerencia: clasificacion.sugerencia };
+}
 
 /** Resultado de la vista previa de UNA foto: se descarta si la foto ya no es esa. */
 interface Resultado {
@@ -41,11 +49,24 @@ interface Resultado {
  *   cancelado (la respuesta ya había llegado) o la foto cambió entretanto, no
  *   hace nada: nunca se pide dos veces lo que ya se tiene.
  *
+ * - NC-10c: si la moderación rechaza la foto (`fotoRechazada: true`), el
+ *   estado es `foto-no-permitida` y se llama a `alNoPermitirLaFoto` con ESA
+ *   foto, una sola vez, para que el formulario la quite. Solo con la respuesta
+ *   vigente: una foto ya cambiada, una vista previa descartada o un
+ *   formulario desmontado no avisan nada.
+ *
  * No va sobre `useCarga`: sus dependencias se comparan por JSON (un `File`
  * serializa como `{}`, así que dos fotos distintas serían iguales), no cancela
  * la petición y traduce todo error a un mensaje, sin el `status`.
  */
-export function useSugerenciaDeCategoria(foto: File | null) {
+export function useSugerenciaDeCategoria(
+  foto: File | null,
+  alNoPermitirLaFoto?: (foto: File) => void,
+) {
+  // Un evento del efecto: siempre llama a la versión vigente del callback sin
+  // que el efecto dependa de él (si dependiera, cada render del formulario
+  // volvería a pedir la vista previa).
+  const avisarFotoNoPermitida = useEffectEvent((rechazada: File) => alNoPermitirLaFoto?.(rechazada));
   const [resultado, setResultado] = useState<Resultado | null>(null);
   // Sube solo con `reanudar()`: vuelve a correr el efecto con la misma foto.
   const [intento, setIntento] = useState(0);
@@ -65,18 +86,17 @@ export function useSugerenciaDeCategoria(foto: File | null) {
     let vigente = true;
 
     void clasificarFoto(foto, control.signal)
-      .then(
-        (sugerencia): EstadoDeSugerencia => ({ estado: 'lista', sugerencia }),
-        (e: unknown): EstadoDeSugerencia =>
-          e instanceof ApiError && e.status === 409
-            ? { estado: 'foto-rechazada', mensaje: mensajeDeError(e).mensaje }
-            : SIN_SUGERENCIA,
+      .then(estadoDe, (e: unknown): EstadoDeSugerencia =>
+        e instanceof ApiError && e.status === 409
+          ? { estado: 'foto-rechazada', mensaje: mensajeDeError(e).mensaje }
+          : SIN_SUGERENCIA,
       )
       .then((estado) => {
         clearTimeout(espera);
         if (!vigente || enCurso.current?.control !== control) return;
         enCurso.current = null;
         setResultado({ foto, estado });
+        if (estado.estado === 'foto-no-permitida') avisarFotoNoPermitida(foto);
       });
 
     return () => {

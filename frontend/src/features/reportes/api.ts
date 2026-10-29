@@ -6,7 +6,7 @@ import {
   type HistorialEntrada,
   type Severidad,
 } from '@/lib/types/domain';
-import { sugerenciaDeRespuesta, type SugerenciaDeCategoria } from './model/sugerencia';
+import { clasificacionDeRespuesta, type ClasificacionDeLaFoto } from './model/sugerencia';
 import type {
   Calificacion,
   ComentarioPublico,
@@ -270,11 +270,13 @@ export async function crearReporte(
  *   lleva al login como siempre.
  * - Errores: 409 = la foto no es una imagen válida (el mismo mensaje que al
  *   crear el reporte). Los demás los traduce el hook a «sin sugerencia».
+ * - NC-10c: con `fotoRechazada: true` la moderación rechazó la foto, y no hay
+ *   sugerencia ({@link clasificacionDeRespuesta}).
  */
 export async function clasificarFoto(
   foto: File,
   signal?: AbortSignal,
-): Promise<SugerenciaDeCategoria | null> {
+): Promise<ClasificacionDeLaFoto> {
   const cuerpo = new FormData();
   cuerpo.append('foto', foto);
   // Sin `json`: el navegador fija el Content-Type con el boundary del multipart.
@@ -284,5 +286,5 @@ export async function clasificarFoto(
     signal,
     redirigirEn401: false,
   });
-  return sugerenciaDeRespuesta(respuesta);
+  return clasificacionDeRespuesta(respuesta);
 }

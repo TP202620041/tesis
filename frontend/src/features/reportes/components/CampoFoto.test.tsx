@@ -196,3 +196,24 @@ describe('CampoFoto: la foto que rechazó el servidor (NC-04)', () => {
     expect(screen.getByLabelText('Foto del daño (opcional)')).not.toHaveAttribute('aria-invalid');
   });
 });
+
+describe('CampoFoto: la foto que no permitió la moderación (NC-10c)', () => {
+  const NO_PERMITIDA = 'La foto no está permitida. Toma otra.';
+
+  it('el aviso se ve sin la foto (ya quitada) y describe el campo, que no queda inválido', () => {
+    render(<CampoFoto valor={null} onCambiar={vi.fn()} noPermitida={NO_PERMITIDA} />);
+
+    const aviso = screen.getByRole('alert');
+    expect(aviso).toHaveTextContent(NO_PERMITIDA);
+    const campo = screen.getByLabelText('Foto del daño (opcional)');
+    expect(campo).toHaveAccessibleDescription(`${NO_PERMITIDA} JPG, PNG o WEBP, de hasta 10 MB.`);
+    // La foto es opcional: el reporte se puede enviar sin ella.
+    expect(campo).not.toHaveAttribute('aria-invalid');
+    expect(screen.getByRole('button', { name: 'Tomar o elegir una foto' })).toBeInTheDocument();
+  });
+
+  it('sin aviso no se muestra nada', () => {
+    render(<CampoFoto valor={null} onCambiar={vi.fn()} noPermitida={null} />);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+});

@@ -208,6 +208,83 @@ describe('sincronizarCola', () => {
     expect(await claves()).toEqual([]);
   });
 
+  describe('la moderación (NC-10c)', () => {
+    const conFoto = () => new File(['bytes'], 'bache.jpg', { type: 'image/jpeg' });
+
+    it('400 FOTO_NO_PERMITIDA: queda rechazado con un motivo que se puede seguir, y sigue con el resto', async () => {
+      await encolar('k1', ANA, en(0), conFoto());
+      await encolar('k2', ANA, en(1));
+      const enviar = vi
+        .fn()
+        .mockRejectedValueOnce(
+          new ApiError(400, 'La foto no está permitida. Toma otra.', '/api/reportes', ['foto'], 'FOTO_NO_PERMITIDA'),
+        )
+        .mockResolvedValueOnce(creado(44));
+
+      const resultado = await sincronizarCola(ANA, 1, undefined, deps(enviar, { ahora: en(2) }));
+
+      expect(resultado).toEqual({ enviados: [creado(44)], detenidaPor: null });
+      const cola = await colaDeReportes.listar();
+      expect(cola).toHaveLength(1);
+      expect(cola[0]).toMatchObject({
+        idempotencyKey: 'k1',
+        estado: 'rechazado',
+        motivo:
+          'La foto no está permitida. Descártalo y vuelve a reportar el daño con otra foto o sin ella.',
+      });
+      // Se conserva (con su foto) hasta que el ciudadano lo descarte.
+      expect(cola[0]?.foto).not.toBeNull();
+
+      // Un rechazado no se reintenta solo.
+      const otra = vi.fn();
+      await sincronizarCola(ANA, 1, undefined, deps(otra, { ahora: en(3) }));
+      expect(otra).not.toHaveBeenCalled();
+    });
+
+    it('400 TEXTO_NO_PERMITIDO: queda rechazado, el motivo nombra el campo y no repite la palabra', async () => {
+      await encolar('k1');
+      const enviar = vi
+        .fn()
+        .mockRejectedValue(
+          new ApiError(
+            400,
+            'La descripción tiene palabras que no están permitidas. Cámbiala para continuar.',
+            '/api/reportes',
+            ['descripcion'],
+            'TEXTO_NO_PERMITIDO',
+          ),
+        );
+
+      await sincronizarCola(ANA, 1, undefined, deps(enviar));
+
+      expect((await colaDeReportes.listar())[0]).toMatchObject({
+        estado: 'rechazado',
+        motivo:
+          'La descripción tiene palabras que no están permitidas. Descártalo y vuelve a reportar el daño sin ellas.',
+      });
+    });
+
+    it('503 MODERACION_NO_DISPONIBLE: sigue pendiente con la MISMA clave y se reintenta luego', async () => {
+      await encolar('k1', ANA, en(0), conFoto());
+      const caida = vi
+        .fn()
+        .mockRejectedValue(
+          new ApiError(503, 'No pudimos revisar la foto…', '/api/reportes', [], 'MODERACION_NO_DISPONIBLE'),
+        );
+
+      expect((await sincronizarCola(ANA, 1, undefined, deps(caida))).detenidaPor).toBe('sin-conexion');
+      expect((await colaDeReportes.listar())[0]).toMatchObject({ idempotencyKey: 'k1', estado: 'pendiente' });
+
+      // Con el servicio de vuelta, el mismo reporte sale con su clave y su foto.
+      const conServicio = vi.fn().mockResolvedValue(creado(45));
+      await sincronizarCola(ANA, 1, undefined, deps(conServicio, { ahora: en(1) }));
+      expect(conServicio).toHaveBeenCalledWith(
+        expect.objectContaining({ idempotencyKey: 'k1', foto: expect.any(File) }),
+      );
+      expect(await claves()).toEqual([]);
+    });
+  });
+
   it('solo envia los reportes del usuario con sesion (dispositivo compartido)', async () => {
     await encolar('de-ana');
     await encolar('de-luis', LUIS);

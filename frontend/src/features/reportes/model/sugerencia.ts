@@ -40,12 +40,39 @@ export interface SugerenciaDeCategoria {
  * - `foto-rechazada`: el servidor dijo que la foto no es una imagen válida
  *   (409). Crear el reporte con ella fallaría igual, así que se avisa junto a
  *   la foto.
+ * - `foto-no-permitida` (NC-10c): la moderación rechazó la foto
+ *   (`fotoRechazada: true`). No hay sugerencia; el formulario quita la foto
+ *   y avisa junto a ella.
  */
 export type EstadoDeSugerencia =
   | { estado: 'inactiva' }
   | { estado: 'analizando' }
   | { estado: 'lista'; sugerencia: SugerenciaDeCategoria | null }
-  | { estado: 'foto-rechazada'; mensaje: string };
+  | { estado: 'foto-rechazada'; mensaje: string }
+  | { estado: 'foto-no-permitida' };
+
+/**
+ * Lo que dice la vista previa de una foto (NC-10c): la moderación la
+ * rechazó, o la sugerencia (`null` si no hay). Con la foto rechazada la
+ * respuesta no trae categoría, y si la trajera no se mostraría.
+ */
+export type ClasificacionDeLaFoto =
+  | { fotoNoPermitida: true }
+  | { fotoNoPermitida: false; sugerencia: SugerenciaDeCategoria | null };
+
+/**
+ * Lee la respuesta de `POST /api/clasificaciones`. Solo `fotoRechazada:
+ * true` cuenta como rechazo: `false`, o un campo ausente (un backend anterior
+ * a NC-10b), siguen como hasta ahora. Con `false` la vista previa no bloquea
+ * nada aunque la moderación no se haya podido hacer: el veredicto oficial es
+ * el de la creación.
+ */
+export function clasificacionDeRespuesta(
+  respuesta: Partial<ClasificacionResponse> | null | undefined,
+): ClasificacionDeLaFoto {
+  if (respuesta?.fotoRechazada === true) return { fotoNoPermitida: true };
+  return { fotoNoPermitida: false, sugerencia: sugerenciaDeRespuesta(respuesta) };
+}
 
 /**
  * Cuánto se espera la vista previa antes de darla por perdida (subida de la
@@ -104,7 +131,8 @@ export interface CatalogoDelFormulario {
  * - Mientras el catálogo carga todavía no se sabe, y se sigue mostrando (sin
  *   el botón). Si no se pudo traer, no hay contra qué validarla ni cómo
  *   elegirla: «sin sugerencia», en vez de proponer algo que no se puede tocar.
- * - La foto rechazada no se muestra aquí: su aviso va junto a la foto.
+ * - La foto rechazada (409) o no permitida (NC-10c) no se muestra aquí: su
+ *   aviso va junto a la foto.
  */
 export function vistaDeSugerencia(
   vistaPrevia: EstadoDeSugerencia,
@@ -114,6 +142,7 @@ export function vistaDeSugerencia(
   switch (vistaPrevia.estado) {
     case 'inactiva':
     case 'foto-rechazada':
+    case 'foto-no-permitida':
       return { tipo: 'oculta' };
     case 'analizando':
       return { tipo: 'analizando' };

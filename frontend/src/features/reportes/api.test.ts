@@ -50,10 +50,12 @@ describe('clasificarFoto (NC-04)', () => {
   const FOTO = new File(['bytes'], 'bache.jpg', { type: 'image/jpeg' });
 
   it('envía la foto en multipart con el token y devuelve la sugerencia', async () => {
-    fetchFalso.mockResolvedValue(Response.json({ categoriaId: 1, categoriaNombre: 'Bache' }));
+    fetchFalso.mockResolvedValue(
+      Response.json({ categoriaId: 1, categoriaNombre: 'Bache', fotoRechazada: false }),
+    );
     const control = new AbortController();
 
-    const sugerencia = await clasificarFoto(FOTO, control.signal);
+    const clasificacion = await clasificarFoto(FOTO, control.signal);
 
     const [url, init] = fetchFalso.mock.calls[0] ?? [];
     expect(String(url)).toMatch(/\/api\/clasificaciones$/);
@@ -63,12 +65,24 @@ describe('clasificarFoto (NC-04)', () => {
     // El boundary lo pone el navegador: el cliente no fija Content-Type.
     expect(new Headers(init?.headers).has('Content-Type')).toBe(false);
     expect((init?.body as FormData).get('foto')).toBe(FOTO);
-    expect(sugerencia).toEqual({ categoriaId: 1, categoriaNombre: 'Bache' });
+    expect(clasificacion).toEqual({
+      fotoNoPermitida: false,
+      sugerencia: { categoriaId: 1, categoriaNombre: 'Bache' },
+    });
   });
 
-  it('«sin sugerencia» (los dos campos nulos) llega como null', async () => {
-    fetchFalso.mockResolvedValue(Response.json({ categoriaId: null, categoriaNombre: null }));
-    await expect(clasificarFoto(FOTO)).resolves.toBeNull();
+  it('«sin sugerencia» (los dos campos nulos) llega con la sugerencia en null', async () => {
+    fetchFalso.mockResolvedValue(
+      Response.json({ categoriaId: null, categoriaNombre: null, fotoRechazada: false }),
+    );
+    await expect(clasificarFoto(FOTO)).resolves.toEqual({ fotoNoPermitida: false, sugerencia: null });
+  });
+
+  it('NC-10c: con fotoRechazada la foto no está permitida, sin sugerencia', async () => {
+    fetchFalso.mockResolvedValue(
+      Response.json({ categoriaId: null, categoriaNombre: null, fotoRechazada: true }),
+    );
+    await expect(clasificarFoto(FOTO)).resolves.toEqual({ fotoNoPermitida: true });
   });
 
   it('el 409 de formato llega como ApiError con el mensaje del backend', async () => {
