@@ -27,8 +27,9 @@ import pe.edu.upc.viasegura.support.AbstractPostgisIT;
 
 /**
  * Registro con el captcha activo (NC-08), con un {@link VerificadorDeCaptcha}
- * simulado que lo exige: la suite nunca llama a Google (el adaptador real lo
- * prueba {@code RecaptchaV2AdapterTest}).
+ * simulado que lo exige: la suite nunca llama a Cloudflare. El adaptador real
+ * lo prueban {@code TurnstileAdapterTest} (sin red) y {@code RegistroTurnstileIT}
+ * (elegido por la configuracion, contra un servidor local).
  *
  * <p>Lo que importa aqui es el orden: el captcha se comprueba antes que el
  * correo duplicado (si no, el registro serviria para enumerar correos sin
@@ -109,7 +110,7 @@ class RegistroCaptchaIT extends AbstractPostgisIT {
     }
 
     @Test
-    void googleNoDisponible_503YNoCreaElUsuario() throws Exception {
+    void proveedorNoDisponible_503YNoCreaElUsuario() throws Exception {
         String correo = email();
         doThrow(new ServicioNoDisponibleException("No pudimos verificar el captcha en este momento."))
                 .when(verificadorDeCaptcha).verificar("cualquiera");

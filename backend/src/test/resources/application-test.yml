@@ -24,8 +24,9 @@ security:
 # SugerenciaCategoriaFallaIT lo pone en modo 'falla'.
 #
 # Sin captcha (NC-08), literal por la misma razon: un CAPTCHA_TIPO del entorno
-# no debe hacer que la suite llame a Google. RegistroCaptchaIT exige el captcha
-# con un VerificadorDeCaptcha simulado.
+# no debe hacer que la suite llame a Cloudflare. RegistroCaptchaIT exige el
+# captcha con un VerificadorDeCaptcha simulado; RegistroTurnstileIT usa el
+# adaptador real contra un servidor local.
 #
 # Sin consulta DNS del dominio del correo (NC-09), literal por la misma razon:
 # un DOMINIO_CORREO_TIPO del entorno no debe hacer que la suite dependa de la

@@ -9,7 +9,7 @@ import pe.edu.upc.viasegura.auth.port.VerificadorDeCaptcha;
  * Sin captcha (NC-08): {@code app.captcha.tipo=ninguno}, el valor por defecto
  * fuera del perfil {@code prod}. El registro no exige token y el
  * {@code captchaToken} que llegue se ignora. Permite correr la suite y el
- * desarrollo local sin red ni claves de Google; en {@code prod}
+ * desarrollo local sin red ni claves de Cloudflare; en {@code prod}
  * {@code CAPTCHA_TIPO} es obligatoria y no tiene valor por defecto.
  */
 @Slf4j

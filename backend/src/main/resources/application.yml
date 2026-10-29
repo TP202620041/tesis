@@ -97,19 +97,25 @@ app:
       timeout-conexion-segundos: 3
       timeout-lectura-segundos: 10
   # Captcha del registro de cuenta (NC-08): puerto auth/port/VerificadorDeCaptcha,
-  # la casilla «No soy un robot» de Google reCAPTCHA v2:
+  # el widget de Cloudflare Turnstile (NC-08b: de reCAPTCHA a Turnstile,
+  # decision del usuario del 28/10):
   #   ninguno   -> SinCaptchaAdapter, no se exige ni verifica (desarrollo, tests)
-  #   recaptcha -> RecaptchaV2Adapter, POST https://www.google.com/recaptcha/api/siteverify
+  #   turnstile -> TurnstileAdapter, POST https://challenges.cloudflare.com/turnstile/v0/siteverify
   # En prod CAPTCHA_TIPO es obligatoria (application-prod.yml).
   captcha:
     tipo: ${CAPTCHA_TIPO:ninguno}
-    # Solo `recaptcha`: clave secreta del sitio, SOLO por entorno y nunca en
-    # el repo. Con tipo=recaptcha y sin secreto, la aplicacion no arranca.
+    # Solo `turnstile`: clave secreta del widget, SOLO por entorno y nunca en
+    # el repo. Con tipo=turnstile y sin secreto, la aplicacion no arranca.
     secret: ${CAPTCHA_SECRET:}
-    recaptcha:
+    turnstile:
+      # Hostnames donde puede resolverse el widget, separados por coma (sin
+      # esquema ni puerto). Vacio fuera de prod: las claves de prueba de
+      # Cloudflare responden hostname example.com. En prod, por defecto
+      # ciudadviva.app y www.ciudadviva.app (application-prod.yml).
+      hostnames: ${CAPTCHA_HOSTNAMES:}
       # La verificacion corre en el hilo de la peticion (fuera de la
       # transaccion): el ciudadano espera, asi que la lectura es mas corta
-      # que la de Resend. Sin reintentos.
+      # que la de Resend. Sin reintentos (el token es de un solo uso).
       timeout-conexion-segundos: 3
       timeout-lectura-segundos: 5
   # Dominio del correo al registrarse (NC-09): puerto

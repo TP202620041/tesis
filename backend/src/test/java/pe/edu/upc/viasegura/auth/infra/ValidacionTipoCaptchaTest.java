@@ -24,7 +24,7 @@ class ValidacionTipoCaptchaTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"recaptcha", "ninguno", "RECAPTCHA", "Ninguno"})
+    @ValueSource(strings = {"turnstile", "ninguno", "TURNSTILE", "Ninguno"})
     void losValoresDeLosAdaptadores_pasan(String valor) {
         MockEnvironment entorno = new MockEnvironment().withProperty("app.captcha.tipo", valor);
 
@@ -40,7 +40,7 @@ class ValidacionTipoCaptchaTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"hcaptcha", "", "recaptcha ", "v3", "no"})
+    @ValueSource(strings = {"hcaptcha", "", "turnstile ", "recaptcha", "v3", "no"})
     void otroValor_noArrancaYNombraLaVariableYLosValoresAdmitidos(String valor) {
         MockEnvironment entorno = new MockEnvironment().withProperty("app.captcha.tipo", valor);
 
@@ -49,7 +49,28 @@ class ValidacionTipoCaptchaTest {
                 .hasMessageContaining("CAPTCHA_TIPO")
                 .hasMessageContaining("app.captcha.tipo")
                 .hasMessageContaining("'" + valor + "'")
-                .hasMessageContaining("'recaptcha'")
+                .hasMessageContaining("'turnstile'")
                 .hasMessageContaining("'ninguno'");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"recaptcha", "reCAPTCHA"})
+    void recaptcha_yaNoExisteYElMensajeDiceQueCambiar(String valor) {
+        // NC-08b: el valor de produccion de NC-08 hasta el 28/10.
+        MockEnvironment entorno = new MockEnvironment().withProperty("app.captcha.tipo", valor);
+
+        assertThatThrownBy(() -> con(entorno).postProcessBeanFactory(new DefaultListableBeanFactory()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("reCAPTCHA se reemplazo por Turnstile")
+                .hasMessageContaining("CAPTCHA_SECRET");
+    }
+
+    @Test
+    void otroValor_noMencionaReCaptcha() {
+        MockEnvironment entorno = new MockEnvironment().withProperty("app.captcha.tipo", "hcaptcha");
+
+        assertThatThrownBy(() -> con(entorno).postProcessBeanFactory(new DefaultListableBeanFactory()))
+                .isInstanceOf(IllegalStateException.class)
+                .message().doesNotContain("reCAPTCHA");
     }
 }

@@ -15,14 +15,14 @@ import jakarta.validation.constraints.Size;
  * del pedido); {@code versionTerminos} distinta de la vigente es 409 (el
  * cliente mostro un texto que ya no rige).</p>
  *
- * <p>NC-08: {@code captchaToken} es la respuesta de la casilla «No soy un
- * robot» de Google reCAPTCHA v2 ({@code grecaptcha.getResponse()}). No lleva
+ * <p>NC-08: {@code captchaToken} es la respuesta del widget de Cloudflare
+ * Turnstile (NC-08b; antes, la casilla de Google reCAPTCHA v2). No lleva
  * {@code @NotBlank} porque depende de la configuracion del servidor: con
  * {@code CAPTCHA_TIPO=ninguno} (desarrollo y tests) se ignora; con
- * {@code recaptcha}, ausente o en blanco es 409 «Confirma que no eres un
- * robot» y rechazado por Google es 409 «No pudimos confirmar que no eres un
- * robot. Vuelve a intentarlo.». El tope de 2048 solo corta cuerpos abusivos
- * (un token real ronda los 500 caracteres).</p>
+ * {@code turnstile}, ausente o en blanco es 409 «Confirma que no eres un
+ * robot» y rechazado por Cloudflare es 409 «No pudimos confirmar que no eres
+ * un robot. Vuelve a intentarlo.». El tope de 2048 es el largo maximo que
+ * Cloudflare documenta para un token de Turnstile.</p>
  */
 public record RegistroRequest(
         @NotBlank(message = "Ingresa tu correo")
