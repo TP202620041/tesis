@@ -812,6 +812,8 @@ No es migración, es funcionalidad. Se lista aquí para fijar **dónde** va cada
 - Failsafe igual o mayor, ArchUnit en 0 y el handoff `handoffs/AAAA-MM-DD-ocultar-y-denunciar.md` en estado `pendiente`.
 - **BE-14** tiene que anonimizar `denuncia_reporte.denunciante_id` (se anota en su ficha cuando entre).
 
+**NC-11a, hecha (2026-10-29, rama `feature/nc-11a-ocultar-denunciar`, PR pendiente):** lo descrito arriba, con V21. Diferencias con la propuesta, registradas en `backend/README.md` («Ocultar y denunciar»): `denuncia_reporte.denunciante_id` admite NULL (gancho de BE-14, `DenunciaReporteRepository#anonimizarDenunciante`, sin otra migración); la tabla suma `motivo_resolucion` (el motivo de ocultar o de desestimar, solo en los DTO del ADMIN); `HistorialEntradaResponse` suma `avisoIndice`; el adherido ve «Se restableció contenido de este reporte.» en los restablecimientos; el tope es una ventana móvil de 24 h; el reporte oculto también sale de los conteos de US-17 del dashboard; los flags se escriben con un `UPDATE` condicional que no mueve `updated_at`. Handoff `handoffs/2026-10-29-ocultar-y-denunciar.md` (pendiente). **Pendiente fuera del backend:** el runbook (purga manual en Cloudflare y material ilegal) y el `curl -sI` de `s-maxage` en producción. **BE-14** tiene que llamar a `anonimizarDenunciante`. Métricas (`mvn clean verify`, 29/10): Failsafe `completed` 561 → **600** (errors 0, failures 0, skipped 22), Surefire 791 → **799**, ArchUnit 9 reglas en verde y almacén sin cambios, JaCoCo instrucciones 94,32 %, ramas 86,38 %, líneas 94,80 %.
+
 #### NC-11b · PWA
 - **Botón «Denunciar contenido»** en `DetalleReportePublico`:
   - el CIUDADANO con sesión abre un diálogo con el motivo y un detalle opcional;
