@@ -13,7 +13,9 @@ import { FormularioReporte } from './FormularioReporte';
 vi.mock('next/dynamic', () => ({ default: () => () => null }));
 vi.mock('../api', () => ({ crearReporte: vi.fn(), clasificarFoto: vi.fn() }));
 vi.mock('@/lib/api/catalogos', () => ({ distritoPorCoordenadas: vi.fn(), listarCategorias: vi.fn() }));
-vi.mock('../hooks/useColaOffline', () => ({ useEncolarReporte: vi.fn(), anotarModeracionNoDisponible: vi.fn() }));
+vi.mock('../hooks/useColaOffline', () => ({ useEncolarReporte: vi.fn(), anotarModeracionNoDisponible: vi.fn(),
+  reiniciarEsperaDeModeracion: vi.fn(),
+}));
 
 const encolar = vi.fn();
 

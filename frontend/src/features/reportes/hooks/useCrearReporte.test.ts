@@ -3,11 +3,17 @@ import { act, renderHook } from '@testing-library/react';
 import { ApiError, CODIGO_TERMINOS_PENDIENTES, NetworkError } from '@/lib/api/errors';
 import { crearReporte } from '../api';
 import type { ReporteCreado } from '../model/tipos';
-import { anotarModeracionNoDisponible, useEncolarReporte } from './useColaOffline';
+import {
+  anotarModeracionNoDisponible,
+  reiniciarEsperaDeModeracion,
+  useEncolarReporte,
+} from './useColaOffline';
 import { useCrearReporte, type DatosDelReporte, type DesenlaceDelEnvio } from './useCrearReporte';
 
 vi.mock('../api', () => ({ crearReporte: vi.fn() }));
-vi.mock('./useColaOffline', () => ({ useEncolarReporte: vi.fn(), anotarModeracionNoDisponible: vi.fn() }));
+vi.mock('./useColaOffline', () => ({ useEncolarReporte: vi.fn(), anotarModeracionNoDisponible: vi.fn(),
+  reiniciarEsperaDeModeracion: vi.fn(),
+}));
 
 const encolar = vi.fn();
 const CREADO = { id: 40, esAdhesion: false } as ReporteCreado;
@@ -27,6 +33,7 @@ beforeEach(() => {
 afterEach(() => {
   encolar.mockReset();
   vi.mocked(anotarModeracionNoDisponible).mockReset();
+  vi.mocked(reiniciarEsperaDeModeracion).mockReset();
   vi.mocked(crearReporte).mockReset();
 });
 
@@ -248,6 +255,19 @@ describe('useCrearReporte: la moderación (NC-10c)', () => {
     expect(result.current.moderacionNoDisponible).toBe(SIN_SERVICIO);
     expect(result.current.error).toBeNull();
     expect(encolar).not.toHaveBeenCalled();
+  });
+
+  it('un envío con foto que sale bien reinicia la espera de la cola; sin foto, no', async () => {
+    vi.mocked(crearReporte).mockResolvedValue(CREADO);
+    const { result } = renderHook(() => useCrearReporte(7));
+    await act(async () => {
+      await result.current.enviar(DATOS);
+    });
+    expect(reiniciarEsperaDeModeracion).not.toHaveBeenCalled();
+    await act(async () => {
+      await result.current.enviar(CON_FOTO);
+    });
+    expect(reiniciarEsperaDeModeracion).toHaveBeenCalledExactlyOnceWith(7);
   });
 
   it('«Guardar para enviar después»: a la cola con la MISMA clave y la foto, sin otro POST', async () => {

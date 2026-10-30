@@ -1232,7 +1232,10 @@ D-15)»). Lo que cambia en la PWA:
     foto y la `Idempotency-Key` siguen igual.
   - El primer reintento tras «Guardar para enviar después» también espera
     30 s: el formulario anota el 503 antes de encolar.
-  - Se reinicia cuando un reporte con foto se envía bien. **No** al volver la
+  - Si la cola ya estaba esperando, ese 503 del formulario sube un escalón
+    (es otro 503 observado: el servicio sigue caído).
+  - Se reinicia cuando un reporte con foto se envía bien, desde la cola o
+    desde el formulario (revisión). **No** al volver la
     conexión: la cola no tenía espera que reiniciar, y el 503 es del
     servidor, no de la red del teléfono. La pasada de cada 30 s, la conexión
     y la pestaña siguen disparando la cola; los reportes con foto solo se

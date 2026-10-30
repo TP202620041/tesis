@@ -143,6 +143,11 @@ export function anotarModeracionNoDisponible(usuarioId: number, ahora: Date = ne
   );
 }
 
+/** Un reporte con foto se envio bien (tambien desde el formulario): la moderacion volvio. */
+export function reiniciarEsperaDeModeracion(usuarioId: number): void {
+  esperasDeModeracion.delete(usuarioId);
+}
+
 /** Solo para tests: olvida las esperas de la moderacion. */
 export function olvidarEsperasDeModeracion(): void {
   esperasDeModeracion.clear();
@@ -262,7 +267,7 @@ async function sincronizar(
       }
       continue;
     }
-    if (peticion.foto) esperasDeModeracion.delete(usuarioId);
+    if (peticion.foto) reiniciarEsperaDeModeracion(usuarioId);
     await deps.almacen.quitar(enCola.idempotencyKey);
     enviados.push(creado);
   }

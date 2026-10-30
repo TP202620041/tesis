@@ -8,7 +8,11 @@ import { crearReporte } from '../api';
 import { rechazoAlCrear } from '../model/moderacion';
 import { errorDelTitulo, MENSAJE_SIN_SEVERIDAD } from '../model/titulo';
 import type { NuevoReporte, ReporteCreado } from '../model/tipos';
-import { anotarModeracionNoDisponible, useEncolarReporte } from './useColaOffline';
+import {
+  anotarModeracionNoDisponible,
+  reiniciarEsperaDeModeracion,
+  useEncolarReporte,
+} from './useColaOffline';
 
 /** Lo que el ciudadano llena en el formulario de US-05. */
 export interface DatosDelReporte {
@@ -150,6 +154,8 @@ export function useCrearReporte(usuarioId: number) {
       setEnviando(true);
       try {
         const reporte = await crearReporte(nuevo);
+        // La foto paso la moderacion: la cola ya no tiene que esperar.
+        if (nuevo.foto) reiniciarEsperaDeModeracion(usuarioId);
         // Envio exitoso: el siguiente reporte es un intento logico distinto.
         clave.current = null;
         return { tipo: 'creado', reporte };
@@ -187,7 +193,7 @@ export function useCrearReporte(usuarioId: number) {
         setEnviando(false);
       }
     },
-    [guardarEnCola, limpiar, preparar],
+    [guardarEnCola, limpiar, preparar, usuarioId],
   );
 
   /**
