@@ -1,0 +1,218 @@
+# Lista de groserias del español peruano (NC-10b, D-15)
+# version: 2026-10-29.1
+# fecha: 2026-10-29
+# autor: agente de backend de Ciudad Viva; la version inicial la aprueba el usuario en el PR de NC-10b.
+# licencia: propia del repositorio. No copia ninguna lista de terceros.
+#
+# La usa moderacion/domain/FiltroDeGroserias para rechazar (400 TEXTO_NO_PERMITIDO) el titulo y la
+# descripcion de un reporte, el comentario publico y el nombre y apellido del perfil. La normalizacion
+# del texto (tildes, leetspeak, letras repetidas, letras separadas y comodines) esta en esa clase y en
+# backend/README.md («Moderacion de contenido»). Se compara por palabra entera, nunca por subcadena:
+# «vehiculo», «pelicula» o «disputa» no coinciden con nada.
+#
+# Formato: una entrada por linea, ya normalizada: minusculas, sin tildes ni dieresis pero con la ñ,
+# solo letras y espacios simples, de 1 a 4 palabras y sin tres letras iguales seguidas. Una entrada
+# de varias palabras es una expresion: coincide solo con esas palabras seguidas. Las lineas con # son
+# comentarios. ListaDeGroseriasTest exige esta forma, que no haya duplicados y que ninguna palabra del
+# corpus legitimo (src/test/resources/moderacion/corpus-legitimo.txt) coincida.
+#
+# Que entra:
+#   - insultos vulgares inequivocos en el uso peruano, con sus formas comunes (plural, femenino,
+#     aumentativo) y sus abreviaturas («ctm», «csm», «ptm»);
+#   - vulgaridades sexuales y escatologicas fuertes;
+#   - insultos homofobicos inequivocos;
+#   - expresiones de varias palabras cuyas palabras sueltas son legitimas («concha de tu madre»).
+#
+# Que NO entra (y por que):
+#   - palabras con un sentido legitimo en un reporte o un nombre propio: concha (apellido), huevo y
+#     huevos (alimento), huevas (de pescado), polla (la loteria), paja (en el Peru, «bueno»), pajero
+#     (la camioneta Mitsubishi Pajero), paloma, pajaro, cono, ano, perra y zorra (animales), teta,
+#     mamar, cachar («entender», «atrapar»), pinche («tacaño»), cabrito (plato), gonorrea (enfermedad),
+#     retrasado («demorado»);
+#   - descriptores que tambien son neutros: cholo, serrano, negro, chino;
+#   - insultos que no son groserias (idiota, imbecil, estupido, tonto, gil, lorna): criticar a una
+#     autoridad no es una groseria;
+#   - interjecciones leves: caramba, carajo, pucha.
+# Una palabra suelta que es legitima, pero que en una expresion es una groseria, entra solo como
+# expresion («hijo de perra»). Lo que la lista no atrapa lo atrapa la denuncia (NC-11).
+
+# --- puta y sus formas ---
+puta
+putas
+puto
+putos
+putita
+putitas
+putito
+putitos
+putazo
+putamadre
+putamare
+ptm
+ptmr
+
+# --- concha de tu madre (concha sola es un apellido) ---
+ctm
+ctmr
+csm
+csmr
+conchatumadre
+conchatumare
+conchetumadre
+conchetumare
+conchasumadre
+conchasumare
+conchesumadre
+conchesumare
+concha de tu madre
+concha de su madre
+concha tu madre
+concha su madre
+concha de tu mare
+concha tu mare
+concha su mare
+
+# --- chucha ---
+chucha
+chuchas
+chuchatumadre
+chuchatumare
+chuchasumadre
+chuchasumare
+chucha de tu madre
+chucha tu madre
+chucha su madre
+
+# --- hijo de puta (las expresiones con puta ya las atrapa puta) ---
+hijueputa
+hijueputas
+hijoputa
+hijoputas
+hdp
+hijo de perra
+hija de perra
+hijos de perra
+hijas de perra
+
+# --- mierda ---
+mierda
+mierdas
+mrd
+
+# --- huevon y derivados (huevo y huevos son legitimos) ---
+huevon
+huevona
+huevones
+huevonas
+huevonazo
+huevonaza
+huevonada
+huevonadas
+huevada
+huevadas
+guevon
+guevona
+guevones
+webon
+webona
+webones
+webonas
+webada
+webadas
+weon
+weona
+weones
+wevon
+wevones
+
+# --- cojudo ---
+cojudo
+cojuda
+cojudos
+cojudas
+cojudazo
+cojudaza
+cojudez
+cojudeces
+cojones
+
+# --- pendejo ---
+pendejo
+pendeja
+pendejos
+pendejas
+pendejada
+pendejadas
+
+# --- conchudo ---
+conchudo
+conchuda
+conchudos
+conchudas
+
+# --- cabron ---
+cabron
+cabrona
+cabrones
+cabronas
+
+# --- insultos homofobicos ---
+maricon
+maricona
+maricones
+mariconas
+mariconazo
+marica
+maricas
+cabro
+cabros
+cabrazo
+rosquete
+rosquetes
+
+# --- malparido ---
+malparido
+malparida
+malparidos
+malparidas
+mal parido
+mal parida
+malnacido
+malnacida
+
+# --- vulgaridades sexuales ---
+pinga
+pingas
+pichula
+pichulas
+pichulita
+verga
+vergas
+vergazo
+chupapinga
+chupapingas
+culo
+culos
+culear
+culeado
+culeada
+culero
+culera
+cachero
+cacheros
+coño
+joder
+jodete
+jodanse
+chingar
+chingada
+chingado
+chingados
+chingadera
+
+# --- cagar (escatologico) ---
+cagada
+cagadas
+cagon
+cagona
+cagones

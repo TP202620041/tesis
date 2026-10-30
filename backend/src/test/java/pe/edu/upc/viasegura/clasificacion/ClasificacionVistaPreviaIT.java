@@ -106,6 +106,8 @@ class ClasificacionVistaPreviaIT extends AbstractPostgisIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.categoriaId", is((int) idDe("Bache"))))
                 .andExpect(jsonPath("$.categoriaNombre", is("Bache")))
+                // NC-10b: con la moderacion apagada (application-test.yml), la foto no se rechaza.
+                .andExpect(jsonPath("$.fotoRechazada", is(false)))
                 // Solo la categoria: ni confianza ni version del modelo (senal interna).
                 .andExpect(jsonPath("$.confianza").doesNotExist())
                 .andExpect(jsonPath("$.confianzaSugerencia").doesNotExist())

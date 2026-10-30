@@ -57,6 +57,8 @@ import pe.edu.upc.viasegura.support.AbstractPostgisIT;
         "NOTIF_FROM=Ciudad Viva <no-reply@ciudadviva.test>",
         "CAPTCHA_TIPO=ninguno",
         "CLASIFICACION_TIPO=falso",
+        // NC-10b: obligatoria en prod.
+        "MODERACION_TIPO=ninguna",
         // DEP-14: valores de prueba evidentes, por las variables del despliegue.
         "ORIGEN_SECRETO=" + EncabezadoDeOrigenIT.SECRETO,
         "ORIGEN_SECRETO_ANTERIOR=" + EncabezadoDeOrigenIT.SECRETO_ANTERIOR})

@@ -31,6 +31,12 @@ public record ApiError(
     }
 
     public static ApiError conCodigo(int status, String error, String message, String path, String codigo) {
-        return new ApiError(Instant.now(), status, error, message, path, List.of(), codigo);
+        return conCodigo(status, error, message, path, List.of(), codigo);
+    }
+
+    /** Con codigo y detalles: el 400 de la moderacion lleva el campo en {@code details} (NC-10b). */
+    public static ApiError conCodigo(int status, String error, String message, String path,
+                                     List<String> details, String codigo) {
+        return new ApiError(Instant.now(), status, error, message, path, details, codigo);
     }
 }
