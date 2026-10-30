@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   avisoDeFotoRechazada,
+  clasificacionDeRespuesta,
   sugerenciaDeRespuesta,
   vistaDeSugerencia,
   type CatalogoDelFormulario,
@@ -45,6 +46,37 @@ describe('sugerenciaDeRespuesta (NC-04)', () => {
   });
 });
 
+describe('clasificacionDeRespuesta (NC-10c)', () => {
+  it('fotoRechazada: true es una foto no permitida, sin sugerencia', () => {
+    expect(
+      clasificacionDeRespuesta({ categoriaId: null, categoriaNombre: null, fotoRechazada: true }),
+    ).toEqual({ fotoNoPermitida: true });
+  });
+
+  it('con la foto rechazada, una categoría que viniera igual no se propone', () => {
+    expect(
+      clasificacionDeRespuesta({ categoriaId: 1, categoriaNombre: 'Bache', fotoRechazada: true }),
+    ).toEqual({ fotoNoPermitida: true });
+  });
+
+  it('fotoRechazada: false sigue como hasta ahora (también si no se pudo moderar)', () => {
+    expect(
+      clasificacionDeRespuesta({ categoriaId: 1, categoriaNombre: 'Bache', fotoRechazada: false }),
+    ).toEqual({ fotoNoPermitida: false, sugerencia: { categoriaId: 1, categoriaNombre: 'Bache' } });
+    expect(
+      clasificacionDeRespuesta({ categoriaId: null, categoriaNombre: null, fotoRechazada: false }),
+    ).toEqual({ fotoNoPermitida: false, sugerencia: null });
+  });
+
+  it('sin el campo (un backend anterior a NC-10b) o sin cuerpo, no hay rechazo', () => {
+    expect(clasificacionDeRespuesta({ categoriaId: 1, categoriaNombre: 'Bache' })).toEqual({
+      fotoNoPermitida: false,
+      sugerencia: { categoriaId: 1, categoriaNombre: 'Bache' },
+    });
+    expect(clasificacionDeRespuesta(undefined)).toEqual({ fotoNoPermitida: false, sugerencia: null });
+  });
+});
+
 describe('vistaDeSugerencia (NC-04)', () => {
   it('sin foto, o con la vista previa descartada, no muestra nada', () => {
     expect(vistaDeSugerencia({ estado: 'inactiva' }, CATALOGO, null)).toEqual({ tipo: 'oculta' });
@@ -53,6 +85,10 @@ describe('vistaDeSugerencia (NC-04)', () => {
   it('la foto rechazada se avisa junto a la foto, no junto a la categoría', () => {
     const rechazada: EstadoDeSugerencia = { estado: 'foto-rechazada', mensaje: 'Formato…' };
     expect(vistaDeSugerencia(rechazada, CATALOGO, null)).toEqual({ tipo: 'oculta' });
+  });
+
+  it('NC-10c: la foto no permitida tampoco muestra nada junto a la categoría', () => {
+    expect(vistaDeSugerencia({ estado: 'foto-no-permitida' }, CATALOGO, 1)).toEqual({ tipo: 'oculta' });
   });
 
   it('mientras se analiza lo dice', () => {

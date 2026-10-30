@@ -211,3 +211,66 @@ describe('FormularioRegistro: confirmación del correo (NC-09)', () => {
     expect(stub.reset).toHaveBeenCalledWith('widget-0');
   });
 });
+
+describe('FormularioRegistro: la moderación del nombre (NC-10c)', () => {
+  const NOMBRE = 'El nombre tiene palabras que no están permitidas. Cámbialo para continuar.';
+  const APELLIDO = 'El apellido tiene palabras que no están permitidas. Cámbialo para continuar.';
+  const textoNoPermitido = (campo: string, mensaje: string) =>
+    new ApiError(400, mensaje, '/api/auth/registro', [campo], 'TEXTO_NO_PERMITIDO');
+
+  beforeEach(() => {
+    registrarMock.mockReset();
+    vi.stubEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY', '');
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    delete (window as VentanaConCaptcha).turnstile;
+  });
+
+  it('400 TEXTO_NO_PERMITIDO en el nombre: el error va en el campo y se conserva lo escrito', async () => {
+    registrarMock.mockRejectedValue(textoNoPermitido('nombre', NOMBRE));
+    render(<FormularioRegistro textoLegal={<p>Términos</p>} />);
+    await llenarYEnviar();
+
+    const nombre = screen.getByLabelText('Nombre');
+    await waitFor(() => expect(nombre).toHaveAttribute('aria-invalid', 'true'));
+    expect(nombre).toHaveAccessibleDescription(NOMBRE);
+    expect(nombre).toHaveValue('Ana');
+    // En el campo, no como error general (ni con «nombre» como detalle).
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+    expect(screen.getByLabelText('Apellido')).not.toHaveAttribute('aria-invalid');
+    expect(screen.getByLabelText('Correo electrónico')).toHaveValue('ana@correo.pe');
+    expect(screen.getByRole('checkbox')).toBeChecked();
+
+    await userEvent.setup().type(nombre, 'í');
+    expect(nombre).not.toHaveAttribute('aria-invalid');
+    expect(screen.queryByText(NOMBRE)).not.toBeInTheDocument();
+  });
+
+  it('400 TEXTO_NO_PERMITIDO en el apellido: el error va en el apellido', async () => {
+    registrarMock.mockRejectedValue(textoNoPermitido('apellido', APELLIDO));
+    render(<FormularioRegistro textoLegal={<p>Términos</p>} />);
+    await llenarYEnviar();
+
+    const apellido = screen.getByLabelText('Apellido');
+    await waitFor(() => expect(apellido).toHaveAttribute('aria-invalid', 'true'));
+    expect(apellido).toHaveAccessibleDescription(APELLIDO);
+    expect(screen.getByLabelText('Nombre')).not.toHaveAttribute('aria-invalid');
+  });
+
+  it('como todo error del registro, reinicia el captcha (el token ya se gastó)', async () => {
+    vi.stubEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY', 'clave-de-prueba');
+    olvidarCargaDelCaptcha();
+    const { stub, widgets } = instalarTurnstile();
+    registrarMock.mockRejectedValue(textoNoPermitido('nombre', NOMBRE));
+    render(<FormularioRegistro textoLegal={<p>Términos</p>} />);
+    await waitFor(() => expect(widgets).toHaveLength(1));
+    act(() => widgets[0]!.callback('token-turnstile'));
+
+    await llenarYEnviar();
+
+    expect(await screen.findByText(NOMBRE)).toBeInTheDocument();
+    expect(stub.reset).toHaveBeenCalledWith('widget-0');
+  });
+});

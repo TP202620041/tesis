@@ -2,13 +2,14 @@ import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { NetworkError } from '@/lib/api/errors';
+import { ApiError, NetworkError } from '@/lib/api/errors';
 import { generacionDeSesion } from '@/lib/auth/token-storage';
 import { colaDeReportes } from '@/pwa/colaReportes';
 import { crearReporte } from '../api';
 import type { ReporteEnCola } from '../model/colaOffline';
 import {
   INTERVALO_DE_REINTENTO,
+  olvidarEsperasDeModeracion,
   useCantidadDeIncompletos,
   useReportesEnCola,
   useResumenDeLaCola,
@@ -55,6 +56,7 @@ const CREADO = {
 
 beforeEach(() => {
   globalThis.indexedDB = new IDBFactory();
+  olvidarEsperasDeModeracion();
   // Sin red: cada intento falla y el reporte sigue en la cola (asi se puede
   // contar cuantas veces se intento).
   vi.mocked(crearReporte).mockRejectedValue(new NetworkError());
@@ -168,6 +170,45 @@ describe('useSincronizacionAutomatica', () => {
       expect.objectContaining({ idempotencyKey: 'k1' }),
       { redirigirEn401: false },
     );
+  });
+
+  it.each([
+    ['FOTO_NO_PERMITIDA', 'foto', /^La foto no está permitida\. Descártalo/],
+    ['TEXTO_NO_PERMITIDO', 'titulo', /^El título tiene palabras que no están permitidas\. Descártalo/],
+  ])('NC-10c: un 400 %s lo deja rechazado, sin reintentarlo', async (codigo, campo, motivo) => {
+    vi.mocked(crearReporte).mockRejectedValue(new ApiError(400, 'No permitido', '/api/reportes', [campo], codigo));
+    await colaDeReportes.guardar(enCola('k1', 7));
+    const cola = renderHook(() => useReportesEnCola(7));
+    renderHook(() => useSincronizacionAutomatica(ana()));
+
+    await waitFor(() => expect(cola.result.current.pendientes[0]?.visible).toBe('rechazado'));
+    expect(cola.result.current.pendientes[0]?.motivo).toMatch(motivo);
+
+    await act(async () => {
+      window.dispatchEvent(new Event('online'));
+    });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(crearReporte).toHaveBeenCalledTimes(1);
+  });
+
+  it('NC-10c: el 503 MODERACION_NO_DISPONIBLE lo deja pendiente y se reintenta', async () => {
+    vi.mocked(crearReporte).mockRejectedValue(
+      new ApiError(503, 'Sin revisar', '/api/reportes', [], 'MODERACION_NO_DISPONIBLE'),
+    );
+    await colaDeReportes.guardar(enCola('k1', 7));
+    renderHook(() => useSincronizacionAutomatica(ana()));
+    await waitFor(() => expect(crearReporte).toHaveBeenCalledTimes(1));
+
+    await act(async () => {
+      window.dispatchEvent(new Event('online'));
+    });
+
+    await waitFor(() => expect(crearReporte).toHaveBeenCalledTimes(2));
+    expect(crearReporte).toHaveBeenLastCalledWith(
+      expect.objectContaining({ idempotencyKey: 'k1' }),
+      { redirigirEn401: false },
+    );
+    expect((await colaDeReportes.listar())[0]?.estado).toBe('pendiente');
   });
 
   it('al enviarse, el reporte sale de la cola', async () => {

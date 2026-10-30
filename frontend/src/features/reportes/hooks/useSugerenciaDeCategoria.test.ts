@@ -2,13 +2,25 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { ApiError, NetworkError } from '@/lib/api/errors';
 import { clasificarFoto } from '../api';
-import { ESPERA_MAXIMA_DE_SUGERENCIA_MS, type SugerenciaDeCategoria } from '../model/sugerencia';
+import {
+  ESPERA_MAXIMA_DE_SUGERENCIA_MS,
+  type ClasificacionDeLaFoto,
+  type SugerenciaDeCategoria,
+} from '../model/sugerencia';
 import { useSugerenciaDeCategoria } from './useSugerenciaDeCategoria';
 
 vi.mock('../api', () => ({ clasificarFoto: vi.fn() }));
 
 const BACHE: SugerenciaDeCategoria = { categoriaId: 1, categoriaNombre: 'Bache' };
 const PISTA: SugerenciaDeCategoria = { categoriaId: 2, categoriaNombre: 'Pista deteriorada' };
+
+/** La respuesta de la vista previa con esa sugerencia (y la foto permitida). */
+const con = (sugerencia: SugerenciaDeCategoria | null): ClasificacionDeLaFoto => ({
+  fotoNoPermitida: false,
+  sugerencia,
+});
+/** NC-10c: la moderación rechazó la foto (`fotoRechazada: true`). */
+const NO_PERMITIDA: ClasificacionDeLaFoto = { fotoNoPermitida: true };
 
 const foto = (nombre: string) => new File(['x'], nombre, { type: 'image/jpeg' });
 
@@ -24,7 +36,7 @@ function diferida<T>() {
 }
 
 /** Como `fetch`: rechaza con `NetworkError` (lo que da el cliente) al cancelarse. */
-function hastaQueSeCancele(_foto: File, signal?: AbortSignal): Promise<SugerenciaDeCategoria | null> {
+function hastaQueSeCancele(_foto: File, signal?: AbortSignal): Promise<ClasificacionDeLaFoto> {
   return new Promise((_, rechazar) => {
     signal?.addEventListener('abort', () => rechazar(new NetworkError()));
   });
@@ -51,7 +63,7 @@ describe('useSugerenciaDeCategoria (NC-04)', () => {
   });
 
   it('con foto: «analizando» y después la sugerencia, en una sola petición', async () => {
-    const respuesta = diferida<SugerenciaDeCategoria | null>();
+    const respuesta = diferida<ClasificacionDeLaFoto>();
     vi.mocked(clasificarFoto).mockReturnValue(respuesta.promesa);
     const elegida = foto('bache.jpg');
 
@@ -59,13 +71,13 @@ describe('useSugerenciaDeCategoria (NC-04)', () => {
     expect(result.current.estado).toBe('analizando');
     expect(clasificarFoto).toHaveBeenCalledWith(elegida, expect.any(AbortSignal));
 
-    await act(async () => respuesta.resolver(BACHE));
+    await act(async () => respuesta.resolver(con(BACHE)));
     expect(result.current).toMatchObject({ estado: 'lista', sugerencia: BACHE });
     expect(clasificarFoto).toHaveBeenCalledTimes(1);
   });
 
   it('sin sugerencia: la respuesta llega con null', async () => {
-    vi.mocked(clasificarFoto).mockResolvedValue(null);
+    vi.mocked(clasificarFoto).mockResolvedValue(con(null));
     const { result } = renderizar(foto('pared.jpg'));
     await waitFor(() => expect(result.current.estado).toBe('lista'));
     expect(result.current).toMatchObject({ sugerencia: null });
@@ -96,8 +108,8 @@ describe('useSugerenciaDeCategoria (NC-04)', () => {
   });
 
   it('una foto nueva cancela la anterior y su respuesta tardía no se muestra', async () => {
-    const primera = diferida<SugerenciaDeCategoria | null>();
-    const segunda = diferida<SugerenciaDeCategoria | null>();
+    const primera = diferida<ClasificacionDeLaFoto>();
+    const segunda = diferida<ClasificacionDeLaFoto>();
     vi.mocked(clasificarFoto)
       .mockReturnValueOnce(primera.promesa)
       .mockReturnValueOnce(segunda.promesa);
@@ -112,20 +124,20 @@ describe('useSugerenciaDeCategoria (NC-04)', () => {
     expect(result.current.estado).toBe('analizando');
 
     // La nueva llega primero; la vieja, después: no la pisa.
-    await act(async () => segunda.resolver(PISTA));
-    await act(async () => primera.resolver(BACHE));
+    await act(async () => segunda.resolver(con(PISTA)));
+    await act(async () => primera.resolver(con(BACHE)));
     expect(result.current).toMatchObject({ estado: 'lista', sugerencia: PISTA });
   });
 
   it('la respuesta de la foto anterior tampoco se muestra si llega antes que la nueva', async () => {
-    const primera = diferida<SugerenciaDeCategoria | null>();
+    const primera = diferida<ClasificacionDeLaFoto>();
     vi.mocked(clasificarFoto)
       .mockReturnValueOnce(primera.promesa)
       .mockImplementationOnce(hastaQueSeCancele);
 
     const { result, rerender } = renderizar(foto('a.jpg'));
     rerender({ f: foto('b.jpg') });
-    await act(async () => primera.resolver(BACHE));
+    await act(async () => primera.resolver(con(BACHE)));
 
     expect(result.current.estado).toBe('analizando');
   });
@@ -141,7 +153,7 @@ describe('useSugerenciaDeCategoria (NC-04)', () => {
   });
 
   it('descartar (al enviar el reporte) cancela la vista previa en curso y no la muestra', async () => {
-    const respuesta = diferida<SugerenciaDeCategoria | null>();
+    const respuesta = diferida<ClasificacionDeLaFoto>();
     vi.mocked(clasificarFoto).mockReturnValue(respuesta.promesa);
     const { result } = renderizar(foto('bache.jpg'));
 
@@ -149,13 +161,13 @@ describe('useSugerenciaDeCategoria (NC-04)', () => {
     expect(senalDe(0)?.aborted).toBe(true);
     expect(result.current.estado).toBe('inactiva');
 
-    await act(async () => respuesta.resolver(BACHE));
+    await act(async () => respuesta.resolver(con(BACHE)));
     expect(result.current.estado).toBe('inactiva');
     expect(clasificarFoto).toHaveBeenCalledTimes(1);
   });
 
   it('descartar después de la respuesta no cambia lo que se muestra', async () => {
-    vi.mocked(clasificarFoto).mockResolvedValue(BACHE);
+    vi.mocked(clasificarFoto).mockResolvedValue(con(BACHE));
     const { result } = renderizar(foto('bache.jpg'));
     await waitFor(() => expect(result.current.estado).toBe('lista'));
 
@@ -165,7 +177,7 @@ describe('useSugerenciaDeCategoria (NC-04)', () => {
   });
 
   it('una foto nueva después de descartar vuelve a preguntar', async () => {
-    vi.mocked(clasificarFoto).mockImplementationOnce(hastaQueSeCancele).mockResolvedValueOnce(PISTA);
+    vi.mocked(clasificarFoto).mockImplementationOnce(hastaQueSeCancele).mockResolvedValueOnce(con(PISTA));
     const { result, rerender } = renderizar(foto('a.jpg'));
     act(() => result.current.descartar());
 
@@ -176,7 +188,7 @@ describe('useSugerenciaDeCategoria (NC-04)', () => {
   });
 
   it('reanudar (el envío falló) vuelve a pedir la vista previa que se había cancelado', async () => {
-    vi.mocked(clasificarFoto).mockImplementationOnce(hastaQueSeCancele).mockResolvedValueOnce(BACHE);
+    vi.mocked(clasificarFoto).mockImplementationOnce(hastaQueSeCancele).mockResolvedValueOnce(con(BACHE));
     const elegida = foto('bache.jpg');
     const { result } = renderizar(elegida);
     act(() => result.current.descartar());
@@ -191,7 +203,7 @@ describe('useSugerenciaDeCategoria (NC-04)', () => {
   });
 
   it('reanudar no vuelve a pedir lo que ya había llegado', async () => {
-    vi.mocked(clasificarFoto).mockResolvedValue(BACHE);
+    vi.mocked(clasificarFoto).mockResolvedValue(con(BACHE));
     const { result } = renderizar(foto('bache.jpg'));
     await waitFor(() => expect(result.current.estado).toBe('lista'));
 
@@ -215,7 +227,7 @@ describe('useSugerenciaDeCategoria (NC-04)', () => {
   });
 
   it('reanudar dos veces pide una sola vez', async () => {
-    vi.mocked(clasificarFoto).mockImplementationOnce(hastaQueSeCancele).mockResolvedValueOnce(null);
+    vi.mocked(clasificarFoto).mockImplementationOnce(hastaQueSeCancele).mockResolvedValueOnce(con(null));
     const { result } = renderizar(foto('bache.jpg'));
     act(() => result.current.descartar());
 
@@ -252,5 +264,73 @@ describe('useSugerenciaDeCategoria (NC-04)', () => {
     unmount();
 
     expect(senalDe(0)?.aborted).toBe(true);
+  });
+});
+
+describe('useSugerenciaDeCategoria: foto no permitida (NC-10c)', () => {
+  function conAviso(inicial: File | null, aviso = vi.fn()) {
+    const render = renderHook(
+      ({ f, alNoPermitir }: { f: File | null; alNoPermitir: (f: File) => void }) =>
+        useSugerenciaDeCategoria(f, alNoPermitir),
+      { initialProps: { f: inicial, alNoPermitir: aviso } },
+    );
+    return { ...render, aviso };
+  }
+
+  it('con fotoRechazada: estado propio, sin sugerencia, y avisa una vez con ESA foto', async () => {
+    vi.mocked(clasificarFoto).mockResolvedValue(NO_PERMITIDA);
+    const elegida = foto('foto.jpg');
+    const { result, aviso } = conAviso(elegida);
+
+    await waitFor(() => expect(result.current.estado).toBe('foto-no-permitida'));
+    expect(result.current).not.toHaveProperty('sugerencia');
+    expect(aviso).toHaveBeenCalledTimes(1);
+    expect(aviso).toHaveBeenCalledWith(elegida);
+  });
+
+  it('una foto permitida no avisa nada', async () => {
+    vi.mocked(clasificarFoto).mockResolvedValue(con(BACHE));
+    const { result, aviso } = conAviso(foto('bache.jpg'));
+
+    await waitFor(() => expect(result.current.estado).toBe('lista'));
+    expect(aviso).not.toHaveBeenCalled();
+  });
+
+  it('avisa con el callback vigente, sin volver a pedir la vista previa al cambiarlo', async () => {
+    const respuesta = diferida<ClasificacionDeLaFoto>();
+    vi.mocked(clasificarFoto).mockReturnValue(respuesta.promesa);
+    const elegida = foto('foto.jpg');
+    const { rerender, aviso: primero } = conAviso(elegida);
+    const segundo = vi.fn();
+
+    rerender({ f: elegida, alNoPermitir: segundo });
+    await act(async () => respuesta.resolver(NO_PERMITIDA));
+
+    expect(primero).not.toHaveBeenCalled();
+    expect(segundo).toHaveBeenCalledWith(elegida);
+    expect(clasificarFoto).toHaveBeenCalledTimes(1);
+  });
+
+  it('la respuesta de una foto que ya cambió no avisa (no quita la nueva)', async () => {
+    const primera = diferida<ClasificacionDeLaFoto>();
+    vi.mocked(clasificarFoto).mockReturnValueOnce(primera.promesa).mockImplementationOnce(hastaQueSeCancele);
+    const { rerender, aviso } = conAviso(foto('a.jpg'));
+
+    rerender({ f: foto('b.jpg'), alNoPermitir: aviso });
+    await act(async () => primera.resolver(NO_PERMITIDA));
+
+    expect(aviso).not.toHaveBeenCalled();
+  });
+
+  it('descartada al enviar, su respuesta tampoco avisa: el veredicto es el de la creación', async () => {
+    const respuesta = diferida<ClasificacionDeLaFoto>();
+    vi.mocked(clasificarFoto).mockReturnValue(respuesta.promesa);
+    const { result, aviso } = conAviso(foto('foto.jpg'));
+
+    act(() => result.current.descartar());
+    await act(async () => respuesta.resolver(NO_PERMITIDA));
+
+    expect(aviso).not.toHaveBeenCalled();
+    expect(result.current.estado).toBe('inactiva');
   });
 });

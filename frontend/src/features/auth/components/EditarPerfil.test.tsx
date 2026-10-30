@@ -147,3 +147,41 @@ describe('EditarPerfil: foto de perfil (US-30, DEP-11)', () => {
     expect(screen.getByText('Se subirá: perfil.jpg')).toBeInTheDocument();
   });
 });
+
+describe('EditarPerfil: la moderación del nombre (NC-10c)', () => {
+  const NOMBRE = 'El nombre tiene palabras que no están permitidas. Cámbialo para continuar.';
+  const APELLIDO = 'El apellido tiene palabras que no están permitidas. Cámbialo para continuar.';
+  const textoNoPermitido = (campo: string, mensaje: string) =>
+    new ApiError(400, mensaje, '/api/auth/me', [campo], 'TEXTO_NO_PERMITIDO');
+
+  it('400 TEXTO_NO_PERMITIDO en el nombre: el error va en el campo, no arriba', async () => {
+    vi.mocked(editarPerfil).mockRejectedValue(textoNoPermitido('nombre', NOMBRE));
+    const { usuario, guardar } = montar();
+    const nombre = screen.getByLabelText('Nombre');
+    await usuario.clear(nombre);
+    await usuario.type(nombre, 'Anita grosera');
+
+    await guardar();
+
+    await waitFor(() => expect(nombre).toHaveAttribute('aria-invalid', 'true'));
+    expect(nombre).toHaveAccessibleDescription(NOMBRE);
+    expect(nombre).toHaveValue('Anita grosera');
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+    expect(screen.queryByText('Tus datos quedaron guardados.')).not.toBeInTheDocument();
+
+    await usuario.type(nombre, 's');
+    expect(nombre).not.toHaveAttribute('aria-invalid');
+  });
+
+  it('400 TEXTO_NO_PERMITIDO en el apellido: el error va en el apellido', async () => {
+    vi.mocked(editarPerfil).mockRejectedValue(textoNoPermitido('apellido', APELLIDO));
+    const { guardar } = montar();
+
+    await guardar();
+
+    const apellido = screen.getByLabelText('Apellido');
+    await waitFor(() => expect(apellido).toHaveAttribute('aria-invalid', 'true'));
+    expect(apellido).toHaveAccessibleDescription(APELLIDO);
+    expect(screen.getByLabelText('Nombre')).not.toHaveAttribute('aria-invalid');
+  });
+});

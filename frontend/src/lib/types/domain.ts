@@ -159,8 +159,9 @@ export interface ApiErrorBody {
   details: string[];
   /**
    * Codigo de maquina; el backend lo omite si no hay. Hoy:
-   * `TERMINOS_PENDIENTES` (D-12) y los de la confirmacion del correo (NC-09,
-   * `features/auth/model/confirmacion.ts`).
+   * `TERMINOS_PENDIENTES` (D-12), los de la confirmacion del correo (NC-09,
+   * `features/auth/model/confirmacion.ts`) y los de la moderacion (NC-10b,
+   * `lib/types/moderacion.ts`).
    */
   codigo?: string;
 }
@@ -180,12 +181,20 @@ export type CategoriaDano = Requerido<
  * Los dos campos son `null` a la vez cuando no hay sugerencia. A proposito no
  * trae confianza ni version del modelo: la sugerencia es una señal interna.
  *
- * Alias del schema generado con la nulabilidad real: springdoc marca los dos
+ * Alias del schema generado con la nulabilidad real: springdoc marca los
  * campos como opcionales, pero el record siempre los envia (`null` cuando no
  * hay sugerencia).
+ *
+ * NC-10b: `fotoRechazada` es `boolean` y siempre viene (primitivo en el
+ * record). `true` solo si la moderacion rechazo la foto, y entonces la
+ * categoria es `null`; `false` tambien si no se pudo moderar (el veredicto
+ * oficial es el de la creacion). Nunca viene el puntaje.
  */
+type CamposDeLaSugerencia = Omit<Schemas['ClasificacionResponse'], 'fotoRechazada'>;
 export type ClasificacionResponse = {
-  [K in keyof Schemas['ClasificacionResponse']]-?: NonNullable<Schemas['ClasificacionResponse'][K]> | null;
+  [K in keyof CamposDeLaSugerencia]-?: NonNullable<CamposDeLaSugerencia[K]> | null;
+} & {
+  fotoRechazada: boolean;
 };
 
 /**

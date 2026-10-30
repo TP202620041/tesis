@@ -1,4 +1,5 @@
 import type { ApiErrorBody } from '@/lib/types/domain';
+import { esRechazoDeModeracion } from '@/lib/types/moderacion';
 
 /**
  * Error de una llamada al API, con el `status` HTTP y el mensaje que el
@@ -17,6 +18,10 @@ import type { ApiErrorBody } from '@/lib/types/domain';
  * - `409` precondicion de negocio incumplida: transicion de estado invalida
  *   (US-14), reporte duplicado del mismo ciudadano (US-09), ya calificado
  *   (US-26), token de recuperacion usado o vencido (US-03).
+ * - NC-10b (D-15): `400` con `codigo` `FOTO_NO_PERMITIDA` o
+ *   `TEXTO_NO_PERMITIDO` (la moderacion rechazo la foto o un texto; `details`
+ *   trae el campo) y `503` `MODERACION_NO_DISPONIBLE` (no se pudo moderar la
+ *   foto). Los codigos estan en `lib/types/moderacion.ts`.
  */
 export class ApiError extends Error {
   readonly status: number;
@@ -24,8 +29,9 @@ export class ApiError extends Error {
   readonly details: string[];
   /**
    * Codigo de maquina del backend (`ApiError.codigo`), o `null` si no vino:
-   * el backend lo omite del JSON cuando no hay. Hoy solo existe
-   * {@link CODIGO_TERMINOS_PENDIENTES}.
+   * el backend lo omite del JSON cuando no hay. Hoy:
+   * {@link CODIGO_TERMINOS_PENDIENTES}, los de la confirmacion del correo
+   * (NC-09) y los de la moderacion (NC-10b).
    */
   readonly codigo: string | null;
 
@@ -95,7 +101,10 @@ export interface MensajeDeError {
  * - {@link NetworkError}: no hubo respuesta, asi que no hay mensaje del
  *   backend que mostrar.
  * - {@link ApiError}: el backend ya devuelve el mensaje en español, y en un
- *   400 de `@Valid` el detalle por campo viene en `details`.
+ *   400 de `@Valid` el detalle por campo viene en `details`. En un rechazo de
+ *   la moderacion (NC-10b) `details` es el NOMBRE del campo (`descripcion`),
+ *   no un mensaje, y no se muestra: las pantallas que lo esperan lo ponen en
+ *   su campo, y en cualquier otra basta el mensaje.
  * - Cualquier otra cosa es un error de programacion: mensaje generico.
  */
 export function mensajeDeError(e: unknown): MensajeDeError {
@@ -103,7 +112,7 @@ export function mensajeDeError(e: unknown): MensajeDeError {
     return { mensaje: 'Sin conexión con el servidor. Revisa tu red.', detalles: [] };
   }
   if (e instanceof ApiError) {
-    return { mensaje: e.message, detalles: e.details };
+    return { mensaje: e.message, detalles: esRechazoDeModeracion(e.codigo) ? [] : e.details };
   }
   return { mensaje: 'Ocurrió un error inesperado.', detalles: [] };
 }

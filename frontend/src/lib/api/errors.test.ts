@@ -19,6 +19,14 @@ describe('mensajeDeError', () => {
     });
   });
 
+  it.each([
+    [400, 'FOTO_NO_PERMITIDA', 'foto'],
+    [400, 'TEXTO_NO_PERMITIDO', 'descripcion'],
+  ])('NC-10c: en un %i %s, details es el campo y no se muestra como detalle', (status, codigo, campo) => {
+    const error = new ApiError(status, 'No está permitido.', '/api/reportes', [campo], codigo);
+    expect(mensajeDeError(error)).toEqual({ mensaje: 'No está permitido.', detalles: [] });
+  });
+
   it('un 409 de negocio llega con su mensaje', () => {
     const error = new ApiError(409, 'El token de recuperacion vencio');
     expect(mensajeDeError(error).mensaje).toBe('El token de recuperacion vencio');

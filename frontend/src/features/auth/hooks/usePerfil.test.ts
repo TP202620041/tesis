@@ -80,6 +80,30 @@ describe('usePerfil', () => {
     expect(result.current.guardado).toBe(false);
   });
 
+  it('NC-10c: un 400 TEXTO_NO_PERMITIDO queda para el campo, con lo enviado, y no en error', async () => {
+    const mensaje = 'El apellido tiene palabras que no están permitidas. Cámbialo para continuar.';
+    vi.mocked(editarPerfil).mockRejectedValueOnce(
+      new ApiError(400, mensaje, '/api/auth/me', ['apellido'], 'TEXTO_NO_PERMITIDO'),
+    );
+    const { result } = renderHook(() => usePerfil(ANA));
+
+    let ok = true;
+    await act(async () => {
+      ok = await result.current.guardar({ nombre: 'Ana', apellido: 'Vecina fea' });
+    });
+
+    expect(ok).toBe(false);
+    expect(result.current.textoRechazado).toEqual({ campo: 'apellido', mensaje, valor: 'Vecina fea' });
+    expect(result.current.error).toBeNull();
+    expect(result.current.guardado).toBe(false);
+
+    vi.mocked(editarPerfil).mockResolvedValueOnce(ANA);
+    await act(async () => {
+      await result.current.guardar({ nombre: 'Ana', apellido: 'Vecina' });
+    });
+    expect(result.current.textoRechazado).toBeNull();
+  });
+
   it('sin conexion conserva el texto de la pantalla', async () => {
     vi.mocked(actualizarPreferenciaNotificacion).mockRejectedValue(new NetworkError());
     const { result } = renderHook(() => usePerfil(ANA));

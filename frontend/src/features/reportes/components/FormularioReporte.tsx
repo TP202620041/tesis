@@ -1,11 +1,24 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { AlertaError, Boton } from '@/components/ui/form';
+import { Aviso } from '@/components/ui/Aviso';
+import { clasesDeBoton } from '@/components/ui/Boton';
+import { AlertaError, Boton, CLASE_CONTROL_INVALIDO, ErrorDelCampo } from '@/components/ui/form';
 import type { Severidad } from '@/lib/types/domain';
+import { errorDelCampo } from '@/lib/types/moderacion';
 import { useCategoriasDeReporte } from '../hooks/useCategoriasDeReporte';
-import { useCrearReporte } from '../hooks/useCrearReporte';
+import {
+  useCrearReporte,
+  type DatosDelReporte,
+  type DesenlaceDelEnvio,
+  type MotivoDeEspera,
+} from '../hooks/useCrearReporte';
 import { useSugerenciaDeCategoria } from '../hooks/useSugerenciaDeCategoria';
+import {
+  ACCION_ENVIAR_SIN_FOTO,
+  ACCION_GUARDAR_PARA_DESPUES,
+  MENSAJE_FOTO_NO_PERMITIDA,
+} from '../model/moderacion';
 import {
   AVISO_DE_ANALISIS_DE_FOTO,
   avisoDeFotoRechazada,
@@ -20,6 +33,7 @@ import { SugerenciaDeCategoria } from './SugerenciaDeCategoria';
 
 const ID_SUGERENCIA = 'categoriaId-sugerencia';
 const ID_AYUDA_CATEGORIA = 'categoriaId-ayuda';
+const ID_ERROR_DESCRIPCION = 'descripcion-error';
 
 /**
  * US-05: crear un reporte con foto, categoría y GPS. NC-02: con título
@@ -35,6 +49,17 @@ const ID_AYUDA_CATEGORIA = 'categoriaId-ayuda';
  * ni el envío). Al enviar se descarta si aún no llegó, y si el envío falla y
  * el ciudadano sigue aquí, se vuelve a pedir. La ayuda de la foto avisa del
  * análisis antes de elegirla.
+ *
+ * NC-10c, la moderación (todo por `codigo`, sin repetir la palabra):
+ * - **Foto no permitida** (400 al crear, o `fotoRechazada` en la vista
+ *   previa): se quita la foto, se avisa junto al campo («La foto no está
+ *   permitida. Toma otra.») hasta que se elija otra, y el resto del
+ *   formulario queda como estaba.
+ * - **Texto no permitido**: el mensaje del backend va en el título o en la
+ *   descripción, mientras ese campo diga lo mismo que se envió.
+ * - **Sin moderación** (503, solo con foto): junto al botón de envío se
+ *   ofrece «Guardar para enviar después» (la cola de US-06, misma clave) o
+ *   «Enviar sin foto» (quita la foto y envía con la misma clave).
  */
 export function FormularioReporte({
   usuarioId,
@@ -43,9 +68,17 @@ export function FormularioReporte({
 }: {
   usuarioId: number;
   onCreado: (r: ReporteCreado) => void;
-  onEncolado: () => void;
+  onEncolado: (motivo: MotivoDeEspera) => void;
 }) {
-  const { enviar: enviarReporte, enviando, error, limpiarError } = useCrearReporte(usuarioId);
+  const {
+    enviar: enviarReporte,
+    guardarParaDespues,
+    enviando,
+    error,
+    textoRechazado,
+    moderacionNoDisponible,
+    limpiarError,
+  } = useCrearReporte(usuarioId);
   const [ubicacion, setUbicacion] = useState<UbicacionElegida | null>(null);
   const [categoriaElegida, setCategoriaElegida] = useState<number | null>(null);
   const [titulo, setTitulo] = useState('');
@@ -56,8 +89,21 @@ export function FormularioReporte({
   const errores = intentado
     ? erroresDeTituloYSeveridad(titulo, severidad)
     : { titulo: null, severidad: null };
+  // NC-10c: el texto que rechazó la moderación, mientras el campo no cambie.
+  const errorTitulo = errores.titulo ?? errorDelCampo(textoRechazado, 'titulo', titulo);
+  const errorDeDescripcion = errorDelCampo(textoRechazado, 'descripcion', descripcion);
   const [foto, setFoto] = useState<File | null>(null);
-  const vistaPrevia = useSugerenciaDeCategoria(foto);
+  // NC-10c: la moderación rechazó la foto y se quitó; se avisa hasta elegir otra.
+  const [fotoNoPermitida, setFotoNoPermitida] = useState(false);
+  const quitarFotoNoPermitida = () => {
+    setFoto(null);
+    setFotoNoPermitida(true);
+  };
+  const elegirFoto = (elegida: File | null) => {
+    setFoto(elegida);
+    setFotoNoPermitida(false);
+  };
+  const vistaPrevia = useSugerenciaDeCategoria(foto, quitarFotoNoPermitida);
   const selectorDeCategoria = useRef<HTMLSelectElement>(null);
 
   const distritoId = ubicacion?.distrito?.id ?? null;
@@ -77,21 +123,9 @@ export function FormularioReporte({
   const fueraDeCobertura = ubicacion != null && ubicacion.distrito === null;
   const puedeEnviar = ubicacion != null && !fueraDeCobertura && categoriaId != null && !enviando;
 
-  async function enviar(evento: React.FormEvent) {
-    evento.preventDefault();
-    setIntentado(true);
-    // Titulo o severidad invalidos: se marcan en su campo y no se envia (el
-    // hook valida igual, pero asi el mensaje no sale dos veces).
-    const campos = erroresDeTituloYSeveridad(titulo, severidad);
-    if (campos.titulo || campos.severidad) {
-      // El error anterior (p. ej. un 409 del intento previo) ya no aplica.
-      limpiarError();
-      return;
-    }
-    // NC-04: si la vista previa no llegó, ya no hace falta (el backend
-    // calcula la sugerencia oficial sobre la foto guardada).
-    vistaPrevia.descartar();
-    const desenlace = await enviarReporte({
+  /** Lo que el formulario tiene ahora, con la foto que se quiere enviar. */
+  function datos(fotoAEnviar: File | null): DatosDelReporte {
+    return {
       ubicacion: ubicacion && {
         latitud: ubicacion.coordenadas.latitud,
         longitud: ubicacion.coordenadas.longitud,
@@ -101,13 +135,55 @@ export function FormularioReporte({
       titulo,
       severidad,
       descripcion,
-      foto,
-    });
+      foto: fotoAEnviar,
+    };
+  }
+
+  /**
+   * Titulo o severidad invalidos: se marcan en su campo y no se envia (el
+   * hook valida igual, pero asi el mensaje no sale dos veces).
+   */
+  function camposValidos(): boolean {
+    setIntentado(true);
+    const campos = erroresDeTituloYSeveridad(titulo, severidad);
+    if (campos.titulo || campos.severidad) {
+      // El error anterior (p. ej. un 409 del intento previo) ya no aplica.
+      limpiarError();
+      return false;
+    }
+    // NC-04: si la vista previa no llegó, ya no hace falta (el backend
+    // calcula la sugerencia oficial sobre la foto guardada).
+    vistaPrevia.descartar();
+    return true;
+  }
+
+  function alTerminar(desenlace: DesenlaceDelEnvio) {
     if (desenlace?.tipo === 'creado') onCreado(desenlace.reporte);
-    else if (desenlace?.tipo === 'encolado') onEncolado();
+    else if (desenlace?.tipo === 'encolado') onEncolado(desenlace.motivo);
+    // NC-10c: la foto no viaja más; el resto del formulario queda igual.
+    else if (desenlace?.tipo === 'foto-no-permitida') quitarFotoNoPermitida();
     // El envío falló (409, 400…) y el ciudadano sigue en el formulario: si la
     // vista previa se había cancelado al enviar, se vuelve a pedir.
     else vistaPrevia.reanudar();
+  }
+
+  async function enviar(evento: React.FormEvent) {
+    evento.preventDefault();
+    if (!camposValidos()) return;
+    alTerminar(await enviarReporte(datos(foto)));
+  }
+
+  /** NC-10c, tras el 503: a la cola de US-06 con la misma clave, con la foto. */
+  async function guardarDespues() {
+    if (!camposValidos()) return;
+    alTerminar(await guardarParaDespues(datos(foto)));
+  }
+
+  /** NC-10c, tras el 503: se quita la foto y se envía sin ella, con la misma clave. */
+  async function enviarSinFoto() {
+    if (!camposValidos()) return;
+    setFoto(null);
+    alTerminar(await enviarReporte(datos(null)));
   }
 
   return (
@@ -118,11 +194,12 @@ export function FormularioReporte({
 
       <CampoFoto
         valor={foto}
-        onCambiar={setFoto}
+        onCambiar={elegirFoto}
         aviso={AVISO_DE_ANALISIS_DE_FOTO}
         rechazo={
           vistaPrevia.estado === 'foto-rechazada' ? avisoDeFotoRechazada(vistaPrevia.mensaje) : null
         }
+        noPermitida={fotoNoPermitida ? MENSAJE_FOTO_NO_PERMITIDA : null}
       />
 
       <div className="flex flex-col gap-1.5">
@@ -166,7 +243,7 @@ export function FormularioReporte({
         )}
       </div>
 
-      <CampoTitulo id="titulo" valor={titulo} onCambiar={setTitulo} error={errores.titulo} />
+      <CampoTitulo id="titulo" valor={titulo} onCambiar={setTitulo} error={errorTitulo} />
 
       <CampoSeveridad
         nombre="severidad"
@@ -189,9 +266,42 @@ export function FormularioReporte({
           value={descripcion}
           onChange={(e) => setDescripcion(e.target.value)}
           placeholder="Ej.: bache profundo en el carril derecho, frente al parque."
-          className="rounded-control border border-linea-campo bg-superficie px-3 py-2 text-texto focus:border-primario"
+          aria-invalid={errorDeDescripcion ? true : undefined}
+          aria-describedby={errorDeDescripcion ? ID_ERROR_DESCRIPCION : undefined}
+          className={`rounded-control border border-linea-campo bg-superficie px-3 py-2 text-texto focus:border-primario ${CLASE_CONTROL_INVALIDO}`}
         />
+        {errorDeDescripcion && (
+          <ErrorDelCampo id={ID_ERROR_DESCRIPCION} mensaje={errorDeDescripcion} />
+        )}
       </div>
+
+      {/* NC-10c: solo mientras haya una foto que revisar; sin ella, el envío
+          normal ya no necesita la moderación. Las dos salidas piden lo mismo
+          que «Enviar reporte» (`puedeEnviar`): fuera de cobertura o sin
+          categoría, guardar en la cola solo dejaría un rechazo para después. */}
+      {moderacionNoDisponible && foto && (
+        <Aviso tono="advertencia" rol="alert">
+          <p>{moderacionNoDisponible}</p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={!puedeEnviar}
+              onClick={() => void guardarDespues()}
+              className={clasesDeBoton('secundario', 'compacto')}
+            >
+              {ACCION_GUARDAR_PARA_DESPUES}
+            </button>
+            <button
+              type="button"
+              disabled={!puedeEnviar}
+              onClick={() => void enviarSinFoto()}
+              className={clasesDeBoton('secundario', 'compacto')}
+            >
+              {ACCION_ENVIAR_SIN_FOTO}
+            </button>
+          </div>
+        </Aviso>
+      )}
 
       <Boton cargando={enviando} disabled={!puedeEnviar}>
         Enviar reporte

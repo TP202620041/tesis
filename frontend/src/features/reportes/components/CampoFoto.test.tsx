@@ -196,3 +196,53 @@ describe('CampoFoto: la foto que rechazó el servidor (NC-04)', () => {
     expect(screen.getByLabelText('Foto del daño (opcional)')).not.toHaveAttribute('aria-invalid');
   });
 });
+
+describe('CampoFoto: la foto que no permitió la moderación (NC-10c)', () => {
+  const NO_PERMITIDA = 'La foto no está permitida. Toma otra.';
+
+  beforeEach(() => {
+    // jsdom no implementa las URL `blob:` de la vista previa.
+    Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:x'), revokeObjectURL: vi.fn() });
+  });
+
+  afterEach(() => {
+    // Primero se desmonta: la vista previa llama a `revokeObjectURL` al limpiarse.
+    cleanup();
+    const urlMutable = URL as unknown as Record<string, unknown>;
+    delete urlMutable.createObjectURL;
+    delete urlMutable.revokeObjectURL;
+  });
+
+  it('el aviso se ve sin la foto (ya quitada) y describe el campo, que no queda inválido', () => {
+    render(<CampoFoto valor={null} onCambiar={vi.fn()} noPermitida={NO_PERMITIDA} />);
+
+    const aviso = screen.getByRole('alert');
+    expect(aviso).toHaveTextContent(NO_PERMITIDA);
+    const campo = screen.getByLabelText('Foto del daño (opcional)');
+    expect(campo).toHaveAccessibleDescription(`${NO_PERMITIDA} JPG, PNG o WEBP, de hasta 10 MB.`);
+    // La foto es opcional: el reporte se puede enviar sin ella.
+    expect(campo).not.toHaveAttribute('aria-invalid');
+    expect(screen.getByRole('button', { name: 'Tomar o elegir una foto' })).toBeInTheDocument();
+  });
+
+  it('sin aviso no se muestra nada', () => {
+    render(<CampoFoto valor={null} onCambiar={vi.fn()} noPermitida={null} />);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('si el formulario quita la foto, el selector se vacía y la misma foto se puede volver a elegir', async () => {
+    const onCambiar = vi.fn();
+    const usuario = userEvent.setup();
+    const foto = archivo('bache.jpg', 'image/jpeg');
+    const { rerender } = render(<CampoFoto valor={null} onCambiar={onCambiar} />);
+    const input = screen.getByLabelText<HTMLInputElement>('Foto del daño (opcional)');
+    await usuario.upload(input, foto);
+    rerender(<CampoFoto valor={foto} onCambiar={onCambiar} />);
+
+    rerender(<CampoFoto valor={null} onCambiar={onCambiar} noPermitida={NO_PERMITIDA} />);
+
+    expect(input.value).toBe('');
+    await usuario.upload(input, foto);
+    expect(onCambiar).toHaveBeenCalledTimes(2);
+  });
+});

@@ -631,7 +631,10 @@ Reglas de la cola:
   intento lógico) o descartarlo, ambas cosas con confirmación.
 - **Rechazos de negocio** (otro 4xx, p. ej. fuera de cobertura): reintentar no
   cambia la respuesta, así que queda «No se pudo enviar: <motivo>» con un
-  botón para descartarlo (con confirmación).
+  botón para descartarlo (con confirmación). Los de la moderación (NC-10c)
+  también, con un motivo que dice qué hacer desde la cola (ver «Moderación de
+  contenido»). Su 503 es transitorio, pero no detiene la cola: solo esperan
+  los reportes con foto.
 - **Incompletos (NC-02)**: un reporte guardado por la versión anterior, sin
   título ni severidad, no se reenvía solo ni se purga; el ciudadano lo completa
   con la misma clave (ver «Título y severidad del reporte (NC-02)»).
@@ -816,6 +819,8 @@ siempre «sin sugerencia». Con el modelo real (v0.8.0) el contrato no cambia.
   no vio un daño claro». El único error que se muestra es el **409**: la foto
   no es una imagen válida, y el envío fallaría igual. Se avisa junto a la foto,
   con el campo `aria-invalid`, para que el ciudadano la cambie o la quite.
+  Desde NC-10c, una respuesta con `fotoRechazada: true` quita la foto (ver
+  «Moderación de contenido (NC-10c, D-15)»).
 - **Sin carreras.** `useSugerenciaDeCategoria` cancela con `AbortController`
   la petición de la foto anterior al elegir otra, al quitarla, al desmontarse
   el formulario y al enviar el reporte (`descartar()`: si la respuesta no
@@ -1136,6 +1141,116 @@ el README del backend («Confirmación del correo»). Lo que cambia en la PWA:
   el origen a otro origen, y la página no carga recursos de terceros.
 - **CSP y `proxy`:** sin cambios. Los dos endpoints nuevos son del mismo
   origen del API, que ya está en `connect-src`, y la PWA no tiene `proxy`.
+
+### Moderación de contenido (NC-10c, D-15)
+
+Desde NC-10b el backend rechaza la foto obscena o sexual y los textos con
+groserías (una lista fija del español peruano), y falla cerrado si no puede
+revisar la foto. Contrato: `project-context/handoffs/2026-10-29-moderacion.md`;
+el porqué, en el README del backend («Moderación de contenido (NC-10b,
+D-15)»). Lo que cambia en la PWA:
+
+- **Por código, nunca por el texto.** Los códigos son `FOTO_NO_PERMITIDA`,
+  `TEXTO_NO_PERMITIDO` (con el campo en `details[0]`) y
+  `MODERACION_NO_DISPONIBLE`. El mensaje del backend no repite la palabra y
+  se muestra tal cual; la PWA no tiene la lista ni repite la palabra. Las
+  reglas son puras y están en dos sitios:
+  - lo que comparten `reportes` y `auth` (los códigos y el texto rechazado
+    por campo), en `lib/types/moderacion.ts`, porque lo usan dos features
+    (ARCHITECTURE §5.3);
+  - lo propio de crear un reporte (la foto, el 503 y la cola), en
+    `features/reportes/model/moderacion.ts`.
+- **Foto no permitida** (400 al crear, o `fotoRechazada: true` en la vista
+  previa de NC-04). El formulario **quita** la foto: no queda a la vista ni
+  viaja. Junto al campo aparece «La foto no está permitida. Toma otra.»
+  (`role="alert"`; también describe el campo) hasta que se elija otra.
+  - El resto del formulario queda igual, y el reporte se puede enviar sin
+    foto. Por eso el campo no queda `aria-invalid`: la foto es opcional y ya
+    no hay nada inválido.
+  - El texto es fijo (`MENSAJE_FOTO_NO_PERMITIDA`), no el del backend: la
+    vista previa no trae mensaje, y así se lee igual en los dos casos.
+  - La vista previa avisa al formulario con `useEffectEvent` (React 19.2), y
+    solo con la respuesta vigente: si la foto ya cambió, si se descartó al
+    enviar o si el formulario se desmontó, no quita nada. El efecto no
+    depende del callback, así que un render nuevo no vuelve a pedir la vista
+    previa.
+  - Con `fotoRechazada: false` no cambia nada, también cuando la moderación
+    no se pudo hacer: el veredicto oficial es el de la creación.
+- **Texto no permitido** (400). El mensaje va **en el campo** de
+  `details[0]` (`aria-invalid` y `aria-describedby`), no arriba. Aplica al
+  título y la descripción (al crear y al editar), al comentario y al nombre y
+  el apellido (registro y perfil).
+  - Se muestra **mientras el campo diga lo mismo que se envió**
+    (`errorDelCampo`): en cuanto el ciudadano lo cambia, ya no se sabe si el
+    texto nuevo pasa, y lo dirá el próximo envío. Es la regla del correo
+    rechazado de NC-09.
+  - Lo escrito se conserva siempre (el 400 llega al instante).
+  - Si el campo no está en esa pantalla, va como error general, con su
+    mensaje. En el registro, como todo error, reinicia el captcha.
+- **`details` no se muestra.** En estos códigos es el *nombre* del campo
+  (`descripcion`), no un mensaje: `mensajeDeError` lo omite, para que ninguna
+  pantalla lo muestre como viñeta.
+- **Sin moderación** (503 `MODERACION_NO_DISPONIBLE`, solo al crear con
+  foto). Junto al botón de envío aparece el mensaje del backend con dos
+  salidas:
+  - **«Guardar para enviar después»** guarda el reporte en la cola de US-06
+    **con la misma `Idempotency-Key`**, sin otro POST. La cola reintenta los
+    5xx sola, y el backend lo crea entonces: no registró la clave, porque no
+    creó nada. La confirmación dice «No pudimos revisar la foto en este
+    momento…», no «No hay conexión».
+  - **«Enviar sin foto»** quita la foto del formulario y envía con la misma
+    clave: es el mismo intento lógico.
+  - Las dos llevan lo que el formulario tiene en ese momento, por si el
+    ciudadano cambió algo. Si quita la foto, desaparecen: sin foto no hace
+    falta la moderación.
+  - Un 503 sin `codigo` (almacenamiento caído o sin turno para sanear,
+    DEP-11/12) sigue siendo un error común.
+- **Cola sin conexión.** Un reenvío que recibe `FOTO_NO_PERMITIDA` o
+  `TEXTO_NO_PERMITIDO` queda `rechazado`, como cualquier 4xx, y no se
+  reintenta. El motivo no es el del backend tal cual: «Toma otra» o «Cámbiala
+  para continuar» no se pueden hacer desde la cola, donde solo se descarta.
+  `motivoDeRechazoEnLaCola` dice, por ejemplo, «La foto no está permitida.
+  Descártalo y vuelve a reportar el daño con otra foto o sin ella.».
+- **El 503 de la moderación no detiene la cola** (observación de la
+  revisión). Un 5xx cualquiera la detiene en el primer reporte, pero la
+  moderación caída solo afecta a los que llevan foto. El reporte queda
+  pendiente con su clave, y la vuelta sigue:
+  - los siguientes con foto no se intentan (darían el mismo 503 y cada uno
+    subiría su foto);
+  - los que no tienen foto sí se envían, así que no esperan al servicio ni
+    caducan a las 48 h por su culpa.
+
+  Los sin foto se reintentan en la vuelta siguiente (al volver la conexión
+  o la pestaña, y cada 30 s).
+- **Retroceso progresivo tras el 503** (decisión del usuario del 29/10).
+  Cada intento de un reporte con foto la vuelve a subir, así que, mientras
+  la moderación siga caída, esos reportes esperan **30 s, 1 min, 2 min,
+  4 min, 8 min y luego 10 min** (tope) entre intentos. La regla es pura
+  (`model/esperaDeModeracion.ts`); el estado vive en `useColaOffline`.
+  - Solo para los reportes con foto y solo por el 503
+    `MODERACION_NO_DISPONIBLE`. Sin conexión, otros 5xx, los reportes sin
+    foto y la `Idempotency-Key` siguen igual.
+  - El primer reintento tras «Guardar para enviar después» también espera
+    30 s: el formulario anota el 503 antes de encolar.
+  - Si la cola ya estaba esperando, ese 503 del formulario sube un escalón
+    (es otro 503 observado: el servicio sigue caído).
+  - Se reinicia cuando un reporte con foto se envía bien, desde la cola o
+    desde el formulario (revisión). **No** al volver la
+    conexión: la cola no tenía espera que reiniciar, y el 503 es del
+    servidor, no de la red del teléfono. La pasada de cada 30 s, la conexión
+    y la pestaña siguen disparando la cola; los reportes con foto solo se
+    intentan si ya pasó su espera.
+  - Es por usuario y en memoria de la pestaña, no en IndexedDB: al recargar
+    se intenta una vez enseguida y, si sigue caída, la espera vuelve a
+    empezar en 30 s. No hace falta migrar el esquema de la cola por un
+    retraso de minutos.
+- **Un reporte de la cola rechazado por la foto solo se descarta**
+  (decisión del usuario del 29/10). No se puede cambiar ni quitar la foto
+  desde la cola: el ciudadano lo descarta y vuelve a reportar el daño.
+- **Lo que no hace la PWA:** no filtra nada antes de enviar (la lista vive
+  solo en el backend y no se publica), no analiza la foto y no permite
+  cambiar la foto de un reporte que ya está en la cola.
+- **CSP y `proxy`:** sin cambios; no hay endpoints ni orígenes nuevos.
 
 ### Notificaciones push (US-21)
 
@@ -1545,6 +1660,27 @@ Verificado end-to-end contra el backend real:
   **Todavía no se verificó contra el backend real**: falta probarla con el
   clasificador falso del perfil `local` (`CLASIFICACION_FALSO_RESPUESTA` con
   `bache:0.87`, vacío y `falla`).
+- **NC-10c** moderación de la foto y del texto (ver «Moderación de contenido
+  (NC-10c, D-15)» en Decisiones técnicas). Cubierta por tests de las reglas
+  (`lib/types/moderacion.ts`, `reportes/model/moderacion.ts`), de los hooks
+  (crear, vista previa, cola, editar, comentar y perfil) y de las pantallas.
+  Verificada el 29/10 con la build de producción en Chrome (modo headed),
+  contra el backend de NC-10b en una base desechable:
+  - **en vivo**: el texto rechazado en la descripción al crear, en el título
+    al editar, en el comentario, en el apellido del perfil y en el nombre del
+    registro (siempre en su campo, sin la palabra y conservando lo escrito);
+    con `MODERACION_TIPO=http` y el servicio caído, el 503 real con sus dos
+    salidas: «Enviar sin foto» creó el reporte con la misma clave, y «Guardar
+    para enviar después» lo dejó en la cola, que lo reintentó con la misma
+    clave y lo mantuvo pendiente;
+  - **interceptado**: la vista previa con `fotoRechazada: true` y el 400
+    `FOTO_NO_PERMITIDA` al crear quitan la foto y avisan junto al campo; el
+    reenvío sin foto creó el reporte con la misma clave. La foto rechazada no
+    se pudo provocar en vivo: con `MODERACION_TIPO=ninguna` no se rechaza
+    ninguna, el doble del puerto que rechaza solo existe en los IT del backend
+    (`ModeracionCreacionIT`), y el servicio real no rechaza fotos de pistas.
+    Por eso el navegador recibió el cuerpo exacto del contrato y el resto del
+    flujo fue al backend real.
 
 ### 404 e ids inválidos (QA-1 M-11)
 

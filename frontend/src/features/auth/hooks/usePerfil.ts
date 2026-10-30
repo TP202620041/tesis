@@ -2,9 +2,10 @@
 
 import { useCallback, useState } from 'react';
 import { listarDistritos } from '@/lib/api/catalogos';
-import { mensajeDeError, NetworkError, type MensajeDeError } from '@/lib/api/errors';
+import { ApiError, mensajeDeError, NetworkError, type MensajeDeError } from '@/lib/api/errors';
 import { useCarga } from '@/lib/hooks/useCarga';
 import type { Distrito, PreferenciaNotificacion, Usuario } from '@/lib/types/domain';
+import { textoRechazado as textoRechazadoDe, type TextoRechazado } from '@/lib/types/moderacion';
 import { actualizarPreferenciaNotificacion, editarPerfil, type CambiosDePerfil } from '../api';
 
 const SIN_DISTRITOS: Distrito[] = [];
@@ -28,16 +29,22 @@ function errorDePerfil(e: unknown): MensajeDeError {
  * US-30: el ciudadano edita sus datos y su foto (`guardar`) y su preferencia
  * de aviso (`cambiarPreferencia`). `usuario` es siempre la ultima version que
  * devolvio el servidor.
+ *
+ * NC-10c: el 400 `TEXTO_NO_PERMITIDO` del nombre o del apellido queda en
+ * `textoRechazado` (campo, mensaje y lo que se envio), para el campo, y no en
+ * `error`.
  */
 export function usePerfil(inicial: Usuario) {
   const [usuario, setUsuario] = useState<Usuario>(inicial);
   const [guardando, setGuardando] = useState(false);
   const [guardado, setGuardado] = useState(false);
   const [error, setError] = useState<MensajeDeError | null>(null);
+  const [textoRechazado, setTextoRechazado] = useState<TextoRechazado | null>(null);
 
   /** Devuelve `true` si se guardo (el componente limpia entonces la foto elegida). */
   const guardar = useCallback(async (cambios: CambiosDePerfil): Promise<boolean> => {
     setError(null);
+    setTextoRechazado(null);
     setGuardado(false);
     setGuardando(true);
     try {
@@ -45,7 +52,12 @@ export function usePerfil(inicial: Usuario) {
       setGuardado(true);
       return true;
     } catch (e) {
-      setError(errorDePerfil(e));
+      const rechazo =
+        e instanceof ApiError
+          ? textoRechazadoDe(e, { nombre: cambios.nombre, apellido: cambios.apellido })
+          : null;
+      if (rechazo) setTextoRechazado(rechazo);
+      else setError(errorDePerfil(e));
       return false;
     } finally {
       setGuardando(false);
@@ -63,5 +75,5 @@ export function usePerfil(inicial: Usuario) {
     }
   }, []);
 
-  return { usuario, guardando, guardado, error, guardar, cambiarPreferencia };
+  return { usuario, guardando, guardado, error, textoRechazado, guardar, cambiarPreferencia };
 }

@@ -83,6 +83,7 @@ describe('FormularioRegistro (NC-07b)', () => {
       enviando: false,
       error: null,
       errorDelCorreo: null,
+      textoRechazado: null,
       terminosDesactualizados: false,
       enviar,
     });
@@ -251,6 +252,7 @@ describe('FormularioRegistro (NC-07b)', () => {
       enviando: false,
       error: { mensaje: 'La version de los terminos aceptada no es la vigente', detalles: [] },
       errorDelCorreo: null,
+      textoRechazado: null,
       terminosDesactualizados: true,
       enviar: vi.fn(),
     });
