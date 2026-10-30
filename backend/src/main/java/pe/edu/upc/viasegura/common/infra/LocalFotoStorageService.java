@@ -29,7 +29,7 @@ import pe.edu.upc.viasegura.common.port.SaneadorDeImagen;
  *
  * <p>Las fotos se separan en dos subdirectorios segun su visibilidad (ver
  * {@link FotoStorageService}): {@value #SUBDIR_REPORTES} se sirve en la ruta
- * publica ({@code reportes.infra.FotosDeReporteWebConfig}, por {@link #cargarFotoReporte}),
+ * publica (el resource handler de fotos de reporte del modulo que las sirve, por {@link #cargarFotoReporte}),
  * {@value #SUBDIR_PERFILES} solo a traves del endpoint que verifica al
  * dueno.</p>
  *

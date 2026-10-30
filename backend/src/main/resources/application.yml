@@ -48,7 +48,7 @@ spring:
 # Almacenamiento de fotos (US-05 reportes, US-30 perfil). Las fotos se separan
 # segun su visibilidad (ver FotoStorageService), y las URL son las mismas con
 # cualquier adaptador:
-#   reportes -> PUBLICAS en `fotos-url`/reportes/<uuid>.jpg (WebMvcConfig)
+#   reportes -> PUBLICAS en `fotos-url`/reportes/<uuid>.jpg (reportes.infra.FotosDeReporteWebConfig)
 #   perfiles -> SOLO al dueno en `fotos-perfil-url`/<uuid>.jpg (PerfilFotoController)
 app:
   storage:

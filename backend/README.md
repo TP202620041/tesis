@@ -3774,7 +3774,11 @@ caracteres sin los espacios del borde.
 - **Tope de denuncias:** `app.moderacion.denuncias-por-dia` (10 por defecto),
   en una **ventana móvil de 24 h**, no por día calendario. El `UNIQUE
   (reporte_id, denunciante_id)` cubre los envíos simultáneos (el segundo
-  recibe el mismo 409).
+  recibe el mismo 409). **El tope no es atómico:** el conteo va antes del
+  `INSERT`, así que varias denuncias simultáneas del mismo ciudadano a reportes
+  distintos pueden pasarlo por unas pocas. Se acepta a esta escala, porque una
+  denuncia de más no oculta nada; si hiciera falta cerrarlo, un
+  `pg_advisory_xact_lock(denunciante_id)` antes de contar.
 - **BE-14 (cierre de cuenta):** las denuncias se conservan mientras exista el
   reporte; al cerrar la cuenta hay que anonimizar al denunciante con
   `DenunciaReporteRepository#anonimizarDenunciante`. Por eso
