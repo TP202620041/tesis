@@ -48,7 +48,9 @@ public class ComentarioPublicoService {
                                               ComentarPublicoRequest req) {
         moderacionService.exigirTextoPermitido(CampoDeTexto.COMENTARIO, req.contenido());
         Usuario ciudadano = usuarioConsultaService.usuarioPorEmail(emailCiudadano);
+        // NC-11a: un reporte oculto por el ADMIN no se puede comentar (404).
         Reporte reporte = reporteRepository.findById(reporteId)
+                .filter(r -> !r.isOculto())
                 .orElseThrow(() -> new ResourceNotFoundException("Reporte no encontrado: " + reporteId));
 
         // Solo reportes resueltos: el comentario confirma la efectividad de la
@@ -77,9 +79,15 @@ public class ComentarioPublicoService {
         return ComentarioPublicoResponse.from(comentario);
     }
 
-    /** US-27: comentarios de un reporte (lectura publica). */
+    /**
+     * US-27: comentarios de un reporte (lectura publica). NC-11a: los de un
+     * reporte oculto por el ADMIN dan 404, como su detalle publico.
+     */
     @Transactional(readOnly = true)
     public List<ComentarioPublicoResponse> listar(Long reporteId) {
+        if (reporteRepository.existsByIdAndOcultoTrue(reporteId)) {
+            throw new ResourceNotFoundException("Reporte no encontrado: " + reporteId);
+        }
         return comentarioRepository.findByReporteIdOrderByCreatedAtAsc(reporteId).stream()
                 .map(ComentarioPublicoResponse::from)
                 .toList();

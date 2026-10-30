@@ -13,6 +13,11 @@ import pe.edu.upc.viasegura.reportes.domain.Reporte;
  * para la municipalidad): las lee cualquiera, incluso sin autenticarse.
  * La bandeja municipal usa {@link ReporteGestionResponse}, que agrega
  * {@code posibleReincidencia} (US-27). Ver SEC-02 en el README.</p>
+ *
+ * <p><b>Moderacion (NC-11a).</b> No gana ningun campo: una foto oculta por el
+ * ADMIN llega con {@code fotoUrl} en {@code null} (igual en
+ * {@link ReporteResponse} y {@link ReporteGestionResponse}), y un reporte
+ * oculto no aparece. Las denuncias solo van en los DTO del ADMIN.</p>
  */
 public record ReporteResumenResponse(
         Long id,
@@ -36,7 +41,7 @@ public record ReporteResumenResponse(
                 r.getId(),
                 r.getUbicacion().getY(),
                 r.getUbicacion().getX(),
-                r.getFotoUrl(),
+                r.fotoUrlPublica(),
                 r.getTitulo(),
                 r.getDescripcion(),
                 r.getSeveridad() != null ? r.getSeveridad().name() : null,

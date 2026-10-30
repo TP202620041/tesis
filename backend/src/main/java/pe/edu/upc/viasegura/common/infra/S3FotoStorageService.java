@@ -52,7 +52,7 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
  *
  * <p><b>Mismas URL que con el disco local:</b> devuelve
  * {@code /media/fotos/reportes/<uuid>.jpg} y {@code /api/perfiles/fotos/<uuid>.jpg},
- * y el backend lee del bucket para servirlas ({@code WebMvcConfig} y
+ * y el backend lee del bucket para servirlas (el resource handler de fotos de reporte del modulo que las sirve y
  * {@code PerfilFotoController}). El navegador nunca habla con R2: sin cambio
  * de contrato ni de CSP.</p>
  *

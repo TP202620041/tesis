@@ -29,6 +29,7 @@ import pe.edu.upc.viasegura.reportes.repository.IdempotencyKeyRepository;
 import pe.edu.upc.viasegura.reportes.repository.AsignacionResponsableRepository;
 import pe.edu.upc.viasegura.reportes.repository.CalificacionRepository;
 import pe.edu.upc.viasegura.reportes.repository.ComentarioPublicoRepository;
+import pe.edu.upc.viasegura.reportes.repository.DenunciaReporteRepository;
 import pe.edu.upc.viasegura.reportes.repository.HistorialEstadoReporteRepository;
 import pe.edu.upc.viasegura.reportes.repository.ReporteRepository;
 
@@ -165,13 +166,16 @@ public abstract class AbstractPostgisIT {
     @Autowired(required = false)
     private AdhesionReporteRepository adhesionReporteRepository;
     @Autowired(required = false)
+    private DenunciaReporteRepository denunciaReporteRepository;
+    @Autowired(required = false)
     private ReporteRepository reporteRepositoryBase;
 
     /**
      * Estado limpio antes de cada test. La BD de test es persistente y
      * compartida entre clases IT, asi que se borra en orden inverso al de las
      * llaves foraneas: hijos que referencian al reporte (historial,
-     * asignaciones, calificaciones, comentarios, adhesiones, notificaciones)
+     * asignaciones, calificaciones, comentarios, adhesiones, denuncias de
+     * NC-11a, notificaciones)
      * antes que el reporte (padre). Corre antes
      * que cualquier {@code @BeforeEach} de subclase (JUnit ejecuta los de la
      * superclase primero), evitando violaciones de FK como
@@ -202,6 +206,9 @@ public abstract class AbstractPostgisIT {
         }
         if (adhesionReporteRepository != null) {
             adhesionReporteRepository.deleteAll();
+        }
+        if (denunciaReporteRepository != null) {
+            denunciaReporteRepository.deleteAllInBatch();
         }
         if (reporteRepositoryBase != null) {
             reporteRepositoryBase.deleteAll();

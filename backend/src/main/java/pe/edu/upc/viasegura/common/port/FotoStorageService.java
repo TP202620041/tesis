@@ -118,7 +118,7 @@ public interface FotoStorageService {
 
     /**
      * Carga una foto de reporte ya almacenada, para servirla en
-     * {@code /media/fotos/reportes/**} ({@code WebMvcConfig}) y, con NC-04,
+     * {@code /media/fotos/reportes/**} (el resource handler de fotos de reporte del modulo que las sirve) y, con NC-04,
      * para la sugerencia de categoria (D-08).
      *
      * @param nombreArchivo nombre simple del archivo ({@code <uuid>.<ext>})

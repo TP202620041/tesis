@@ -10,6 +10,7 @@ import pe.edu.upc.viasegura.reportes.event.CalificacionRegistradaEvent;
 import pe.edu.upc.viasegura.reportes.event.ReporteCategoriaCambiadaEvent;
 import pe.edu.upc.viasegura.reportes.event.ReporteCreadoEvent;
 import pe.edu.upc.viasegura.reportes.event.ReporteEstadoCambiadoEvent;
+import pe.edu.upc.viasegura.reportes.event.ReporteVisibilidadCambiadaEvent;
 
 /**
  * Mantiene el indice de desempeno (US-18/US-20) al dia en "tiempo real",
@@ -34,6 +35,10 @@ import pe.edu.upc.viasegura.reportes.event.ReporteEstadoCambiadoEvent;
  *   <li><b>Calificar la atencion</b> (US-26): cambia la satisfaccion
  *       promedio.</li>
  * </ol>
+ *
+ * <p><b>NC-11a (D-15):</b> ocultar o restablecer un reporte entero (solo el
+ * ADMIN) lo saca o lo devuelve al indice, porque la vista excluye los ocultos
+ * desde V21. Ocultar solo la foto no mueve nada y no publica el evento.</p>
  *
  * <p>Un quinto caso mueve solo el desglose de US-20, no el agregado:
  * <b>cambiar la categoria</b> de un reporte (US-08) lo traslada entre filas
@@ -82,6 +87,16 @@ public class IndiceDesempenoRefreshListener {
     /** Una nueva calificacion cambia la satisfaccion promedio. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void alCalificar(CalificacionRegistradaEvent evento) {
+        desempenoService.refrescarIndice();
+    }
+
+    /**
+     * NC-11a: un reporte oculto por el ADMIN no cuenta en el indice (V21);
+     * ocultarlo o restablecerlo mueve el total, los resueltos y la
+     * satisfaccion de su distrito y de su categoria.
+     */
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void alCambiarVisibilidad(ReporteVisibilidadCambiadaEvent evento) {
         desempenoService.refrescarIndice();
     }
 }

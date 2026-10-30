@@ -123,7 +123,7 @@ class FotoReporteIT extends AbstractPostgisIT {
 
         MvcResult descarga = mockMvc.perform(get(fotoUrl))
                 .andExpect(status().isOk())
-                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "max-age=2592000, public, immutable"))
+                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "max-age=2592000, public, s-maxage=3600, immutable"))
                 .andReturn();
         String modificada = descarga.getResponse().getHeader(HttpHeaders.LAST_MODIFIED);
         assertThat(modificada).isNotBlank();
