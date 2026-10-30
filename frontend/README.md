@@ -1220,8 +1220,30 @@ D-15)»). Lo que cambia en la PWA:
   - los que no tienen foto sí se envían, así que no esperan al servicio ni
     caducan a las 48 h por su culpa.
 
-  Los que quedan se reintentan en la vuelta siguiente (al volver la conexión
+  Los sin foto se reintentan en la vuelta siguiente (al volver la conexión
   o la pestaña, y cada 30 s).
+- **Retroceso progresivo tras el 503** (decisión del usuario del 29/10).
+  Cada intento de un reporte con foto la vuelve a subir, así que, mientras
+  la moderación siga caída, esos reportes esperan **30 s, 1 min, 2 min,
+  4 min, 8 min y luego 10 min** (tope) entre intentos. La regla es pura
+  (`model/esperaDeModeracion.ts`); el estado vive en `useColaOffline`.
+  - Solo para los reportes con foto y solo por el 503
+    `MODERACION_NO_DISPONIBLE`. Sin conexión, otros 5xx, los reportes sin
+    foto y la `Idempotency-Key` siguen igual.
+  - El primer reintento tras «Guardar para enviar después» también espera
+    30 s: el formulario anota el 503 antes de encolar.
+  - Se reinicia cuando un reporte con foto se envía bien. **No** al volver la
+    conexión: la cola no tenía espera que reiniciar, y el 503 es del
+    servidor, no de la red del teléfono. La pasada de cada 30 s, la conexión
+    y la pestaña siguen disparando la cola; los reportes con foto solo se
+    intentan si ya pasó su espera.
+  - Es por usuario y en memoria de la pestaña, no en IndexedDB: al recargar
+    se intenta una vez enseguida y, si sigue caída, la espera vuelve a
+    empezar en 30 s. No hace falta migrar el esquema de la cola por un
+    retraso de minutos.
+- **Un reporte de la cola rechazado por la foto solo se descarta**
+  (decisión del usuario del 29/10). No se puede cambiar ni quitar la foto
+  desde la cola: el ciudadano lo descarta y vuelve a reportar el daño.
 - **Lo que no hace la PWA:** no filtra nada antes de enviar (la lista vive
   solo en el backend y no se publica), no analiza la foto y no permite
   cambiar la foto de un reporte que ya está en la cola.

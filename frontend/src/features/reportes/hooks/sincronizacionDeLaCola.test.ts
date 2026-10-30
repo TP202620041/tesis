@@ -11,6 +11,8 @@ import {
   descartarDeLaCola,
   descartarTodosDe,
   encolarReporte,
+  anotarModeracionNoDisponible,
+  olvidarEsperasDeModeracion,
   reencolarConClaveNueva,
   sincronizarCola,
   type Dependencias,
@@ -66,6 +68,7 @@ const claves = async () => (await colaDeReportes.listar()).map((r) => r.idempote
 
 beforeEach(() => {
   globalThis.indexedDB = new IDBFactory();
+  olvidarEsperasDeModeracion();
 });
 
 describe('encolarReporte', () => {
@@ -306,6 +309,85 @@ describe('sincronizarCola', () => {
         ['k1', 'pendiente'],
         ['k3', 'pendiente'],
       ]);
+    });
+
+    describe('retroceso progresivo tras el 503 (decisión del 29/10)', () => {
+      const SEG = 1000;
+      const a = (ms: number) => () => new Date(INICIO.getTime() + ms);
+      const caida = () =>
+        vi.fn(async (n: NuevoReporte) => {
+          if (n.foto) {
+            throw new ApiError(503, 'Sin revisar', '/api/reportes', [], 'MODERACION_NO_DISPONIBLE');
+          }
+          return creado(50);
+        });
+
+      it('los con foto esperan 30 s, 1 min, 2 min…; los sin foto no esperan', async () => {
+        await encolar('k1', ANA, en(0), conFoto());
+        const enviar = caida();
+        const intentos = async (ms: number) => {
+          enviar.mockClear();
+          await sincronizarCola(ANA, 1, undefined, deps(enviar, { ahora: a(ms) }));
+          return enviar.mock.calls.length;
+        };
+
+        expect(await intentos(0)).toBe(1); // 503: espera 30 s
+        expect(await intentos(29 * SEG)).toBe(0);
+        expect(await intentos(30 * SEG)).toBe(1); // 503: espera 1 min
+        expect(await intentos(89 * SEG)).toBe(0);
+        expect(await intentos(90 * SEG)).toBe(1); // 503: espera 2 min
+        expect(await intentos(209 * SEG)).toBe(0);
+        expect(await intentos(210 * SEG)).toBe(1);
+
+        // Un reporte sin foto se envía aunque la moderación esté en espera.
+        await encolar('k2', ANA, a(211 * SEG));
+        enviar.mockClear();
+        const resultado = await sincronizarCola(ANA, 1, undefined, deps(enviar, { ahora: a(212 * SEG) }));
+        expect(resultado).toEqual({ enviados: [creado(50)], detenidaPor: 'sin-conexion' });
+        expect(enviar.mock.calls.map(([n]) => n.idempotencyKey)).toEqual(['k2']);
+        expect(await claves()).toEqual(['k1']);
+      });
+
+      it('se reinicia cuando un reporte con foto se envía bien', async () => {
+        await encolar('k1', ANA, en(0), conFoto());
+        await sincronizarCola(ANA, 1, undefined, deps(caida(), { ahora: a(0) }));
+        await sincronizarCola(ANA, 1, undefined, deps(vi.fn().mockResolvedValue(creado(51)), { ahora: a(30 * SEG) }));
+        expect(await claves()).toEqual([]);
+
+        // El siguiente 503 vuelve a empezar en 30 s, no en 1 min.
+        await encolar('k2', ANA, a(31 * SEG), conFoto());
+        const enviar = caida();
+        await sincronizarCola(ANA, 1, undefined, deps(enviar, { ahora: a(31 * SEG) }));
+        await sincronizarCola(ANA, 1, undefined, deps(enviar, { ahora: a(61 * SEG) }));
+        expect(enviar).toHaveBeenCalledTimes(2);
+      });
+
+      it('el 503 anotado por el formulario hace esperar el primer reintento', async () => {
+        anotarModeracionNoDisponible(ANA, a(0)());
+        await encolar('k1', ANA, en(0), conFoto());
+        const enviar = vi.fn().mockResolvedValue(creado(52));
+
+        await sincronizarCola(ANA, 1, undefined, deps(enviar, { ahora: a(SEG) }));
+        expect(enviar).not.toHaveBeenCalled();
+        await sincronizarCola(ANA, 1, undefined, deps(enviar, { ahora: a(30 * SEG) }));
+        expect(enviar).toHaveBeenCalledTimes(1);
+      });
+
+      it('es por usuario: la espera de Ana no frena a Luis', async () => {
+        anotarModeracionNoDisponible(ANA, a(0)());
+        await encolar('k1', LUIS, en(0), conFoto());
+        const enviar = vi.fn().mockResolvedValue(creado(53));
+        await sincronizarCola(LUIS, 1, undefined, deps(enviar, { ahora: a(SEG) }));
+        expect(enviar).toHaveBeenCalledTimes(1);
+      });
+
+      it('otros 5xx no activan la espera', async () => {
+        await encolar('k1', ANA, en(0), conFoto());
+        const enviar = vi.fn().mockRejectedValue(new ApiError(502, 'Bad gateway', '/api/reportes'));
+        await sincronizarCola(ANA, 1, undefined, deps(enviar, { ahora: a(0) }));
+        await sincronizarCola(ANA, 1, undefined, deps(enviar, { ahora: a(SEG) }));
+        expect(enviar).toHaveBeenCalledTimes(2);
+      });
     });
 
     it('sin red no cambia: se detiene en el primero, con o sin foto', async () => {

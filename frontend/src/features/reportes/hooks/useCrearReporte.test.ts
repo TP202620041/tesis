@@ -3,11 +3,11 @@ import { act, renderHook } from '@testing-library/react';
 import { ApiError, CODIGO_TERMINOS_PENDIENTES, NetworkError } from '@/lib/api/errors';
 import { crearReporte } from '../api';
 import type { ReporteCreado } from '../model/tipos';
-import { useEncolarReporte } from './useColaOffline';
+import { anotarModeracionNoDisponible, useEncolarReporte } from './useColaOffline';
 import { useCrearReporte, type DatosDelReporte, type DesenlaceDelEnvio } from './useCrearReporte';
 
 vi.mock('../api', () => ({ crearReporte: vi.fn() }));
-vi.mock('./useColaOffline', () => ({ useEncolarReporte: vi.fn() }));
+vi.mock('./useColaOffline', () => ({ useEncolarReporte: vi.fn(), anotarModeracionNoDisponible: vi.fn() }));
 
 const encolar = vi.fn();
 const CREADO = { id: 40, esAdhesion: false } as ReporteCreado;
@@ -26,6 +26,7 @@ beforeEach(() => {
 
 afterEach(() => {
   encolar.mockReset();
+  vi.mocked(anotarModeracionNoDisponible).mockReset();
   vi.mocked(crearReporte).mockReset();
 });
 
@@ -266,6 +267,8 @@ describe('useCrearReporte: la moderación (NC-10c)', () => {
       expect.objectContaining({ idempotencyKey: claveDe(0), foto: FOTO }),
     );
     expect(result.current.moderacionNoDisponible).toBeNull();
+    // Decisión del 29/10: la cola no reintenta enseguida, sino tras 30 s.
+    expect(anotarModeracionNoDisponible).toHaveBeenCalledExactlyOnceWith(7);
 
     // Ya en la cola: el siguiente reporte es otro intento.
     vi.mocked(crearReporte).mockResolvedValueOnce(CREADO);

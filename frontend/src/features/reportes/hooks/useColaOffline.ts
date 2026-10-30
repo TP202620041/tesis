@@ -18,6 +18,11 @@ import {
   type EstadoVisible,
   type ReporteEnCola,
 } from '../model/colaOffline';
+import {
+  puedeEnviarConFoto,
+  trasModeracionNoDisponible,
+  type EsperaDeModeracion,
+} from '../model/esperaDeModeracion';
 import { esModeracionNoDisponible, motivoDeRechazoEnLaCola } from '../model/moderacion';
 import { errorDelTitulo, MENSAJE_SIN_SEVERIDAD } from '../model/titulo';
 import type { NuevoReporte, ReporteCreado } from '../model/tipos';
@@ -118,6 +123,31 @@ export interface ResultadoDeSincronizacion {
   detenidaPor: Extract<DesenlaceDeEnvio, 'sin-conexion' | 'sin-sesion'> | 'interrumpida' | null;
 }
 
+/**
+ * NC-10c (decision del 29/10): espera tras el 503 de la moderacion, por
+ * usuario y en memoria de la pestaña (regla en `model/esperaDeModeracion`).
+ * No se guarda en IndexedDB: al recargar se intenta una vez enseguida y,
+ * si el servicio sigue caido, vuelve a empezar en 30 s. Se reinicia cuando
+ * un reporte con foto se envia bien.
+ */
+const esperasDeModeracion = new Map<number, EsperaDeModeracion>();
+
+/**
+ * Anota un 503 de la moderacion fuera de la cola (el formulario, antes de
+ * «Guardar para enviar después»): asi la cola no reintenta enseguida.
+ */
+export function anotarModeracionNoDisponible(usuarioId: number, ahora: Date = new Date()): void {
+  esperasDeModeracion.set(
+    usuarioId,
+    trasModeracionNoDisponible(esperasDeModeracion.get(usuarioId) ?? null, ahora),
+  );
+}
+
+/** Solo para tests: olvida las esperas de la moderacion. */
+export function olvidarEsperasDeModeracion(): void {
+  esperasDeModeracion.clear();
+}
+
 /** Una sincronizacion en curso por usuario (no global: no se mezclan sesiones). */
 const enCurso = new Map<
   number,
@@ -146,7 +176,9 @@ const enCurso = new Map<
  *   afecta a los reportes con foto. Los siguientes con foto ya no se envian
  *   en esta vuelta (darian el mismo 503 y cada uno subiria su foto); los que
  *   no tienen foto si, y no esperan a que vuelva el servicio (ni caducan a
- *   las 48 h por eso).
+ *   las 48 h por eso). Los reportes con foto se reintentan con retroceso
+ *   progresivo (30 s, 1, 2, 4, 8 min; tope 10 min), aunque la cola siga
+ *   pasando cada 30 s o vuelva la conexion: el 503 es del servidor.
  *
  * **Nunca envia con la sesion de otro:** `generacionEsperada` es la
  * generacion de sesion en la que se identifico a `usuarioId` (la devuelve
@@ -199,8 +231,9 @@ async function sincronizar(
   }
 
   const aEnviar = pendientesDe(cola, usuarioId).filter((r) => seReenviaSolo(r, ahora));
-  // NC-10c: la moderacion de la foto no estuvo disponible en esta vuelta.
-  let sinModeracion = false;
+  // NC-10c: la moderacion de la foto no estuvo disponible en esta vuelta, o
+  // todavia no toca reintentar tras el ultimo 503 (retroceso progresivo).
+  let sinModeracion = !puedeEnviarConFoto(esperasDeModeracion.get(usuarioId) ?? null, ahora);
   for (const enCola of aEnviar) {
     if (!sesionVigente()) return { enviados, detenidaPor: 'interrumpida' };
     const peticion = comoNuevoReporte(enCola);
@@ -213,6 +246,7 @@ async function sincronizar(
     } catch (e) {
       if (e instanceof ApiError && esModeracionNoDisponible(e)) {
         sinModeracion = true;
+        anotarModeracionNoDisponible(usuarioId, deps.ahora());
         continue;
       }
       const desenlace = desenlaceDe(e);
@@ -228,6 +262,7 @@ async function sincronizar(
       }
       continue;
     }
+    if (peticion.foto) esperasDeModeracion.delete(usuarioId);
     await deps.almacen.quitar(enCola.idempotencyKey);
     enviados.push(creado);
   }

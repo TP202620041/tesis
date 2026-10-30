@@ -9,6 +9,7 @@ import { crearReporte } from '../api';
 import type { ReporteEnCola } from '../model/colaOffline';
 import {
   INTERVALO_DE_REINTENTO,
+  olvidarEsperasDeModeracion,
   useCantidadDeIncompletos,
   useReportesEnCola,
   useResumenDeLaCola,
@@ -55,6 +56,7 @@ const CREADO = {
 
 beforeEach(() => {
   globalThis.indexedDB = new IDBFactory();
+  olvidarEsperasDeModeracion();
   // Sin red: cada intento falla y el reporte sigue en la cola (asi se puede
   // contar cuantas veces se intento).
   vi.mocked(crearReporte).mockRejectedValue(new NetworkError());

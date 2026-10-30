@@ -8,7 +8,7 @@ import { crearReporte } from '../api';
 import { rechazoAlCrear } from '../model/moderacion';
 import { errorDelTitulo, MENSAJE_SIN_SEVERIDAD } from '../model/titulo';
 import type { NuevoReporte, ReporteCreado } from '../model/tipos';
-import { useEncolarReporte } from './useColaOffline';
+import { anotarModeracionNoDisponible, useEncolarReporte } from './useColaOffline';
 
 /** Lo que el ciudadano llena en el formulario de US-05. */
 export interface DatosDelReporte {
@@ -202,6 +202,9 @@ export function useCrearReporte(usuarioId: number) {
       const nuevo = preparar(datos);
       if (!nuevo) return null;
       setEnviando(true);
+      // Antes de encolar: la cola, que se dispara al guardar, no reintenta
+      // enseguida sino tras la primera espera (30 s).
+      anotarModeracionNoDisponible(usuarioId);
       try {
         return await guardarEnCola(
           nuevo,
@@ -212,7 +215,7 @@ export function useCrearReporte(usuarioId: number) {
         setEnviando(false);
       }
     },
-    [guardarEnCola, limpiar, preparar],
+    [guardarEnCola, limpiar, preparar, usuarioId],
   );
 
   /**
