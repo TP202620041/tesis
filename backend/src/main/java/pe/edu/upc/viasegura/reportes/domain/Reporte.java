@@ -134,6 +134,41 @@ public class Reporte extends BaseAuditableEntity {
     @Setter(AccessLevel.NONE)
     private String versionModeloSugerencia;
 
+    /*
+     * Moderacion (NC-11a, D-15): solo el ADMIN los cambia, por
+     * ModeracionReporteService y con ReporteRepository#cambiarOculto /
+     * #cambiarFotoOculta (UPDATE condicional). Solo lectura para JPA, como la
+     * sugerencia: un save() del ciudadano o del funcionario no puede
+     * restablecer un reporte con un valor viejo, y ocultar no mueve
+     * updated_at (que mide los reportes estancados de US-17).
+     *
+     * Ninguno va en un DTO que no sea del ADMIN: lo oculto se nota porque el
+     * reporte no aparece o porque fotoUrl llega en null (fotoUrlPublica).
+     */
+
+    /** Todo el reporte fuera de lo publico, de la bandeja municipal y del indice. */
+    @Column(name = "oculto", nullable = false, insertable = false, updatable = false)
+    @Setter(AccessLevel.NONE)
+    @Builder.Default
+    private boolean oculto = false;
+
+    /** Solo la foto: el reporte sigue publico y sigue contando en el indice. */
+    @Column(name = "foto_oculta", nullable = false, insertable = false, updatable = false)
+    @Setter(AccessLevel.NONE)
+    @Builder.Default
+    private boolean fotoOculta = false;
+
+    /**
+     * La URL de la foto para cualquier DTO que no sea del ADMIN: {@code null}
+     * si no hay foto, si el ADMIN oculto la foto o si oculto el reporte entero
+     * (su creador lo sigue viendo en "mis reportes", sin foto). En esos casos
+     * {@code /media/...} responde 404. La foto se conserva en el almacenamiento
+     * y solo la sirve la ruta del ADMIN (NC-11a).
+     */
+    public String fotoUrlPublica() {
+        return oculto || fotoOculta ? null : fotoUrl;
+    }
+
     public static final int TITULO_MIN = 5;
     public static final int TITULO_MAX = 120;
     public static final int DESCRIPCION_MAX = 1000;

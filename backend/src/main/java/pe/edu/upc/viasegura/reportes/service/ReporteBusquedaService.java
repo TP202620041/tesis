@@ -48,12 +48,15 @@ public class ReporteBusquedaService {
      * no forman parte de la informacion publica (mismo criterio que la
      * busqueda desde la Fase 22). Quien sea su creador los sigue viendo en
      * "mis reportes".</p>
+     *
+     * <p>NC-11a: un reporte oculto por el ADMIN tambien da 404 (solo lo ven
+     * su creador, en "mis reportes", y el ADMIN).</p>
      */
     @Transactional(readOnly = true)
     public ReporteResumenResponse porId(Long id) {
         Reporte reporte = reporteRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Reporte no encontrado: " + id));
-        if (reporte.getEstado() == EstadoReporte.CANCELADO) {
+        if (reporte.getEstado() == EstadoReporte.CANCELADO || reporte.isOculto()) {
             throw new ResourceNotFoundException("Reporte no encontrado: " + id);
         }
         return ReporteResumenResponse.from(reporte);

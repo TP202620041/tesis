@@ -32,7 +32,7 @@ public record ReporteResponse(
                 r.getId(),
                 r.getUbicacion().getY(),
                 r.getUbicacion().getX(),
-                r.getFotoUrl(),
+                r.fotoUrlPublica(),
                 r.getTitulo(),
                 r.getDescripcion(),
                 r.getSeveridad() != null ? r.getSeveridad().name() : null,

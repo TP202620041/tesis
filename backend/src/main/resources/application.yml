@@ -230,6 +230,10 @@ app:
     # Se rechaza la foto si el puntaje es >= umbral (PoliticaDeModeracion),
     # entre 0.5 y 0.9. 0.70 inicial (decision del usuario del 28/10).
     umbral: ${MODERACION_UMBRAL:0.70}
+    # Tope de denuncias por ciudadano en una ventana movil de 24 h (NC-11a,
+    # decision del 28/10). Sin variable de entorno: es una regla, no un ajuste
+    # del despliegue.
+    denuncias-por-dia: 10
   # Executors asincronos acotados (AsyncConfig): el general, para avisos al
   # ciudadano y correos, y uno propio para la sugerencia de categoria (D-08,
   # NC-04c), que puede esperar hasta 10 s un turno de inferencia sin

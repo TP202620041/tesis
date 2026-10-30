@@ -68,7 +68,7 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
  * <p>Recorre la aplicacion entera, no solo el adaptador: la foto sube por
  * {@code POST /api/reportes} y {@code PATCH /api/auth/me} y se descarga por
  * las mismas URL de siempre, con lo que se prueba tambien la eleccion del
- * adaptador y el {@code ResourceResolver} de {@code WebMvcConfig}.</p>
+ * adaptador y el {@code ResourceResolver} de {@code reportes.infra.FotosDeReporteWebConfig}.</p>
  *
  * <p>BE-11: la foto de un reporte se sube antes de la transaccion de la
  * creacion. Una adhesion, o una creacion que se revierte
@@ -254,7 +254,7 @@ class S3FotoStorageServiceIT extends AbstractPostgisIT {
         MvcResult descarga = mockMvc.perform(get(fotoUrl))
                 .andExpect(status().isOk())
                 .andExpect(header().string(HttpHeaders.CONTENT_TYPE, "image/jpeg"))
-                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "max-age=2592000, public, immutable"))
+                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "max-age=2592000, public, s-maxage=3600, immutable"))
                 .andExpect(header().exists(HttpHeaders.LAST_MODIFIED))
                 .andReturn();
         byte[] servida = descarga.getResponse().getContentAsByteArray();

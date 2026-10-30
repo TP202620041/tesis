@@ -37,12 +37,48 @@ public class SeguimientoReporteService {
     private final AdhesionReporteRepository adhesionRepository;
     private final HistorialEstadoReporteRepository historialRepository;
 
+    /** Texto que ve el adherido en lugar del motivo de ocultar (NC-11a). */
+    static final String MODERACION_OCULTA_REDACTADA =
+            "Se ocultó contenido de este reporte por las reglas de uso.";
+
+    /** Texto que ve el adherido en lugar del motivo de restablecer (NC-11a). */
+    static final String MODERACION_RESTABLECIDA_REDACTADA =
+            "Se restableció contenido de este reporte.";
+
+    /** Autor visible de la moderacion para todos menos el ADMIN (NC-11a). */
+    static final String AUTOR_MODERACION = "Moderación de Ciudad Viva";
+
+    /**
+     * Quien pide el historial, segun su rol y su relacion con el reporte.
+     * Decide el acceso, si la vista es interna y que ve de la moderacion.
+     */
+    private enum Vista {
+        ADMIN, FUNCIONARIO, CREADOR, ADHERIDO;
+
+        /** Vista interna: asignaciones sin redactar y autor de la gestion. */
+        boolean detallada() {
+            return this == ADMIN || this == FUNCIONARIO;
+        }
+
+        /** Con el reporte oculto, solo lo ven su creador y el ADMIN (NC-11a). */
+        boolean veReporteOculto() {
+            return this == ADMIN || this == CREADOR;
+        }
+    }
+
     /**
      * US-22: linea de tiempo del reporte. Puede verla el ciudadano afectado
      * (creador o adherido), el funcionario del distrito del reporte y el
      * admin; cualquier otro recibe 403. La vista del ciudadano redacta el
      * detalle interno de las asignaciones (nombre de cuadrilla, autor); la
      * del funcionario/admin es completa.
+     *
+     * <p><b>Moderacion (NC-11a).</b> Mientras el reporte este oculto, solo lo
+     * ven su creador y el ADMIN: el funcionario del distrito y los adheridos
+     * reciben 404, como si no existiera (los demas, el 403 de siempre). En las
+     * entradas de moderacion, el motivo lo ven el creador, el funcionario y el
+     * ADMIN; el adherido ve un texto fijo, y el autor real solo el ADMIN. Ver
+     * {@link #aResponse}.</p>
      */
     @Transactional(readOnly = true)
     public List<HistorialEntradaResponse> historial(String emailSolicitante, Long reporteId) {
@@ -50,54 +86,73 @@ public class SeguimientoReporteService {
                 .orElseThrow(() -> new ResourceNotFoundException("Reporte no encontrado: " + reporteId));
         Usuario solicitante = usuarioConsultaService.usuarioPorEmail(emailSolicitante);
 
-        boolean vistaDetallada = autorizarYResolverVista(solicitante, reporte);
+        Vista vista = autorizarYResolverVista(solicitante, reporte);
+        if (reporte.isOculto() && !vista.veReporteOculto()) {
+            throw new ResourceNotFoundException("Reporte no encontrado: " + reporteId);
+        }
 
         return historialRepository.findByReporteIdOrderByCreatedAtAscIdAsc(reporteId).stream()
-                .map(entrada -> aResponse(entrada, vistaDetallada))
+                .map(entrada -> aResponse(entrada, vista))
                 .toList();
     }
 
     /**
      * Verifica el acceso (lanza {@link AccessDeniedException} -> 403 si no lo
-     * tiene) y devuelve si la vista debe ser detallada (interna) o redactada.
+     * tiene) y devuelve la vista que corresponde a quien pide.
      */
-    private boolean autorizarYResolverVista(Usuario solicitante, Reporte reporte) {
+    private Vista autorizarYResolverVista(Usuario solicitante, Reporte reporte) {
         return switch (solicitante.getRol()) {
-            case ADMIN -> true;
+            case ADMIN -> Vista.ADMIN;
             case FUNCIONARIO_MUNICIPAL -> {
                 Distrito distrito = solicitante.getDistrito();
                 if (distrito == null || reporte.getDistrito() == null
                         || !distrito.getId().equals(reporte.getDistrito().getId())) {
                     throw new AccessDeniedException("No puede ver el historial de reportes de otro distrito");
                 }
-                yield true;
+                yield Vista.FUNCIONARIO;
             }
             case CIUDADANO -> {
                 boolean esCreador = reporte.getCreador() != null
                         && reporte.getCreador().getId().equals(solicitante.getId());
-                boolean esAdherido = adhesionRepository
-                        .existsByReporteIdAndUsuarioId(reporte.getId(), solicitante.getId());
-                if (!esCreador && !esAdherido) {
+                if (esCreador) {
+                    yield Vista.CREADOR;
+                }
+                if (!adhesionRepository.existsByReporteIdAndUsuarioId(reporte.getId(), solicitante.getId())) {
                     throw new AccessDeniedException("No tiene acceso al historial de este reporte");
                 }
-                yield false;
+                yield Vista.ADHERIDO;
             }
         };
     }
 
-    private HistorialEntradaResponse aResponse(HistorialEstadoReporte h, boolean vistaDetallada) {
-        boolean esAsignacion = h.getTipoEvento() == TipoEventoHistorial.ASIGNACION;
-        String comentario = (esAsignacion && !vistaDetallada) ? ASIGNACION_REDACTADA : h.getComentario();
-        String autor = (vistaDetallada && h.getAutor() != null)
-                ? h.getAutor().getNombre() + " " + h.getAutor().getApellido()
-                : null;
+    private HistorialEntradaResponse aResponse(HistorialEstadoReporte h, Vista vista) {
+        TipoEventoHistorial tipo = h.getTipoEvento();
+        String comentario;
+        String autor;
+        if (tipo.esModeracion()) {
+            // NC-11a: el motivo es del ADMIN; el adherido solo ve que hubo
+            // moderacion. El autor real solo lo ve el ADMIN.
+            comentario = vista == Vista.ADHERIDO
+                    ? (tipo.oculta() ? MODERACION_OCULTA_REDACTADA : MODERACION_RESTABLECIDA_REDACTADA)
+                    : h.getComentario();
+            autor = vista == Vista.ADMIN ? nombreDe(h.getAutor()) : AUTOR_MODERACION;
+        } else {
+            boolean esAsignacion = tipo == TipoEventoHistorial.ASIGNACION;
+            comentario = (esAsignacion && !vista.detallada()) ? ASIGNACION_REDACTADA : h.getComentario();
+            autor = vista.detallada() ? nombreDe(h.getAutor()) : null;
+        }
         return new HistorialEntradaResponse(
                 h.getId(),
-                h.getTipoEvento().name(),
+                tipo.name(),
                 h.getEstadoAnterior() != null ? h.getEstadoAnterior().name() : null,
                 h.getEstadoNuevo() != null ? h.getEstadoNuevo().name() : null,
                 comentario,
                 autor,
-                h.getCreatedAt());
+                h.getCreatedAt(),
+                tipo.avisoIndice());
+    }
+
+    private static String nombreDe(Usuario autor) {
+        return autor != null ? autor.getNombre() + " " + autor.getApellido() : null;
     }
 }

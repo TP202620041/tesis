@@ -52,7 +52,7 @@ public class GestionReporteService {
     private final UsuarioConsultaService usuarioConsultaService;
     private final ApplicationEventPublisher eventPublisher;
 
-    /** US-13: reportes del distrito del funcionario, con filtros opcionales. */
+    /** US-13: reportes del distrito del funcionario, con filtros opcionales; sin los ocultos (NC-11a). */
     @Transactional(readOnly = true)
     public List<ReporteGestionResponse> bandeja(String emailFuncionario, EstadoReporte estado, Long categoriaId) {
         Distrito distrito = distritoDeGestion(emailFuncionario);
@@ -69,6 +69,7 @@ public class GestionReporteService {
                 .orElseThrow(() -> new ResourceNotFoundException("Reporte no encontrado: " + reporteId));
 
         verificarJurisdiccion(funcionario, reporte);
+        exigirVisible(reporte);
 
         EstadoReporte anterior = reporte.getEstado();
         EstadoReporte nuevo = req.estado();
@@ -145,6 +146,7 @@ public class GestionReporteService {
                 .orElseThrow(() -> new ResourceNotFoundException("Reporte no encontrado: " + reporteId));
 
         verificarJurisdiccion(funcionario, reporte);
+        exigirVisible(reporte);
 
         if (!ESTADOS_ASIGNABLES.contains(reporte.getEstado())) {
             throw new BusinessException(
@@ -195,6 +197,7 @@ public class GestionReporteService {
                 .orElseThrow(() -> new ResourceNotFoundException("Reporte no encontrado: " + reporteId));
 
         verificarJurisdiccion(funcionario, reporte);
+        exigirVisible(reporte);
 
         return asignacionRepository.findByReporteIdAndActivoTrue(reporteId)
                 .map(AsignacionResponsableResponse::from);
@@ -206,6 +209,19 @@ public class GestionReporteService {
             throw new AccessDeniedException("El funcionario no tiene un distrito de gestión asignado");
         }
         return funcionario.getDistrito();
+    }
+
+    /**
+     * NC-11a: mientras el ADMIN lo tenga oculto, el reporte sale de la bandeja
+     * y de su gestion, y el funcionario de su distrito recibe 404, como si no
+     * existiera. Va despues de la jurisdiccion: el de otro distrito sigue
+     * recibiendo el 403 de siempre, sin saber si esta oculto. Al
+     * restablecerlo, todo vuelve a como era.
+     */
+    private static void exigirVisible(Reporte reporte) {
+        if (reporte.isOculto()) {
+            throw new ResourceNotFoundException("Reporte no encontrado: " + reporte.getId());
+        }
     }
 
     /** Solo el funcionario del distrito del reporte puede gestionarlo. */

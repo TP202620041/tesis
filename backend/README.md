@@ -1399,6 +1399,17 @@ un "Acceso denegado" fijo (correcto: esa excepción también la lanza Spring
 Security desde `@PreAuthorize` y sus textos internos no son para el usuario
 final), pero aquí el mensaje era la parte útil.
 
+**Moderación (NC-11a, 28/10).** Desde V21 hay una segunda salida del índice
+fuera de `CANCELADO`: un reporte **oculto por el ADMIN** no cuenta (decisión
+del usuario). SEC-01 se mantiene porque esa salida está en manos de un actor
+que **no se mide**: solo el ADMIN (la plataforma) oculta, con un motivo, una
+entrada en la línea de tiempo y de forma reversible. El
+`FUNCIONARIO_MUNICIPAL` no tiene ninguna ruta de moderación ni de denuncia
+(403, `OcultamientoReporteIT`), y su única vía para descartar sigue siendo
+`RECHAZADO`, que cuenta. Las denuncias de los ciudadanos no tienen efecto
+automático: juntar cuentas no saca nada del índice. Si el daño es real y solo
+la foto incumple, el ADMIN oculta la foto, que no mueve el índice.
+
 ### SEC-02 — La señal de reincidencia llegaba al mapa público y al ciudadano
 
 **Detectado:** 2026-10-13, en la revisión del Sprint 2 (B5).
@@ -1605,6 +1616,7 @@ casos más del mismo tipo:
 | Cancelar un reporte (US-08) | −1 en `total_reportes` (la vista excluye `CANCELADO`, migración V7) |
 | Calificar la atención (US-26) | cambia la satisfacción promedio |
 | Cambiar la categoría (US-08) | mueve el reporte entre filas `(distrito, categoría)`: afecta el desglose de US-20, no el agregado |
+| Ocultar o restablecer un reporte (NC-11a, solo el ADMIN) | lo saca o lo devuelve: la vista excluye los ocultos desde V21, con sus resueltos y sus calificaciones (`ReporteVisibilidadCambiadaEvent`). Ocultar **solo la foto** no mueve nada y no refresca |
 
 **No** disparan refresco, deliberadamente: adherirse a un reporte existente
 (US-09 no crea una fila nueva, así que el total no cambia) y los estados
@@ -1628,11 +1640,13 @@ seguridad, no de orden:
 | Dónde (`s3`) | bucket `FOTOS_S3_BUCKET_REPORTES` (privado) | bucket `FOTOS_S3_BUCKET_PERFILES` (privado) |
 | URL | `/media/fotos/reportes/{uuid}.jpg` | `/api/perfiles/fotos/{uuid}.jpg` |
 | Acceso | **Público**, sin token | **Solo el dueño** |
-| Mecanismo | resource handler con `ResourceResolver` propio (`WebMvcConfig`) | `PerfilFotoController` |
+| Mecanismo | resource handler con `ResourceResolver` propio (`reportes/infra/FotosDeReporteWebConfig`, antes `common/config/WebMvcConfig`) | `PerfilFotoController` |
 
 **Por qué las de reporte son públicas:** el mapa y la búsqueda (US-10/US-12)
 ya son públicos y devuelven `fotoUrl`; si la foto exigiera token, el mapa
-mostraría imágenes rotas a cualquier visitante.
+mostraría imágenes rotas a cualquier visitante. Desde NC-11a, públicas **si
+son visibles**: la foto que ocultó el ADMIN, la de un reporte oculto y la que
+no es de ningún reporte responden 404 (ver «Ocultar y denunciar (NC-11a)»).
 
 **Por qué mecanismos distintos.** Una foto de reporte no tiene regla de
 autorización: el resource handler de Spring resuelve content-type,
@@ -1681,7 +1695,8 @@ confirmaría que ese archivo existe y se trata de fotos de personas.
   cadenas que el local, y el backend lee del bucket para servirlas. El
   navegador nunca habla con R2: **sin cambio de contrato ni de CSP**, y
   `reporte.foto_url` y `usuario.foto_url` siguen guardando la URL relativa.
-  Para eso el puerto suma `cargarFotoReporte`, y `WebMvcConfig` registra el
+  Para eso el puerto suma `cargarFotoReporte`, y `WebMvcConfig` (desde NC-11a,
+  `reportes/infra/FotosDeReporteWebConfig`) registra el
   mismo *resource handler* de antes con un `ResourceResolver` propio que la
   llama (antes apuntaba al directorio local). Es **un solo camino** para los
   dos adaptadores: el IT de siempre (`FotoReporteIT`) prueba el que corre en
@@ -3651,6 +3666,159 @@ conserva lo escrito.
   «Dudas»): 0,70 se mantiene hasta entonces.
 - **Términos v2** (PR #116): el párrafo de la revisión del contenido sale en la
   misma versión que este código (v0.8.0).
+
+## Ocultar y denunciar (NC-11a, D-15)
+
+Red de seguridad de la moderación automática (NC-10b): **el ADMIN oculta un
+reporte o solo su foto** ya publicados, con un motivo, y **los ciudadanos
+denuncian** un reporte público. Diseño: `project-context/decisions/propuestas/2026-10-28-moderacion-de-contenido.md`
+§6, decidido por el usuario el 28/10. Vive en `reportes` y no en `moderacion`:
+si viviera allí, `moderacion` usaría `reportes` y habría un ciclo
+(ARCHITECTURE.md §4.3).
+
+### Las piezas
+
+| Pieza | Qué hace |
+|---|---|
+| V21 | `reporte.oculto` y `reporte.foto_oculta` (por separado), índice en `reporte.foto_url`, cuatro tipos de evento en `historial_estado_reporte` (sin estados y con el motivo obligatorio), la tabla `denuncia_reporte` y la vista del índice creada de nuevo con `AND NOT r.oculto` |
+| `DenunciaReporteController` / `DenunciaReporteService` | `POST /api/reportes/{id}/denuncias` (CIUDADANO) |
+| `ModeracionReporteController` / `ModeracionReporteService` | `/api/admin/moderacion/reportes/**` (ADMIN) |
+| `reportes/infra/FotosDeReporteWebConfig` | sirve `/media/fotos/reportes/**` solo si la foto es visible |
+| `ReporteVisibilidadCambiadaEvent` | ocultar o restablecer el reporte refresca el índice (AFTER_COMMIT) |
+| `SeguimientoReporteService` | redacta las entradas de moderación según quién lee |
+
+### Las rutas
+
+| Ruta | Rol | Respuestas |
+|---|---|---|
+| `POST /api/reportes/{id}/denuncias` `{motivo, detalle?}` | CIUDADANO | 201; 404 si el reporte no existe, está cancelado u oculto; 409 `DENUNCIA_PROPIA`, `DENUNCIA_REPETIDA` o `LIMITE_DENUNCIAS`; 400 |
+| `GET /api/admin/moderacion/reportes?estado=PENDIENTE` | ADMIN | página de reportes con denuncias en ese estado, de más a menos denunciados y, entre iguales, del que espera hace más; con el conteo por motivo |
+| `GET /api/admin/moderacion/reportes/{id}` | ADMIN | el reporte (en cualquier estado), su moderación y sus denuncias con el denunciante; 404 |
+| `GET /api/admin/moderacion/reportes/{id}/foto` | ADMIN | la foto aunque esté oculta; 404 sin foto |
+| `POST /api/admin/moderacion/reportes/{id}/ocultamiento` `{alcance, motivo}` | ADMIN | 200; 409 `YA_OCULTO` o `SIN_FOTO`; 400 |
+| `POST /api/admin/moderacion/reportes/{id}/restablecimiento` `{alcance, motivo}` | ADMIN | 200; 409 `NO_OCULTO` o `SIN_FOTO`; 400 |
+| `POST /api/admin/moderacion/reportes/{id}/desestimacion` `{motivo?}` | ADMIN | 200, también sin pendientes |
+
+Ninguna es pública (`SecurityConfig` no cambia); el funcionario y el ciudadano
+reciben 403 en las del ADMIN, y el funcionario y el ADMIN en la de denunciar.
+Las del ADMIN responden con `Cache-Control: no-store, private`, porque traen
+la identidad de quien denunció o la foto oculta.
+
+### Qué ve cada quien
+
+- **Reporte oculto:** sale de la búsqueda, del área, de la densidad, del
+  detalle público (404), de los comentarios (404 al leerlos y al comentar),
+  de `mis-adhesiones`, de la deduplicación, de la bandeja municipal (y de sus
+  conteos de US-17), del índice y de la exportación. Su creador lo sigue
+  viendo en `mis-reportes`, sin foto. En el historial, el creador y el ADMIN
+  reciben 200; el funcionario del distrito y los adheridos, **404**; los
+  demás, el 403 de siempre. El funcionario también recibe 404 al cambiarle el
+  estado y en el responsable (GET y POST). El 404 va después de la
+  jurisdicción: el funcionario de otro distrito sigue recibiendo 403, sin
+  enterarse de que está oculto.
+- **Foto oculta:** el reporte sigue visible y contando en el índice, con
+  `fotoUrl` en `null` en todo DTO que no es del ADMIN; la URL de la foto da
+  404.
+- **Al restablecer, todo vuelve a como era antes.**
+- **Ningún DTO público gana un campo** (`DtoPublicosSinModeracionTest` fija
+  la lista de `ReporteResumenResponse`, `ReporteResponse`,
+  `ReporteGestionResponse` y `ComentarioPublicoResponse`). Las denuncias solo
+  van en los DTO del ADMIN (`ReporteModeracionResponse`,
+  `ReporteModeracionResumenResponse`, `DenunciaResponse`): ni el creador ni el
+  funcionario saben quién ni cuántos denunciaron.
+
+### La línea de tiempo
+
+Los cuatro eventos (`FOTO_OCULTA`, `REPORTE_OCULTO`, `FOTO_RESTABLECIDA`,
+`REPORTE_RESTABLECIDO`) llevan el motivo en `comentario` y al ADMIN en
+`autor_id`: la línea de tiempo sigue siendo **única** (V4).
+
+| Quién lee (si tiene acceso) | `comentario` | `autor` |
+|---|---|---|
+| ADMIN | el motivo | el ADMIN |
+| Creador y funcionario | el motivo | «Moderación de Ciudad Viva» |
+| Adheridos | «Se ocultó contenido de este reporte por las reglas de uso.» o «Se restableció contenido de este reporte.» | «Moderación de Ciudad Viva» |
+
+`HistorialEntradaResponse` suma `avisoIndice`, un texto fijo **que arma el
+servidor y no el ADMIN**: en `REPORTE_OCULTO`, «Mientras esté oculto, este
+reporte no cuenta en el índice de desempeño.», y en `REPORTE_RESTABLECIDO`,
+«Vuelve a contar en el índice de desempeño.». En el resto, `null`. Así el
+creador sabe por qué su reporte dejó de pesar en la métrica, y cada salida
+del índice queda auditada.
+
+### El motivo no delata a quien denunció
+
+Lo leen el creador y el funcionario, y los términos v2 (§5) prometen que
+quien hizo el reporte no sabe quién lo denunció. El servidor nunca agrega al
+motivo datos de las denuncias (ni la identidad ni el conteo), y rechaza con
+**400 `MOTIVO_IDENTIFICA_DENUNCIANTE`** (con `motivo` en `details`, como el
+400 de la moderación del texto) un motivo que contenga, sin distinguir
+mayúsculas, el correo de un denunciante de ese reporte. Lo demás lo cubre el
+aviso del diálogo del ADMIN en la PWA (NC-11b). El motivo tiene de 10 a 500
+caracteres sin los espacios del borde.
+
+### Decisiones de implementación
+
+- **`UPDATE` condicional y sin `updated_at`.** `oculto` y `foto_oculta` son de
+  solo lectura para JPA, como la sugerencia de NC-04: los escribe
+  `ReporteRepository#cambiarOculto` / `#cambiarFotoOculta` con
+  `WHERE ... <> :valor`. Dos ADMIN simultáneos no duplican la entrada del
+  historial (el segundo recibe 409), un `save()` del ciudadano o del
+  funcionario no puede restablecer el reporte con un valor viejo, y ocultar no
+  mueve `updated_at`, que mide los reportes estancados de US-17.
+- **Las denuncias no ocultan nada (SEC-01).** Ocultar atiende las pendientes
+  (`ATENDIDA`, con el motivo en `motivo_resolucion`); desestimar las pasa a
+  `DESESTIMADA`. `motivo_resolucion` no estaba en la propuesta: se agregó para
+  guardar el motivo opcional de la desestimación, y solo lo leen los DTO del
+  ADMIN.
+- **Tope de denuncias:** `app.moderacion.denuncias-por-dia` (10 por defecto),
+  en una **ventana móvil de 24 h**, no por día calendario. El `UNIQUE
+  (reporte_id, denunciante_id)` cubre los envíos simultáneos (el segundo
+  recibe el mismo 409).
+- **BE-14 (cierre de cuenta):** las denuncias se conservan mientras exista el
+  reporte; al cerrar la cuenta hay que anonimizar al denunciante con
+  `DenunciaReporteRepository#anonimizarDenunciante`. Por eso
+  `denuncia_reporte.denunciante_id` admite NULL (la propuesta lo tenía `NOT
+  NULL`): así BE-14 no necesita otra migración. El gancho está probado en
+  `DenunciaReporteIT`.
+- **La foto (D-15, opción A).** El *resource handler* pasó con `git mv` de
+  `common/config/WebMvcConfig` a `reportes/infra/FotosDeReporteWebConfig`. Su
+  resolver pregunta a `ReporteRepository#existeFotoVisible` (una consulta por
+  `ix_reporte_foto_url`) antes de cargarla por `common.port.FotoStorageService`;
+  si no, 404 sin llamar a R2. No hay puerto nuevo en `common/port`, que es
+  solo para E/S externa. El ADMIN la ve por su ruta, que la PWA muestra como
+  `blob:`.
+- **Caché de la foto:** `Cache-Control: max-age=2592000, public,
+  s-maxage=3600, immutable`. El borde de Cloudflare deja de servir una foto
+  oculta en una hora como máximo; para un caso urgente, la purga manual de la
+  URL. El navegador conserva sus 30 días: lo que ya descargó no se puede
+  retirar. **Falta comprobar** con `curl -sI` en producción que Cloudflare
+  respeta `s-maxage`.
+
+### Pruebas
+
+- `OcultamientoReporteIT` (20): cada fila de la tabla de visibilidad, el
+  historial por rol con el reporte oculto y después de restablecerlo, la foto
+  oculta (DTO, `/media`, ruta del ADMIN), la foto sin reporte, 409, 400, 403,
+  el correo del denunciante en el motivo y que ninguna respuesta del creador,
+  del funcionario o del público traiga denuncias, la bandeja del ADMIN y la
+  desestimación, y la deduplicación.
+- `DenunciaReporteIT` (14): 201, 409 (repetida, propia, tope y la ventana de
+  24 h), 404 (oculto, cancelado, inexistente), 401, 403, 400 y el gancho de BE-14.
+- `IndiceSinOcultosIT` (5): ocultar el reporte baja `total_reportes`,
+  `total_resueltos` y las calificaciones del distrito y de su categoría por el
+  evento, sin refrescar a mano; restablecerlo los devuelve; ocultar la foto no
+  cambia ni refresca nada; el ranking público y la exportación; los
+  estancados de US-17.
+- `DtoPublicosSinModeracionTest` (4) y `reportes/domain/ModeracionDominioTest` (4).
+
+### Pendiente
+
+- **Runbook** (`docs/despliegue.md`, fuera de `backend/`): la purga manual de
+  una URL en Cloudflare y el procedimiento ante material ilegal (este último,
+  cuando el usuario lo confirme con su asesor).
+- La notificación al creador cuando se oculta, ocultar un comentario suelto y
+  borrar la foto oculta quedan fuera de alcance (ficha NC-11).
 
 ## Deuda técnica conocida
 
