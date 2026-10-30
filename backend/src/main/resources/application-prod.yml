@@ -4,13 +4,14 @@
 #
 # Obligatorias y SIN valor por defecto: DB_URL, DB_USERNAME, DB_PASSWORD,
 # CORS_ALLOWED_ORIGINS, FOTOS_ALMACEN, CORREO_TIPO, NOTIF_FROM, CAPTCHA_TIPO,
-# CLASIFICACION_TIPO, ORIGEN_SECRETO y JWT_SECRET (este ultimo desde
+# CLASIFICACION_TIPO, MODERACION_TIPO, ORIGEN_SECRETO y JWT_SECRET (este ultimo desde
 # application.yml, SEC-03). Con FOTOS_ALMACEN=s3, tambien FOTOS_S3_* (las valida
 # S3FotoStorageService); con FOTOS_ALMACEN=local, FOTOS_DIR (la imagen ya
 # trae /data/fotos). Con CORREO_TIPO=resend, tambien CORREO_API_KEY (la
 # valida ResendCorreoAdapter). Con CAPTCHA_TIPO=turnstile, tambien
 # CAPTCHA_SECRET (la valida TurnstileAdapter). Con CLASIFICACION_TIPO=http,
-# tambien CLASIFICACION_URL (la valida ValidacionTipoClasificador).
+# tambien CLASIFICACION_URL (la valida ValidacionTipoClasificador). Con
+# MODERACION_TIPO=http, tambien MODERACION_URL (la valida ValidacionTipoModeracion).
 # Un default aqui arrancaria la app apuntando a algo que no es produccion;
 # mejor que no arranque.
 spring:
@@ -68,6 +69,14 @@ app:
       # una respuesta fija aqui llenaria la base de sugerencias inventadas y
       # arruinaria la evaluacion del modelo (OE3).
       respuesta: ""
+  moderacion:
+    # NC-10b: `http` (el servicio inferencia/ por la red privada, en
+    # MODERACION_URL). Sin default: con el `ninguna` de desarrollo, un
+    # despliegue que olvidara la variable publicaria fotos sin revisar sin que
+    # nada lo advierta. `ninguna` es el interruptor de emergencia ante una
+    # caida larga del servicio (deja un WARN al arrancar). El backend con
+    # `http` se despliega despues del servicio con el modelo (DEP-13, NC-10a).
+    tipo: ${MODERACION_TIPO}
   dominio-correo:
     # NC-09: el registro consulta el MX del dominio del correo. Con valor por
     # defecto a proposito (no es una variable obligatoria nueva): `dns` es lo

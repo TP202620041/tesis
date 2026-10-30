@@ -37,6 +37,8 @@ import pe.edu.upc.viasegura.auth.port.RecepcionDeCorreo;
 import pe.edu.upc.viasegura.auth.port.VerificadorDeDominioDeCorreo;
 import pe.edu.upc.viasegura.clasificacion.infra.InferenciaHttpAdapter;
 import pe.edu.upc.viasegura.clasificacion.port.ClasificadorDano;
+import pe.edu.upc.viasegura.moderacion.infra.InferenciaModeracionHttpAdapter;
+import pe.edu.upc.viasegura.moderacion.port.ModeradorDeImagen;
 import pe.edu.upc.viasegura.support.AbstractPostgisIT;
 
 /**
@@ -84,6 +86,9 @@ import pe.edu.upc.viasegura.support.AbstractPostgisIT;
         // NC-04b: obligatoria en prod; con `http`, tambien la URL.
         "CLASIFICACION_TIPO=http",
         "CLASIFICACION_URL=http://127.0.0.1:1",
+        // NC-10b: obligatoria en prod; con `http`, tambien la URL.
+        "MODERACION_TIPO=http",
+        "MODERACION_URL=http://127.0.0.1:1",
         // DEP-14: obligatoria en prod. Un valor de prueba evidente.
         "ORIGEN_SECRETO=" + PerfilProdIT.SECRETO_DE_ORIGEN})
 class PerfilProdIT extends AbstractPostgisIT {
@@ -113,6 +118,8 @@ class PerfilProdIT extends AbstractPostgisIT {
     Environment environment;
     @Autowired
     ClasificadorDano clasificador;
+    @Autowired
+    ModeradorDeImagen moderador;
 
     /**
      * NC-09: en prod el adaptador del dominio es el de DNS. Se simula para
@@ -177,6 +184,12 @@ class PerfilProdIT extends AbstractPostgisIT {
         // ...y la respuesta del falso sigue literal y vacia, aunque el perfil test
         // diga otra: CLASIFICACION_TIPO=falso apaga la clasificacion.
         assertThat(environment.getProperty("app.clasificacion.falso.respuesta")).isEmpty();
+        // NC-10b: en prod la moderacion sale de MODERACION_TIPO, sin default (el
+        // perfil test dice `ninguna`; prod gana), con el umbral de 0.70.
+        assertThat(environment.getProperty("app.moderacion.tipo")).isEqualTo("http");
+        assertThat(environment.getProperty("app.moderacion.http.url")).isEqualTo("http://127.0.0.1:1");
+        assertThat(environment.getProperty("app.moderacion.umbral", Double.class)).isEqualTo(0.70);
+        assertThat(moderador).isInstanceOf(InferenciaModeracionHttpAdapter.class);
         // NC-09: en prod el registro consulta el MX sin que haga falta una
         // variable nueva (el perfil test dice `ninguno`; prod gana).
         assertThat(environment.getProperty("app.dominio-correo.tipo")).isEqualTo("dns");

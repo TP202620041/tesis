@@ -1,11 +1,11 @@
 # Handoff de contrato: moderación de la foto `/v1/moderacion` del servicio de inferencia (NC-10a → NC-10b)
 
-- **Estado:** pendiente <!-- pendiente | atendido -->
+- **Estado:** atendido <!-- pendiente | atendido -->
 - **Fecha:** 2026-10-28
 - **Origen:** inferencia, rama `feature/nc-10a-moderacion-inferencia`: commits `2abb769` (endpoint, exportación y tests), `679c5c0` (calibración y medición), `e956234` (README, este handoff y el plan) y las observaciones de la revisión en el commit siguiente (PR por abrir; lo abre el coordinador)
 - **Historia o tarea:** NC-10a (D-15, propuesta decidida `decisions/propuestas/2026-10-28-moderacion-de-contenido.md`); lo consume **NC-10b** (`moderacion/infra/InferenciaModeracionHttpAdapter`)
 - **Destinatario:** backend, NC-10b
-- **Atendido por:** —
+- **Atendido por:** backend, NC-10b, rama `feature/nc-10b-moderacion-backend`, 29/10. `moderacion/infra/InferenciaModeracionHttpAdapter` sigue este contrato: falla cerrada en la creación (503 `MODERACION_NO_DISPONIBLE`), `fotoRechazada: false` en la vista previa, validación solo por estructura, umbral 0,70 en `PoliticaDeModeracion` y 4 turnos propios (4 + 4 con la detección). `InferenciaModeracionHttpAdapterIT` pasó contra `ciudadviva-inferencia:nc10a` (6 de 6, incluidas 4 moderaciones y 4 detecciones a la vez sin un 503).
 
 El contrato es el de ARCHITECTURE.md §6 y §7 (D-15). Lo define `inferencia/` (`app/api/esquemas.py`; OpenAPI en `/openapi.json` del servicio). Un cambio incompatible pasa a `/v2`. Detalle, cifras y justificación en `inferencia/README.md` («Contrato», «Modelo de moderación», «Cifras medidas con la moderación» y «Calibración del umbral»).
 

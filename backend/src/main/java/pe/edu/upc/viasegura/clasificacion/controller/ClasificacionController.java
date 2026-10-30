@@ -28,6 +28,8 @@ public class ClasificacionController {
      * sugerida, o ninguna. <b>No guarda nada</b>: ni la foto ni el resultado.
      * Responde 200 aun sin sugerencia; el reporte se crea despues con
      * {@code POST /api/reportes} y la categoria que el ciudadano confirme.
+     * Tambien 200 si la moderacion rechaza la foto (NC-10b): con
+     * {@code fotoRechazada: true} y sin categoria.
      *
      * <p>Solo CIUDADANO (el unico que crea reportes) y con los terminos
      * aceptados, como el resto de las rutas privadas ({@code SecurityConfig}).

@@ -1,0 +1,450 @@
+# Corpus legitimo para la lista de groserias (NC-10b, propuesta §5, «Falsos positivos»).
+# ListaDeGroseriasTest exige que NINGUNA linea, ni ninguna palabra suelta, coincida con
+# resources/moderacion/groserias-es-pe.txt. Si una palabra legitima empieza a coincidir, se corrige la
+# lista, no este archivo. Una linea por termino o frase; las lineas con # son comentarios.
+
+# --- Las palabras del ejemplo de la propuesta y su ficha ---
+vehículo
+vehículos
+obstáculo
+obstáculos
+película
+cálculo
+calculadora
+computadora
+disputa
+reputación
+imputado
+año
+años
+cono
+conos
+pera
+peras
+concha
+conchas
+conchita
+huevo
+huevos
+huevería
+hueva de pescado
+polla
+la polla de Kábala
+paja
+qué paja
+pajero
+camioneta Pajero
+paloma
+palomas
+pájaro
+pájaros
+ano
+perra
+perro
+perros
+perrito
+zorra
+zorro
+cholo
+serrano
+negro
+chino
+cabrito
+cabrito a la norteña
+cabra
+teta
+mamar
+cachar
+cachaste
+pinche
+gonorrea
+retrasado
+obra retrasada
+idiota
+carajo
+caramba
+pucha
+
+# --- Vocabulario vial y urbano ---
+bache
+baches
+hueco
+huecos
+hueco en calzada
+pista
+pista deteriorada
+pistas
+vereda
+veredas
+berma
+calzada
+asfalto
+asfaltado
+parchado
+parche
+grieta
+grietas
+fisura
+hundimiento
+alcantarilla
+alcantarillado
+buzón
+buzones
+desagüe
+tubería
+colector
+sardinel
+rompemuelles
+giba
+semáforo
+semáforos
+señal
+señalización
+cruce peatonal
+paradero
+puente
+puente peatonal
+intercambio vial
+óvalo
+avenida
+calle
+jirón
+pasaje
+malecón
+carretera
+autopista
+vía expresa
+panamericana sur
+panamericana norte
+cuadra
+esquina
+km 15
+kilómetro 21
+Av. 28 de Julio 1234
+Jr. Lampa 345
+Mz. B Lt. 5
+A.A.H.H. Señor de los Milagros
+P.J. El Ermitaño
+Urb. Los Jardines
+S.J.L.
+S.J.M.
+V.E.S.
+V.M.T.
+S.M.P.
+UPIS Huáscar
+# Siglas frecuentes en Lima (revision del 29/10): ninguna puede chocar con las abreviaturas de la
+# lista (ctm, csm, ptm, hdp, mrd), ni sola ni con puntos o espacios.
+SJL
+SJM
+SMP
+VMT
+VES
+SJB
+MML
+PNP
+SAT
+ATU
+MTC
+SUTRAN
+SEDAPAL
+EMAPE
+SERPAR
+PROVÍAS
+INDECI
+MINSA
+EsSalud
+SUNARP
+SUNAT
+RENIEC
+DNI
+CSMC
+C.S.M.C. Santa Rosa
+OSINERGMIN
+UPC
+PUCP
+UNI
+UNMSM
+IEP
+I.E.P. San Martín
+C.E.I.
+PRONEI
+ONG
+SAC
+S.A.C.
+EIRL
+GLP
+GNV
+ATU corredor rojo
+Metropolitano
+Línea 1
+Línea 2
+Vía de Evitamiento
+Carretera Central
+Av. Javier Prado
+Av. Abancay
+Ca. 2 de Mayo
+Psje. Los Pinos
+Prolong. Arequipa
+Altura cdra. 15
+Frente al Mz. C Lt. 12
+km 1.5
+2do piso
+3er paradero
+N°5
+desmonte
+basura
+escombros
+maleza
+inundación
+aniego
+agua
+lluvia
+huaico
+huaicos
+tránsito
+tráfico
+congestión
+combi
+cúster
+mototaxi
+mototaxis
+camión
+camiones
+bus
+ómnibus
+colectivo
+bicicleta
+ciclovía
+peatón
+peatones
+accidente
+choque
+atropello
+herido
+heridos
+municipalidad
+municipio
+alcalde
+alcaldesa
+regidor
+gerencia
+serenazgo
+policía
+comisaría
+bomberos
+colegio
+escuela
+universidad
+hospital
+posta médica
+mercado
+parque
+plaza
+iglesia
+cementerio
+estadio
+coliseo
+peligroso
+peligro
+urgente
+riesgo
+arreglen
+arreglar
+reparar
+reparación
+reparado
+mal estado
+hace meses
+desde hace años
+nadie hace nada
+qué vergüenza
+ya van tres reportes
+culebra
+culpa
+culpable
+culminar
+culminación
+cultivo
+cultura
+calculo
+cucaracha
+cucarachas
+pichón
+picante
+pichanga
+pingüino
+verdura
+vergel
+putrefacto
+computo
+cómputo
+reputado
+disputado
+amputado
+maricultura
+cabrestante
+cabrero
+chucho
+cachorro
+cacharro
+cacharros
+cachaco
+cagua
+caguazo
+mierdero
+huevito
+huevera
+conchero
+concheros
+conchitas
+mamífero
+coñac
+coñac añejo
+puchero
+joda
+jodido
+
+# --- Los 43 distritos de Lima Metropolitana (resources/data/distritos_lima.geojson) ---
+Ancón
+Ate
+Barranco
+Breña
+Carabayllo
+Chaclacayo
+Chorrillos
+Cieneguilla
+Comas
+El Agustino
+Independencia
+Jesús María
+La Molina
+La Victoria
+Lima
+Cercado de Lima
+Lince
+Los Olivos
+Lurigancho
+Lurín
+Magdalena del Mar
+Miraflores
+Pachacámac
+Pucusana
+Pueblo Libre
+Puente Piedra
+Punta Hermosa
+Punta Negra
+Rímac
+San Bartolo
+San Borja
+San Isidro
+San Juan de Lurigancho
+San Juan de Miraflores
+San Luis
+San Martín de Porres
+San Miguel
+Santa Anita
+Santa María del Mar
+Santa Rosa
+Santiago de Surco
+Surquillo
+Villa El Salvador
+Villa María del Triunfo
+Callao
+Pta. Hermosa
+Pte. Piedra
+
+# --- Apellidos frecuentes en el Perú ---
+Quispe
+Flores
+Sánchez
+Rodríguez
+García
+Rojas
+Huamán
+Mamani
+Ramos
+Chávez
+Vásquez
+Díaz
+Torres
+Mendoza
+Castillo
+Gonzales
+Pérez
+López
+Ruiz
+Vargas
+Cruz
+Gutiérrez
+Espinoza
+Condori
+Ccama
+Ccahuana
+Huanca
+Apaza
+Ticona
+Choque
+Cusi
+Mendoza Concha
+Concha
+Pajares
+Pajuelo
+Culqui
+Culquicóndor
+Pinglo
+Chuchón
+Cabrera
+Cabrejos
+Cabrel
+Cachay
+Cacho
+Pinedo
+Pichilingue
+Puertas
+Putpaña
+Verástegui
+Huevín
+Marcavillaca
+Chuquimango
+Ccopa
+Cóndor
+Saavedra
+Villanueva
+Zapata
+Paredes
+Salazar
+Ñañez
+Ñique
+Peña
+Muñoz
+Ibáñez
+Cañari
+Coñas
+Ayala
+Llanos
+Llerena
+Lluncor
+
+# --- Nombres de pila frecuentes ---
+Ana
+María
+José
+Juan
+Luis
+Rosa
+Carmen
+Jesús
+Pedro
+Miguel
+Lucía
+Chucho
+Pepe
+Cucho
+Cuca
+Pucho
+Concepción
+Asunción
+Inmaculada
+Socorro
+Dolores
+Remedios

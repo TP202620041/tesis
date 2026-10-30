@@ -8,6 +8,8 @@ import pe.edu.upc.viasegura.auth.domain.Usuario;
 import pe.edu.upc.viasegura.auth.service.UsuarioConsultaService;
 import pe.edu.upc.viasegura.common.exception.BusinessException;
 import pe.edu.upc.viasegura.common.exception.ResourceNotFoundException;
+import pe.edu.upc.viasegura.moderacion.domain.CampoDeTexto;
+import pe.edu.upc.viasegura.moderacion.service.ModeracionService;
 import pe.edu.upc.viasegura.reportes.domain.ComentarioPublico;
 import pe.edu.upc.viasegura.reportes.domain.EstadoReporte;
 import pe.edu.upc.viasegura.reportes.domain.ReincidenciaDetector;
@@ -32,11 +34,19 @@ public class ComentarioPublicoService {
     private final UsuarioConsultaService usuarioConsultaService;
     private final ComentarioPublicoRepository comentarioRepository;
     private final ReincidenciaDetector reincidenciaDetector;
+    private final ModeracionService moderacionService;
 
-    /** US-27: publica un comentario sobre un reporte resuelto. */
+    /**
+     * US-27: publica un comentario sobre un reporte resuelto.
+     *
+     * <p>NC-10b (D-15): el comentario es publico, asi que no puede tener
+     * groserias (400 {@code TEXTO_NO_PERMITIDO}). Se revisa primero, como el
+     * resto de la validacion de la entrada: no toca la base.</p>
+     */
     @Transactional
     public ComentarioPublicoResponse comentar(String emailCiudadano, Long reporteId,
                                               ComentarPublicoRequest req) {
+        moderacionService.exigirTextoPermitido(CampoDeTexto.COMENTARIO, req.contenido());
         Usuario ciudadano = usuarioConsultaService.usuarioPorEmail(emailCiudadano);
         Reporte reporte = reporteRepository.findById(reporteId)
                 .orElseThrow(() -> new ResourceNotFoundException("Reporte no encontrado: " + reporteId));

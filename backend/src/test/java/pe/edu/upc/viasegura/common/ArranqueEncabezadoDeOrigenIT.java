@@ -57,7 +57,9 @@ class ArranqueEncabezadoDeOrigenIT {
                 "--CORREO_TIPO=smtp",
                 "--NOTIF_FROM=Ciudad Viva <no-reply@ciudadviva.test>",
                 "--CAPTCHA_TIPO=ninguno",
-                "--CLASIFICACION_TIPO=falso"));
+                "--CLASIFICACION_TIPO=falso",
+                // NC-10b: obligatoria en prod.
+                "--MODERACION_TIPO=ninguna"));
     }
 
     private static String trazaCompleta(Throwable error) {

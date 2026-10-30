@@ -70,11 +70,33 @@ public class GlobalExceptionHandler {
      * minutos: sin turno para sanear la foto o el almacenamiento de fotos no
      * respondio (DEP-12). 503 conservando el mensaje, que la PWA muestra; no
      * es un error de red, asi que no entra a la cola offline.
+     *
+     * <p>Si trae un codigo (NC-10b: {@code MODERACION_NO_DISPONIBLE}, la
+     * moderacion de la foto no respondio), va en {@code codigo}.</p>
      */
     @ExceptionHandler(ServicioNoDisponibleException.class)
     public ResponseEntity<ApiError> handleServicioNoDisponible(
             ServicioNoDisponibleException ex, HttpServletRequest req) {
+        if (ex.getCodigo() != null) {
+            HttpStatus estado = HttpStatus.SERVICE_UNAVAILABLE;
+            return ResponseEntity.status(estado).body(ApiError.conCodigo(estado.value(), estado.getReasonPhrase(),
+                    ex.getMessage(), req.getRequestURI(), ex.getCodigo()));
+        }
         return build(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage(), req, List.of());
+    }
+
+    /**
+     * NC-10b (D-15): una foto o un texto que no se pueden publicar. 400 con el
+     * {@code codigo} ({@code FOTO_NO_PERMITIDA}, {@code TEXTO_NO_PERMITIDO}) y
+     * el campo en {@code details}. El mensaje no repite la palabra.
+     */
+    @ExceptionHandler(ContenidoNoPermitidoException.class)
+    public ResponseEntity<ApiError> handleContenidoNoPermitido(
+            ContenidoNoPermitidoException ex, HttpServletRequest req) {
+        HttpStatus estado = HttpStatus.BAD_REQUEST;
+        List<String> details = ex.getCampo() == null ? List.of() : List.of(ex.getCampo());
+        return ResponseEntity.status(estado).body(ApiError.conCodigo(estado.value(), estado.getReasonPhrase(),
+                ex.getMessage(), req.getRequestURI(), details, ex.getCodigo()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
