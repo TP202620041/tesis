@@ -37,7 +37,7 @@ Hay un carril de backend y uno de frontend en paralelo. En un mismo sprint el fr
 | S4 | US-11 (endpoint de densidad) · BE-06 (incluye `ReincidenciaDetector` → `domain/`) · BE-10 | US-11 (capa de calor) · FE-06 | v0.5.0 |
 | S5 | NC-01 · NC-02 | US-19 · FE-07 · FE-08 | v0.6.0 |
 | Despliegue | DEP-01..DEP-05 · DEP-08 · DEP-11 · DEP-12 · correcciones de QA-1 · CI (DEP-07) | DEP-06 · correcciones de QA-1 · fase 1 del diseño «Cívica» (DIS-1, con US-23) | v0.7.0 |
-| S7 | NC-03a (`inferencia/`) · NC-04 (`clasificacion`) · NC-04b (adaptador HTTP de `clasificacion` al servicio `inferencia/`) · DEP-13 (servicio `inferencia` en Railway, solo por la red privada) · BE-11 (la foto se sube fuera de la transacción de creación) · BE-12 (refresco asíncrono y coalescido del índice) · BE-15 (las cuentas sin confirmar se borran a los 30 días) · NC-09 (confirmación del correo, #122) · NC-10a (`inferencia/`: moderación de la foto, `/v1/moderacion`) · NC-10b (módulo `moderacion`: foto y texto) · NC-11a (ocultar y denunciar) | NC-04 (vista previa al reportar) · FE-09 (adelantada) · atribución de RDD2022 (CC BY-SA 4.0) y de los pesos RF-DETR (Apache-2.0) en «Acerca de» o en los términos · aviso de que la foto se analiza automáticamente (nueva versión de los términos, D-12) · NC-09 (confirmación del correo en la PWA, #123) · NC-10c (avisos de moderación) · NC-11b (denunciar y bandeja de moderación del ADMIN) | v0.8.0 |
+| S7 | **Hechas:** NC-03a (`inferencia/`, #109) · NC-04 (`clasificacion`, #108) · NC-04b (adaptador HTTP al servicio `inferencia/`, #118) · NC-04c (la sugerencia oficial espera turno, #126) · NC-08 y NC-08b (captcha del registro; Turnstile reemplaza a reCAPTCHA, #119 y #132) · NC-09, NC-09b y NC-09c (confirmación del correo y cuentas sin confirmar, #122, #125 y #127) · BE-11 (la foto se sube fuera de la transacción, #128) · NC-10a (moderación en `inferencia/`, `/v1/moderacion`, #129, con el tope de 8 MP en #133) · NC-10b (módulo `moderacion`: foto y texto, #134) · NC-11a (ocultar y denunciar, #136) · DEP-14 (encabezado de origen, #130) · DEP-13 (servicio `inferencia` en Railway, creado el 28/10; se vuelve a subir y se conecta el repo en la release). **En PR:** NC-11a2 (filtro «ocultos» de la bandeja del ADMIN, #137). **Pendientes:** BE-12 (refresco asíncrono del índice) · BE-13 · BE-14 · BE-15 (las cuentas sin confirmar se borran a los 30 días) | **Hechas:** NC-04 (vista previa al reportar, #117) · FE-09 (adelantada, #106) · NC-08 y NC-08b (#120 y #131) · NC-09 y NC-09c (#123 y #127) · NC-10c (avisos de moderación, #135). **En PR:** NC-11b (denunciar y bandeja de moderación del ADMIN, #138). **Pendientes, esperan al asesor:** los términos v2 (#116), con el aviso de que la foto se analiza automáticamente (D-12), la revisión del contenido y la atribución de RDD2022 (CC BY-SA 4.0) y de los pesos RF-DETR (Apache-2.0) | v0.8.0 |
 | S6 | NC-05 · NC-06 · BE-08 | NC-06 (dashboard por periodo, reemplaza US-17 v1) | v0.9.0 |
 | S8 | Ajustes que pida el diseño | **Diseño de la interfaz, fase 2** (mapa con hoja inferior, reporte en pasos, bandeja con panel, portada y desempeño), revisión de cada pantalla y US-24 (guía de uso) | v1.0.0 |
 
@@ -76,10 +76,9 @@ Hay un carril de backend y uno de frontend en paralelo. En un mismo sprint el fr
   - **Prueba de la moderación:**
     - `/salud` del servicio devuelve `version_moderacion` (`nsfw-vit-tiny-384-…`). Como no tiene dominio público, se consulta desde dentro, con `railway ssh --service inferencia` y `python -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8000/salud').read())"` (verificar el comando de la CLI);
     - un reporte con una foto normal de una pista se crea (201), y el log del backend muestra la llamada a `/v1/moderacion` con su duración.
-  - **Documentos en la misma rama:**
-    - en el runbook, una subsección nueva en §5, el paso de §7.3 y el interruptor `CLASIFICACION_TIPO=falso` en §10;
-    - los diagramas dejan de decir «planificado»: `c4-despliegue.md`, `c4-contenedores.md` y `capas.md`;
-    - el costo real del primer mes, anotado.
+  - **Documentos:**
+    - **hecho el 30/10** (`feature/doc-release-v0.8.0`): en el runbook, §5.4 (el servicio), los puntos 17 a 23 de §7.3, §10.1 (el orden de publicación) y §10.2 (los interruptores, entre ellos `CLASIFICACION_TIPO=falso`); los diagramas dejan de decir «planificado» (`c4-despliegue.md`, `c4-contenedores.md` y `capas.md`);
+    - **pendiente:** el costo real del primer mes y la latencia medida en Railway, anotados en el runbook (§11.2) y en `inferencia/README.md`.
 - **Orden:** el servicio y las variables del backend existen **antes** de fusionar la release en `main`, porque el backend con `http` no debe llegar a producción sin el servicio.
 - **Si el servicio falla en producción:**
   - **la sugerencia** degrada a «sin sugerencia» y no bloquea nada;
@@ -142,6 +141,22 @@ Hay un carril de backend y uno de frontend en paralelo. En un mismo sprint el fr
   - el healthcheck `/salud` de `inferencia` ya está configurado en Railway desde el 28/10, para que un redespliegue no corte la moderación.
 - **Costo:** unos **US$ 1 más al mes**: unos 65 MiB de RAM del modelo, CPU despreciable y algo de egreso por `s-maxage`. El total esperado pasa de unos US$ 9–11 a unos **US$ 10–12** al mes.
 
+**Estado del S7 al 30/10, antes de cortar la v0.8.0.** Lo hecho está en la fila del S7, con sus PR. Lo que cambió el alcance desde el 28/10, todo por decisión del usuario:
+- **NC-08b (28/10):** Cloudflare Turnstile reemplaza a reCAPTCHA v2 en el registro, en el backend (#132) y en la PWA (#131). `CAPTCHA_TIPO=turnstile` es obligatoria en `prod`, y la PWA no compila sin `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (runbook §5.2 y §6). NC-08, con reCAPTCHA (#119 y #120), no llegó a producción.
+- **DEP-14 (28/10, con prioridad):** el API solo atiende lo que pasa por Cloudflare. Una *Transform Rule* agrega `X-Origen-Secreto` y el backend responde 403 sin él (#130, SEC-05). Cierra el atajo de pedir directo a la IP de Railway. `ORIGEN_SECRETO` es obligatoria en `prod`; la activación tiene un orden (runbook §11.4).
+- **NC-10a con tope de 8 MP (28/10, #133):** `INFERENCIA_MAX_MEGAPIXELES=8` acota la RAM del servicio a ~505 MiB con los dos modelos.
+- **NC-04c (28/10, #126):** la sugerencia oficial espera hasta 10 s por un turno del servicio de inferencia, para no perder sugerencias en una ráfaga.
+- **NC-09b y NC-09c (28/10, #125 y #127):** una cuenta sin confirmar no recupera la contraseña, y la PWA ofrece reenviar el enlace de confirmación desde «¿Olvidaste tu contraseña?».
+- **BE-11 (#128)** dejó el patrón que usa NC-10b: el I/O externo sin transacción, la transacción programática y la compensación (ARCHITECTURE.md §4.5, versión 1.7).
+
+**Lo que falta para la v0.8.0:**
+- **En PR:** NC-11a2 (#137) y NC-11b (#138).
+- **Backend:** BE-12 (refresco asíncrono del índice), BE-13 y BE-14 (sus fichas llegan con el PR #116) y BE-15. Mientras BE-12 no esté, producción sigue con el pool en 20.
+- **Términos v2** (#116): esperan al asesor. Llevan el aviso del análisis automático, la revisión del contenido y la atribución (§14). Si salen sin la moderación en `http`, se aplica la regla de arriba.
+- **Producción (DEP-13 y DEP-14):** subir `inferencia` con NC-10a, comprobar `version_moderacion`, crear la regla de Cloudflare y cargar las variables antes de fusionar la release (runbook §10.1). Después, conectar el repo de `inferencia` a `main` y correr la prueba de humo, con la latencia de la moderación medida en Railway (NC-10b midió ~2,1 s en local con carga mixta, contra 2,5 s de lectura).
+- **Antes de abrir a usuarios reales:** el asesor confirma el procedimiento ante material ilegal (runbook §11.5).
+- **Sin sprint fijo:** NC-03b, la calibración del umbral de la sugerencia con al menos 200 fotos de Lima. La del umbral de moderación (0,70) espera fotos de calles con gente.
+
 El sprint «Despliegue» se intercaló el 21/10 por decisión del usuario, así que S6 y S7 se corren una versión (y el 25/10 se intercambian, ver arriba). v0.7.0 es el MVP listo para desplegar: el primer despliegue (DEP-09) y su prueba de humo (DEP-10) esperan las cuentas del usuario, y lo que exijan corregir sale como hotfix `v0.7.x`. El sistema visual y US-23 del S8 se adelantaron en ese sprint con la dirección «Cívica» (`docs/diseno/`); en el S8 quedan la fase 2 del rediseño y US-24.
 
 Ya hechas antes de S1: BE-01, BE-02, BE-07, FE-01 y FE-02.
@@ -157,7 +172,10 @@ Ya hechas antes de S1: BE-01, BE-02, BE-07, FE-01 y FE-02.
 | v0.8.0 | Si la versión sale con el modelo real: **decidido el 26/10**, sí (NC-04b y DEP-13 entran al S7). |
 | v0.8.0 | El aviso del análisis automático de la foto como nueva versión de los términos: si los ciudadanos que ya aceptaron tienen que volver a aceptar (D-12). **Decidido el 26/10:** sí, todos vuelven a aceptar. |
 | v0.8.0 | Confirmación del correo (NC-09) y purga de las cuentas sin confirmar (BE-15). **Decidido el 28/10:** una cuenta sin confirmar no inicia sesión ni restablece la contraseña, y se borra a los 30 días. |
-| v0.8.0 | Moderación de contenido (NC-10 y NC-11). **Decidido el 28/10:** entra en la v0.8.0, dentro de los términos v2 (`propuestas/2026-10-28-moderacion-de-contenido.md`, D-15). Antes de abrir a usuarios reales falta la confirmación del asesor sobre el procedimiento ante material ilegal. Eso no bloquea el sprint. |
+| v0.8.0 | Moderación de contenido (NC-10 y NC-11). **Decidido el 28/10:** entra en la v0.8.0, dentro de los términos v2 (`propuestas/2026-10-28-moderacion-de-contenido.md`, D-15), con el tope de 8 MP en el servicio. Antes de abrir a usuarios reales falta la confirmación del asesor sobre el procedimiento ante material ilegal (runbook §11.5). Eso no bloquea el sprint. |
+| v0.8.0 | Captcha del registro. **Decidido el 28/10:** Cloudflare Turnstile en lugar de reCAPTCHA v2 (NC-08b). |
+| v0.8.0 | Cerrar el atajo hacia el origen (SEC-05). **Decidido el 28/10:** encabezado de origen con una *Transform Rule* de Cloudflare (DEP-14), con prioridad en la v0.8.0. |
+| v0.8.0 | Los términos v2 (#116). **Abierto:** esperan la revisión del asesor. Si la v0.8.0 tiene que salir antes, el usuario decide si la v2 se retrasa o sale recortada (párrafo de la moderación, arriba). |
 
 ## Ejecución
 
