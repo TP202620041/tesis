@@ -39,8 +39,9 @@ import pe.edu.upc.viasegura.reportes.repository.ReporteRepository;
 
 /**
  * Moderacion del ADMIN sobre reportes ya publicados (NC-11a, D-15): la bandeja
- * de denuncias, el detalle, la foto aunque este oculta, ocultar y restablecer
- * el reporte o su foto, y desestimar denuncias.
+ * de denuncias (y, con {@code ocultos=true}, la de lo oculto, NC-11a2), el
+ * detalle, la foto aunque este oculta, ocultar y restablecer el reporte o su
+ * foto, y desestimar denuncias.
  *
  * <p><b>Solo el ADMIN</b> (las rutas lo exigen; el funcionario y el ciudadano
  * reciben 403). Vive en {@code reportes} y no en {@code moderacion}: si
@@ -75,43 +76,79 @@ public class ModeracionReporteService {
     private final ApplicationEventPublisher eventPublisher;
 
     /**
-     * Bandeja: reportes con denuncias en {@code estado}, de mas a menos
-     * denunciados y, entre iguales, del que espera hace mas.
+     * Bandeja del ADMIN. Con {@code ocultos} en {@code false}: los reportes con
+     * denuncias en {@code estado}, de mas a menos denunciados y, entre
+     * iguales, del que espera hace mas; el resumen de denuncias es el de ese
+     * estado. Con {@code ocultos} en {@code true} (NC-11a2): los reportes con
+     * el reporte o la foto ocultos, tengan denuncias o no, lo ocultado mas
+     * recientemente primero; {@code estado} se ignora y el resumen cuenta
+     * todas las denuncias, en cualquier estado.
      */
     @Transactional(readOnly = true)
-    public Page<ReporteModeracionResumenResponse> bandeja(EstadoDenuncia estado, Pageable pageable) {
-        // El orden lo fija la consulta: se descarta cualquier Sort entrante.
+    public Page<ReporteModeracionResumenResponse> bandeja(EstadoDenuncia estado, boolean ocultos,
+                                                          Pageable pageable) {
+        // El orden lo fija cada consulta: se descarta cualquier Sort entrante.
         Pageable soloPaginacion = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
-        Page<DenunciaReporteRepository.FilaBandeja> filas = denunciaRepository.bandeja(estado, soloPaginacion);
+        return ocultos ? bandejaDeOcultos(soloPaginacion) : bandejaDeDenuncias(estado, soloPaginacion);
+    }
+
+    private Page<ReporteModeracionResumenResponse> bandejaDeDenuncias(EstadoDenuncia estado, Pageable pageable) {
+        Page<DenunciaReporteRepository.FilaBandeja> filas = denunciaRepository.bandeja(estado, pageable);
         List<Long> ids = filas.getContent().stream().map(DenunciaReporteRepository.FilaBandeja::getReporteId).toList();
         if (ids.isEmpty()) {
             return filas.map(f -> null);
         }
+        Map<Long, Reporte> reportes = reportesPorId(ids);
+        Map<Long, Map<String, Long>> porMotivo = porMotivo(denunciaRepository.conteoPorMotivo(estado, ids));
+        return filas.map(f -> fila(reportes.get(f.getReporteId()), f, porMotivo));
+    }
 
-        Map<Long, Reporte> reportes = reporteRepository.findAllById(ids).stream()
+    private Page<ReporteModeracionResumenResponse> bandejaDeOcultos(Pageable pageable) {
+        Page<ReporteRepository.FilaOcultos> filas = reporteRepository.ocultosParaModeracion(pageable);
+        List<Long> ids = filas.getContent().stream().map(ReporteRepository.FilaOcultos::getReporteId).toList();
+        if (ids.isEmpty()) {
+            return filas.map(f -> null);
+        }
+        Map<Long, Reporte> reportes = reportesPorId(ids);
+        // Un reporte oculto sin denuncias no tiene fila de resumen: va con 0 y fechas nulas.
+        Map<Long, DenunciaReporteRepository.FilaBandeja> resumen = denunciaRepository
+                .resumenEnCualquierEstado(ids).stream()
+                .collect(Collectors.toMap(DenunciaReporteRepository.FilaBandeja::getReporteId, Function.identity()));
+        Map<Long, Map<String, Long>> porMotivo = porMotivo(denunciaRepository.conteoPorMotivoEnCualquierEstado(ids));
+        return filas.map(f -> fila(reportes.get(f.getReporteId()), resumen.get(f.getReporteId()), porMotivo));
+    }
+
+    private Map<Long, Reporte> reportesPorId(List<Long> ids) {
+        return reporteRepository.findAllById(ids).stream()
                 .collect(Collectors.toMap(Reporte::getId, Function.identity()));
+    }
+
+    private static Map<Long, Map<String, Long>> porMotivo(List<DenunciaReporteRepository.ConteoPorMotivo> conteos) {
         Map<Long, Map<String, Long>> porMotivo = new HashMap<>();
-        for (DenunciaReporteRepository.ConteoPorMotivo c : denunciaRepository.conteoPorMotivo(estado, ids)) {
+        for (DenunciaReporteRepository.ConteoPorMotivo c : conteos) {
             porMotivo.computeIfAbsent(c.getReporteId(), k -> new LinkedHashMap<>())
                     .put(c.getMotivo().name(), c.getTotal());
         }
+        return porMotivo;
+    }
 
-        return filas.map(f -> {
-            Reporte r = reportes.get(f.getReporteId());
-            return new ReporteModeracionResumenResponse(
-                    r.getId(),
-                    r.getTitulo(),
-                    r.getEstado().name(),
-                    r.getDistrito() != null ? r.getDistrito().getId() : null,
-                    r.getDistrito() != null ? r.getDistrito().getNombre() : null,
-                    r.getFotoUrl() != null,
-                    r.isOculto(),
-                    r.isFotoOculta(),
-                    f.getTotal(),
-                    porMotivo.getOrDefault(r.getId(), Map.of()),
-                    f.getPrimera(),
-                    f.getUltima());
-        });
+    /** Una fila de la bandeja; {@code resumen} es {@code null} para un oculto sin denuncias. */
+    private static ReporteModeracionResumenResponse fila(Reporte r,
+                                                         DenunciaReporteRepository.FilaBandeja resumen,
+                                                         Map<Long, Map<String, Long>> porMotivo) {
+        return new ReporteModeracionResumenResponse(
+                r.getId(),
+                r.getTitulo(),
+                r.getEstado().name(),
+                r.getDistrito() != null ? r.getDistrito().getId() : null,
+                r.getDistrito() != null ? r.getDistrito().getNombre() : null,
+                r.getFotoUrl() != null,
+                r.isOculto(),
+                r.isFotoOculta(),
+                resumen != null ? resumen.getTotal() : 0L,
+                porMotivo.getOrDefault(r.getId(), Map.of()),
+                resumen != null ? resumen.getPrimera() : null,
+                resumen != null ? resumen.getUltima() : null);
     }
 
     /** Detalle: el reporte en cualquier estado, su moderacion y todas sus denuncias. */

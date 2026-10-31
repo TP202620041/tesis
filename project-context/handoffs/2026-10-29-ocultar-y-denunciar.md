@@ -2,7 +2,7 @@
 
 - **Estado:** atendido <!-- pendiente | atendido -->
 - **Fecha:** 2026-10-29
-- **Origen:** backend, rama `feature/nc-11a-ocultar-denunciar` (PR pendiente). Commits en la ficha NC-11a de `decisions/plan-migracion-capas.md`.
+- **Origen:** backend, rama `feature/nc-11a-ocultar-denunciar` (#136, en `develop`). Commits en la ficha NC-11a de `decisions/plan-migracion-capas.md`. **Ampliado el 2026-10-30 (NC-11a2, rama `feature/nc-11a2-filtro-ocultos`):** parámetro `ocultos` de la bandeja.
 - **Historia o tarea:** NC-11a (D-15, propuesta decidida `decisions/propuestas/2026-10-28-moderacion-de-contenido.md`, §6); lo consume **NC-11b**
 - **Atendido por:** frontend, rama `feature/nc-11b-ocultar-denunciar-pwa`, PR de NC-11b, 2026-10-30. Tipos regenerados desde el OpenAPI de `develop` (782db0e) en el 8081 contra una base desechable; los enums y los cuatro `tipoEvento` nuevos en `lib/types/domain.ts`, con `avisoIndice: string | null` en `HistorialEntrada`. Denunciar vive en `features/reportes` («Denunciar contenido» solo al CIUDADANO, nunca en el propio: se busca el id en `mis-reportes`; los 409 por `codigo`; sin sesión, enlace al login). Moderar es la feature `features/moderacion` (`/admin/moderacion` y `/admin/moderacion/[id]`): bandeja con `estado` y la vista «Ocultos» (`ocultos=true`, decisión del 30/10; **depende de NC-11a2, PR #137**: NC-11b se fusiona después), foto por `…/{id}/foto` con `apiFetch` como `blob:`, ocultar y restablecer con el aviso del motivo, desestimar, `MOTIVO_IDENTIFICA_DENUNCIANTE` en el campo y los 409 del estado como «El reporte cambió» con recarga. `LineaDeTiempo` titula los cuatro eventos y muestra `avisoIndice` tal cual. El creador deduce lo oculto de su historial (`model/ocultamiento.ts`) y ve un aviso sin nada de denuncias; `fotoUrl: null` se muestra como «Este reporte no tiene foto.». Detalle: `frontend/README.md`, «Ocultar y denunciar (NC-11b, D-15)».
 
@@ -12,7 +12,7 @@ Detalle y justificación en `backend/README.md`, sección «Ocultar y denunciar 
 | Método | Ruta | Cambio |
 |---|---|---|
 | POST | `/api/reportes/{id}/denuncias` | **Nuevo** (CIUDADANO). Cuerpo `DenunciarReporteRequest`. 201 `DenunciaRegistradaResponse`. |
-| GET | `/api/admin/moderacion/reportes?estado=&page=&size=` | **Nuevo** (ADMIN). Bandeja paginada (`Page<ReporteModeracionResumenResponse>`). `estado` por defecto `PENDIENTE`. |
+| GET | `/api/admin/moderacion/reportes?estado=&ocultos=&page=&size=` | **Nuevo** (ADMIN). Bandeja paginada (`Page<ReporteModeracionResumenResponse>`). `estado` por defecto `PENDIENTE`. **`ocultos`** (NC-11a2, 30/10): boolean opcional, por defecto `false`; con `true` lista los reportes con `oculto` **o** `fotoOculta`, tengan denuncias o no, lo ocultado más recientemente primero; `estado` no filtra (si viene, tiene que ser un valor válido, si no 400). Mismo DTO. |
 | GET | `/api/admin/moderacion/reportes/{id}` | **Nuevo** (ADMIN). `ReporteModeracionResponse`. |
 | GET | `/api/admin/moderacion/reportes/{id}/foto` | **Nuevo** (ADMIN). La foto (`image/jpeg`), aunque esté oculta. |
 | POST | `/api/admin/moderacion/reportes/{id}/ocultamiento` | **Nuevo** (ADMIN). Cuerpo `ModerarContenidoRequest`. 200 `ReporteModeracionResponse`. |
@@ -52,9 +52,9 @@ Detalle y justificación en `backend/README.md`, sección «Ocultar y denunciar 
 | `DenunciaResponse` | `detalle`, `resueltaEn`, `motivoResolucion` | | sí | |
 | `DenunciaResponse` | `denuncianteId`, `denuncianteNombre`, `denuncianteEmail` | | sí: nulos si la cuenta se cerró (BE-14) | |
 | `ReporteModeracionResumenResponse` | `reporteId`, `titulo`, `estado`, `distritoId`, `distritoNombre`, `tieneFoto`, `oculto`, `fotoOculta` | | `distrito*` pueden ser nulos | |
-| `ReporteModeracionResumenResponse` | `totalDenuncias` | `number` | no | en el estado pedido |
-| `ReporteModeracionResumenResponse` | `porMotivo` | `Record<MotivoDenuncia, number>` | no | solo los motivos presentes |
-| `ReporteModeracionResumenResponse` | `primeraDenuncia`, `ultimaDenuncia` | ISO | no | |
+| `ReporteModeracionResumenResponse` | `totalDenuncias` | `number` | no | en el estado pedido; con `ocultos=true`, **todas** las denuncias del reporte, en cualquier estado (puede ser `0`) |
+| `ReporteModeracionResumenResponse` | `porMotivo` | `Record<MotivoDenuncia, number>` | no | solo los motivos presentes (`{}` si no hay denuncias) |
+| `ReporteModeracionResumenResponse` | `primeraDenuncia`, `ultimaDenuncia` | ISO | **sí, solo con `ocultos=true`** y sin denuncias | con `ocultos=false` nunca son nulas |
 
 ## Enums
 | Enum | Valores |
@@ -112,6 +112,6 @@ Mientras el reporte está oculto, el historial responde 200 solo al creador y al
 - **Botón «Denunciar contenido»** en el detalle público: mostrarlo siempre al CIUDADANO con sesión; el 409 decide el mensaje por `codigo` (`DENUNCIA_REPETIDA` → «Ya denunciaste este reporte», `LIMITE_DENUNCIAS` → «Alcanzaste el máximo de denuncias por hoy», `DENUNCIA_PROPIA` → no ofrecer el botón en un reporte propio, si la PWA lo sabe). Sin sesión, el enlace lleva a iniciar sesión.
 - **Foto en el área del ADMIN:** traerla con `apiFetch` (lleva el token) y mostrarla como `blob:`, como la foto de perfil. No usar `/media/...`: con la foto oculta da 404.
 - **Diálogo de ocultar:** con `REPORTE`, avisar que el reporte sale del índice de desempeño del distrito; con `FOTO`, que el índice no cambia. Junto al motivo, en ocultar y en restablecer, el aviso fijo «El autor y la municipalidad leerán este motivo. No nombres a quien denunció ni digas cuántas denuncias hubo.». El 400 `MOTIVO_IDENTIFICA_DENUNCIANTE` va en el campo del motivo.
-- **Bandeja del ADMIN:** `estado` cambia entre pendientes, atendidas y desestimadas. Un reporte oculto **sin denuncias** no aparece en la bandeja: el ADMIN lo abre por su id (`/admin/moderacion/{id}`), que funciona con cualquier reporte.
+- **Bandeja del ADMIN:** `estado` cambia entre pendientes, atendidas y desestimadas. Con **`ocultos=true`** (NC-11a2, decidido el 30/10) la bandeja pasa a listar lo oculto (reporte o foto), con o sin denuncias, lo ocultado más recientemente primero; `estado` no filtra (pero, si se envía, debe ser un valor válido) y `totalDenuncias`/`porMotivo` cuentan todas las denuncias. En esa vista `primeraDenuncia` y `ultimaDenuncia` pueden llegar en `null` y `totalDenuncias` en `0`. El detalle por id (`/admin/moderacion/{id}`) sigue funcionando con cualquier reporte.
 - **Caché de la PWA:** tras ocultar una foto, la que el Service Worker o el navegador ya guardaron puede seguir viéndose ahí (hasta 30 días); el servidor no puede retirarla. Las rutas `/api/admin/**` no deben guardarse en caché.
 - `springdoc` marca casi todo como opcional: tipar en `lib/types/domain.ts` las uniones literales de los tres enums y de `tipoEvento`, y `avisoIndice: string | null`.
