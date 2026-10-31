@@ -167,6 +167,17 @@ app:
   # usuarios pasan a debeAceptarTerminos=true sin migrar datos.
   legal:
     version-terminos: ${LEGAL_VERSION_TERMINOS:2026-10-v1}
+  # Cuentas que nunca confirmaron su correo (BE-15, decision del usuario del
+  # 28/10): PurgaCuentasSinConfirmarService las borra una vez al dia, con sus
+  # enlaces de confirmacion, sus tokens de recuperacion y sus consentimientos,
+  # si fueron creadas hace mas de `plazo` y no tienen un enlace vigente. Solo
+  # cuentas CIUDADANO. `plazo` es una duracion de Spring (30d, 720h); menos de
+  # 1 dia no arranca. `cron` (seg min hora dia mes dia-semana) es en hora de
+  # Lima; "-" apaga la tarea (asi corren los tests).
+  cuentas-sin-confirmar:
+    plazo: ${CUENTAS_SIN_CONFIRMAR_PLAZO:30d}
+    purga:
+      cron: "${CUENTAS_SIN_CONFIRMAR_PURGA_CRON:0 30 3 * * *}"
   # Primer ADMIN de un entorno (DEP-04, AdministradorInicialSeeder). Sin
   # valores por defecto: sin ADMIN_INICIAL_EMAIL no hace nada, y con algun
   # ADMIN en la base tampoco. En una base sin ADMIN crea la cuenta con

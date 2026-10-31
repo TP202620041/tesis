@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import pe.edu.upc.viasegura.auth.domain.Consentimiento;
@@ -60,4 +61,14 @@ public interface ConsentimientoRepository extends JpaRepository<Consentimiento, 
     /** La aceptacion sin revocar de esa finalidad y version (a lo sumo una, por V14). */
     Optional<Consentimiento> findFirstByUsuarioIdAndFinalidadAndVersionDocumentoAndRevocadoEnIsNull(
             Long usuarioId, FinalidadConsentimiento finalidad, String versionDocumento);
+
+    /**
+     * BE-15: el historial de consentimientos de una cuenta que nunca
+     * confirmo su correo y se purga. Ver «Purga de cuentas sin confirmar
+     * (BE-15)» en el README y la propuesta
+     * {@code 2026-10-30-consentimientos-de-cuentas-purgadas.md}.
+     */
+    @Modifying
+    @Query("DELETE FROM Consentimiento c WHERE c.usuario.id = :usuarioId")
+    int borrarDeUsuario(@Param("usuarioId") Long usuarioId);
 }

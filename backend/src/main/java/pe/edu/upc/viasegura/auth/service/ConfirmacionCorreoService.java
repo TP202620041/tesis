@@ -168,6 +168,11 @@ public class ConfirmacionCorreoService {
         // Pedidos simultaneos de la misma cuenta, de a uno hasta el commit:
         // si no, todos cuentan antes de que alguno guarde y el tope no frena.
         tokenRepository.bloquearSolicitudesDeConfirmacion(usuario.getId());
+        // BE-15: la purga toma el mismo candado. Si borro la cuenta mientras se
+        // esperaba, ya no existe (consulta nueva, no la entidad leida antes).
+        if (!usuarioRepository.existsById(usuario.getId())) {
+            return;
+        }
         Instant ahora = Instant.now();
         if (tokenRepository.countByUsuarioIdAndCreatedAtAfter(usuario.getId(), ahora.minus(ESPERA_ENTRE_ENVIOS)) > 0) {
             log.info("Confirmacion de correo: el usuario {} pidio un enlace hace menos de un minuto; no se crea otro",
@@ -247,6 +252,12 @@ public class ConfirmacionCorreoService {
     public void confirmar(String tokenPlano) {
         TokenConfirmacionCorreo token = tokenRepository.findByTokenHash(TokenConfirmacionCorreo.hashDe(tokenPlano))
                 .orElseThrow(() -> new BusinessException(MENSAJE_INVALIDA, CODIGO_CONFIRMACION_INVALIDA));
+        // BE-15: el candado de la fila antes de escribir. Si la purga de cuentas
+        // sin confirmar la esta borrando, se espera; si la borro, el enlace ya no
+        // vale (lo mismo que si la purga hubiera terminado antes de leerlo).
+        if (usuarioRepository.bloquearParaConfirmar(token.getUsuario().getId()).isEmpty()) {
+            throw new BusinessException(MENSAJE_INVALIDA, CODIGO_CONFIRMACION_INVALIDA);
+        }
         Usuario usuario = token.getUsuario();
         Instant ahora = Instant.now();
 

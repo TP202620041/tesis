@@ -53,4 +53,18 @@ public interface TokenConfirmacionCorreoRepository extends JpaRepository<TokenCo
             + "hashtextextended('confirmacion-correo:' || CAST(:usuarioId AS text), 0))",
             nativeQuery = true)
     Integer bloquearSolicitudesDeConfirmacion(@Param("usuarioId") Long usuarioId);
+
+    /**
+     * BE-15: si la cuenta tiene un enlace vigente (sin usar, sin anular y sin
+     * vencer en {@code ahora}). Incluye el que todavia espera su correo (sin
+     * hash): quien pidio «Reenviar» puede estar por recibirlo.
+     */
+    @Query("SELECT COUNT(t) > 0 FROM TokenConfirmacionCorreo t WHERE t.usuario.id = :usuarioId "
+            + "AND t.usedAt IS NULL AND t.invalidatedAt IS NULL AND t.expiresAt > :ahora")
+    boolean existeVigente(@Param("usuarioId") Long usuarioId, @Param("ahora") Instant ahora);
+
+    /** BE-15: los enlaces de una cuenta que se purga. */
+    @Modifying
+    @Query("DELETE FROM TokenConfirmacionCorreo t WHERE t.usuario.id = :usuarioId")
+    int borrarDeUsuario(@Param("usuarioId") Long usuarioId);
 }
