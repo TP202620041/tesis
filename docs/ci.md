@@ -9,7 +9,7 @@
 | `cambios` | Siempre | Con `dorny/paths-filter`, decide qué carpetas cambiaron. `backend/**`, `frontend/**` e `inferencia/**` cuentan cada una para su job. El workflow, sus scripts (`.github/scripts/**`) y los contadores de `/verificar` (`.claude/skills/verificar/**`) cuentan para backend y frontend; para inferencia, solo el workflow. Un push a `main` y una corrida manual validan todo. |
 | `backend` | Si cambió `backend/` | Levanta PostGIS `16-3.4` como servicio, con la base `viasegura_test` y el usuario y la clave `viasegura`, y espera a que `pg_isready` responda por TCP. Levanta también **Adobe S3Mock** (`adobe/s3mock:5.2.3`, puerto 9090) y define `FOTOS_S3_TEST_ENDPOINT`, para que `S3FotoStorageServiceIT` pruebe el adaptador de fotos en R2 (DEP-12). Instala JDK 21 Temurin con caché de Maven y corre `mvn -B -ntp clean verify` (Surefire, Failsafe y JaCoCo). Después corre la **guarda de completitud** (`.github/scripts/verificar-backend.mjs`), porque un `BUILD SUCCESS` sin tests no basta. Sube el informe JaCoCo como artefacto `jacoco-backend` y, si algo falló, los informes de Surefire y Failsafe (`informes-tests-backend`). |
 | `frontend` | Si cambió `frontend/` | Usa el Node de `frontend/.nvmrc` o, mientras no exista, Node 24. Corre `npm ci` y luego `npm run lint`, `npm run typecheck`, `npm test` (con la guarda `scripts/verificar-tests.mjs`), el conteo de avisos de capas y `npm run build` con `NEXT_PUBLIC_API_BASE_URL=https://api.example.invalid`. Los cuatro chequeos corren aunque falle uno, así una corrida muestra todos los errores. |
-| `inferencia` | Si cambió `inferencia/` (NC-03) | Python 3.13 con caché de pip, `pip install --require-hashes --no-deps -r requirements-dev.lock` (versiones y hashes de todas las dependencias, también las transitivas) y `pip check`, la guarda de capas `lint-imports` (import-linter) y `pytest` **sin pesos**: los 5 tests de `tests/test_modelo_real.py` se omiten porque el `.onnx` no se versiona. Después corre su guarda de completitud (`inferencia/scripts/verificar_tests.py`): falla si un test falló, si un `tests/test_*.py` no tiene casos en el informe, si se omitió algo fuera de `test_modelo_real.py` o si los ejecutados quedan bajo `MIN_PYTEST_INFERENCIA`. No construye la imagen Docker: su primera etapa descarga torch y los pesos de Hugging Face. |
+| `inferencia` | Si cambió `inferencia/` (NC-03) | Python 3.13 con caché de pip, `pip install --require-hashes --no-deps -r requirements-dev.lock` (versiones y hashes de todas las dependencias, también las transitivas) y `pip check`, la guarda de capas `lint-imports` (import-linter) y `pytest` **sin pesos**: los 9 tests de `tests/test_modelo_real.py` se omiten porque el `.onnx` no se versiona. Después corre su guarda de completitud (`inferencia/scripts/verificar_tests.py`): falla si un test falló, si un `tests/test_*.py` no tiene casos en el informe, si se omitió algo fuera de `test_modelo_real.py` o si los ejecutados quedan bajo `MIN_PYTEST_INFERENCIA`. No construye la imagen Docker: su primera etapa descarga torch y los pesos de Hugging Face. |
 | `ci` | Siempre (`if: always()`) | Junta los resultados y falla si `cambios` falló, si un job cuya carpeta cambió no terminó en `success` (falló, se canceló o se omitió) o si uno que no aplicaba no quedó `skipped`. |
 
 **La guarda de completitud del backend** falla cuando:
@@ -63,15 +63,15 @@ Lo mismo que la CI, en tu máquina (entorno de `CLAUDE.md`):
 # backend/ (Windows: base en 5433; macOS: 5432 con TEST_DB_URL)
 POSTGRES_PORT=5433 docker compose up -d --wait          # --wait espera el healthcheck (pg_isready)
 mvn -B -ntp clean verify
-MIN_IT_FAILSAFE=309 MIN_SUREFIRE=62 node ../.github/scripts/verificar-backend.mjs   # la misma guarda
+MIN_IT_FAILSAFE=598 MIN_SUREFIRE=830 node ../.github/scripts/verificar-backend.mjs   # la misma guarda
 
 # frontend/
 npm ci && npm run lint && npm run typecheck && npm test
 NEXT_PUBLIC_API_BASE_URL=https://api.example.invalid npm run build
 
-# inferencia/ (venv en inferencia/.venv; con los pesos en modelos/ corren también los 5 del modelo real)
+# inferencia/ (venv en inferencia/.venv; con los pesos en modelos/ corren también los 9 del modelo real)
 pip install --require-hashes --no-deps -r requirements-dev.lock && lint-imports
-python -m pytest -rs --junitxml=/tmp/pytest.xml && MIN_PYTEST_INFERENCIA=133 python scripts/verificar_tests.py /tmp/pytest.xml
+python -m pytest -rs --junitxml=/tmp/pytest.xml && MIN_PYTEST_INFERENCIA=264 python scripts/verificar_tests.py /tmp/pytest.xml
 ```
 
 Si algo pasa en tu máquina y falla en la CI, repítelo en Linux con contenedores aislados. Así corre el runner: en UTC, con un sistema de archivos que distingue mayúsculas y con finales de línea LF. Los contenedores no tocan `viasegura-db` ni el puerto 3025 del host:
@@ -102,7 +102,7 @@ En Git Bash de Windows, antepón `MSYS_NO_PATHCONV=1` a los `docker run` y usa u
 ## Para mantener
 
 - **Mínimos de tests**: `MIN_IT_FAILSAFE` y `MIN_SUREFIRE`, en el `env` del job `backend`.
-  - Se suben al cerrar cada versión con las cifras del CHANGELOG (hoy 309 y 62, las de v0.6.0).
+  - Se suben al cerrar cada versión con las cifras del CHANGELOG (hoy 598 y 830, las de v0.8.0).
   - Solo se bajan en el PR que quita tests, y ese PR explica por qué.
 - **Node**: cuando exista `frontend/.nvmrc` (DEP-06), el job lo usa solo. Debe cumplir `jsdom` 30 (`^22.22.2 || ^24.15.0 || >=26`) y Next 16 (`>=20.9`).
 - **Acciones**:
@@ -111,7 +111,7 @@ En Git Bash de Windows, antepón `MSYS_NO_PATHCONV=1` a los `docker run` y usa u
   - `.github/dependabot.yml` propone las actualizaciones cada lunes, en un solo PR a `develop`. Para aceptar una mayor nueva, lee sus notas de versión.
 - **Runner**: `ubuntu-24.04`, fijado para que un cambio de `ubuntu-latest` no rompa la CI sin aviso. Usa el `mvn` preinstalado, porque el backend no tiene `mvnw`.
 - **Filtros**: una carpeta nueva con código necesita su filtro en `cambios`, su job y su línea en `ci` (así entró `inferencia/` en NC-03).
-- **Mínimo de inferencia**: `MIN_PYTEST_INFERENCIA` en el `env` del job `inferencia` (hoy 133, los tests sin pesos de NC-03). Se sube y se baja con la misma regla que los del backend.
+- **Mínimo de inferencia**: `MIN_PYTEST_INFERENCIA` en el `env` del job `inferencia` (hoy 264, los tests sin pesos de NC-03a y NC-10a, en v0.8.0). Se sube y se baja con la misma regla que los del backend.
 
 ## Pendiente
 
