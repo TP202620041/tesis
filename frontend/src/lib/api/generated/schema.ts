@@ -52,6 +52,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/reportes/{id}/denuncias": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["denunciar"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/reportes/{id}/comentarios": {
         parameters: {
             query?: never;
@@ -238,6 +254,54 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["confirmarCorreo"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/moderacion/reportes/{id}/restablecimiento": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["restablecer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/moderacion/reportes/{id}/ocultamiento": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ocultar"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/moderacion/reportes/{id}/desestimacion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["desestimar"];
         delete?: never;
         options?: never;
         head?: never;
@@ -596,6 +660,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/moderacion/reportes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["bandeja_1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/moderacion/reportes/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["detalle"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/moderacion/reportes/{id}/foto": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["foto_1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/me/consentimientos/{finalidad}": {
         parameters: {
             query?: never;
@@ -668,6 +780,20 @@ export interface components {
             /** Format: int64 */
             asignadoPorId?: number;
             activo?: boolean;
+            /** Format: date-time */
+            createdAt?: string;
+        };
+        DenunciarReporteRequest: {
+            /** @enum {string} */
+            motivo: "CONTENIDO_SEXUAL" | "OFENSIVO" | "DATOS_PERSONALES" | "FALSO" | "OTRO";
+            detalle?: string;
+        };
+        DenunciaRegistradaResponse: {
+            /** Format: int64 */
+            id?: number;
+            /** Format: int64 */
+            reporteId?: number;
+            motivo?: string;
             /** Format: date-time */
             createdAt?: string;
         };
@@ -806,6 +932,54 @@ export interface components {
         ConfirmarCorreoRequest: {
             token: string;
         };
+        ModerarContenidoRequest: {
+            /** @enum {string} */
+            alcance: "REPORTE" | "FOTO";
+            motivo: string;
+        };
+        DenunciaResponse: {
+            /** Format: int64 */
+            id?: number;
+            motivo?: string;
+            detalle?: string;
+            estado?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: int64 */
+            denuncianteId?: number;
+            denuncianteNombre?: string;
+            denuncianteEmail?: string;
+            /** Format: date-time */
+            resueltaEn?: string;
+            motivoResolucion?: string;
+        };
+        ReporteModeracionResponse: {
+            /** Format: int64 */
+            id?: number;
+            /** Format: double */
+            latitud?: number;
+            /** Format: double */
+            longitud?: number;
+            titulo?: string;
+            descripcion?: string;
+            severidad?: string;
+            /** Format: int64 */
+            categoriaId?: number;
+            categoriaNombre?: string;
+            estado?: string;
+            /** Format: int64 */
+            distritoId?: number;
+            distritoNombre?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            tieneFoto?: boolean;
+            oculto?: boolean;
+            fotoOculta?: boolean;
+            denuncias?: components["schemas"]["DenunciaResponse"][];
+        };
+        DesestimarDenunciasRequest: {
+            motivo?: string;
+        };
         ResponderTicketRequest: {
             respuesta: string;
             /** @enum {string} */
@@ -921,9 +1095,9 @@ export interface components {
             sort?: components["schemas"]["SortObject"];
             paged?: boolean;
             /** Format: int32 */
-            pageNumber?: number;
-            /** Format: int32 */
             pageSize?: number;
+            /** Format: int32 */
+            pageNumber?: number;
             unpaged?: boolean;
         };
         SortObject: {
@@ -980,6 +1154,7 @@ export interface components {
             autor?: string;
             /** Format: date-time */
             fecha?: string;
+            avisoIndice?: string;
         };
         CeldaDensidadResponse: {
             /** Format: double */
@@ -1035,6 +1210,45 @@ export interface components {
             debeAceptarTerminos?: boolean;
             vigentes?: components["schemas"]["ConsentimientoResponse"][];
             historial?: components["schemas"]["ConsentimientoResponse"][];
+        };
+        PageReporteModeracionResumenResponse: {
+            /** Format: int64 */
+            totalElements?: number;
+            /** Format: int32 */
+            totalPages?: number;
+            first?: boolean;
+            last?: boolean;
+            /** Format: int32 */
+            size?: number;
+            content?: components["schemas"]["ReporteModeracionResumenResponse"][];
+            /** Format: int32 */
+            number?: number;
+            sort?: components["schemas"]["SortObject"];
+            /** Format: int32 */
+            numberOfElements?: number;
+            pageable?: components["schemas"]["PageableObject"];
+            empty?: boolean;
+        };
+        ReporteModeracionResumenResponse: {
+            /** Format: int64 */
+            reporteId?: number;
+            titulo?: string;
+            estado?: string;
+            /** Format: int64 */
+            distritoId?: number;
+            distritoNombre?: string;
+            tieneFoto?: boolean;
+            oculto?: boolean;
+            fotoOculta?: boolean;
+            /** Format: int64 */
+            totalDenuncias?: number;
+            porMotivo?: {
+                [key: string]: number;
+            };
+            /** Format: date-time */
+            primeraDenuncia?: string;
+            /** Format: date-time */
+            ultimaDenuncia?: string;
         };
         BajaSuscripcionPushRequest: {
             endpoint: string;
@@ -1208,6 +1422,32 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["AsignacionResponsableResponse"];
+                };
+            };
+        };
+    };
+    denunciar: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DenunciarReporteRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["DenunciaRegistradaResponse"];
                 };
             };
         };
@@ -1604,6 +1844,84 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    restablecer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModerarContenidoRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ReporteModeracionResponse"];
+                };
+            };
+        };
+    };
+    ocultar: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModerarContenidoRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ReporteModeracionResponse"];
+                };
+            };
+        };
+    };
+    desestimar: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["DesestimarDenunciasRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ReporteModeracionResponse"];
+                };
             };
         };
     };
@@ -2176,6 +2494,73 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["CategoriaGestionResponse"][];
+                };
+            };
+        };
+    };
+    bandeja_1: {
+        parameters: {
+            query: {
+                estado?: "PENDIENTE" | "ATENDIDA" | "DESESTIMADA";
+                pageable: components["schemas"]["Pageable"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PageReporteModeracionResumenResponse"];
+                };
+            };
+        };
+    };
+    detalle: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ReporteModeracionResponse"];
+                };
+            };
+        };
+    };
+    foto_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": string;
                 };
             };
         };

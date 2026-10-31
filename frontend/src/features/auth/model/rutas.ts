@@ -32,6 +32,12 @@ export function rutaInicialDe(rol: Rol): string {
 export const RUTA_SOPORTE_ADMIN = '/admin/soporte';
 
 /**
+ * NC-11b (D-15): bandeja de moderacion del ADMIN (denuncias y contenido
+ * oculto). El detalle de cada reporte cuelga de aqui (`/admin/moderacion/[id]`).
+ */
+export const RUTA_MODERACION_ADMIN = '/admin/moderacion';
+
+/**
  * NC-07b (D-12): pantalla donde el usuario acepta los terminos vigentes. La
  * misma ruta la usa el cliente HTTP ante el 403 `TERMINOS_PENDIENTES`
  * (`lib/api/client.ts`, `RUTA_ACEPTAR_TERMINOS`); los tests de ambos lados la

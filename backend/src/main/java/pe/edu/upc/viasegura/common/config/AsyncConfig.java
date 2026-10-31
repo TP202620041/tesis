@@ -41,13 +41,24 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
  * al servicio, asi que de sus 4 turnos quedan 2 para las vistas previas (ver
  * {@code InferenciaHttpAdapter}).</p>
  *
+ * <p><b>El refresco del indice de desempeno tiene el suyo</b>
+ * ({@value #EJECUTOR_INDICE}, BE-12): un hilo y cola de una tarea. El
+ * listener coalesce los eventos (a lo sumo una tarea pendiente a la vez), asi
+ * que no hace falta mas, y con un solo hilo nunca corren dos
+ * {@code REFRESH MATERIALIZED VIEW CONCURRENTLY} a la vez: el segundo
+ * esperaria el candado del primero con su propia conexion tomada. Va aparte
+ * del general para que un refresco largo no retrase correos ni avisos, y
+ * aparte del de las sugerencias porque ahi esperaria detras de tareas que
+ * aguardan hasta 10 s un turno de inferencia (ver
+ * {@code IndiceDesempenoRefreshListener}).</p>
+ *
  * <p><b>Reemplazan al {@code applicationTaskExecutor} de Spring Boot</b>:
  * Boot solo crea el suyo si no hay ningun {@code Executor}. El general es
  * {@code @Primary}, asi que sigue siendo el executor por defecto de cualquier
  * {@code @Async} sin nombre. Conviene nombrar el executor en cada
  * {@code @Async} para dejarlo explicito.</p>
  *
- * <p>En el perfil {@code test} estos beans no existen: los IT registran dos
+ * <p>En el perfil {@code test} estos beans no existen: los IT registran tres
  * con los mismos nombres ({@code support/EjecutorSincronoTestConfig}) que
  * corren la tarea en otro hilo y la esperan, para seguir siendo
  * deterministas.</p>
@@ -59,6 +70,8 @@ public class AsyncConfig {
     public static final String EJECUTOR = "ejecutorAsincrono";
     /** NC-04c: el de la sugerencia oficial de categoria, que puede esperar un turno de inferencia. */
     public static final String EJECUTOR_SUGERENCIAS = "ejecutorSugerencias";
+    /** BE-12: el del refresco coalescido del indice de desempeno. */
+    public static final String EJECUTOR_INDICE = "ejecutorIndice";
 
     /**
      * {@code @Primary}: con dos executors, sigue siendo el de cualquier
@@ -113,6 +126,35 @@ public class AsyncConfig {
         ejecutor.setCorePoolSize(hilos);
         ejecutor.setMaxPoolSize(hilos);
         ejecutor.setQueueCapacity(cola);
+        ejecutor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
+        ejecutor.setWaitForTasksToCompleteOnShutdown(false);
+        ejecutor.setAwaitTerminationSeconds(5);
+        ejecutor.initialize();
+        return ejecutor;
+    }
+
+    /**
+     * BE-12: un hilo fijo y cola de una tarea. {@code IndiceDesempenoRefreshListener}
+     * encola a lo sumo una tarea a la vez (la que refresca mientras el indice
+     * siga marcado como sucio), y esa tarea, al terminar, puede encolar la
+     * siguiente antes de soltar su hilo: por eso la cola es de una y no de
+     * cero. Si aun asi se rechaza, la marca queda puesta y el siguiente
+     * evento la recoge.
+     *
+     * <p><b>Apagado como el de las sugerencias</b>
+     * ({@code waitForTasksToCompleteOnShutdown} en {@code false}): la parada
+     * coordinada espera al refresco que corre, antes de que se cierre el pool
+     * de conexiones, y descarta el encolado. Lo que se pierde ahi lo recupera
+     * el refresco con que arranca la aplicacion.</p>
+     */
+    @Bean(name = EJECUTOR_INDICE)
+    @Profile("!test")
+    public TaskExecutor ejecutorIndice() {
+        ThreadPoolTaskExecutor ejecutor = new ThreadPoolTaskExecutor();
+        ejecutor.setThreadNamePrefix("viasegura-indice-");
+        ejecutor.setCorePoolSize(1);
+        ejecutor.setMaxPoolSize(1);
+        ejecutor.setQueueCapacity(1);
         ejecutor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
         ejecutor.setWaitForTasksToCompleteOnShutdown(false);
         ejecutor.setAwaitTerminationSeconds(5);

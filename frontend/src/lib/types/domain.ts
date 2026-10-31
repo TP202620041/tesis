@@ -66,8 +66,73 @@ export type PreferenciaNotificacion = (typeof PREFERENCIAS_NOTIFICACION)[number]
 export const CANALES_NOTIFICACION = ['PUSH', 'EMAIL'] as const;
 export type CanalNotificacion = (typeof CANALES_NOTIFICACION)[number];
 
-export const TIPOS_EVENTO_HISTORIAL = ['CAMBIO_ESTADO', 'ASIGNACION'] as const;
+/**
+ * Tipos de evento de la linea de tiempo (`historial_estado_reporte.tipo_evento`).
+ * NC-11a suma los cuatro de la moderacion (D-15): ocultar y restablecer el
+ * reporte o solo su foto. Esos no llevan estados (`estadoAnterior` y
+ * `estadoNuevo` son `null`) y traen el motivo del ADMIN en `comentario`.
+ */
+export const TIPOS_EVENTO_HISTORIAL = [
+  'CAMBIO_ESTADO',
+  'ASIGNACION',
+  'FOTO_OCULTA',
+  'REPORTE_OCULTO',
+  'FOTO_RESTABLECIDA',
+  'REPORTE_RESTABLECIDO',
+] as const;
 export type TipoEventoHistorial = (typeof TIPOS_EVENTO_HISTORIAL)[number];
+
+/** Los eventos de moderacion de la linea de tiempo (NC-11a). */
+export const TIPOS_EVENTO_MODERACION = [
+  'FOTO_OCULTA',
+  'REPORTE_OCULTO',
+  'FOTO_RESTABLECIDA',
+  'REPORTE_RESTABLECIDO',
+] as const satisfies readonly TipoEventoHistorial[];
+export type TipoEventoModeracion = (typeof TIPOS_EVENTO_MODERACION)[number];
+
+export function esTipoEventoModeracion(valor: unknown): valor is TipoEventoModeracion {
+  return typeof valor === 'string' && (TIPOS_EVENTO_MODERACION as readonly string[]).includes(valor);
+}
+
+/**
+ * NC-11 (D-15): motivo de una denuncia ciudadana sobre un reporte publicado
+ * (`reportes/domain/MotivoDenuncia.java`). Lo elige el CIUDADANO al
+ * denunciar y lo ve el ADMIN en su bandeja.
+ */
+export const MOTIVOS_DENUNCIA = [
+  'CONTENIDO_SEXUAL',
+  'OFENSIVO',
+  'DATOS_PERSONALES',
+  'FALSO',
+  'OTRO',
+] as const;
+export type MotivoDenuncia = (typeof MOTIVOS_DENUNCIA)[number];
+
+export function esMotivoDenuncia(valor: unknown): valor is MotivoDenuncia {
+  return typeof valor === 'string' && (MOTIVOS_DENUNCIA as readonly string[]).includes(valor);
+}
+
+/**
+ * NC-11 (D-15): estado de una denuncia (`reportes/domain/EstadoDenuncia.java`).
+ * `PENDIENTE` hasta que el ADMIN la atiende (oculta algo) o la desestima.
+ * Es tambien el filtro `estado` de la bandeja de moderacion.
+ */
+export const ESTADOS_DENUNCIA = ['PENDIENTE', 'ATENDIDA', 'DESESTIMADA'] as const;
+export type EstadoDenuncia = (typeof ESTADOS_DENUNCIA)[number];
+
+export function esEstadoDenuncia(valor: unknown): valor is EstadoDenuncia {
+  return typeof valor === 'string' && (ESTADOS_DENUNCIA as readonly string[]).includes(valor);
+}
+
+/**
+ * NC-11 (D-15): que oculta o restablece el ADMIN
+ * (`reportes/domain/AlcanceModeracion.java`): el reporte entero (sale del
+ * mapa, del detalle publico, de la bandeja municipal y del indice) o solo su
+ * foto (el reporte sigue publico y el indice no cambia).
+ */
+export const ALCANCES_MODERACION = ['REPORTE', 'FOTO'] as const;
+export type AlcanceModeracion = (typeof ALCANCES_MODERACION)[number];
 
 /** US-25: estado de un ticket de soporte (`soporte/domain/EstadoTicket.java`). */
 export const ESTADOS_TICKET = ['ABIERTO', 'EN_PROCESO', 'CERRADO'] as const;
@@ -160,8 +225,10 @@ export interface ApiErrorBody {
   /**
    * Codigo de maquina; el backend lo omite si no hay. Hoy:
    * `TERMINOS_PENDIENTES` (D-12), los de la confirmacion del correo (NC-09,
-   * `features/auth/model/confirmacion.ts`) y los de la moderacion (NC-10b,
-   * `lib/types/moderacion.ts`).
+   * `features/auth/model/confirmacion.ts`), los de la moderacion (NC-10b,
+   * `lib/types/moderacion.ts`), los de la denuncia (NC-11a,
+   * `features/reportes/model/denuncia.ts`) y los de ocultar y restablecer
+   * (NC-11a, `features/moderacion/model/moderacion.ts`).
    */
   codigo?: string;
 }
@@ -198,12 +265,21 @@ export type ClasificacionResponse = {
 };
 
 /**
- * US-22: una fila de la linea de tiempo del reporte (cambio de estado o
- * asignacion). Vive aqui y no en una feature porque la usan `reportes`
- * (vista del ciudadano), `gestion` (vista del funcionario) y el componente
- * compartido `LineaDeTiempo`, que no puede depender de features.
+ * US-22: una fila de la linea de tiempo del reporte (cambio de estado,
+ * asignacion o, desde NC-11a, un evento de moderacion). Vive aqui y no en
+ * una feature porque la usan `reportes` (vista del ciudadano), `gestion`
+ * (vista del funcionario), `moderacion` (ADMIN) y el componente compartido
+ * `LineaDeTiempo`, que no puede depender de features.
+ *
+ * `avisoIndice` (NC-11a) es el texto fijo que arma el servidor sobre el
+ * indice de desempeño: solo viene en `REPORTE_OCULTO` («Mientras esté oculto,
+ * este reporte no cuenta en el índice de desempeño.») y en
+ * `REPORTE_RESTABLECIDO` («Vuelve a contar en el índice de desempeño.»);
+ * `null` en el resto. Se muestra tal cual, aparte del comentario.
  */
-export type HistorialEntrada = Schemas['HistorialEntradaResponse'];
+export type HistorialEntrada = Omit<Schemas['HistorialEntradaResponse'], 'avisoIndice'> & {
+  avisoIndice?: string | null;
+};
 
 export function esRol(valor: unknown): valor is Rol {
   return typeof valor === 'string' && (ROLES as readonly string[]).includes(valor);

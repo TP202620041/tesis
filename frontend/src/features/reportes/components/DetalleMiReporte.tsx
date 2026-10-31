@@ -6,6 +6,7 @@ import { FotoDeReporte } from '@/components/FotoDeReporte';
 import { UbicacionDelReporte } from '@/components/UbicacionDelReporte';
 import { ChipEstado } from '@/components/ui/ChipEstado';
 import { textoDeSeveridad, tituloVisible } from '@/lib/types/tituloYSeveridad';
+import { Aviso } from '@/components/ui/Aviso';
 import { useMiReporte } from '../hooks/useMiReporte';
 import {
   explicacionDeEstado,
@@ -13,6 +14,12 @@ import {
   puedeEditar,
   tieneVistaPublica,
 } from '../model/acciones';
+import {
+  AVISO_FOTO_OCULTA,
+  AVISO_REPORTE_OCULTO,
+  estadoDeOcultamiento,
+  SIN_FOTO,
+} from '../model/ocultamiento';
 import { Calificar } from './Calificar';
 import { Comentarios } from './Comentarios';
 import { EditarReporte } from './EditarReporte';
@@ -23,6 +30,13 @@ import { EditarReporte } from './EditarReporte';
  *
  * `reporteId` es `null` si el id de la URL no es valido (QA-1 M-11): se dice
  * «Reporte no disponible» sin pedir nada al API.
+ *
+ * NC-11b (D-15): el creador sigue viendo su reporte aunque el ADMIN lo haya
+ * ocultado (el resumen no lo dice: se deduce del historial,
+ * `model/ocultamiento.ts`). Se le explica que no esta en el mapa ni en la
+ * vista publica, con el motivo en el seguimiento, y no se ofrece el enlace a
+ * la vista publica (daria «Reporte no disponible»). Nunca se dice quien
+ * denuncio ni cuantos: el historial ya llega redactado del servidor.
  */
 export function DetalleMiReporte({ reporteId }: { reporteId: number | null }) {
   if (reporteId === null) return <ReporteNoDisponible />;
@@ -62,6 +76,8 @@ function DetalleCargado({ reporteId }: { reporteId: number }) {
   const estado = reporte.estado ?? '';
   // `api.ts` ya devuelve la URL absoluta de la foto.
   const foto = reporte.fotoUrl;
+  // NC-11b: lo oculto por moderacion, deducido del historial.
+  const oculto = estadoDeOcultamiento(entradas);
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 py-6">
@@ -97,6 +113,18 @@ function DetalleCargado({ reporteId }: { reporteId: number }) {
         </p>
       )}
 
+      {/* NC-11b: oculto por moderacion; el motivo esta en el seguimiento. */}
+      {oculto.reporteOculto && (
+        <Aviso tono="advertencia" titulo="Reporte oculto">
+          <p>{AVISO_REPORTE_OCULTO}</p>
+        </Aviso>
+      )}
+      {oculto.fotoOculta && !oculto.reporteOculto && (
+        <Aviso tono="advertencia" titulo="Foto oculta">
+          <p>{AVISO_FOTO_OCULTA}</p>
+        </Aviso>
+      )}
+
       {/* Explica el estado en los terminos del vecino, no del funcionario. */}
       <p className="rounded-control bg-superficie-2 px-3 py-2 text-sm text-texto">
         {explicacionDeEstado(estado)}
@@ -106,13 +134,16 @@ function DetalleCargado({ reporteId }: { reporteId: number }) {
         <p className="text-texto">{reporte.descripcion}</p>
       )}
 
-      {foto && (
+      {foto ? (
         <FotoDeReporte
           src={foto}
           alt="Foto del daño que reportaste"
           className="max-h-72 w-full rounded-control border border-linea object-cover"
           claseDelReemplazo="h-40"
         />
+      ) : (
+        // Sin foto, o con la foto oculta (el aviso de arriba lo explica).
+        <p className="rounded-control bg-superficie-2 px-3 py-2 text-sm text-texto-2">{SIN_FOTO}</p>
       )}
 
       <UbicacionDelReporte
@@ -148,8 +179,9 @@ function DetalleCargado({ reporteId }: { reporteId: number }) {
         </section>
       )}
 
-      {/* QA-1 M-13: un reporte retirado no tiene vista publica (404). */}
-      {tieneVistaPublica(estado) && (
+      {/* QA-1 M-13: un reporte retirado no tiene vista publica (404); tampoco
+          uno oculto por moderacion (NC-11a). */}
+      {tieneVistaPublica(estado) && !oculto.reporteOculto && (
         <Link
           href={`/reportes/${reporteId}`}
           className="text-sm text-enlace hover:underline"

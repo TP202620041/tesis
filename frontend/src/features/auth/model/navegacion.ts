@@ -1,5 +1,5 @@
 import type { Rol } from '@/lib/types/domain';
-import { RUTA_ACEPTAR_TERMINOS, RUTA_SOPORTE_ADMIN, RUTAS_DE_ACCESO } from './rutas';
+import { RUTA_ACEPTAR_TERMINOS, RUTA_MODERACION_ADMIN, RUTA_SOPORTE_ADMIN, RUTAS_DE_ACCESO } from './rutas';
 
 /**
  * Navegación por rol (DIS-1; propuesta §7, FE-DS-03). Un solo lugar define qué
@@ -12,7 +12,7 @@ import { RUTA_ACEPTAR_TERMINOS, RUTA_SOPORTE_ADMIN, RUTAS_DE_ACCESO } from './ru
  * | Visitante   | Mapa · Desempeño · Reportar · Entrar                    | Mapa · Desempeño · Iniciar sesión · Crear cuenta            |
  * | Ciudadano   | Mapa · Mis reportes · Reportar · Desempeño · Cuenta     | lo mismo + menú de cuenta (Perfil, Soporte, Apariencia…)    |
  * | Funcionario | Bandeja · Panel · Categorías · Cuenta                   | Municipalidad de X · Bandeja · Panel · Categorías · Soporte |
- * | Admin       | Soporte · Cuenta                                        | Tickets de soporte + menú de cuenta                          |
+ * | Admin       | Soporte · Moderación · Cuenta                           | Tickets de soporte · Moderación + menú de cuenta             |
  *
  * En el móvil, «Cuenta» es una pantalla más ({@link CUENTA}, `/perfil`), con la
  * misma barra y el mismo título grande que las otras; en escritorio es el menú
@@ -29,6 +29,7 @@ export type IconoNavegacion =
   | 'panel'
   | 'categorias'
   | 'soporte'
+  | 'moderacion'
   | 'perfil'
   | 'cuenta'
   | 'entrar'
@@ -78,6 +79,12 @@ const SOPORTE_ADMIN: ItemNavegacion = {
   etiquetaCorta: 'Soporte',
   icono: 'soporte',
 };
+/** NC-11b: denuncias y contenido oculto (D-15). */
+const MODERACION_ADMIN: ItemNavegacion = {
+  href: RUTA_MODERACION_ADMIN,
+  etiqueta: 'Moderación',
+  icono: 'moderacion',
+};
 const INICIAR_SESION: ItemNavegacion = { href: '/login', etiqueta: 'Iniciar sesión', etiquetaCorta: 'Entrar', icono: 'entrar' };
 const CREAR_CUENTA: ItemNavegacion = { href: '/registro', etiqueta: 'Crear cuenta', icono: 'registrarse' };
 
@@ -119,7 +126,12 @@ export function navegacionDe(rol: Rol | 'desconocido' | null): Navegacion {
         acceso: [],
       };
     case 'ADMIN':
-      return { principal: [SOPORTE_ADMIN], inferior: [SOPORTE_ADMIN], cuenta: [], acceso: [] };
+      return {
+        principal: [SOPORTE_ADMIN, MODERACION_ADMIN],
+        inferior: [SOPORTE_ADMIN, MODERACION_ADMIN],
+        cuenta: [],
+        acceso: [],
+      };
     case 'desconocido':
       return { principal: [MAPA, DESEMPENO], inferior: [MAPA, DESEMPENO], cuenta: [], acceso: [] };
   }
@@ -137,6 +149,7 @@ const DESTINOS: readonly ItemNavegacion[] = [
   PANEL,
   CATEGORIAS,
   SOPORTE_ADMIN,
+  MODERACION_ADMIN,
   CUENTA,
 ];
 

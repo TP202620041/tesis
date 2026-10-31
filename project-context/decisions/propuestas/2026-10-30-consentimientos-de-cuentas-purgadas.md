@@ -1,6 +1,7 @@
 # Propuesta: consentimientos de las cuentas sin confirmar que se purgan (BE-15)
 
-- **Estado:** abierta <!-- abierta | aceptada | rechazada -->
+- **Estado:** aceptada <!-- abierta | aceptada | rechazada -->
+- **Decisión del usuario (31/10):** opción A. Los consentimientos se borran junto con la cuenta purgada. La decisión se separa de la de BE-14, que sigue pendiente con los términos v2.
 - **Fecha:** 2026-10-30
 - **Origen:** agente de backend, tarea BE-15
 - **Decide:** el usuario. Si se acepta, la sesión de raíz actualiza el plan (fichas BE-15 y BE-14).

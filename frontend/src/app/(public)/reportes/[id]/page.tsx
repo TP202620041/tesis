@@ -2,7 +2,7 @@
 
 import { use } from 'react';
 import { useSesion } from '@/features/auth/hooks/useSesion';
-import { puedeComentarReportes } from '@/features/auth/model/permisos';
+import { puedeComentarReportes, puedeDenunciarReportes } from '@/features/auth/model/permisos';
 import { DetalleReportePublico } from '@/features/reportes/components/DetalleReportePublico';
 import { idDeRuta } from '@/lib/types/idDeRuta';
 
@@ -34,14 +34,15 @@ export default function ReportePublicoPage({
   const { id } = use(params);
   const { volver } = use(searchParams);
   const sesion = useSesion();
-  const puedeComentar = puedeComentarReportes(
-    sesion.estado === 'autenticado' ? sesion.usuario : null,
-  );
+  const usuario = sesion.estado === 'autenticado' ? sesion.usuario : null;
 
   return (
     <DetalleReportePublico
       reporteId={idDeRuta(id)}
-      puedeComentar={puedeComentar}
+      puedeComentar={puedeComentarReportes(usuario)}
+      // NC-11b: denunciar exige sesion de ciudadano; sin sesion, enlace al login.
+      puedeDenunciar={puedeDenunciarReportes(usuario)}
+      sinSesion={sesion.estado === 'anonimo'}
       volver={typeof volver === 'string' ? volver : null}
     />
   );
