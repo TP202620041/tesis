@@ -12,8 +12,9 @@ import pe.edu.upc.viasegura.common.config.AsyncConfig;
 /**
  * Trabajo asincrono en los IT.
  *
- * <p><b>Executors:</b> los de {@link AsyncConfig#EJECUTOR} y
- * {@link AsyncConfig#EJECUTOR_SUGERENCIAS} (NC-04c) corren cada tarea en un
+ * <p><b>Executors:</b> los de {@link AsyncConfig#EJECUTOR},
+ * {@link AsyncConfig#EJECUTOR_SUGERENCIAS} (NC-04c) y
+ * {@link AsyncConfig#EJECUTOR_INDICE} (BE-12) corren cada tarea en un
  * hilo nuevo y <b>esperan a que termine</b>. Al volver el {@code PATCH},
  * las notificaciones ya estan registradas y los tests afirman sin esperas ni
  * {@code Thread.sleep}. No es un {@code SyncTaskExecutor} (mismo hilo) a
@@ -43,6 +44,18 @@ public class EjecutorSincronoTestConfig implements AsyncConfigurer {
 
     @Bean(name = AsyncConfig.EJECUTOR_SUGERENCIAS)
     public TaskExecutor ejecutorSugerencias() {
+        return EjecutorSincronoTestConfig::correrYEsperar;
+    }
+
+    /**
+     * BE-12: el refresco del indice tambien se espera, asi que un IT que lee
+     * el indice despues de un evento lo ve ya refrescado, igual que antes de
+     * BE-12. Que la peticion <b>no</b> espere al refresco y que los eventos se
+     * coalescan lo prueba {@code desempeno/IndiceCoalescidoIT}, que reemplaza
+     * este bean por el executor real.
+     */
+    @Bean(name = AsyncConfig.EJECUTOR_INDICE)
+    public TaskExecutor ejecutorIndice() {
         return EjecutorSincronoTestConfig::correrYEsperar;
     }
 

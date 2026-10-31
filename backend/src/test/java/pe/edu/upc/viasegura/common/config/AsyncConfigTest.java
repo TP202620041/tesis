@@ -104,6 +104,26 @@ class AsyncConfigTest {
     }
 
     @Test
+    void elDelIndice_tieneUnHilo_colaDeUna_yNoEsperaLaColaAlApagar() throws Exception {
+        // BE-12: un solo REFRESH a la vez y, con el coalescido, a lo sumo una
+        // tarea pendiente.
+        ThreadPoolTaskExecutor indice = (ThreadPoolTaskExecutor) config.ejecutorIndice();
+        try {
+            assertThat(indice.getCorePoolSize()).isEqualTo(1);
+            assertThat(indice.getMaxPoolSize()).isEqualTo(1);
+            assertThat(indice.getQueueCapacity()).isEqualTo(1);
+            assertThat(indice.getThreadNamePrefix()).isEqualTo("viasegura-indice-");
+            assertThat(indice.getThreadPoolExecutor().getRejectedExecutionHandler())
+                    .isInstanceOf(ThreadPoolExecutor.AbortPolicy.class);
+            assertThat(AsyncConfig.class.getMethod("ejecutorIndice").isAnnotationPresent(Primary.class)).isFalse();
+            assertThat(AsyncConfig.class.getMethod("ejecutorIndice").getAnnotation(Bean.class).name())
+                    .containsExactly(AsyncConfig.EJECUTOR_INDICE);
+        } finally {
+            indice.shutdown();
+        }
+    }
+
+    @Test
     void elGeneral_esElPrimario_yElDeLasSugerenciasNo() throws Exception {
         // Con dos executors, el general sigue siendo el de un @Async sin nombre.
         assertThat(AsyncConfig.class.getMethod("ejecutorAsincrono", int.class, int.class, int.class)
