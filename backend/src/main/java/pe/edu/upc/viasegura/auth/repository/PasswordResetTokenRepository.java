@@ -3,6 +3,7 @@ package pe.edu.upc.viasegura.auth.repository;
 import java.time.Instant;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import pe.edu.upc.viasegura.auth.domain.PasswordResetToken;
@@ -34,4 +35,13 @@ public interface PasswordResetTokenRepository extends JpaRepository<PasswordRese
             + "hashtextextended('recuperacion-contrasena:' || CAST(:usuarioId AS text), 0))",
             nativeQuery = true)
     Integer bloquearSolicitudesDeRecuperacion(@Param("usuarioId") Long usuarioId);
+
+    /**
+     * BE-15: los tokens de recuperacion de una cuenta que se purga. Desde
+     * NC-09b una cuenta sin confirmar no recibe ninguno, pero puede quedar
+     * alguno de antes.
+     */
+    @Modifying
+    @Query("DELETE FROM PasswordResetToken t WHERE t.usuario.id = :usuarioId")
+    int borrarDeUsuario(@Param("usuarioId") Long usuarioId);
 }

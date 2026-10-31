@@ -59,6 +59,11 @@ security:
 # peticion. PerfilProdIT y EncabezadoDeOrigenIT lo encienden con el perfil
 # prod (que va despues y gana) y un secreto de prueba.
 #
+# Purga de cuentas sin confirmar (BE-15) apagada, literal por la misma razon:
+# una corrida a mitad de la suite haria que los IT dependan de la hora.
+# PurgaCuentasSinConfirmarIT llama al servicio directamente. El plazo, el de
+# produccion.
+#
 # Primer ADMIN (DEP-04): vacio a proposito, aunque el entorno de quien corre
 # los tests defina ADMIN_INICIAL_*. El seeder del contexto no hace nada;
 # AdministradorInicialSeederIT lo instancia con los valores de cada caso.
@@ -85,6 +90,10 @@ app:
   origen:
     secreto: ninguno
     secreto-anterior: ""
+  cuentas-sin-confirmar:
+    plazo: 30d
+    purga:
+      cron: "-"
   admin-inicial:
     email: ""
     password: ""
