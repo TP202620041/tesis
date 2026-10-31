@@ -1329,6 +1329,9 @@ PWA:
     única forma de llegar a un reporte oculto sin denuncias desde la bandeja;
     el detalle funciona igual con cualquier id. Cada fila dice qué está
     oculto, cuántas denuncias hay y de qué motivos, y lleva al detalle.
+    **Depende de NC-11a2** (PR #137, `feature/nc-11a2-filtro-ocultos`): el
+    parámetro `ocultos` no existe en el backend de NC-11a, que ignoraría el
+    query y respondería las pendientes; NC-11b se fusiona después de #137.
   - **Detalle**: visibilidad actual, la **foto aunque esté oculta**, las
     denuncias con quien denunció (solo aquí: ni el autor ni la municipalidad
     las reciben), la línea de tiempo completa (la misma ruta `/historial`,
