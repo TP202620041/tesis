@@ -1,6 +1,7 @@
 import { apiFetch, api, conFotoAbsoluta, urlDeFoto } from '@/lib/api/client';
 import { ApiError } from '@/lib/api/errors';
 import {
+  esMotivoDenuncia,
   esSeveridad,
   type ClasificacionResponse,
   type HistorialEntrada,
@@ -11,6 +12,9 @@ import type {
   Calificacion,
   ComentarioPublico,
   DensidadReportes,
+  DenunciaRegistrada,
+  DenunciaRegistradaResponse,
+  NuevaDenuncia,
   NuevoReporte,
   PaginaReportes,
   ReporteCreado,
@@ -198,6 +202,31 @@ export function calificar(
     estrellas,
     comentario: comentario?.trim() || undefined,
   });
+}
+
+/**
+ * NC-11b (D-15): el CIUDADANO denuncia un reporte publicado. Exige sesion de
+ * ciudadano (403 para otro rol). El backend responde 409 con `codigo`
+ * `DENUNCIA_REPETIDA`, `LIMITE_DENUNCIAS` o `DENUNCIA_PROPIA`, y 404 si el
+ * reporte no existe, esta cancelado u oculto; los traduce
+ * `model/denuncia.ts`. La denuncia no cambia nada a la vista: llega a la
+ * bandeja del ADMIN, que decide.
+ */
+export async function denunciarReporte(
+  reporteId: number,
+  denuncia: NuevaDenuncia,
+): Promise<DenunciaRegistrada> {
+  const detalle = denuncia.detalle?.trim();
+  const d = await api.post<DenunciaRegistradaResponse>(`/api/reportes/${reporteId}/denuncias`, {
+    motivo: denuncia.motivo,
+    detalle: detalle || undefined,
+  });
+  return {
+    id: d.id ?? 0,
+    reporteId: d.reporteId ?? reporteId,
+    motivo: esMotivoDenuncia(d.motivo) ? d.motivo : denuncia.motivo,
+    createdAt: d.createdAt ?? '',
+  };
 }
 
 /**

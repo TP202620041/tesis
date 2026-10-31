@@ -119,9 +119,9 @@ src/
 │   ├── (ciudadano)/            # rol CIUDADANO — mis-reportes, reportar
 │   ├── (municipal)/            # rol FUNCIONARIO_MUNICIPAL — bandeja, dashboard
 │   ├── (cuenta)/               # cualquier usuario con sesión — perfil («Cuenta»), soporte
-│   └── (admin)/admin/          # rol ADMIN — soporte (bandeja de tickets)
+│   └── (admin)/admin/          # rol ADMIN — soporte (tickets) y moderacion (denuncias, ocultar)
 ├── features/                   # lógica por dominio, no por tipo de archivo
-│   ├── auth/  reportes/  desempeno/  gestion/  soporte/  legal/
+│   ├── auth/  reportes/  desempeno/  gestion/  soporte/  legal/  moderacion/
 │   └── <dominio>/              # components/ → hooks/ → model/ ← api.ts (ARCHITECTURE.md §5)
 ├── lib/
 │   ├── api/                    # cliente HTTP tipado + tipos generados + catálogos compartidos
@@ -1251,6 +1251,125 @@ D-15)»). Lo que cambia en la PWA:
   solo en el backend y no se publica), no analiza la foto y no permite
   cambiar la foto de un reporte que ya está en la cola.
 - **CSP y `proxy`:** sin cambios; no hay endpoints ni orígenes nuevos.
+
+### Ocultar y denunciar (NC-11b, D-15)
+
+Desde NC-11a el ADMIN puede ocultar un reporte publicado, o solo su foto, con
+un motivo que queda en la línea de tiempo, y los ciudadanos pueden denunciar
+un reporte público. Contrato:
+`project-context/handoffs/2026-10-29-ocultar-y-denunciar.md`; el porqué, en
+el README del backend («Ocultar y denunciar (NC-11a, D-15)»). Lo que hace la
+PWA:
+
+- **Dos features, no una.** Denunciar es una acción del ciudadano sobre el
+  detalle público y vive en `features/reportes/` (`model/denuncia.ts`,
+  `hooks/useDenunciarReporte`, `components/DenunciarContenido`). Moderar es
+  un área funcional del ADMIN distinta, con su propia bandeja, detalle y
+  acciones: es la feature `features/moderacion/` (ARCHITECTURE §5.1, D-07:
+  una feature es un área de la UI, no un espejo del módulo `reportes` del
+  backend). `moderacion` solo toma de `reportes` su `model/` (la etiqueta de
+  cada motivo, que ven los dos lados); los enums (`MotivoDenuncia`,
+  `EstadoDenuncia`, `AlcanceModeracion`, los cuatro `tipoEvento` nuevos) van
+  en `lib/types/domain.ts`.
+- **«Denunciar contenido»** (`/reportes/[id]`). Solo con sesión de
+  **CIUDADANO**; el funcionario y el ADMIN no ven nada, y sin sesión hay un
+  enlace al login que vuelve al reporte. El diálogo pide el motivo (los cinco
+  del enum) y un detalle opcional de hasta 500 caracteres, y avisa que quien
+  envió el reporte no sabrá quién lo denunció. Tras el 201 agradece y no
+  vuelve a ofrecer el botón en esa visita.
+  - **No aparece en el reporte propio.** El resumen público no dice quién lo
+    creó (es el DTO del mapa anónimo), así que `useEsReportePropio` busca el
+    id entre «mis reportes», como ya hace `useMiReporte`. Mientras no se
+    sabe, el botón no se muestra (un botón que aparece y desaparece confunde
+    más que uno que tarda); si la consulta falla, se ofrece y el 409
+    `DENUNCIA_PROPIA` lo dirá.
+  - **Los 409 se deciden por `codigo`**, con el texto del contrato:
+    `DENUNCIA_REPETIDA` («Ya denunciaste este reporte»), `LIMITE_DENUNCIAS`
+    («Alcanzaste el máximo de denuncias por hoy»), `DENUNCIA_PROPIA`. Los dos
+    primeros y el tercero son definitivos: el diálogo deja de ofrecer «Enviar»
+    y solo se cierra. El 404 (retirado u oculto mientras lo miraba) dice «Este
+    reporte ya no está disponible.».
+  - «¿Ya denuncié?» no viaja en ningún DTO (regla del proyecto: lo relativo
+    al espectador va en endpoint propio, y aquí no hay ninguno): la PWA no lo
+    recuerda entre visitas; el 409 lo resuelve.
+- **Foto oculta y reporte oculto, del lado público.** Una foto oculta llega
+  como `fotoUrl: null`, igual que un reporte sin foto: el detalle público y
+  «Mis reportes» dicen «Este reporte no tiene foto.» sin distinguir los dos
+  casos (la PWA no lo sabe, y el público no debe saberlo). Un reporte oculto
+  responde 404 en el detalle público: «Reporte no disponible», como uno
+  retirado.
+- **El creador sigue viendo su reporte oculto** en `/mis-reportes/[id]`.
+  `ReporteResumenResponse` no gana campos, así que lo oculto se **deduce de
+  la línea de tiempo** (`model/ocultamiento.ts`: el último evento de cada par
+  `REPORTE_OCULTO`/`REPORTE_RESTABLECIDO` y `FOTO_OCULTA`/`FOTO_RESTABLECIDA`
+  decide; el backend la entrega en orden cronológico). Se le muestra un aviso
+  («no aparece en el mapa ni en la vista pública y no cuenta en el índice de
+  desempeño. El motivo está en el seguimiento.»), se quita el enlace «Ver
+  cómo lo ven los demás» (daría «Reporte no disponible») y nada más: el
+  historial que recibe ya viene redactado por el servidor (motivo, autor
+  «Moderación de Ciudad Viva»), y la PWA nunca habla de denuncias ni de quién
+  denunció. En la lista de «Mis reportes» no se marca: no hay historial sin
+  pedir uno por fila, y el detalle lo explica.
+- **Línea de tiempo.** `LineaDeTiempo` titula los cuatro eventos nuevos
+  («Foto oculta por moderación», «Reporte oculto por moderación», «Foto
+  restablecida», «Reporte restablecido»), muestra el `comentario` (el motivo,
+  o el texto fijo que recibe un adherido) y, aparte, `avisoIndice` **tal
+  cual** llega: lo arma el servidor («Mientras esté oculto, este reporte no
+  cuenta en el índice de desempeño.» / «Vuelve a contar…»), no el ADMIN, y
+  solo viene en los eventos del reporte. Sigue sin ramificar por público: la
+  redacción es una decisión de autorización y vive en el servidor.
+- **Área del ADMIN** (`/admin/moderacion`, grupo `(admin)`, `GuardiaDeRol`
+  con `ADMIN`; entra en la navegación del ADMIN junto a los tickets).
+  - **Bandeja** paginada en el servidor con cuatro vistas: denuncias
+    **pendientes** (por defecto), **atendidas**, **desestimadas** y
+    **«Ocultos»** (decisión del usuario del 30/10): `ocultos=true` lista los
+    reportes con el reporte o la foto ocultos, **tengan denuncias o no**, del
+    ocultamiento más reciente al más antiguo; con esa vista no se envía
+    `estado` (el backend lo ignoraría) y `totalDenuncias` cuenta todas. Es la
+    única forma de llegar a un reporte oculto sin denuncias desde la bandeja;
+    el detalle funciona igual con cualquier id. Cada fila dice qué está
+    oculto, cuántas denuncias hay y de qué motivos, y lleva al detalle.
+    **Depende de NC-11a2** (PR #137, `feature/nc-11a2-filtro-ocultos`): el
+    parámetro `ocultos` no existe en el backend de NC-11a, que ignoraría el
+    query y respondería las pendientes; NC-11b se fusiona después de #137.
+  - **Detalle**: visibilidad actual, la **foto aunque esté oculta**, las
+    denuncias con quien denunció (solo aquí: ni el autor ni la municipalidad
+    las reciben), la línea de tiempo completa (la misma ruta `/historial`,
+    que al ADMIN le llega sin redactar) y las acciones. La foto se pide a
+    `GET …/{id}/foto` con `apiFetch` y se muestra como `blob:`
+    (`useFotoModerada`, el patrón de la foto de perfil, US-30), porque
+    `<img src>` no envía el token y `/media/...` responde 404 con la foto
+    oculta. La URL `blob:` se libera al cambiar de reporte o desmontar.
+  - **Acciones** solo las que corresponden (`accionesDisponibles`): ocultar
+    el reporte si no está oculto, restablecerlo si lo está, lo mismo con la
+    foto si la tiene, y desestimar si hay denuncias pendientes. El backend
+    seguiría respondiendo 409 (`YA_OCULTO`, `NO_OCULTO`, `SIN_FOTO`) a lo
+    demás; si llega uno (otro ADMIN se adelantó), se avisa «El reporte
+    cambió» y se recarga.
+  - **Diálogo de ocultar y restablecer** (`DialogoModerar`): con `REPORTE`
+    avisa que el reporte sale del mapa, de la bandeja municipal y **del
+    índice de desempeño del distrito** (y vuelve a contar al restablecerlo);
+    con `FOTO`, que el índice no cambia. Junto al motivo, en ocultar **y** en
+    restablecer, el aviso fijo decidido por el usuario: **«El autor y la
+    municipalidad leerán este motivo. No nombres a quien denunció ni digas
+    cuántas denuncias hubo.»** (`AVISO_MOTIVO`, descrito con
+    `aria-describedby`). El motivo mide de 10 a 500 caracteres sin los
+    espacios del borde (lo mismo que el backend) y se valida antes de enviar.
+  - **El 400 `MOTIVO_IDENTIFICA_DENUNCIANTE`** (y cualquier 400 que señale
+    `motivo` en `details`) va **en el campo del motivo**, con el mensaje del
+    backend, mientras el texto no cambie (la regla del texto rechazado de
+    NC-10c). Los demás errores van arriba del formulario.
+  - **Desestimar** pide un motivo opcional que solo ve el ADMIN (queda en
+    `motivoResolucion` de cada denuncia): sin motivo, el POST va sin cuerpo.
+  - Tras cualquier acción se recarga el detalle (reporte e historial) sin
+    desmontar la pantalla: lo que se muestra es lo que quedó guardado, más la
+    entrada nueva de la línea de tiempo.
+- **Caché.** Las rutas `/api/admin/**` no se guardan: el Service Worker ya
+  trata todo `/api/**` como `NetworkOnly` (`pwa/cachesDeSesion.ts`) y el
+  backend responde `Cache-Control: no-store, private`. La foto que el
+  navegador o el SW ya tenían de `/media/...` puede seguir viéndose hasta 30
+  días en ese dispositivo; el servidor no puede retirarla (backend/README).
+- **CSP y `proxy`:** sin cambios; no hay orígenes nuevos.
 
 ### Notificaciones push (US-21)
 
