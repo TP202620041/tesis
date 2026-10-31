@@ -1628,6 +1628,65 @@ parte frágil no es el mecanismo sino **la enumeración de los eventos**. Aquí
 se enumeraron los que cambian el *numerador* y se pasó por alto el
 *denominador*.
 
+### Refresco asíncrono y coalescido (BE-12)
+
+Hasta BE-12 el `REFRESH` corría en el hilo de la petición, dentro del
+`AFTER_COMMIT`, cuando la conexión de la transacción original todavía no
+había vuelto al pool: cada creación tomaba **dos** conexiones a la vez, y 16
+creaciones con foto en el mismo segundo agotaban el pool de 10 (ver [Prueba
+de memoria](#prueba-de-memoria-dep-12)). Por eso producción corre con
+`SPRING_DATASOURCE_HIKARI_MAXIMUMPOOLSIZE=20` desde el 25/10. Decisión del
+usuario (25/10): opción A de `propuestas/2026-10-22-refresco-indice-asincrono.md`.
+
+Cómo funciona (`desempeno/listener/IndiceDesempenoRefreshListener`):
+
+- cada evento de la tabla de arriba solo **marca el índice como sucio** y, si
+  no hay ya una tarea pendiente, encola una en el executor del índice
+  (`ejecutorIndice`, ver [Executor asíncrono](#executor-asíncrono-asyncconfig));
+  la petición vuelve sin esperar;
+- la tarea repite `while (sucio.getAndSet(false)) refrescar()`. La marca se
+  baja **antes** de refrescar, así que un evento que llega durante el
+  refresco la vuelve a subir y la vuelta siguiente lo recoge. Si llega justo
+  después de la última vuelta, la tarea lo ve al salir y se vuelve a encolar.
+  **Siempre hay un refresco que empieza después del último evento**: la regla
+  «todo evento que mueve el índice lo refresca» se mantiene;
+- **coalesce:** los eventos que llegan mientras un refresco corre producen
+  uno solo más. 16 creaciones seguidas dan 2 refrescos, no 16;
+- **si el executor rechaza la tarea** (no debería: hay a lo sumo una
+  pendiente) **o el refresco falla** (la base caída), la marca queda puesta
+  y el siguiente evento la recoge. No reintenta en bucle;
+- **al arrancar** la aplicación se refresca una vez (`ApplicationReadyEvent`):
+  recoge lo que haya quedado pendiente si un apagado descartó la tarea
+  encolada, o si el último refresco falló y no hubo más eventos;
+- el refresco sigue en `DesempenoService#refrescarIndice` con `REQUIRES_NEW`:
+  cada vuelta es una transacción corta propia.
+
+**Costo aceptado:** el índice público tarda lo que dura un refresco (o dos)
+en reflejar un cambio, en vez de reflejarlo al volver la petición. Para una
+métrica agregada eso es aceptable, y era el riesgo previsto en la propuesta.
+**Sin ventana mínima** entre refrescos: coalescer lo que llega durante un
+refresco ya acota el trabajo a uno en curso y uno pendiente, y una ventana
+solo retrasaría el primero.
+
+**Los IT:** el executor de prueba del índice (`support/EjecutorSincronoTestConfig`)
+corre la tarea en otro hilo y la espera, como los otros dos, así que los IT
+que leen el índice después de un evento (`DesempenoIT`, `IndiceSinOcultosIT`)
+siguen afirmando lo mismo sin esperas ni refresco manual. Lo que ese executor
+no puede mostrar lo prueba `IndiceCoalescidoIT`, que lo reemplaza por el real
+(`@TestBean`).
+
+| Test | Tipo | Qué fija |
+|---|---|---|
+| `IndiceCoalescidoIT` | IT, executor real | Con el primer refresco retenido (espía de `DesempenoService`), 15 creaciones más por `POST /api/reportes` terminan en 201 sin esperarlo y el índice todavía no las cuenta; al soltarlo hay **exactamente 2 refrescos para 16 eventos** y el índice cuenta las 16. |
+| `IndiceDesempenoRefreshListenerTest` | unitaria, executor real | El refresco corre en `viasegura-indice-*`; 16 eventos durante un refresco retenido dan 2; qué eventos refrescan y cuáles no; el rechazo deja la marca para el siguiente evento; un fallo no reintenta en bucle; con 4000 eventos desde 8 hilos, el último refresco empieza después del último evento. |
+| `AsyncConfigTest` | unitaria | Un hilo, cola de una, `AbortPolicy`, nombre propio y no `@Primary`. |
+
+La carrera más estrecha (un evento que marca justo entre la última vuelta del
+bucle y la liberación de la tarea) la cubre la segunda lectura de la marca al
+salir. La prueba de 8 hilos ejercita la concurrencia, pero no fuerza esa
+ventana: un mutante sin esa lectura la pasó. Está razonada en el javadoc del
+listener.
+
 ## Fotos: dos visibilidades, dos buckets y sin EXIF (DEP-12)
 
 Las fotos **no todas tienen la misma visibilidad**, y esa diferencia es de
@@ -1907,8 +1966,8 @@ registra como `TransactionSynchronization` de esa transacción, y
 
 **Lo que no cubre.** La foto de perfil todavía se sube dentro de la
 transacción de `AuthService#editarPerfil` (deuda técnica). La prueba de carga
-de 16 creaciones con foto simultáneas se repite al cerrar BE-12, que saca el
-refresco del índice del hilo de la petición.
+de 16 creaciones con foto simultáneas se repitió al cerrar BE-12 (ver
+[Prueba de memoria](#prueba-de-memoria-dep-12)).
 
 ### Pruebas de las fotos
 
@@ -1978,7 +2037,28 @@ del reporte, fuera de la
 transacción](#la-foto-del-reporte-fuera-de-la-transacción-be-11)); queda
 sacar el refresco del hilo de la petición (BE-12, como las notificaciones,
 D-13). Mientras tanto, un pool más grande en producción amplía el margen.
-Esta medición es anterior a BE-11 y se repite al cerrar BE-12.
+Esta medición es anterior a BE-11.
+
+**Repetición con BE-12 (2026-10-30).** Las mismas condiciones: la imagen de
+`backend/Dockerfile` construida desde la rama de BE-12, el mismo
+`JAVA_TOOL_OPTIONS` (`-Xms256m -Xmx512m -XX:+UseSerialGC
+-XX:+ExitOnOutOfMemoryError`, más `-Xlog:gc`), `FOTOS_ALMACEN=s3` contra
+S3Mock 5.2.3 y un PostGIS vacío y temporal en una red de Docker propia, y el
+pool **en 10** (`SPRING_DATASOURCE_HIKARI_MAXIMUMPOOLSIZE=10`, explícito).
+16 fotos generadas tipo cámara de 24, 32 y 40 MP, de 7,8 a 8,4 MB, dos con
+orientación EXIF 6 y 8; 16 ciudadanos distintos, cada uno en un punto
+distinto de Pueblo Libre (~55 m entre puntos), lanzados con una barrera:
+
+| Imagen | Subidas simultáneas | Respuestas | Tiempo por petición | Pico de heap usado (antes de GC) | Heap comprometido |
+|---|---|---|---|---|---|
+| BE-12, pool 10 | 16 | **16 × 201** | 4,9–11,3 s (ráfaga entera: 11,6 s) | 377 MB de 512 | 481 MB |
+
+Ningún «Connection is not available», ningún `OutOfMemoryError` ni
+reinicio. El índice cuenta los 16 reportes (`calculated_at` 19 ms después
+del último `created_at`): el refresco final llegó. Los tiempos los marca el
+saneado, no la base: con `FOTOS_SANEADO_MAX_CONCURRENTES=2` las fotos de 24
+a 40 MP se sanean de a dos y el resto espera su turno, sin conexión tomada
+(BE-11).
 
 ### Migración futura a una CDN
 
@@ -2162,7 +2242,7 @@ Timeouts del push: 3 s de conexión y 5 s de pedido
 
 ### Executor asíncrono (`AsyncConfig`)
 
-Dos, con nombre, para el trabajo posterior al commit:
+Tres, con nombre, para el trabajo posterior al commit:
 
 - **El general** (`ejecutorAsincrono`, hilos `viasegura-async-*`,
   `@Async(AsyncConfig.EJECUTOR)`): los avisos y los correos. Es `@Primary`,
@@ -2172,16 +2252,40 @@ Dos, con nombre, para el trabajo posterior al commit:
   `viasegura-sugerencia-*`, `@Async(AsyncConfig.EJECUTOR_SUGERENCIAS)`,
   desde NC-04c): solo la sugerencia oficial de categoría de D-08. Ver abajo
   por qué va aparte.
+- **El del índice** (`ejecutorIndice`, hilo `viasegura-indice-1`, desde
+  BE-12): solo el refresco coalescido del índice de desempeño
+  (`IndiceDesempenoRefreshListener` encola con `execute`, sin `@Async`). Ver
+  abajo por qué va aparte.
 
-Los dos reemplazan al `applicationTaskExecutor` de Spring Boot (Boot solo
+Los tres reemplazan al `applicationTaskExecutor` de Spring Boot (Boot solo
 crea el suyo si no hay ningún `Executor`).
 
-| Parámetro | General | Sugerencias |
-|---|---|---|
-| Hilos | 2 base, hasta 4 (`ASYNC_HILOS_BASE`, `ASYNC_HILOS_MAX`) | 2 fijos (`ASYNC_SUGERENCIAS_HILOS`) |
-| Cola | 100 tareas (`ASYNC_COLA`) | 100 tareas (`ASYNC_SUGERENCIAS_COLA`) |
-| Cola llena | **se rechaza** (`TaskRejectedException`): quien encola registra qué se pierde y la descarta | igual |
-| Apagado | espera hasta 10 s a las tareas en curso y corre la cola | deja terminar las que corren y **descarta la cola** (ver abajo) |
+| Parámetro | General | Sugerencias | Índice |
+|---|---|---|---|
+| Hilos | 2 base, hasta 4 (`ASYNC_HILOS_BASE`, `ASYNC_HILOS_MAX`) | 2 fijos (`ASYNC_SUGERENCIAS_HILOS`) | 1, fijo en el código |
+| Cola | 100 tareas (`ASYNC_COLA`) | 100 tareas (`ASYNC_SUGERENCIAS_COLA`) | 1 tarea |
+| Cola llena | **se rechaza** (`TaskRejectedException`): quien encola registra qué se pierde y la descarta | igual | se rechaza; el índice queda marcado y lo recoge el siguiente evento |
+| Apagado | espera hasta 10 s a las tareas en curso y corre la cola | deja terminar las que corren y **descarta la cola** (ver abajo) | igual que el de las sugerencias; lo descartado lo recoge el refresco del arranque |
+
+**Por qué el refresco del índice tiene su propio executor (BE-12).** Con el
+coalescido nunca hay más de una tarea de refresco pendiente, así que podría
+correr en el general. Va aparte por tres razones:
+
+- **Una sola conexión, y conocida:** con un hilo nunca corren dos
+  `REFRESH MATERIALIZED VIEW CONCURRENTLY` a la vez. El segundo esperaría el
+  candado del primero (PostgreSQL no deja refrescar la misma vista en
+  paralelo) con su propia conexión tomada. Así el índice usa como máximo
+  **una** conexión del pool, y el resto queda para las peticiones.
+- **No retrasa correos ni avisos:** un refresco crece con la tabla de
+  reportes y es trabajo de la base. En el general, que trabaja con 2 hilos,
+  ocuparía la mitad de su capacidad mientras dura.
+- **No en el de las sugerencias:** ahí esperaría detrás de tareas que
+  aguardan hasta 10 s un turno de inferencia (hasta ~11 minutos con la cola
+  llena), y el índice quedaría desactualizado todo ese tiempo.
+
+La cola es de **una** tarea y no de cero: al terminar, la tarea puede
+encolar la siguiente (un evento que llegó justo al salir del bucle) antes de
+soltar su hilo. Cuesta un hilo más, dormido casi siempre.
 
 **Por qué la sugerencia oficial tiene su propio executor (NC-04c).** Desde
 NC-04c espera hasta 10 s un turno del servicio de inferencia (ver «Espera de
