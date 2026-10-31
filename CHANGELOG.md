@@ -4,7 +4,7 @@ Versiones de Ciudad Viva (antes ViaSegura) según GitFlow (`WORKFLOW.md` §8): c
 
 ## v0.8.0 — Sprint 7: ML real, registro verificado y moderación (2026-10-31)
 
-Cierra el S7, que salió antes que el S6 por decisión del usuario del 25/10 (`project-context/decisions/plan-sprints.md`). Reúne los PR #108, #109, #112 y #115 a #141, fusionados en `develop` después de v0.7.2:
+Cierra el S7, que salió antes que el S6 por decisión del usuario del 25/10 (`project-context/decisions/plan-sprints.md`). Reúne los PR #108, #109, #112, #115 y #117 a #141, fusionados en `develop` después de v0.7.2:
 - la sugerencia de categoría con el modelo real (RF-DETR Nano) en un servicio nuevo, `inferencia/`;
 - el registro con captcha y confirmación del correo, y la purga de las cuentas que nunca se confirman;
 - la moderación de fotos y textos, y que el ADMIN pueda ocultar lo publicado y los ciudadanos denunciarlo;
