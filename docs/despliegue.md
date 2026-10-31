@@ -555,7 +555,7 @@ La v0.8.0 no arranca sin variables nuevas, y el `backend` con `MODERACION_TIPO=h
    - en `backend` (§5.2): `CLASIFICACION_TIPO=http`, `CLASIFICACION_URL`, `MODERACION_TIPO=http`, `MODERACION_URL`, `ORIGEN_SECRETO` (el mismo valor de la regla), `CAPTCHA_TIPO=turnstile`, `CAPTCHA_SECRET` y `FRONTEND_URL=https://ciudadviva.app`. `MODERACION_UMBRAL` y `CLASIFICACION_UMBRAL` quedan sin definir;
    - en Vercel (§6): `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, en Production y Preview. Sin ella el build de la PWA falla.
 
-   Comprobar en el panel que cada variable existe, mirando solo su nombre.
+   Los dos secretos (`ORIGEN_SECRETO` y `CAPTCHA_SECRET`) los pega el usuario, sin sellar (§0). Comprobar en el panel que cada variable existe, mirando solo su nombre.
 5. **Publicar la v0.8.0:** fusionar el `release/v0.8.0` en `main`. Railway reconstruye `backend` (después de la CI) y Vercel, la PWA. En el log del `backend`: las tres migraciones (V19–V21), «Encabezado de origen exigido (DEP-14)», «Moderador HTTP: …» y ningún WARN de interruptor (§5.2, «Verificar»). Si el despliegue falla, Railway sigue sirviendo la versión anterior: el mensaje nombra la variable que falta.
 6. **Prueba de humo** (§7.3), con los puntos 17 a 23.
 7. **Después, conectar el repo de `inferencia` a `main`** (§5.4). Desde entonces se despliega solo, como `backend`.
