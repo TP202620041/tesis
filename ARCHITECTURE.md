@@ -1,7 +1,7 @@
 # Arquitectura de software — Ciudad Viva
 
 > **Documento normativo.** Define las capas, qué va en cada una y qué puede depender de qué, igual para `backend/`, `frontend/` y el futuro `inferencia/`. Los agentes de cada carpeta lo siguen; no lo modifican salvo pedido explícito (ver §10).
-> Versión 1.7 · 2026-10-30 (§4.5: I/O externo antes de escribir, BE-11) · Plan de migración: `project-context/decisions/plan-migracion-capas.md`.
+> Versión 1.8 · 2026-10-31 (§4.5: tareas programadas, BE-15; antes, en 1.7, el I/O externo antes de escribir de BE-11 y el refresco coalescido del índice de BE-12) · Plan de migración: `project-context/decisions/plan-migracion-capas.md`.
 
 ## 1. Principios
 
@@ -140,6 +140,14 @@ ArchUnit compara el texto completo de cada violación congelada (solo ignora los
   - el método se niega a correr dentro de otra transacción (`IllegalStateException` si `TransactionSynchronizationManager.isSynchronizationActive()`), porque la suya se uniría a la de afuera y la compensación se decidiría antes del commit real.
 
   La moderación de la foto (NC-10b, D-15) ya lo usa: corre entre el saneado y la subida, sin transacción. Detalle y tabla de desenlaces: `backend/README.md`, «La foto del reporte, fuera de la transacción (BE-11)».
+- **Tareas programadas** (BE-15, la primera: la purga de las cuentas sin confirmar):
+  - `common/config/TareasProgramadasConfig` activa `@EnableScheduling`, con el planificador de Spring Boot (un hilo), aparte de los executors de `AsyncConfig`: una tarea larga no quita hilos a los correos ni a los avisos;
+  - el `@Scheduled` va en un método del **`service` del módulo dueño de los datos** (`auth/service/PurgaCuentasSinConfirmarService`; `soporte` en BE-13), con el cron en una propiedad (`app.<tema>.purga.cron`, `-` la apaga) y `zone = "America/Lima"`. Es un caso de uso sin HTTP, de la capa de aplicación: no va en `infra/` (que no puede llamar a un `service`), ni en `listener/` (que es para eventos de dominio), ni en un controlador;
+  - el método programado **no es `@Transactional`**: cada elemento va en **su propia transacción corta** (`TransactionOperations`, como `ReporteService#crear`), para que uno que falla no revierta los demás. Se niega a correr dentro de otra transacción y atrapa cualquier fallo, que registra sin el mensaje, para que el planificador siga con la corrida siguiente;
+  - **sin ShedLock** ni otro candado distribuido: el backend corre en una sola instancia, y la tarea es idempotente y segura con dos corridas a la vez (candados de fila y un `DELETE` condicional). Si algún día hay réplicas y una tarea no cumple eso, se agrega el candado;
+  - en los tests la tarea está apagada (`cron: "-"`) y los IT llaman al método del servicio directamente.
+
+  Detalle: `backend/README.md`, «Tareas programadas (BE-15)».
 - **Eventos**: toda operación que cambie un KPI publica un evento (regla ya registrada en `backend/CLAUDE.md`).
 - **Esquema**: cada entidad nueva tiene su migración `V<n>__…sql`, y cada tabla con FK a `reporte` entra en `AbstractPostgisIT.limpiezaFkSafe()`.
 - **Tests**: un `*IT` por caso de uso en el paquete del módulo, más tests puros (`*Test`) para las reglas de `domain/`.

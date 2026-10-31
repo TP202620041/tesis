@@ -111,10 +111,10 @@ jobs:
       TEST_DB_PASSWORD: viasegura
       # Mínimos de tests ejecutados (sin contar los omitidos) que exige
       # .github/scripts/verificar-backend.mjs. Se suben al cerrar cada versión
-      # con las cifras del CHANGELOG (v0.7.0: 418 y 230). Bajarlos solo en el
+      # con las cifras del CHANGELOG (v0.8.0: 598 y 830). Bajarlos solo en el
       # PR que quita tests, explicando por qué.
-      MIN_IT_FAILSAFE: 418
-      MIN_SUREFIRE: 230
+      MIN_IT_FAILSAFE: 598
+      MIN_SUREFIRE: 830
       # Clases que en la CI no pueden quedar omitidas (DEP-12): el IT del
       # adaptador S3 se activa por FOTOS_S3_TEST_ENDPOINT; si el servicio
       # s3mock o la variable desaparecen, el check falla en vez de omitirlo.
@@ -261,8 +261,9 @@ jobs:
       # Mínimo de tests ejecutados (sin contar los omitidos) que exige
       # inferencia/scripts/verificar_tests.py. Los de tests/test_modelo_real.py
       # se omiten porque los pesos no se versionan; cualquier otro omitido, o un
-      # archivo test_*.py sin casos en el informe, hace fallar la guarda.
-      MIN_PYTEST_INFERENCIA: 133
+      # archivo test_*.py sin casos en el informe, hace fallar la guarda. Se
+      # sube al cerrar cada versión con la cifra del CHANGELOG (v0.8.0: 264).
+      MIN_PYTEST_INFERENCIA: 264
     defaults:
       run:
         shell: bash

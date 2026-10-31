@@ -37,7 +37,7 @@ Hay un carril de backend y uno de frontend en paralelo. En un mismo sprint el fr
 | S4 | US-11 (endpoint de densidad) · BE-06 (incluye `ReincidenciaDetector` → `domain/`) · BE-10 | US-11 (capa de calor) · FE-06 | v0.5.0 |
 | S5 | NC-01 · NC-02 | US-19 · FE-07 · FE-08 | v0.6.0 |
 | Despliegue | DEP-01..DEP-05 · DEP-08 · DEP-11 · DEP-12 · correcciones de QA-1 · CI (DEP-07) | DEP-06 · correcciones de QA-1 · fase 1 del diseño «Cívica» (DIS-1, con US-23) | v0.7.0 |
-| S7 | **Hechas:** NC-03a (`inferencia/`, #109) · NC-04 (`clasificacion`, #108) · NC-04b (adaptador HTTP al servicio `inferencia/`, #118) · NC-04c (la sugerencia oficial espera turno, #126) · NC-08 y NC-08b (captcha del registro; Turnstile reemplaza a reCAPTCHA, #119 y #132) · NC-09, NC-09b y NC-09c (confirmación del correo y cuentas sin confirmar, #122, #125 y #127) · BE-11 (la foto se sube fuera de la transacción, #128) · NC-10a (moderación en `inferencia/`, `/v1/moderacion`, #129, con el tope de 8 MP en #133) · NC-10b (módulo `moderacion`: foto y texto, #134) · NC-11a (ocultar y denunciar, #136) · DEP-14 (encabezado de origen, #130) · DEP-13 (servicio `inferencia` en Railway, creado el 28/10; se vuelve a subir y se conecta el repo en la release). **En PR:** NC-11a2 (filtro «ocultos» de la bandeja del ADMIN, #137). **Pendientes:** BE-12 (refresco asíncrono del índice) · BE-13 · BE-14 · BE-15 (las cuentas sin confirmar se borran a los 30 días) | **Hechas:** NC-04 (vista previa al reportar, #117) · FE-09 (adelantada, #106) · NC-08 y NC-08b (#120 y #131) · NC-09 y NC-09c (#123 y #127) · NC-10c (avisos de moderación, #135). **En PR:** NC-11b (denunciar y bandeja de moderación del ADMIN, #138). **Pendientes, esperan al asesor:** los términos v2 (#116), con el aviso de que la foto se analiza automáticamente (D-12), la revisión del contenido y la atribución de RDD2022 (CC BY-SA 4.0) y de los pesos RF-DETR (Apache-2.0) | v0.8.0 |
+| S7 | **Hechas:** NC-03a (`inferencia/`, #109) · NC-04 (`clasificacion`, #108) · NC-04b (adaptador HTTP al servicio `inferencia/`, #118) · NC-04c (la sugerencia oficial espera turno, #126) · NC-08 y NC-08b (captcha del registro; Turnstile reemplaza a reCAPTCHA, #119 y #132) · NC-09, NC-09b y NC-09c (confirmación del correo y cuentas sin confirmar, #122, #125 y #127) · BE-11 (la foto se sube fuera de la transacción, #128) · NC-10a (moderación en `inferencia/`, `/v1/moderacion`, #129, con el tope de 8 MP en #133) · NC-10b (módulo `moderacion`: foto y texto, #134) · NC-11a (ocultar y denunciar, #136) · DEP-14 (encabezado de origen, #130) · NC-11a2 (filtro «ocultos» de la bandeja del ADMIN, #137) · BE-12 (refresco asíncrono y coalescido del índice, #140) · BE-15 (las cuentas sin confirmar se borran a los 30 días, #141) · DEP-13 (servicio `inferencia` en Railway, creado el 28/10; se vuelve a subir y se conecta el repo al publicar la release). **Pendientes, después de la v0.8.0:** BE-13 y BE-14, con los términos v2 (#116) · NC-03b (calibración del umbral, sin sprint fijo) | **Hechas:** NC-04 (vista previa al reportar, #117) · FE-09 (adelantada, #106) · NC-08 y NC-08b (#120 y #131) · NC-09 y NC-09c (#123 y #127) · NC-10c (avisos de moderación, #135) · NC-11b (denunciar y bandeja de moderación del ADMIN, #138). **Pendientes, esperan al asesor (salen después de la v0.8.0, decisión del 30/10):** los términos v2 (#116), con el aviso de que la foto se analiza automáticamente (D-12), la revisión del contenido y la atribución de RDD2022 (CC BY-SA 4.0) y de los pesos RF-DETR (Apache-2.0) | v0.8.0 (31/10) |
 | S6 | NC-05 · NC-06 · BE-08 | NC-06 (dashboard por periodo, reemplaza US-17 v1) | v0.9.0 |
 | S8 | Ajustes que pida el diseño | **Diseño de la interfaz, fase 2** (mapa con hoja inferior, reporte en pasos, bandeja con panel, portada y desempeño), revisión de cada pantalla y US-24 (guía de uso) | v1.0.0 |
 
@@ -91,7 +91,7 @@ Hay un carril de backend y uno de frontend en paralelo. En un mismo sprint el fr
 - **Umbral sin calibrar:** la v0.8.0 sale con 0,50, que es conservador. NC-03b lo calibra después cambiando `CLASIFICACION_UMBRAL`, sin código nuevo.
 - **Atribución y licencia:** la atribución de la fila del S7 tiene que estar en la v0.8.0. Desde esa versión, la pregunta del *share-alike* (decisión 7) también afecta a producción.
 - **Aviso de privacidad (frontend y textos legales):** desde la v0.8.0 la foto se analiza automáticamente en producción, así que el texto de privacidad tiene que decirlo, y aclarar que la decisión final es del ciudadano (DS 016-2024-JUS, art. 6.1; `backend/README.md`, «Pendiente» de la sugerencia).
-  - Va en la v0.8.0 como nueva versión de `legal/terminos-y-privacidad-v1.md` (D-12).
+  - Va en la v0.8.0 como nueva versión de `legal/terminos-y-privacidad-v1.md` (D-12). **Cambiado el 30/10 (decisión del usuario):** la v0.8.0 sale con los términos v1, y la v2 (#116) sale después, cuando la revise el asesor. Mientras tanto, el aviso del análisis automático lo da la PWA junto al campo de la foto (NC-04, #117).
   - **Todos vuelven a aceptar (decisión del usuario del 26/10).** Se usa el mecanismo de D-12, sin código nuevo de consentimiento. Al subir la versión vigente, `debeAceptarTerminos` pasa a `true` para quien aceptó la anterior, y la PWA le muestra la pantalla de aceptación en su próximo inicio de sesión.
   - **Piezas, en la misma release:**
     - el texto v2 en `project-context/legal/`, a cargo de la sesión de raíz;
@@ -107,6 +107,7 @@ Hay un carril de backend y uno de frontend en paralelo. En un mismo sprint el fr
 - **Al cerrarla:** ARCHITECTURE.md §4.5 y la fila D-13 se actualizan en la rama de BE-12, antes de fusionarla. Ese commit lo agrega la sesión de raíz, porque la guardia no deja que el agente de backend edite normas.
 - **Ficha y criterios:** `plan-migracion-capas.md`, BE-12.
 - **Mientras tanto:** producción corre con el pool en 20 (`SPRING_DATASOURCE_HIKARI_MAXIMUMPOOLSIZE`, runbook §5.2).
+- **Hecha en #140 (31/10).** La prueba de carga con la imagen `prod` y el pool en 10 dio 16 × 201 con 16 reportes con foto simultáneos. Por eso el usuario decidió el 30/10 que el pool **vuelve a 10** con la v0.8.0 (runbook §5.2 y §10.1).
 
 **NC-09 y BE-15 entran al S7 (decisiones del usuario del 28/10).**
 - **NC-09:** confirmación del correo al crear la cuenta.
@@ -149,10 +150,11 @@ Hay un carril de backend y uno de frontend en paralelo. En un mismo sprint el fr
 - **NC-09b y NC-09c (28/10, #125 y #127):** una cuenta sin confirmar no recupera la contraseña, y la PWA ofrece reenviar el enlace de confirmación desde «¿Olvidaste tu contraseña?».
 - **BE-11 (#128)** dejó el patrón que usa NC-10b: el I/O externo sin transacción, la transacción programática y la compensación (ARCHITECTURE.md §4.5, versión 1.7).
 
-**Lo que falta para la v0.8.0:**
-- **En PR:** NC-11a2 (#137) y NC-11b (#138).
-- **Backend:** BE-12 (refresco asíncrono del índice), BE-13 y BE-14 (sus fichas llegan con el PR #116) y BE-15. Mientras BE-12 no esté, producción sigue con el pool en 20.
-- **Términos v2** (#116): esperan al asesor. Llevan el aviso del análisis automático, la revisión del contenido y la atribución (§14). Si salen sin la moderación en `http`, se aplica la regla de arriba.
+**Cierre del S7 (31/10, v0.8.0).** NC-11a2 (#137), NC-11b (#138), BE-12 (#140) y BE-15 (#141) se fusionaron el 31/10, y la release v0.8.0 cierra el sprint. Quedan fuera, por decisión del usuario del 30/10:
+- **Términos v2** (#116): esperan al asesor y salen en una versión posterior. Llevan el aviso del análisis automático, la revisión del contenido y la atribución (§14). Si salen con la moderación apagada, se aplica la regla de arriba.
+- **BE-13 y BE-14:** sus fichas llegan con el PR #116 y cubren los plazos que prometen los mismos términos v2.
+
+Lo que sigue es para publicar la v0.8.0 y después:
 - **Producción (DEP-13 y DEP-14):** subir `inferencia` con NC-10a, comprobar `version_moderacion`, crear la regla de Cloudflare y cargar las variables antes de fusionar la release (runbook §10.1). Después, conectar el repo de `inferencia` a `main` y correr la prueba de humo, con la latencia de la moderación medida en Railway (NC-10b midió ~2,1 s en local con carga mixta, contra 2,5 s de lectura).
 - **Antes de abrir a usuarios reales:** el asesor confirma el procedimiento ante material ilegal (runbook §11.5).
 - **Sin sprint fijo:** NC-03b, la calibración del umbral de la sugerencia con al menos 200 fotos de Lima. La del umbral de moderación (0,70) espera fotos de calles con gente.
@@ -175,7 +177,8 @@ Ya hechas antes de S1: BE-01, BE-02, BE-07, FE-01 y FE-02.
 | v0.8.0 | Moderación de contenido (NC-10 y NC-11). **Decidido el 28/10:** entra en la v0.8.0, dentro de los términos v2 (`propuestas/2026-10-28-moderacion-de-contenido.md`, D-15), con el tope de 8 MP en el servicio. Antes de abrir a usuarios reales falta la confirmación del asesor sobre el procedimiento ante material ilegal (runbook §11.5). Eso no bloquea el sprint. |
 | v0.8.0 | Captcha del registro. **Decidido el 28/10:** Cloudflare Turnstile en lugar de reCAPTCHA v2 (NC-08b). |
 | v0.8.0 | Cerrar el atajo hacia el origen (SEC-05). **Decidido el 28/10:** encabezado de origen con una *Transform Rule* de Cloudflare (DEP-14), con prioridad en la v0.8.0. |
-| v0.8.0 | Los términos v2 (#116). **Abierto:** esperan la revisión del asesor. Si la v0.8.0 tiene que salir antes, el usuario decide si la v2 se retrasa o sale recortada (párrafo de la moderación, arriba). |
+| v0.8.0 | Los términos v2 (#116). **Decidido el 30/10:** la v0.8.0 sale con los términos v1, y la v2 sale después, cuando la revise el asesor. Si para entonces la moderación estuviera apagada, se aplica la regla del párrafo de la moderación (arriba). |
+| v0.8.0 | El pool de conexiones en producción después de BE-12. **Decidido el 30/10:** `SPRING_DATASOURCE_HIKARI_MAXIMUMPOOLSIZE` vuelve a 10 con la v0.8.0 (runbook §5.2). |
 
 ## Ejecución
 
@@ -228,3 +231,16 @@ Ya hechas antes de S1: BE-01, BE-02, BE-07, FE-01 y FE-02.
 - **v0.7.2 (2026-10-25, hotfix desde `main`):** el servicio `respaldo-bd` es un script propio (`backend/scripts/respaldo-bd/`). La plantilla del runbook quedó archivada y su reemplazo despliega código de un tercero, así que el usuario eligió la opción (b).
   - **Probado en local:** el volcado y la subida a S3Mock, y la restauración en una base nueva, con una copia idéntica.
   - **Sin cambios de código** en el API ni en la PWA.
+- **S7 (2026-10-26/31, v0.8.0):** ML real, registro con confirmación del correo, moderación de contenido y cierre del atajo hacia el origen (decisiones del usuario del 25/10 al 30/10).
+  - **ML:** NC-03a (#109), NC-04 backend (#108) y PWA (#117), NC-04b (#118), NC-04c (#126) y la planificación de DEP-13 (#115).
+  - **Registro:** NC-08 (#119, #120) y NC-08b con Turnstile (#132, #131), NC-09 (#122, #123), NC-09b (#125), NC-09c (#127) y BE-15 (#141).
+  - **Moderación:** la propuesta (#121), NC-10a (#129, #133), NC-10b (#134), NC-10c (#135), NC-11a (#136), NC-11a2 (#137) y NC-11b (#138).
+  - **Seguridad y robustez:** DEP-14 (#130), BE-11 (#128) y BE-12 (#140).
+  - **Documentación:** decisiones del 25/10 (#112), runbook de operación (#124) y de la release (#139).
+  - **Cifras** (CI de `develop`, run 41241532191, y #138):
+    - Failsafe 418 → 612 `completed` (598 ejecutados y 14 omitidos), Surefire 230 → 830, ArchUnit 0 → 0;
+    - frontend 1041 → 1420 tests (121 → 152 archivos), avisos de capas 0;
+    - `inferencia/`, nuevo: 264 tests sin pesos.
+  - **Migraciones:** V19 (clasificación), V20 (confirmación del correo) y V21 (ocultar y denunciar).
+  - **Quedan fuera (30/10):** los términos v2 (#116), con BE-13 y BE-14, salen después con el asesor; NC-03b no tiene sprint fijo.
+  - **Para publicar:** el orden del runbook §10.1 (subir `inferencia`, la regla de Cloudflare y las variables nuevas antes de fusionar en `main`), con el pool de vuelta en 10. Después, la prueba de humo con los puntos 17 a 23.

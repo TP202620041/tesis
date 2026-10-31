@@ -2,7 +2,7 @@
 
 > Procedimiento para desplegar el MVP en **Railway** (API + PostGIS + respaldo), **Vercel** (PWA), **Cloudflare R2** (fotos y respaldos) y **Resend** (correo por HTTP). Diseño, opciones y fuentes: `project-context/decisions/propuestas/2026-10-21-despliegue-mvp.md` (aceptada el 21/10). Diagrama: `docs/arquitectura/c4-despliegue.md`.
 >
-> Versión 0.4 · 2026-10-30 · El primer despliegue (DEP-09) se hizo el 25/10 con v0.7.1, y v0.7.2 agrega `respaldo-bd` (§5.3). El 28/10 se sumó la operación: la política de reinicio y la primera corrida de `respaldo-bd`, y una sección nueva (§11) con las defensas del API, los límites de gasto y el DNS de Resend. El 30/10, lo que pide la **v0.8.0**: el servicio `inferencia` (§5.4, DEP-13), las variables nuevas del `backend` (§5.2), el orden de publicación (§10.1), los interruptores (§10.2), la prueba de humo ampliada (§7.3), el encabezado de origen (§11.4, DEP-14) y la operación de la moderación (§11.5). Lo que sigue marcado **(verificar)** se confirma con la prueba de humo (DEP-10) y se corrige aquí.
+> Versión 0.5 · 2026-10-31 · v0.8.0 · El 31/10, con la release v0.8.0: el pool vuelve a 10 por BE-12, las variables opcionales de la purga de BE-15 (§5.2 y §10.1) y los términos que siguen en v1 (§10.1). El primer despliegue (DEP-09) se hizo el 25/10 con v0.7.1, y v0.7.2 agrega `respaldo-bd` (§5.3). El 28/10 se sumó la operación: la política de reinicio y la primera corrida de `respaldo-bd`, y una sección nueva (§11) con las defensas del API, los límites de gasto y el DNS de Resend. El 30/10, lo que pide la **v0.8.0**: el servicio `inferencia` (§5.4, DEP-13), las variables nuevas del `backend` (§5.2), el orden de publicación (§10.1), los interruptores (§10.2), la prueba de humo ampliada (§7.3), el encabezado de origen (§11.4, DEP-14) y la operación de la moderación (§11.5). Lo que sigue marcado **(verificar)** se confirma con la prueba de humo (DEP-10) y se corrige aquí.
 
 ## 0. Antes de empezar
 
@@ -228,7 +228,9 @@ railway connect postgis               # abre psql por túnel SSH (requiere psql 
    | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | §4 |
    | `VAPID_SUBJECT` | `mailto:contacto@ciudadviva.app` (activo en Email Routing, §3) |
    | `JAVA_TOOL_OPTIONS` | `-Xms256m -Xmx512m -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError` |
-   | `SPRING_DATASOURCE_HIKARI_MAXIMUMPOOLSIZE` | `20` (decisión 20, 25/10). Es temporal hasta BE-12, que hace asíncrono el refresco del índice: sin ella rige el valor por defecto, 10, y 16 reportes con foto en el mismo segundo agotan el pool (`propuestas/2026-10-22-refresco-indice-asincrono.md`). |
+   | `SPRING_DATASOURCE_HIKARI_MAXIMUMPOOLSIZE` | `10` desde la v0.8.0 (decisión del usuario del 30/10), el mismo valor que el que rige por defecto. Con BE-12 el refresco del índice es asíncrono y coalescido y usa a lo sumo una conexión: la prueba de carga de BE-12 (#140), con la imagen `prod` y el pool en 10, dio 16 × 201 con 16 reportes con foto simultáneos, sin «Connection is not available». La v0.7.x corría con `20` (decisión 20, 25/10), porque refrescaba en el hilo del commit (`propuestas/2026-10-22-refresco-indice-asincrono.md`). El cambio de 20 a 10 se hace junto con la publicación (§10.1, paso 4), nunca antes: la v0.7.x con 10 vuelve a agotar el pool. |
+   | `CUENTAS_SIN_CONFIRMAR_PLAZO` | sin definir (`30d` por defecto; BE-15, desde la v0.8.0). Edad a partir de la cual se borra una cuenta de ciudadano que nunca confirmó su correo (decisión del usuario del 28/10). Duración de Spring (`30d`, `720h`); con menos de 1 día la app no arranca. Detalle: `backend/README.md`, «Purga de cuentas sin confirmar (BE-15)». |
+   | `CUENTAS_SIN_CONFIRMAR_PURGA_CRON` | sin definir (`0 30 3 * * *` por defecto: todos los días a las 03:30, hora de Lima). Expresión cron de Spring con segundos. `-` apaga la purga; no hacerlo en producción, porque el borrado a los 30 días es una decisión del usuario (28/10) que prometen los términos v2. Cada corrida deja un `INFO` con cuántas cuentas borró, sin correos. |
    | `SPRINGDOC_HABILITADO` | sin definir (Swagger apagado); `true` solo para una demo y después se quita |
    | `CLASIFICACION_TIPO` | `http` (NC-04b, desde la v0.8.0). **Obligatoria** en `prod`: sin ella, o con otro valor que `http` o `falso`, la app no arranca. `falso` es el interruptor que apaga la sugerencia (§10.2). |
    | `CLASIFICACION_URL` | `http://${{inferencia.RAILWAY_PRIVATE_DOMAIN}}:8000`, por referencia al servicio de §5.4. Solo la base, sin ruta ni barra final: con `…:8000/v1` la app no arranca. No es un secreto. |
@@ -553,7 +555,8 @@ La v0.8.0 no arranca sin variables nuevas, y el `backend` con `MODERACION_TIPO=h
 2. **Comprobar** que su `/salud` devuelve `version_moderacion` (§5.4, «Verificar»). Si no aparece, no seguir con `MODERACION_TIPO=http`.
 3. **Encabezado de origen, primero en Cloudflare** (§11.4, pasos 1 y 2): generar `ORIGEN_SECRETO` y crear la *Transform Rule*. La v0.7.x ignora el encabezado, así que la regla no cambia nada todavía.
 4. **Cargar las variables** con **Alt + Deploy**, que no redespliega (§5); la v0.7.x las ignora:
-   - en `backend` (§5.2): `CLASIFICACION_TIPO=http`, `CLASIFICACION_URL`, `MODERACION_TIPO=http`, `MODERACION_URL`, `ORIGEN_SECRETO` (el mismo valor de la regla), `CAPTCHA_TIPO=turnstile`, `CAPTCHA_SECRET` y `FRONTEND_URL=https://ciudadviva.app`. `MODERACION_UMBRAL` y `CLASIFICACION_UMBRAL` quedan sin definir;
+   - en `backend` (§5.2): `CLASIFICACION_TIPO=http`, `CLASIFICACION_URL`, `MODERACION_TIPO=http`, `MODERACION_URL`, `ORIGEN_SECRETO` (el mismo valor de la regla), `CAPTCHA_TIPO=turnstile`, `CAPTCHA_SECRET` y `FRONTEND_URL=https://ciudadviva.app`. `MODERACION_UMBRAL`, `CLASIFICACION_UMBRAL` y las dos `CUENTAS_SIN_CONFIRMAR_*` quedan sin definir;
+   - en `backend`, también: `SPRING_DATASOURCE_HIKARI_MAXIMUMPOOLSIZE` pasa de `20` a `10` (BE-12, decisión del usuario del 30/10). Con *Alt + Deploy* el valor se aplica en el próximo despliegue, que es el de la v0.8.0 (paso 5): la v0.7.x, que todavía refresca el índice en el hilo del commit, sigue con 20;
    - en Vercel (§6): `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, en Production y Preview. Sin ella el build de la PWA falla.
 
    Los dos secretos (`ORIGEN_SECRETO` y `CAPTCHA_SECRET`) los pega el usuario, sin sellar (§0). Comprobar en el panel que cada variable existe, mirando solo su nombre.
@@ -561,9 +564,9 @@ La v0.8.0 no arranca sin variables nuevas, y el `backend` con `MODERACION_TIPO=h
 6. **Prueba de humo** (§7.3), con los puntos 17 a 23.
 7. **Después, conectar el repo de `inferencia` a `main`** (§5.4). Desde entonces se despliega solo, como `backend`.
 
-**Los términos v2** (`project-context/legal/`) salen en la misma versión si el asesor los aprobó. Si la v0.8.0 tuviera que salir con `MODERACION_TIPO=ninguna`, la v2 no se publica completa: se recorta el párrafo de la revisión de la foto o se retrasa la v2 (`project-context/decisions/plan-sprints.md`, S7).
+**Los términos siguen en v1 con la v0.8.0** (decisión del usuario del 30/10): la v2 (#116) sale en una versión posterior, cuando la revise el asesor. Por eso la v0.8.0 no cambia `LEGAL_VERSION_TERMINOS` ni pide volver a aceptar. Cuando salga la v2, si producción estuviera con `MODERACION_TIPO=ninguna`, no se publica completa: se recorta el párrafo de la revisión de la foto o se retrasa (`project-context/decisions/plan-sprints.md`, S7).
 
-**Ventana de los términos:** si la PWA y el API no publican la versión de los términos a la vez, el registro responde 409 durante unos minutos (`plan-sprints.md`, S7).
+**Ventana de los términos** (cuando salga la v2, no en la v0.8.0): si la PWA y el API no publican la versión de los términos a la vez, el registro responde 409 durante unos minutos (`plan-sprints.md`, S7).
 
 ### 10.2 Interruptores de emergencia
 
@@ -572,7 +575,7 @@ Cada uno se pone en Railway › `backend` › Variables y se aplica con *Deploy*
 | Interruptor | Cuándo | Qué se pierde mientras está puesto |
 |---|---|---|
 | `CLASIFICACION_TIPO=falso` | La sugerencia molesta o carga al servicio de más. Nunca hace falta por una caída: una falla del servicio ya termina en «sin sugerencia». | La sugerencia de categoría. El falso de `prod` no sugiere ni escribe nada (`application-prod.yml`). |
-| `MODERACION_TIPO=ninguna` | `inferencia` cae por un rato largo y los reportes con foto reciben 503. | **Se publican fotos sin revisar.** El filtro de texto sigue activo. Revisar después a mano las fotos de los reportes creados en ese lapso y ocultar lo que haga falta (§11.5). Si dura, los términos v2 prometen una revisión que no corre: avisar al usuario. |
+| `MODERACION_TIPO=ninguna` | `inferencia` cae por un rato largo y los reportes con foto reciben 503. | **Se publican fotos sin revisar.** El filtro de texto sigue activo. Revisar después a mano las fotos de los reportes creados en ese lapso y ocultar lo que haga falta (§11.5). Si dura, avisar al usuario; cuando rijan los términos v2, además, prometen una revisión que no corre. |
 | `ORIGEN_SECRETO=ninguno` | Hay que quitar el proxy de Cloudflare de `api` (nube gris) durante un incidente: sin proxy, el encabezado no llega y el API respondería 403 a todo. | El cierre del atajo de SEC-05: el API atiende también lo que no pasa por Cloudflare, sin su WAF ni su límite de peticiones. Al volver el proxy, se restaura el secreto (§11.4). |
 
 ## 11. Operación: defensas, límites de gasto y DNS
