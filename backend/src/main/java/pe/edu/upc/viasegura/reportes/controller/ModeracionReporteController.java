@@ -44,13 +44,19 @@ public class ModeracionReporteController {
 
     private final ModeracionReporteService moderacionReporteService;
 
-    /** Bandeja: reportes con denuncias en {@code estado} (por defecto PENDIENTE), paginada. */
+    /**
+     * Bandeja paginada: reportes con denuncias en {@code estado} (por defecto
+     * PENDIENTE) o, con {@code ocultos=true} (NC-11a2), los reportes con el
+     * reporte o la foto ocultos, tengan denuncias o no; entonces {@code estado}
+     * se ignora.
+     */
     @GetMapping
     public ResponseEntity<Page<ReporteModeracionResumenResponse>> bandeja(
             @RequestParam(value = "estado", defaultValue = "PENDIENTE") EstadoDenuncia estado,
+            @RequestParam(value = "ocultos", defaultValue = "false") boolean ocultos,
             @PageableDefault(size = 20) Pageable pageable) {
         return ResponseEntity.ok().cacheControl(SIN_CACHE)
-                .body(moderacionReporteService.bandeja(estado, pageable));
+                .body(moderacionReporteService.bandeja(estado, ocultos, pageable));
     }
 
     /** Detalle del reporte con su estado de moderacion y sus denuncias; 404 si no existe. */

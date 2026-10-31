@@ -23,6 +23,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import pe.edu.upc.viasegura.auth.domain.Usuario;
 import pe.edu.upc.viasegura.reportes.domain.DenunciaReporte;
 import pe.edu.upc.viasegura.reportes.domain.EstadoDenuncia;
@@ -481,6 +482,91 @@ class OcultamientoReporteIT extends AbstractModeracionIT {
                 .andExpect(jsonPath("$.denuncias[0].motivoResolucion", nullValue()));
         mockMvc.perform(get("/api/admin/moderacion/reportes").header("Authorization", bearer(admin)))
                 .andExpect(jsonPath("$.content", empty()));
+    }
+
+    /**
+     * NC-11a2: con {@code ocultos=true} la bandeja lista lo oculto (reporte o
+     * foto), tenga denuncias o no, lo ocultado mas recientemente primero, con
+     * todas las denuncias del reporte en cualquier estado e ignorando
+     * {@code estado}. Con {@code ocultos=false} todo sigue como antes.
+     */
+    @Test
+    void bandejaDelAdmin_ocultos_listaLoOcultoConODenuncias_loMasRecientePrimero() throws Exception {
+        // `reporte` queda visible y con dos denuncias pendientes: nunca entra en la vista de ocultos.
+        denuncia(reporte, denunciante, MotivoDenuncia.OFENSIVO);
+        denuncia(reporte, ajeno, MotivoDenuncia.OFENSIVO);
+        Reporte sinDenuncias = reporte(ciudadano(), EstadoReporte.PENDIENTE, null);
+        Reporte soloFoto = reporte(ciudadano(), EstadoReporte.RECIBIDO, fotoGuardada());
+        Reporte conDenuncias = reporte(ciudadano(), EstadoReporte.EN_PROCESO, null);
+        denuncia(conDenuncias, denunciante, MotivoDenuncia.FALSO);
+        denuncia(conDenuncias, ajeno, MotivoDenuncia.DATOS_PERSONALES);
+
+        // Se ocultan en un orden distinto al de creacion para que el orden no salga del id.
+        ocultar(admin, conDenuncias.getId(), "REPORTE").andExpect(status().isOk());
+        ocultar(admin, sinDenuncias.getId(), "REPORTE").andExpect(status().isOk());
+        ocultar(admin, soloFoto.getId(), "FOTO").andExpect(status().isOk());
+        // Una denuncia mas, pendiente, sobre el ya oculto: en la vista de ocultos cuentan todas.
+        denuncia(conDenuncias, adherido, MotivoDenuncia.FALSO);
+
+        mockMvc.perform(get("/api/admin/moderacion/reportes").param("ocultos", "true")
+                        .header("Authorization", bearer(admin)))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store, private"))
+                .andExpect(jsonPath("$.totalElements", is(3)))
+                .andExpect(jsonPath("$.content[*].reporteId", contains(
+                        soloFoto.getId().intValue(), sinDenuncias.getId().intValue(), conDenuncias.getId().intValue())))
+                .andExpect(jsonPath("$.content[0].oculto", is(false)))
+                .andExpect(jsonPath("$.content[0].fotoOculta", is(true)))
+                .andExpect(jsonPath("$.content[0].tieneFoto", is(true)))
+                .andExpect(jsonPath("$.content[0].totalDenuncias", is(0)))
+                .andExpect(jsonPath("$.content[1].oculto", is(true)))
+                .andExpect(jsonPath("$.content[1].totalDenuncias", is(0)))
+                .andExpect(jsonPath("$.content[1].porMotivo").isEmpty())
+                .andExpect(jsonPath("$.content[1].primeraDenuncia", nullValue()))
+                .andExpect(jsonPath("$.content[1].ultimaDenuncia", nullValue()))
+                .andExpect(jsonPath("$.content[2].oculto", is(true)))
+                .andExpect(jsonPath("$.content[2].estado", is("EN_PROCESO")))
+                .andExpect(jsonPath("$.content[2].totalDenuncias", is(3)))
+                .andExpect(jsonPath("$.content[2].porMotivo.FALSO", is(2)))
+                .andExpect(jsonPath("$.content[2].porMotivo.DATOS_PERSONALES", is(1)))
+                .andExpect(jsonPath("$.content[2].primeraDenuncia", not(nullValue())))
+                .andExpect(jsonPath("$.content[2].ultimaDenuncia", not(nullValue())));
+
+        // `estado` se ignora con ocultos=true.
+        mockMvc.perform(get("/api/admin/moderacion/reportes").param("ocultos", "true").param("estado", "DESESTIMADA")
+                        .header("Authorization", bearer(admin)))
+                .andExpect(jsonPath("$.totalElements", is(3)));
+
+        // Sin el parametro (o en false) sigue siendo la bandeja de denuncias en el estado pedido:
+        // las dos pendientes de `reporte` y la pendiente del oculto; el resumen cuenta solo ese estado.
+        for (String ocultos : new String[] {null, "false"}) {
+            MockHttpServletRequestBuilder peticion = get("/api/admin/moderacion/reportes")
+                    .header("Authorization", bearer(admin));
+            if (ocultos != null) {
+                peticion.param("ocultos", ocultos);
+            }
+            mockMvc.perform(peticion)
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content[*].reporteId", contains(
+                            reporte.getId().intValue(), conDenuncias.getId().intValue())))
+                    .andExpect(jsonPath("$.content[0].totalDenuncias", is(2)))
+                    .andExpect(jsonPath("$.content[1].totalDenuncias", is(1)));
+        }
+
+        // Restablecer la foto lo saca de la vista de ocultos.
+        restablecer(admin, soloFoto.getId(), "FOTO").andExpect(status().isOk());
+        mockMvc.perform(get("/api/admin/moderacion/reportes").param("ocultos", "true")
+                        .header("Authorization", bearer(admin)))
+                .andExpect(jsonPath("$.content[*].reporteId", contains(
+                        sinDenuncias.getId().intValue(), conDenuncias.getId().intValue())));
+
+        // Solo el ADMIN.
+        mockMvc.perform(get("/api/admin/moderacion/reportes").param("ocultos", "true")
+                        .header("Authorization", bearer(funcionario)))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/admin/moderacion/reportes").param("ocultos", "true")
+                        .header("Authorization", bearer(creador)))
+                .andExpect(status().isForbidden());
     }
 
     // ------------------------------------------------------------------
