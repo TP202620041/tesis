@@ -48,7 +48,7 @@ public class ModeracionReporteController {
      * Bandeja paginada: reportes con denuncias en {@code estado} (por defecto
      * PENDIENTE) o, con {@code ocultos=true} (NC-11a2), los reportes con el
      * reporte o la foto ocultos, tengan denuncias o no; entonces {@code estado}
-     * se ignora.
+     * no filtra (si viene, igual tiene que ser un valor valido: 400 si no).
      */
     @GetMapping
     public ResponseEntity<Page<ReporteModeracionResumenResponse>> bandeja(

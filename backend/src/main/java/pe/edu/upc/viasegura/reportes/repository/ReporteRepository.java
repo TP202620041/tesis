@@ -358,8 +358,10 @@ public interface ReporteRepository extends JpaRepository<Reporte, Long> {
      * {@code updated_at}, porque ocultar no lo mueve a proposito (mide los
      * estancados de US-17) y porque un cambio de estado del funcionario si lo
      * moveria. Consulta aparte de la de denuncias: sin parametros opcionales
-     * (ver CLAUDE.md). Sin indice nuevo: los ocultos son un punado y el
-     * historial ya tiene {@code ix_historial_reporte}.
+     * (ver CLAUDE.md). Sin indice nuevo: el WHERE recorre {@code reporte}
+     * completa (aceptable a esta escala y solo para el ADMIN); si la tabla
+     * creciera, un indice parcial {@code WHERE oculto OR foto_oculta}. El JOIN
+     * al historial usa {@code ix_historial_reporte}.
      */
     @Query(value = """
             SELECT r.id AS reporteId, MAX(h.createdAt) AS ocultadoEn

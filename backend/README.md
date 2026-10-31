@@ -3693,7 +3693,7 @@ si viviera allí, `moderacion` usaría `reportes` y habría un ciclo
 |---|---|---|
 | `POST /api/reportes/{id}/denuncias` `{motivo, detalle?}` | CIUDADANO | 201; 404 si el reporte no existe, está cancelado u oculto; 409 `DENUNCIA_PROPIA`, `DENUNCIA_REPETIDA` o `LIMITE_DENUNCIAS`; 400 |
 | `GET /api/admin/moderacion/reportes?estado=PENDIENTE` | ADMIN | página de reportes con denuncias en ese estado, de más a menos denunciados y, entre iguales, del que espera hace más; con el conteo por motivo |
-| `GET /api/admin/moderacion/reportes?ocultos=true` (NC-11a2) | ADMIN | página de reportes con el reporte **o** la foto ocultos, tengan denuncias o no, lo ocultado más recientemente primero; `estado` se ignora y el resumen cuenta todas las denuncias. Mismo DTO |
+| `GET /api/admin/moderacion/reportes?ocultos=true` (NC-11a2) | ADMIN | página de reportes con el reporte **o** la foto ocultos, tengan denuncias o no, lo ocultado más recientemente primero; `estado` no filtra (si viene, debe ser válido) y el resumen cuenta todas las denuncias. Mismo DTO |
 | `GET /api/admin/moderacion/reportes/{id}` | ADMIN | el reporte (en cualquier estado), su moderación y sus denuncias con el denunciante; 404 |
 | `GET /api/admin/moderacion/reportes/{id}/foto` | ADMIN | la foto aunque esté oculta; 404 sin foto |
 | `POST /api/admin/moderacion/reportes/{id}/ocultamiento` `{alcance, motivo}` | ADMIN | 200; 409 `YA_OCULTO` o `SIN_FOTO`; 400 |
@@ -3777,8 +3777,14 @@ caracteres sin los espacios del borde.
   reciente cuyo alcance siga oculto, porque ocultar no mueve `updated_at` a
   propósito (punto anterior) y un cambio de estado del funcionario sí lo
   movería (un reporte con solo la foto oculta sigue en su bandeja). Sin
-  migración: los ocultos son un puñado dentro de `reporte` y el historial ya
-  tiene `ix_historial_reporte` (V1). El resumen de denuncias cuenta todas,
+  migración: ninguna columna del `WHERE` tiene índice, así que la consulta y
+  su `countQuery` recorren `reporte` completa, un recorrido aceptable a la
+  escala de la tesis y en una ruta que solo usa el ADMIN; el `JOIN` al
+  historial sí usa `ix_historial_reporte` (V1). Si la tabla creciera, un
+  índice parcial `ON reporte (id) WHERE oculto OR foto_oculta` (una V22) lo
+  resuelve sin tocar la consulta. `estado`, si viene, tiene que ser un valor
+  válido (si no, 400 como siempre); con `ocultos=true` simplemente no
+  filtra. El resumen de denuncias cuenta todas,
   en cualquier estado (`resumenEnCualquierEstado`,
   `conteoPorMotivoEnCualquierEstado`): en esta vista `totalDenuncias` puede
   ser 0 y `primeraDenuncia`/`ultimaDenuncia` nulas; el DTO no cambia.
