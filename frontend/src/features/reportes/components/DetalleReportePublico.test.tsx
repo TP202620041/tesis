@@ -49,4 +49,29 @@ describe('DetalleReportePublico', () => {
 
     expect(screen.getByRole('link', { name: 'Ver el mapa' })).toHaveAttribute('href', '/mapa');
   });
+
+  it('NC-11a: con `fotoUrl` en null (sin foto, o foto oculta) dice que no hay foto y no se rompe', () => {
+    conReporte({ id: 7, titulo: 'Bache', estado: 'RECIBIDO', distritoNombre: 'Miraflores', fotoUrl: null });
+    render(<DetalleReportePublico reporteId={7} puedeComentar={false} />);
+
+    expect(screen.getByText('Este reporte no tiene foto.')).toBeInTheDocument();
+    expect(screen.queryByRole('img')).not.toBeInTheDocument();
+  });
+
+  it('NC-11b: sin sesión, el enlace de denunciar lleva al login y vuelve al reporte', () => {
+    conReporte({ id: 7, titulo: 'Bache', estado: 'RECIBIDO' });
+    render(<DetalleReportePublico reporteId={7} puedeComentar={false} sinSesion />);
+
+    expect(screen.getByRole('link', { name: 'Inicia sesión para denunciar contenido' })).toHaveAttribute(
+      'href',
+      '/login?redirect=%2Freportes%2F7',
+    );
+  });
+
+  it('NC-11b: un funcionario o ADMIN con sesión no ve nada de denunciar', () => {
+    conReporte({ id: 7, titulo: 'Bache', estado: 'RECIBIDO' });
+    render(<DetalleReportePublico reporteId={7} puedeComentar={false} puedeDenunciar={false} />);
+
+    expect(screen.queryByText(/denunciar/i)).not.toBeInTheDocument();
+  });
 });
