@@ -64,6 +64,20 @@ public interface DenunciaReporteRepository extends JpaRepository<DenunciaReporte
             """)
     Page<FilaBandeja> bandeja(@Param("estado") EstadoDenuncia estado, Pageable pageable);
 
+    /**
+     * Bandeja de ocultos (NC-11a2): el resumen de <b>todas</b> las denuncias
+     * de cada reporte de la pagina, en cualquier estado. Los reportes sin
+     * denuncias no devuelven fila.
+     */
+    @Query("""
+            SELECT d.reporte.id AS reporteId, COUNT(d) AS total,
+                   MIN(d.createdAt) AS primera, MAX(d.createdAt) AS ultima
+            FROM DenunciaReporte d
+            WHERE d.reporte.id IN :reporteIds
+            GROUP BY d.reporte.id
+            """)
+    List<FilaBandeja> resumenEnCualquierEstado(@Param("reporteIds") Collection<Long> reporteIds);
+
     /** Conteo por motivo de las filas de una pagina de la bandeja. */
     interface ConteoPorMotivo {
         Long getReporteId();
@@ -81,6 +95,15 @@ public interface DenunciaReporteRepository extends JpaRepository<DenunciaReporte
             """)
     List<ConteoPorMotivo> conteoPorMotivo(@Param("estado") EstadoDenuncia estado,
                                           @Param("reporteIds") Collection<Long> reporteIds);
+
+    /** Como {@link #conteoPorMotivo}, sin filtrar por estado (bandeja de ocultos, NC-11a2). */
+    @Query("""
+            SELECT d.reporte.id AS reporteId, d.motivo AS motivo, COUNT(d) AS total
+            FROM DenunciaReporte d
+            WHERE d.reporte.id IN :reporteIds
+            GROUP BY d.reporte.id, d.motivo
+            """)
+    List<ConteoPorMotivo> conteoPorMotivoEnCualquierEstado(@Param("reporteIds") Collection<Long> reporteIds);
 
     /**
      * Resuelve las denuncias pendientes del reporte (las atiende al ocultar o
