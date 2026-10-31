@@ -10,3 +10,12 @@ import type { Usuario } from '@/lib/types/domain';
 export function puedeComentarReportes(usuario: Pick<Usuario, 'rol'> | null): boolean {
   return usuario?.rol === 'CIUDADANO';
 }
+
+/**
+ * NC-11b (D-15): puede denunciar un reporte publicado. Solo el CIUDADANO
+ * (el backend responde 403 al funcionario y al ADMIN, que modera, no
+ * denuncia). Si el reporte es suyo lo decide `useEsReportePropio`, no esto.
+ */
+export function puedeDenunciarReportes(usuario: Pick<Usuario, 'rol'> | null): boolean {
+  return usuario?.rol === 'CIUDADANO';
+}

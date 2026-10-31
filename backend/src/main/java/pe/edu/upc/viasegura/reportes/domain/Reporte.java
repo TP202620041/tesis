@@ -11,7 +11,9 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import java.math.BigDecimal;
 import java.time.Instant;
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -101,6 +103,71 @@ public class Reporte extends BaseAuditableEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "periodo_gestion_id")
     private PeriodoGestion periodoGestion;
+
+    /*
+     * Sugerencia oficial de categoria (NC-04, D-08): la calcula el backend
+     * sobre la foto guardada, despues del commit, y la escribe UNA vez con
+     * ReporteRepository#registrarSugerencia (UPDATE condicional). Las tres van
+     * juntas: o todas nulas (sin foto, sin sugerencia clara o el servicio
+     * fallo) o todas con valor (CHECK de V19).
+     *
+     * Solo lectura para JPA (insertable/updatable = false): ni la creacion ni
+     * un save() posterior pueden escribirlas, asi que lo que envie el cliente
+     * no llega a la base, y una edicion concurrente del reporte no pisa la
+     * sugerencia con un valor viejo. Es una SENAL INTERNA: no va en ningun DTO
+     * (SugerenciaFueraDeDtosIT); para la tesis se mide por SQL.
+     */
+
+    /** Categoria que sugirio el modelo; puede diferir de {@link #categoria}, que confirmo el ciudadano. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "categoria_sugerida_id", insertable = false, updatable = false)
+    @Setter(AccessLevel.NONE)
+    private CategoriaDano categoriaSugerida;
+
+    /** Puntaje de la sugerencia, en [0, 1] con 3 decimales. */
+    @Column(name = "confianza_sugerencia", precision = 4, scale = 3, insertable = false, updatable = false)
+    @Setter(AccessLevel.NONE)
+    private BigDecimal confianzaSugerencia;
+
+    /** Version del modelo que produjo la sugerencia (evaluacion de OE3). */
+    @Column(name = "version_modelo_sugerencia", length = 40, insertable = false, updatable = false)
+    @Setter(AccessLevel.NONE)
+    private String versionModeloSugerencia;
+
+    /*
+     * Moderacion (NC-11a, D-15): solo el ADMIN los cambia, por
+     * ModeracionReporteService y con ReporteRepository#cambiarOculto /
+     * #cambiarFotoOculta (UPDATE condicional). Solo lectura para JPA, como la
+     * sugerencia: un save() del ciudadano o del funcionario no puede
+     * restablecer un reporte con un valor viejo, y ocultar no mueve
+     * updated_at (que mide los reportes estancados de US-17).
+     *
+     * Ninguno va en un DTO que no sea del ADMIN: lo oculto se nota porque el
+     * reporte no aparece o porque fotoUrl llega en null (fotoUrlPublica).
+     */
+
+    /** Todo el reporte fuera de lo publico, de la bandeja municipal y del indice. */
+    @Column(name = "oculto", nullable = false, insertable = false, updatable = false)
+    @Setter(AccessLevel.NONE)
+    @Builder.Default
+    private boolean oculto = false;
+
+    /** Solo la foto: el reporte sigue publico y sigue contando en el indice. */
+    @Column(name = "foto_oculta", nullable = false, insertable = false, updatable = false)
+    @Setter(AccessLevel.NONE)
+    @Builder.Default
+    private boolean fotoOculta = false;
+
+    /**
+     * La URL de la foto para cualquier DTO que no sea del ADMIN: {@code null}
+     * si no hay foto, si el ADMIN oculto la foto o si oculto el reporte entero
+     * (su creador lo sigue viendo en "mis reportes", sin foto). En esos casos
+     * {@code /media/...} responde 404. La foto se conserva en el almacenamiento
+     * y solo la sirve la ruta del ADMIN (NC-11a).
+     */
+    public String fotoUrlPublica() {
+        return oculto || fotoOculta ? null : fotoUrl;
+    }
 
     public static final int TITULO_MIN = 5;
     public static final int TITULO_MAX = 120;

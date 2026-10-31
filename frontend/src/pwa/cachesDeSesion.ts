@@ -1,5 +1,6 @@
 /**
- * Qué NO debe quedar en las cachés del Service Worker: las respuestas del API.
+ * Qué NO debe quedar en las cachés del Service Worker: las respuestas del API
+ * (y, por otro motivo, el script del captcha: ver {@link esPeticionAlCaptcha}).
  *
  * Las respuestas de `/api/**` dependen de quién las pide (`/api/auth/me`,
  * `mis-reportes`, `mi-distrito`, exportaciones). La regla por defecto de
@@ -24,6 +25,38 @@ export const CACHE_ENTRE_ORIGENES = 'cross-origin';
  */
 export function esPeticionAlApi(url: URL): boolean {
   return url.pathname.startsWith('/api/');
+}
+
+/**
+ * NC-09: página a la que lleva el enlace del correo de confirmación. Llega
+ * con `?token=…` en la URL, y la regla por defecto de Serwist para las
+ * páginas del mismo origen (`NetworkFirst`, caché `others`) guardaría la
+ * respuesta con esa URL, token incluido, como clave en Cache Storage del
+ * dispositivo. La página ya saca el token del historial
+ * (`history.replaceState`); esto evita que quede en la caché. Repite
+ * `RUTA_CONFIRMAR_CUENTA` de `features/auth/model/rutas.ts` porque el SW se
+ * compila aparte y no usa el alias `@/`; `cachesDeSesion.test.ts` las compara.
+ */
+export const RUTA_CON_TOKEN_EN_LA_URL = '/confirmar-cuenta';
+
+/** `true` si la petición es de la página del enlace de confirmación (nunca se cachea). */
+export function esPaginaConTokenEnLaUrl(url: URL): boolean {
+  return url.pathname === RUTA_CON_TOKEN_EN_LA_URL || url.pathname === `${RUTA_CON_TOKEN_EN_LA_URL}/`;
+}
+
+/**
+ * NC-08b: origen de Cloudflare Turnstile, el captcha del registro. Cloudflare
+ * avisa que cachear `api.js` hace fallar el widget cuando publican una versión
+ * nueva, y la regla `cross-origin` de `defaultCache` lo guardaría (y lo
+ * serviría con la red lenta o caída). Repite `ORIGEN_DEL_CAPTCHA` de
+ * `features/auth/model/captcha.ts` por la misma razón que la ruta de arriba;
+ * `cachesDeSesion.test.ts` los compara.
+ */
+export const ORIGEN_DEL_CAPTCHA_SIN_CACHE = 'https://challenges.cloudflare.com';
+
+/** `true` si la petición va a Turnstile (nunca se cachea). */
+export function esPeticionAlCaptcha(url: URL): boolean {
+  return url.origin === ORIGEN_DEL_CAPTCHA_SIN_CACHE;
 }
 
 /**

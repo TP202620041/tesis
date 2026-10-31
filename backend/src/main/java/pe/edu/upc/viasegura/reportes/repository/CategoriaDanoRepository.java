@@ -36,4 +36,11 @@ public interface CategoriaDanoRepository extends JpaRepository<CategoriaDano, Lo
 
     /** US-29, edicion: duplicado en el distrito sin contar la propia categoria. */
     boolean existsByNombreIgnoreCaseAndDistritoIdAndIdNot(String nombre, Long distritoId, Long id);
+
+    /**
+     * NC-04: las que el modelo puede sugerir. Activas, estandar y con clase
+     * del modelo (el CHECK de V19 ya impide la clase en una de distrito; el
+     * filtro lo repite para no depender de eso).
+     */
+    List<CategoriaDano> findByActivoTrueAndEsEstandarTrueAndClaseModeloIsNotNull();
 }

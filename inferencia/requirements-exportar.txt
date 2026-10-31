@@ -1,0 +1,19 @@
+# Entorno de scripts/exportar_onnx.py y scripts/exportar_moderacion.py (no va en
+# la imagen final). torch y torchvision salen del índice de PyTorch para CPU, que
+# no trae CUDA. Cambiar cualquiera de estas versiones puede cambiar el hash de un
+# .onnx: si cambia, el script lo avisa y modelo.json o moderacion.json registra el nuevo.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.14.1+cpu
+torchvision==0.29.1+cpu
+rfdetr[onnx]==1.11.2
+# Arquitectura del modelo de moderación (vit_tiny_patch16_384, NC-10a).
+timm==1.0.30
+transformers==5.20.2
+huggingface-hub==2.3.0
+onnx==1.23.2
+onnxsim==0.8.1
+onnx-graphsurgeon==0.6.1
+polygraphy==0.53.6
+onnxruntime==1.31.0
+numpy==2.5.2
+pillow==12.3.0

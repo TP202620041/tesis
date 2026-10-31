@@ -1,6 +1,6 @@
 # Propuesta: refrescar el índice de desempeño de forma asíncrona
 
-- **Estado:** abierta <!-- abierta | aceptada | rechazada -->
+- **Estado:** aceptada <!-- abierta | aceptada | rechazada -->
 - **Fecha:** 2026-10-22
 - **Origen:** agente de backend, tarea DEP-12 (fotos en R2, PR #96), en la prueba de memoria. La registra la sesión coordinadora.
 - **Decide:** el usuario. Queda fuera del alcance autorizado para la noche del 22/10 (DEP-12, DEP-08 y QA-1) y cambia el alcance de D-13. Si se acepta, la sesión de raíz actualiza ARCHITECTURE.md §4.5 y la fila D-13 (hoy: `REQUIRES_NEW`, y `@Async` solo para HTTP o SMTP) y agrega la tarea al plan.
@@ -28,6 +28,15 @@ Con picos de creación de reportes con foto, el refresco síncrono del índice d
 
 ## Recomendación
 **A**, y **B** como medida inmediata y temporal en el primer despliegue: añadir `spring.datasource.hikari.maximum-pool-size` a `application-prod.yml` (hoy no está y rige el valor por defecto, 10) con un valor entre 15 y 20, dentro del límite de conexiones del PostgreSQL de Railway, hasta que entre A. **C** se evalúa con NC-04. Un piloto de tesis rara vez tendrá 16 creaciones con foto en el mismo segundo, así que no bloquea el MVP, pero un 500 en el reporte es justo lo que no debe pasar en la demo.
+
+## Decisión (usuario, 2026-10-25)
+**A, con B mientras tanto.**
+- **A** pasa a ser la tarea **BE-12** del S7 (v0.8.0), junto con BE-11, que es la opción C: las dos tocan la creación del reporte.
+  - Al cerrarla se actualizan ARCHITECTURE.md §4.5 y la fila D-13, **en la rama de BE-12 y no antes**, para que la norma no describa un código que todavía no existe. Ese commit lo agrega la sesión de raíz a esa rama antes de fusionar, porque la guardia no deja que el agente de backend edite normas.
+- **B** en el primer despliegue: el pool sube de 10 a 20 con la variable `SPRING_DATASOURCE_HIKARI_MAXIMUMPOOLSIZE=20` en Railway.
+  - **Por qué una variable:** Spring la lee con *relaxed binding* y no hace falta tocar `application-prod.yml` ni cortar otra versión. Así el despliegue no se atrasa.
+  - **Margen:** el PostgreSQL acepta 100 conexiones por defecto, así que 20 cabe de sobra.
+  - **Al cerrar BE-12** se revisa si el pool vuelve a 10.
 
 ## Qué queda bloqueado mientras no se decida
 - Nada de v0.7.0 está bloqueado: DEP-12 cumple su criterio (8 subidas simultáneas, todas 201).

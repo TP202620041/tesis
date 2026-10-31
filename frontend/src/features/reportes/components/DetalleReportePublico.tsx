@@ -7,13 +7,22 @@ import { ChipEstado } from '@/components/ui/ChipEstado';
 import { textoDeSeveridad, tituloVisible } from '@/lib/types/tituloYSeveridad';
 import { useReportePublico } from '../hooks/useReportePublico';
 import { rutaDeRegresoAlMapa } from '../model/estadoDelMapa';
+import { SIN_FOTO } from '../model/ocultamiento';
 import { Comentarios } from './Comentarios';
+import { DenunciarContenido } from './DenunciarContenido';
 
 /**
  * Detalle PUBLICO de un reporte (US-10 / US-27).
  *
- * `puedeComentar` lo decide la pagina con la sesion (feature `auth`):
- * comentar exige sesion de ciudadano; el funcionario gestiona, no opina.
+ * `puedeComentar` y `puedeDenunciar` (NC-11b) los decide la pagina con la
+ * sesion (feature `auth`): comentar y denunciar exigen sesion de ciudadano;
+ * el funcionario gestiona, no opina, y el ADMIN modera, no denuncia.
+ * `sinSesion` ofrece el enlace al login en lugar del boton de denunciar.
+ *
+ * NC-11a: un reporte oculto por moderacion responde 404, igual que uno
+ * retirado: «Reporte no disponible». Una foto oculta llega como `fotoUrl:
+ * null`, igual que un reporte sin foto: se dice «Este reporte no tiene foto.»
+ * sin distinguir los dos casos (la PWA no lo sabe, y no debe saberlo).
  *
  * `volver` (QA-1 M-9) es el `?volver=` con que la lista o el popup del mapa
  * abrieron el detalle: «← Volver al mapa» regresa a esa misma vista
@@ -27,15 +36,29 @@ import { Comentarios } from './Comentarios';
 export function DetalleReportePublico({
   reporteId,
   puedeComentar,
+  puedeDenunciar = false,
+  sinSesion = false,
   volver = null,
 }: {
   reporteId: number | null;
   puedeComentar: boolean;
+  /** NC-11b: sesion de CIUDADANO. */
+  puedeDenunciar?: boolean;
+  /** NC-11b: sin sesion, el enlace de denunciar lleva al login. */
+  sinSesion?: boolean;
   volver?: string | null;
 }) {
   const regreso = rutaDeRegresoAlMapa(volver);
   if (reporteId === null) return <ReporteNoDisponible regreso={regreso} />;
-  return <DetalleCargado reporteId={reporteId} puedeComentar={puedeComentar} regreso={regreso} />;
+  return (
+    <DetalleCargado
+      reporteId={reporteId}
+      puedeComentar={puedeComentar}
+      puedeDenunciar={puedeDenunciar}
+      sinSesion={sinSesion}
+      regreso={regreso}
+    />
+  );
 }
 
 function ReporteNoDisponible({ regreso }: { regreso: string }) {
@@ -57,10 +80,14 @@ function ReporteNoDisponible({ regreso }: { regreso: string }) {
 function DetalleCargado({
   reporteId,
   puedeComentar,
+  puedeDenunciar,
+  sinSesion,
   regreso,
 }: {
   reporteId: number;
   puedeComentar: boolean;
+  puedeDenunciar: boolean;
+  sinSesion: boolean;
   regreso: string;
 }) {
   const carga = useReportePublico(reporteId);
@@ -107,20 +134,30 @@ function DetalleCargado({
         <p className="text-texto">{reporte.descripcion}</p>
       )}
 
-      {/* La foto de un reporte es publica: sirve directo en <img src>. */}
-      {foto && (
+      {/* La foto de un reporte es publica: sirve directo en <img src>. Sin
+          foto (nunca la tuvo, o esta oculta por moderacion: NC-11a) se dice. */}
+      {foto ? (
         <FotoDeReporte
           src={foto}
           alt={`Foto del daño reportado: ${tituloVisible(reporte.titulo)}`}
           className="max-h-80 w-full rounded-control border border-linea object-cover"
           claseDelReemplazo="h-40"
         />
+      ) : (
+        <p className="rounded-control bg-superficie-2 px-3 py-2 text-sm text-texto-2">{SIN_FOTO}</p>
       )}
 
       <UbicacionDelReporte
         latitud={reporte.latitud}
         longitud={reporte.longitud}
         titulo={tituloVisible(reporte.titulo)}
+      />
+
+      {/* NC-11b: denunciar contenido (solo el CIUDADANO, nunca en el propio). */}
+      <DenunciarContenido
+        reporteId={reporteId}
+        puedeDenunciar={puedeDenunciar}
+        sinSesion={sinSesion}
       />
 
       {/* US-27: solo tiene sentido opinar sobre una reparacion que ocurrio. */}

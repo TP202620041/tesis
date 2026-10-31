@@ -1,0 +1,14 @@
+# El .onnx lo genera la etapa «exportador» del Dockerfile; uno local no entra al contexto.
+.venv/
+.venv-*/
+modelos/*.onnx
+modelos/*.onnx.data
+**/__pycache__/
+**/*.py[cod]
+.pytest_cache/
+.import_linter_cache/
+tests/
+README.md
+Dockerfile
+.dockerignore
+.gitignore

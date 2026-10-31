@@ -74,6 +74,13 @@ la ignoraba: en un clon limpio el `cp` de arriba fallaba.
   `VERCEL=1` (con `VERCEL_ENV=development`) en `.env.local` y la guarda
   rompería el desarrollo local. En local y en la CI no se exige y vale el
   respaldo `http://localhost:8080`. Ver `.env.example`.
+- **Variable** `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (Production y Preview): la
+  site key **pública** del widget de Cloudflare Turnstile (NC-08b; reemplazó
+  a `NEXT_PUBLIC_RECAPTCHA_SITE_KEY`, que ya no se lee y puede borrarse del
+  panel). También se hornea en el build y, si falta o está vacía, **el build
+  de Vercel falla**: el backend desplegado exige el captcha y sin widget
+  ningún registro pasaría. En local puede faltar (ver «Captcha en el
+  registro (NC-08, Turnstile desde NC-08b)»).
 - **CORS**: el backend debe aceptar el dominio de Vercel
   (`app.cors.allowed-origins`). Las *Preview* tienen una URL por despliegue,
   así que contra el API de producción solo funcionan si se agrega su origen.
@@ -108,13 +115,13 @@ Dos detalles de configuración que costaron encontrar:
 src/
 ├── app/                        # App Router: solo routing y composición
 │   ├── (public)/               # sin login — mapa, desempeño, guía
-│   ├── (auth)/                 # login, registro, recuperar-password
+│   ├── (auth)/                 # login, registro, recuperar-password, confirmar-cuenta
 │   ├── (ciudadano)/            # rol CIUDADANO — mis-reportes, reportar
 │   ├── (municipal)/            # rol FUNCIONARIO_MUNICIPAL — bandeja, dashboard
 │   ├── (cuenta)/               # cualquier usuario con sesión — perfil («Cuenta»), soporte
-│   └── (admin)/admin/          # rol ADMIN — soporte (bandeja de tickets)
+│   └── (admin)/admin/          # rol ADMIN — soporte (tickets) y moderacion (denuncias, ocultar)
 ├── features/                   # lógica por dominio, no por tipo de archivo
-│   ├── auth/  reportes/  desempeno/  gestion/  soporte/  legal/
+│   ├── auth/  reportes/  desempeno/  gestion/  soporte/  legal/  moderacion/
 │   └── <dominio>/              # components/ → hooks/ → model/ ← api.ts (ARCHITECTURE.md §5)
 ├── lib/
 │   ├── api/                    # cliente HTTP tipado + tipos generados + catálogos compartidos
@@ -624,7 +631,10 @@ Reglas de la cola:
   intento lógico) o descartarlo, ambas cosas con confirmación.
 - **Rechazos de negocio** (otro 4xx, p. ej. fuera de cobertura): reintentar no
   cambia la respuesta, así que queda «No se pudo enviar: <motivo>» con un
-  botón para descartarlo (con confirmación).
+  botón para descartarlo (con confirmación). Los de la moderación (NC-10c)
+  también, con un motivo que dice qué hacer desde la cola (ver «Moderación de
+  contenido»). Su 503 es transitorio, pero no detiene la cola: solo esperan
+  los reportes con foto.
 - **Incompletos (NC-02)**: un reporte guardado por la versión anterior, sin
   título ni severidad, no se reenvía solo ni se purga; el ciudadano lo completa
   con la misma clave (ver «Título y severidad del reporte (NC-02)»).
@@ -752,6 +762,109 @@ Decisión del usuario (20/10):
   lo envía; un 400 lo conserva; no se purga a los 30 días; completarlo pasadas
   48 h no lo reenvía a ciegas; `completar` sobre uno ya completo no escribe.
 
+### Sugerencia de la categoría por la foto (NC-04)
+
+Al elegir la foto en `/reportar`, la PWA la envía a `POST
+/api/clasificaciones` y muestra el tipo de daño que sugiere, o que no hay
+sugerencia. El servidor no guarda nada, y el reporte se crea con la categoría
+que elija el ciudadano. La sugerencia oficial la recalcula el backend sobre la
+foto guardada (D-08), así que de la vista previa no se reenvía nada. El
+contrato está en `project-context/handoffs/2026-10-25-clasificacion-vista-previa.md`.
+Hasta NC-04b el backend usa el clasificador falso, y en producción responde
+siempre «sin sugerencia». Con el modelo real (v0.8.0) el contrato no cambia.
+
+- **Solo propone; nunca elige sola.** El handoff sugería *preseleccionar* la
+  categoría cuando el selector estuviera vacío. Aquí no se preselecciona: la
+  sugerencia aparece bajo el selector («Sugerencia por la foto: Bache. Es
+  automática: el tipo de daño lo eliges tú.») con un botón **«Elegir
+  «Bache»»**, y el selector solo cambia con ese toque o eligiendo a mano.
+  Hay tres razones:
+  - La decisión tiene que ser del ciudadano, y verse así (DS 016-2024-JUS,
+    art. 6.1). El texto lo dice.
+  - Es el mismo criterio que la severidad sin valor por defecto (NC-02): un
+    valor preseleccionado se envía sin que nadie lo decida y sesga el dato.
+  - La tesis evalúa la IA comparando la categoría sugerida con la confirmada
+    (OE3, por SQL). Una preselección aceptada por inercia contaría como
+    confirmación e inflaría el acierto.
+
+  Cuesta un toque más. Si el usuario prefiere la preselección del handoff, el
+  cambio es local: aplicar la sugerencia cuando el selector esté vacío, en
+  `FormularioReporte` (las reglas de `model/sugerencia.ts` ya distinguen
+  «elegida» de «propuesta»).
+- **No pisa lo elegido.** Si la respuesta llega después de que el ciudadano
+  eligió otra categoría, su elección queda y la sugerencia se ofrece con el
+  mismo botón. Si eligió la misma, el texto lo dice y no hay botón. Si la
+  categoría sugerida no está en el catálogo que tiene la PWA (desfase de
+  caché), se ignora y cuenta como «sin sugerencia».
+- **Catálogo que carga o que falla.** `useCategoriasDeReporte` devuelve, además
+  de la lista, si está `cargando`, `listo` o `fallido`: la lista vacía sola no
+  lo distingue. Mientras carga (al montar o tras un cambio de distrito), la
+  sugerencia se sigue mostrando sin el botón y con el mismo texto, para no
+  volver a anunciarla. Si el catálogo no se pudo traer, queda «sin
+  sugerencia»: no hay contra qué validarla ni cómo elegirla.
+- **Aviso antes de elegir.** La foto sale hacia el servidor apenas se elige,
+  así que la ayuda del campo lo dice de antemano: «Al elegirla, la analizamos
+  automáticamente para sugerirte el tipo de daño. La decisión es tuya.» Va
+  junto a «JPG, PNG o WEBP, de hasta 10 MB.» y también describe el campo
+  (`aria-describedby`).
+- **La foto va antes del tipo de daño.** El orden queda ubicación → foto →
+  tipo → título → severidad → descripción. Con la foto debajo del selector, la
+  sugerencia llegaría a un campo que el ciudadano ya pasó. El prototipo de la
+  fase 2 (`/reportar` en pasos) pone la foto en el paso 3, después del tipo.
+  Con NC-04, el asistente tiene que pedirla antes del tipo o en el mismo paso.
+- **Nunca bloquea.** El selector y «Enviar reporte» siguen habilitados
+  mientras se analiza. Se hace una sola petición por foto elegida, sin
+  reintentos y sin cola offline. Un fallo de red, un 5xx, un 401, el 413 o la
+  espera agotada quedan en «sin sugerencia», que no se distingue de «el modelo
+  no vio un daño claro». El único error que se muestra es el **409**: la foto
+  no es una imagen válida, y el envío fallaría igual. Se avisa junto a la foto,
+  con el campo `aria-invalid`, para que el ciudadano la cambie o la quite.
+  Desde NC-10c, una respuesta con `fotoRechazada: true` quita la foto (ver
+  «Moderación de contenido (NC-10c, D-15)»).
+- **Sin carreras.** `useSugerenciaDeCategoria` cancela con `AbortController`
+  la petición de la foto anterior al elegir otra, al quitarla, al desmontarse
+  el formulario y al enviar el reporte (`descartar()`: si la respuesta no
+  llegó, ya no se muestra). Si el envío falla y el ciudadano sigue en el
+  formulario (409 por duplicado o por categoría inactiva, 400), `reanudar()`
+  vuelve a pedir la vista previa de esa foto, solo si `descartar()` la había
+  cancelado: si ya había llegado, o si la foto cambió entretanto, no se pide
+  otra vez. Además, cada resultado queda atado a **su** `File`,
+  y el estado se deriva comparándolo con la foto actual, así que una respuesta
+  vieja nunca aparece con la foto nueva. No va sobre `useCarga`, por tres
+  motivos:
+  - compara sus dependencias por JSON, y un `File` serializa como `{}`;
+  - no cancela la petición;
+  - traduce los errores a texto, y aquí hace falta el `status`.
+- **Espera máxima de 20 s** (`ESPERA_MAXIMA_DE_SUGERENCIA_MS`), subida
+  incluida. El servidor corta la inferencia a los 3 s, pero en una red móvil
+  la subida de una foto de varios MB puede tardar más. Pasado ese tiempo se
+  cancela y queda «sin sugerencia», en vez de un «Analizando…» que no termina.
+- **`redirigirEn401: false`.** La vista previa es una ayuda que el ciudadano no
+  pidió. Con la sesión vencida, no debe tirar el formulario a medio llenar con
+  una navegación al login, ni con el 403 de términos pendientes. El token se
+  borra igual, y el envío del reporte, que sí es la acción del ciudadano, lleva
+  al login como siempre.
+- **La foto viaja dos veces** (vista previa y reporte). No se reduce en el
+  cliente antes de la vista previa: D-08 se apoya en que la misma foto dé la
+  misma sugerencia que vio el ciudadano, y una foto reescalada podría dar otra.
+- **Accesibilidad.** El texto («Analizando la foto para sugerirte un tipo de
+  daño…», la sugerencia o «No hay una sugerencia para esta foto…») va en una
+  región `role="status"` que existe siempre, también vacía: una región que
+  aparece junto con su texto no la anuncian todos los lectores. El botón queda
+  fuera de la región, para que el anuncio sea solo el texto. El selector la
+  referencia con `aria-describedby`. Al tocar «Elegir …» el botón desaparece y
+  el foco pasa al selector, que anuncia la categoría elegida.
+- **Sin porcentajes.** El API no devuelve confianza ni versión del modelo, a
+  propósito: es una señal interna. La UI tampoco la infiere.
+- **Tipos.** `ClasificacionResponse` (`lib/types/domain.ts`) es un alias de
+  `Schemas['ClasificacionResponse']` con la nulabilidad real (los dos campos
+  siempre vienen, `null` sin sugerencia). En NC-04 se escribió a mano porque
+  el `openapi.json` de entonces era anterior al endpoint; el spec ya lo trae
+  y en NC-09 pasó a alias.
+- **Fuera de alcance aquí:** el aviso de privacidad sobre el análisis
+  automático de la foto (términos v2 y `/privacidad`). Va en otra tarea, con el
+  texto legal.
+
 ### Consentimiento (NC-07b, D-12)
 
 El consentimiento es un **permiso** por finalidad y versión
@@ -820,6 +933,443 @@ queda bloqueado sin los términos.
 Los avisos opcionales llevan su propia versión de texto
 (`push-2026-10-v1`, `correo-2026-10-v1`, en `model/consentimientos.ts`): el
 backend la guarda tal cual para saber qué texto vio el usuario.
+
+### Captcha en el registro (NC-08, Turnstile desde NC-08b)
+
+El registro pide la verificación «No soy un robot» de **Cloudflare
+Turnstile**. El backend verifica el token con la clave secreta
+(`CAPTCHA_TIPO=turnstile`, contra `siteverify` de Cloudflare); la PWA solo
+pinta el widget y manda `captchaToken` en `POST /api/auth/registro`. El
+contrato no cambió al pasar de reCAPTCHA v2 a Turnstile.
+
+- **Reemplaza a reCAPTCHA v2 por completo** (decisión del usuario, 28/10):
+  no quedan su código, su variable ni los orígenes de Google en la CSP. En
+  modo *Managed* Turnstile casi siempre se resuelve solo, sin casilla ni
+  desafío de imágenes.
+- **Sin librería** (`@marsidev/react-turnstile` y similares): es una sola
+  pantalla y bastan tres llamadas (`render`, `reset`, `remove`). Así no se
+  suma peso ni una dependencia más que auditar, y quedan bajo control propio
+  la carga del script (una sola vez por documento, aunque StrictMode monte
+  el efecto dos veces: `hooks/useCaptcha.ts`), el momento del reset y los
+  orígenes de la CSP. La lógica pura (site key, URL del script, idioma,
+  tamaño del widget, mensajes) está en `model/captcha.ts`.
+- **Renderizado explícito.** El script es la URL exacta que publica
+  Cloudflare, `https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit`:
+  Cloudflare avisa que servirlo desde otro lado o cachearlo rompe el widget
+  cuando lo actualizan. Se espera al `load` del `<script>` y no a
+  `turnstile.ready()`, que `api.js` rechaza con un error cuando el script se
+  cargó de forma asíncrona (y todo `<script>` insertado desde JavaScript lo
+  es; no está en la guía, se ve en el código de `api.js`, ver la nota de
+  abajo). Si `turnstile.render` lanza o no devuelve id, se muestra el mismo
+  aviso que cuando el script no carga. Al desmontar se llama a `turnstile.remove`, que detiene los
+  reintentos y las renovaciones del widget.
+- **Callbacks.** `callback` entrega el token; `expired-callback` (el token
+  vence a los 300 s; Turnstile renueva solo y vuelve a llamar a `callback`)
+  y `error-callback` lo borran. El `error-callback` no marca el error como
+  atendido: Turnstile lo anota en la consola y reintenta solo. Con
+  `response-field: false` no agrega el `<input hidden>` que pondría dentro
+  del formulario: el token ya viaja por `callback`. Textos con
+  `language: 'es'` (en español Turnstile solo admite `es` y `es-es`).
+- **Sin site key no hay widget.** `NEXT_PUBLIC_TURNSTILE_SITE_KEY` es
+  opcional en local: sin ella el formulario no muestra el widget ni manda
+  token, porque el backend local corre con `CAPTCHA_TIPO=ninguno` y lo
+  ignora. Así el desarrollo y los tests no dependen de Cloudflare. Para ver
+  el widget en local están las **claves de prueba** de Cloudflare (en
+  `.env.example`), que funcionan en cualquier dominio y nunca van a
+  producción: `1x00000000000000000000AA` (siempre aprueba),
+  `2x00000000000000000000AB` (siempre falla) y `3x00000000000000000000FF`
+  (obliga a un desafío interactivo). Dan el token ficticio
+  `XXXX.DUMMY.TOKEN.XXXX`, que solo pasa con una secreta de prueba en el
+  backend (`1x0000000000000000000000000000000AA`) y con `CAPTCHA_HOSTNAMES`
+  vacía, como está fuera del perfil `prod`: las claves de prueba responden
+  el *hostname* `example.com`. En producción el backend solo acepta tokens
+  resueltos en `ciudadviva.app` y `www.ciudadviva.app` (`docs/despliegue.md`
+  §5.2). En Vercel la variable es obligatoria (ver «Despliegue en Vercel»).
+- **Reset tras cada error.** El token es de un solo uso: el backend lo
+  gasta al verificarlo, aunque después el registro falle por otra causa
+  (correo duplicado, validación). Por eso, tras **cualquier** error del
+  registro, el formulario borra el token y sube un contador (`reinicios`)
+  que hace `turnstile.reset`; reenviar exige una verificación nueva (en modo
+  Managed suele resolverse sola). Se eligió un contador como prop y no una
+  ref imperativa porque el formulario ya reacciona al error cambiando
+  estado. La casilla de términos conserva su regla (QA-1 M-2). Los 409 y 503
+  del captcha se muestran con `mensajeDeError`, como cualquier otro error:
+  la PWA no decide nada por el texto del mensaje.
+- **Móvil.** El widget normal mide 300 × 65 px fijos; si el contenedor es
+  más angosto se pinta el `compact` (150 × 140 px), y el contenedor lleva
+  `overflow-x-auto` como red de seguridad para que nunca desborde el
+  formulario.
+- **Accesibilidad.** El widget es un iframe de Cloudflare con su propia
+  etiqueta y manejo de teclado; la PWA lo agrupa con el nombre accesible
+  «Verificación «No soy un robot»» y, si se envía sin token, muestra en línea
+  «Completa la verificación «No soy un robot» antes de crear la cuenta.»
+  (`role="alert"`, ligado al grupo con `aria-describedby`).
+- **Sin red.** Si el script no carga (o carga sin dejar `window.turnstile`)
+  se muestra «No se pudo cargar la verificación. Revisa tu conexión y
+  recarga.» (`role="alert"`) en lugar de un hueco vacío.
+- **CSP** (`next.config.ts`): `https://challenges.cloudflare.com` en
+  `script-src` (`api.js`), `frame-src` (el iframe del widget; sin la
+  directiva rige `default-src 'self'` y queda en blanco) y `connect-src`.
+  La referencia de CSP de Turnstile pide las dos primeras, más
+  `connect-src 'self'` para el modo *pre-clearance*, que ya estaba.
+  `connect-src` suma el host por dos motivos: el Service Worker vuelve a
+  pedir con `fetch()` los scripts de otro origen (lo mismo que pasó con los
+  tiles del mapa) y `api.js` manda desde la página avisos de diagnóstico
+  (`sendBeacon`/`fetch` a `/cdn-cgi/challenge-platform/…`; observado, ver
+  la nota de abajo). Se lista el
+  **host** y no rutas, a diferencia de reCAPTCHA: allí el límite por ruta
+  evitaba los endpoints JSONP de `www.google.com`, un host de propósito
+  general y un rodeo conocido de la CSP; `challenges.cloudflare.com` está
+  dedicado a los desafíos, y Turnstile usa rutas internas no documentadas
+  que cambian (`api.js` redirige a `/turnstile/v0/g/<versión>/api.js` y se
+  recarga a sí mismo cuando hay versión nueva; el iframe vive bajo
+  `/cdn-cgi/challenge-platform/…`). Fijarlas dejaría el registro roto en
+  silencio tras una actualización de Cloudflare. `src/app/csp.test.ts` fija
+  las tres directivas, que no quede ningún origen de Google y la guarda de
+  la variable en Vercel.
+- **Qué está documentado y qué se observó.** La guía de Cloudflare
+  documenta la URL de `api.js`, el aviso de no cachearlo, los parámetros
+  del widget (tamaños, idiomas: con un código no admitido cae al inglés),
+  los tokens de un solo uso que vencen a los 300 s y la CSP (`script-src` y
+  `frame-src` con el host, `connect-src 'self'` para *pre-clearance*). Lo
+  demás se **observó el 28/10** con la build de producción, Chromium y la
+  site key de prueba, y leyendo el `api.js` que servía Cloudflare ese día
+  (`/turnstile/v0/g/c787ce48cf6b/api.js`): la redirección 302 de `api.js`
+  a esa ruta con versión, la recarga de sí mismo (`_upgrade`), el error de
+  `turnstile.ready()` con scripts asíncronos, los avisos por
+  `sendBeacon`/`fetch` y el iframe bajo `/cdn-cgi/challenge-platform/…`.
+  Son detalles internos de Cloudflare que pueden cambiar; por eso la CSP no
+  depende de ellos (lista el host) y el hook tampoco (no usa `ready`).
+- **Service Worker.** `sw.ts` manda a la red (`NetworkOnly`) todo lo que va
+  a `challenges.cloudflare.com` (`esPeticionAlCaptcha` en
+  `pwa/cachesDeSesion.ts`), antes de que la regla `cross-origin` de
+  `defaultCache` guarde `api.js`: Cloudflare avisa que cachearlo hace fallar
+  el widget cuando publican una versión nueva.
+
+### Confirmación del correo (NC-09)
+
+Decisión del usuario (28/10): una cuenta nueva **no puede iniciar sesión**
+hasta abrir el enlace que recibe por correo. Contrato:
+`project-context/handoffs/2026-10-28-confirmacion-correo.md`; el porqué, en
+el README del backend («Confirmación del correo»). Lo que cambia en la PWA:
+
+- **El registro ya no inicia sesión.** `POST /api/auth/registro` responde 201
+  con `{email, vigenciaEnlaceHoras}` (tipo `CuentaPorConfirmar`), sin token:
+  `api.ts` ya no guarda nada. El formulario se reemplaza por «Revisa tu
+  correo» (`RegistroEnviado`) con el correo de la respuesta, la vigencia y
+  «Reenviar el enlace»; el foco pasa a ese título porque el formulario que lo
+  tenía desaparece. «Ir a iniciar sesión» conserva el `?redirect=`: quien
+  llegó desde `/reportar` vuelve ahí al entrar después de confirmar.
+- **Dominio del correo rechazado.** Los 409 `CORREO_DESECHABLE` y
+  `DOMINIO_SIN_CORREO` van en línea en el campo del correo (no como error
+  general) y se borran en cuanto se cambia lo escrito. Como cualquier error
+  del registro, reinician el captcha (NC-08): el token ya se gastó.
+- **Login.** El 409 `CORREO_NO_CONFIRMADO` muestra el mensaje del backend y
+  «Reenviar el enlace» al correo con el que se intentó entrar (no al que
+  quede después en el campo). El backend solo responde ese 409 con la
+  contraseña correcta, así que no revela qué cuentas existen. El reenvío va
+  fuera del `<form>` del login porque tiene el suyo (no se anidan).
+- **`/confirmar-cuenta?token=…`** (grupo `(auth)`, pública; la URL la arma el
+  backend y `RUTA_CONFIRMAR_CUENTA` la fija). Es una pantalla de acceso más
+  (`RUTAS_DE_ACCESO` en `auth/model/rutas.ts`, una sola lista): sin el marco
+  de la app y sin el aviso «inicia sesión» de la cola offline, que al volver
+  la dejaría sin el token. La página sigue siendo
+  estática: el token se lee en el cliente con `useSearchParams` dentro de un
+  `Suspense` y nunca llega al HTML del servidor. `useConfirmacionDeCorreo`:
+  - toma el token **una vez** y lo saca de la URL con `history.replaceState`
+    (Next lo integra con su router) **antes** de llamar al API, para que no
+    quede en el historial ni en el `Referer`;
+  - llama **una sola vez**, también con el doble efecto de StrictMode: una
+    ref marca el pedido y otra si el componente sigue montado. Con el flag
+    `cancelado` de siempre, la limpieza del primer montaje descartaría la
+    única respuesta. Por eso no usa `useCarga`, que está pensado para
+    lecturas que se pueden repetir y descartar;
+  - sin token, o con uno de más de 100 caracteres, no llama: el backend
+    respondería 400, y para el usuario es lo mismo que
+    `CONFIRMACION_INVALIDA`.
+
+  Estados (`model/confirmacion.ts`, decididos por `codigo`, nunca por el
+  texto): `confirmando`; `confirmado` (204, y también el 409
+  `CORREO_YA_CONFIRMADO`: un segundo clic, o el antivirus del correo que abrió
+  el enlace antes); `vencido`, `reemplazado` e `invalido`, con el mensaje del
+  backend y el formulario para pedir otro enlace (aquí no se conoce el
+  correo, así que se pide); y `error` (red o 5xx), con «Volver a intentar» y
+  el mismo token. Ninguno inicia sesión: todos terminan en el login. El
+  resultado se anuncia en una región `role="status"` que existe desde el
+  primer render.
+- **Reenviar** (`ReenviarConfirmacion` + `useReenvioDeConfirmacion`). El
+  backend responde 202 siempre (cuenta inexistente, ya confirmada, tope
+  alcanzado o enviado), así que tras pedirlo la pantalla dice siempre lo
+  mismo: «Si tu cuenta está pendiente de confirmar, te enviamos un enlace
+  nuevo…». El botón espera **60 s** después de cada reenvío y, en «Revisa tu
+  correo», desde el registro: el backend admite uno por minuto y el del
+  registro cuenta; un pedido antes no enviaría nada y la respuesta no lo
+  diría. Durante la espera el botón lleva `aria-disabled`, no `disabled`,
+  para no perder el foco justo después de usarlo, y su descripción dice
+  cuántos segundos faltan; el hook ignora el clic. La espera vive en la
+  pantalla (un nuevo intento de login con el mismo error la reinicia): el
+  tope real lo pone el backend.
+- **«¿Olvidaste tu contraseña?» (NC-09c).** Desde NC-09b el backend no
+  envía nada a una cuenta sin confirmar que pide recuperar la contraseña
+  (responde lo mismo que para un correo sin cuenta). Quien no confirmó y
+  además olvidó la contraseña quedaba atascado: el reenvío del login exige
+  la contraseña correcta y registrarse de nuevo da «correo ya registrado».
+  Decisión del usuario (28/10, opción C de
+  `propuestas/2026-10-28-reenviar-confirmacion-sin-contrasena.md`): tras
+  pedir el token, el mensaje genérico suma «Si todavía no confirmaste tu
+  cuenta, no te llegará este correo: pide el enlace de confirmación»
+  (`AVISO_RECUPERACION_SIN_CONFIRMAR`) y, al lado, `ReenviarConfirmacion`
+  con el correo ya escrito. Se muestra **siempre**, haya o no cuenta, así
+  que no revela nada; el reenvío conserva su mensaje neutro y la espera de
+  60 s. El aviso va dentro de la misma región `role="status"` que el mensaje
+  de éxito, para que se anuncie con él, y el reenvío va fuera del `<form>`
+  del token (no se anidan). Con «Ya tengo un token» no hay correo y no se
+  ofrece. Sin cambio de contrato ni de backend.
+- **El Service Worker no guarda esa página.** La regla por defecto de
+  Serwist para las páginas del mismo origen (`NetworkFirst`, caché
+  `others`) guardaría la respuesta con la URL completa, token incluido, como
+  clave en Cache Storage. `sw.ts` la manda a `NetworkOnly`
+  (`esPaginaConTokenEnLaUrl` en `pwa/cachesDeSesion.ts`, que repite la ruta
+  porque el SW se compila aparte; un test la compara con la de la app). Sin
+  red, el enlace no abre la página, pero tampoco podría confirmar nada.
+- **Lo que no se evita.** La primera petición a la PWA lleva el token en la
+  query y puede quedar en los registros de acceso de Vercel; `replaceState`
+  no lo impide. El handoff lo acepta (un solo uso, 24 h, inútil una vez
+  confirmada la cuenta); evitarlo exigiría pasar a un fragmento (`#token=`),
+  y lo haría primero el backend. Al API no le llega por el `Referer`: la
+  política `strict-origin-when-cross-origin` de `next.config.ts` solo manda
+  el origen a otro origen, y la página no carga recursos de terceros.
+- **CSP y `proxy`:** sin cambios. Los dos endpoints nuevos son del mismo
+  origen del API, que ya está en `connect-src`, y la PWA no tiene `proxy`.
+
+### Moderación de contenido (NC-10c, D-15)
+
+Desde NC-10b el backend rechaza la foto obscena o sexual y los textos con
+groserías (una lista fija del español peruano), y falla cerrado si no puede
+revisar la foto. Contrato: `project-context/handoffs/2026-10-29-moderacion.md`;
+el porqué, en el README del backend («Moderación de contenido (NC-10b,
+D-15)»). Lo que cambia en la PWA:
+
+- **Por código, nunca por el texto.** Los códigos son `FOTO_NO_PERMITIDA`,
+  `TEXTO_NO_PERMITIDO` (con el campo en `details[0]`) y
+  `MODERACION_NO_DISPONIBLE`. El mensaje del backend no repite la palabra y
+  se muestra tal cual; la PWA no tiene la lista ni repite la palabra. Las
+  reglas son puras y están en dos sitios:
+  - lo que comparten `reportes` y `auth` (los códigos y el texto rechazado
+    por campo), en `lib/types/moderacion.ts`, porque lo usan dos features
+    (ARCHITECTURE §5.3);
+  - lo propio de crear un reporte (la foto, el 503 y la cola), en
+    `features/reportes/model/moderacion.ts`.
+- **Foto no permitida** (400 al crear, o `fotoRechazada: true` en la vista
+  previa de NC-04). El formulario **quita** la foto: no queda a la vista ni
+  viaja. Junto al campo aparece «La foto no está permitida. Toma otra.»
+  (`role="alert"`; también describe el campo) hasta que se elija otra.
+  - El resto del formulario queda igual, y el reporte se puede enviar sin
+    foto. Por eso el campo no queda `aria-invalid`: la foto es opcional y ya
+    no hay nada inválido.
+  - El texto es fijo (`MENSAJE_FOTO_NO_PERMITIDA`), no el del backend: la
+    vista previa no trae mensaje, y así se lee igual en los dos casos.
+  - La vista previa avisa al formulario con `useEffectEvent` (React 19.2), y
+    solo con la respuesta vigente: si la foto ya cambió, si se descartó al
+    enviar o si el formulario se desmontó, no quita nada. El efecto no
+    depende del callback, así que un render nuevo no vuelve a pedir la vista
+    previa.
+  - Con `fotoRechazada: false` no cambia nada, también cuando la moderación
+    no se pudo hacer: el veredicto oficial es el de la creación.
+- **Texto no permitido** (400). El mensaje va **en el campo** de
+  `details[0]` (`aria-invalid` y `aria-describedby`), no arriba. Aplica al
+  título y la descripción (al crear y al editar), al comentario y al nombre y
+  el apellido (registro y perfil).
+  - Se muestra **mientras el campo diga lo mismo que se envió**
+    (`errorDelCampo`): en cuanto el ciudadano lo cambia, ya no se sabe si el
+    texto nuevo pasa, y lo dirá el próximo envío. Es la regla del correo
+    rechazado de NC-09.
+  - Lo escrito se conserva siempre (el 400 llega al instante).
+  - Si el campo no está en esa pantalla, va como error general, con su
+    mensaje. En el registro, como todo error, reinicia el captcha.
+- **`details` no se muestra.** En estos códigos es el *nombre* del campo
+  (`descripcion`), no un mensaje: `mensajeDeError` lo omite, para que ninguna
+  pantalla lo muestre como viñeta.
+- **Sin moderación** (503 `MODERACION_NO_DISPONIBLE`, solo al crear con
+  foto). Junto al botón de envío aparece el mensaje del backend con dos
+  salidas:
+  - **«Guardar para enviar después»** guarda el reporte en la cola de US-06
+    **con la misma `Idempotency-Key`**, sin otro POST. La cola reintenta los
+    5xx sola, y el backend lo crea entonces: no registró la clave, porque no
+    creó nada. La confirmación dice «No pudimos revisar la foto en este
+    momento…», no «No hay conexión».
+  - **«Enviar sin foto»** quita la foto del formulario y envía con la misma
+    clave: es el mismo intento lógico.
+  - Las dos llevan lo que el formulario tiene en ese momento, por si el
+    ciudadano cambió algo. Si quita la foto, desaparecen: sin foto no hace
+    falta la moderación.
+  - Un 503 sin `codigo` (almacenamiento caído o sin turno para sanear,
+    DEP-11/12) sigue siendo un error común.
+- **Cola sin conexión.** Un reenvío que recibe `FOTO_NO_PERMITIDA` o
+  `TEXTO_NO_PERMITIDO` queda `rechazado`, como cualquier 4xx, y no se
+  reintenta. El motivo no es el del backend tal cual: «Toma otra» o «Cámbiala
+  para continuar» no se pueden hacer desde la cola, donde solo se descarta.
+  `motivoDeRechazoEnLaCola` dice, por ejemplo, «La foto no está permitida.
+  Descártalo y vuelve a reportar el daño con otra foto o sin ella.».
+- **El 503 de la moderación no detiene la cola** (observación de la
+  revisión). Un 5xx cualquiera la detiene en el primer reporte, pero la
+  moderación caída solo afecta a los que llevan foto. El reporte queda
+  pendiente con su clave, y la vuelta sigue:
+  - los siguientes con foto no se intentan (darían el mismo 503 y cada uno
+    subiría su foto);
+  - los que no tienen foto sí se envían, así que no esperan al servicio ni
+    caducan a las 48 h por su culpa.
+
+  Los sin foto se reintentan en la vuelta siguiente (al volver la conexión
+  o la pestaña, y cada 30 s).
+- **Retroceso progresivo tras el 503** (decisión del usuario del 29/10).
+  Cada intento de un reporte con foto la vuelve a subir, así que, mientras
+  la moderación siga caída, esos reportes esperan **30 s, 1 min, 2 min,
+  4 min, 8 min y luego 10 min** (tope) entre intentos. La regla es pura
+  (`model/esperaDeModeracion.ts`); el estado vive en `useColaOffline`.
+  - Solo para los reportes con foto y solo por el 503
+    `MODERACION_NO_DISPONIBLE`. Sin conexión, otros 5xx, los reportes sin
+    foto y la `Idempotency-Key` siguen igual.
+  - El primer reintento tras «Guardar para enviar después» también espera
+    30 s: el formulario anota el 503 antes de encolar.
+  - Si la cola ya estaba esperando, ese 503 del formulario sube un escalón
+    (es otro 503 observado: el servicio sigue caído).
+  - Se reinicia cuando un reporte con foto se envía bien, desde la cola o
+    desde el formulario (revisión). **No** al volver la
+    conexión: la cola no tenía espera que reiniciar, y el 503 es del
+    servidor, no de la red del teléfono. La pasada de cada 30 s, la conexión
+    y la pestaña siguen disparando la cola; los reportes con foto solo se
+    intentan si ya pasó su espera.
+  - Es por usuario y en memoria de la pestaña, no en IndexedDB: al recargar
+    se intenta una vez enseguida y, si sigue caída, la espera vuelve a
+    empezar en 30 s. No hace falta migrar el esquema de la cola por un
+    retraso de minutos.
+- **Un reporte de la cola rechazado por la foto solo se descarta**
+  (decisión del usuario del 29/10). No se puede cambiar ni quitar la foto
+  desde la cola: el ciudadano lo descarta y vuelve a reportar el daño.
+- **Lo que no hace la PWA:** no filtra nada antes de enviar (la lista vive
+  solo en el backend y no se publica), no analiza la foto y no permite
+  cambiar la foto de un reporte que ya está en la cola.
+- **CSP y `proxy`:** sin cambios; no hay endpoints ni orígenes nuevos.
+
+### Ocultar y denunciar (NC-11b, D-15)
+
+Desde NC-11a el ADMIN puede ocultar un reporte publicado, o solo su foto, con
+un motivo que queda en la línea de tiempo, y los ciudadanos pueden denunciar
+un reporte público. Contrato:
+`project-context/handoffs/2026-10-29-ocultar-y-denunciar.md`; el porqué, en
+el README del backend («Ocultar y denunciar (NC-11a, D-15)»). Lo que hace la
+PWA:
+
+- **Dos features, no una.** Denunciar es una acción del ciudadano sobre el
+  detalle público y vive en `features/reportes/` (`model/denuncia.ts`,
+  `hooks/useDenunciarReporte`, `components/DenunciarContenido`). Moderar es
+  un área funcional del ADMIN distinta, con su propia bandeja, detalle y
+  acciones: es la feature `features/moderacion/` (ARCHITECTURE §5.1, D-07:
+  una feature es un área de la UI, no un espejo del módulo `reportes` del
+  backend). `moderacion` solo toma de `reportes` su `model/` (la etiqueta de
+  cada motivo, que ven los dos lados); los enums (`MotivoDenuncia`,
+  `EstadoDenuncia`, `AlcanceModeracion`, los cuatro `tipoEvento` nuevos) van
+  en `lib/types/domain.ts`.
+- **«Denunciar contenido»** (`/reportes/[id]`). Solo con sesión de
+  **CIUDADANO**; el funcionario y el ADMIN no ven nada, y sin sesión hay un
+  enlace al login que vuelve al reporte. El diálogo pide el motivo (los cinco
+  del enum) y un detalle opcional de hasta 500 caracteres, y avisa que quien
+  envió el reporte no sabrá quién lo denunció. Tras el 201 agradece y no
+  vuelve a ofrecer el botón en esa visita.
+  - **No aparece en el reporte propio.** El resumen público no dice quién lo
+    creó (es el DTO del mapa anónimo), así que `useEsReportePropio` busca el
+    id entre «mis reportes», como ya hace `useMiReporte`. Mientras no se
+    sabe, el botón no se muestra (un botón que aparece y desaparece confunde
+    más que uno que tarda); si la consulta falla, se ofrece y el 409
+    `DENUNCIA_PROPIA` lo dirá.
+  - **Los 409 se deciden por `codigo`**, con el texto del contrato:
+    `DENUNCIA_REPETIDA` («Ya denunciaste este reporte»), `LIMITE_DENUNCIAS`
+    («Alcanzaste el máximo de denuncias por hoy»), `DENUNCIA_PROPIA`. Los dos
+    primeros y el tercero son definitivos: el diálogo deja de ofrecer «Enviar»
+    y solo se cierra. El 404 (retirado u oculto mientras lo miraba) dice «Este
+    reporte ya no está disponible.».
+  - «¿Ya denuncié?» no viaja en ningún DTO (regla del proyecto: lo relativo
+    al espectador va en endpoint propio, y aquí no hay ninguno): la PWA no lo
+    recuerda entre visitas; el 409 lo resuelve.
+- **Foto oculta y reporte oculto, del lado público.** Una foto oculta llega
+  como `fotoUrl: null`, igual que un reporte sin foto: el detalle público y
+  «Mis reportes» dicen «Este reporte no tiene foto.» sin distinguir los dos
+  casos (la PWA no lo sabe, y el público no debe saberlo). Un reporte oculto
+  responde 404 en el detalle público: «Reporte no disponible», como uno
+  retirado.
+- **El creador sigue viendo su reporte oculto** en `/mis-reportes/[id]`.
+  `ReporteResumenResponse` no gana campos, así que lo oculto se **deduce de
+  la línea de tiempo** (`model/ocultamiento.ts`: el último evento de cada par
+  `REPORTE_OCULTO`/`REPORTE_RESTABLECIDO` y `FOTO_OCULTA`/`FOTO_RESTABLECIDA`
+  decide; el backend la entrega en orden cronológico). Se le muestra un aviso
+  («no aparece en el mapa ni en la vista pública y no cuenta en el índice de
+  desempeño. El motivo está en el seguimiento.»), se quita el enlace «Ver
+  cómo lo ven los demás» (daría «Reporte no disponible») y nada más: el
+  historial que recibe ya viene redactado por el servidor (motivo, autor
+  «Moderación de Ciudad Viva»), y la PWA nunca habla de denuncias ni de quién
+  denunció. En la lista de «Mis reportes» no se marca: no hay historial sin
+  pedir uno por fila, y el detalle lo explica.
+- **Línea de tiempo.** `LineaDeTiempo` titula los cuatro eventos nuevos
+  («Foto oculta por moderación», «Reporte oculto por moderación», «Foto
+  restablecida», «Reporte restablecido»), muestra el `comentario` (el motivo,
+  o el texto fijo que recibe un adherido) y, aparte, `avisoIndice` **tal
+  cual** llega: lo arma el servidor («Mientras esté oculto, este reporte no
+  cuenta en el índice de desempeño.» / «Vuelve a contar…»), no el ADMIN, y
+  solo viene en los eventos del reporte. Sigue sin ramificar por público: la
+  redacción es una decisión de autorización y vive en el servidor.
+- **Área del ADMIN** (`/admin/moderacion`, grupo `(admin)`, `GuardiaDeRol`
+  con `ADMIN`; entra en la navegación del ADMIN junto a los tickets).
+  - **Bandeja** paginada en el servidor con cuatro vistas: denuncias
+    **pendientes** (por defecto), **atendidas**, **desestimadas** y
+    **«Ocultos»** (decisión del usuario del 30/10): `ocultos=true` lista los
+    reportes con el reporte o la foto ocultos, **tengan denuncias o no**, del
+    ocultamiento más reciente al más antiguo; con esa vista no se envía
+    `estado` (el backend lo ignoraría) y `totalDenuncias` cuenta todas. Es la
+    única forma de llegar a un reporte oculto sin denuncias desde la bandeja;
+    el detalle funciona igual con cualquier id. Cada fila dice qué está
+    oculto, cuántas denuncias hay y de qué motivos, y lleva al detalle.
+    **Depende de NC-11a2** (PR #137, `feature/nc-11a2-filtro-ocultos`): el
+    parámetro `ocultos` no existe en el backend de NC-11a, que ignoraría el
+    query y respondería las pendientes; NC-11b se fusiona después de #137.
+  - **Detalle**: visibilidad actual, la **foto aunque esté oculta**, las
+    denuncias con quien denunció (solo aquí: ni el autor ni la municipalidad
+    las reciben), la línea de tiempo completa (la misma ruta `/historial`,
+    que al ADMIN le llega sin redactar) y las acciones. La foto se pide a
+    `GET …/{id}/foto` con `apiFetch` y se muestra como `blob:`
+    (`useFotoModerada`, el patrón de la foto de perfil, US-30), porque
+    `<img src>` no envía el token y `/media/...` responde 404 con la foto
+    oculta. La URL `blob:` se libera al cambiar de reporte o desmontar.
+  - **Acciones** solo las que corresponden (`accionesDisponibles`): ocultar
+    el reporte si no está oculto, restablecerlo si lo está, lo mismo con la
+    foto si la tiene, y desestimar si hay denuncias pendientes. El backend
+    seguiría respondiendo 409 (`YA_OCULTO`, `NO_OCULTO`, `SIN_FOTO`) a lo
+    demás; si llega uno (otro ADMIN se adelantó), se avisa «El reporte
+    cambió» y se recarga.
+  - **Diálogo de ocultar y restablecer** (`DialogoModerar`): con `REPORTE`
+    avisa que el reporte sale del mapa, de la bandeja municipal y **del
+    índice de desempeño del distrito** (y vuelve a contar al restablecerlo);
+    con `FOTO`, que el índice no cambia. Junto al motivo, en ocultar **y** en
+    restablecer, el aviso fijo decidido por el usuario: **«El autor y la
+    municipalidad leerán este motivo. No nombres a quien denunció ni digas
+    cuántas denuncias hubo.»** (`AVISO_MOTIVO`, descrito con
+    `aria-describedby`). El motivo mide de 10 a 500 caracteres sin los
+    espacios del borde (lo mismo que el backend) y se valida antes de enviar.
+  - **El 400 `MOTIVO_IDENTIFICA_DENUNCIANTE`** (y cualquier 400 que señale
+    `motivo` en `details`) va **en el campo del motivo**, con el mensaje del
+    backend, mientras el texto no cambie (la regla del texto rechazado de
+    NC-10c). Los demás errores van arriba del formulario.
+  - **Desestimar** pide un motivo opcional que solo ve el ADMIN (queda en
+    `motivoResolucion` de cada denuncia): sin motivo, el POST va sin cuerpo.
+  - Tras cualquier acción se recarga el detalle (reporte e historial) sin
+    desmontar la pantalla: lo que se muestra es lo que quedó guardado, más la
+    entrada nueva de la línea de tiempo.
+- **Caché.** Las rutas `/api/admin/**` no se guardan: el Service Worker ya
+  trata todo `/api/**` como `NetworkOnly` (`pwa/cachesDeSesion.ts`) y el
+  backend responde `Cache-Control: no-store, private`. La foto que el
+  navegador o el SW ya tenían de `/media/...` puede seguir viéndose hasta 30
+  días en ese dispositivo; el servidor no puede retirarla (backend/README).
+- **CSP y `proxy`:** sin cambios; no hay orígenes nuevos.
 
 ### Notificaciones push (US-21)
 
@@ -1101,13 +1651,14 @@ Un reporte recién creado puede tardar hasta 60 s en aparecer en la capa.
 
 Verificado end-to-end contra el backend real:
 
-- **US-01** registro (`/registro`) · **US-02** login (`/login`). Los dos
-  terminan en el mismo lugar (`destinoTrasAcceso`, QA-1 I-2): el
-  `?redirect=` si es una ruta interna (validado con `destinoInterno`), si no
-  la puerta de entrada del rol (el ciudadano, «Mis reportes»), y antes la
-  aceptación de términos si está pendiente. Los enlaces «Regístrate» e
-  «Inicia sesión» conservan el `?redirect=`: quien llegó al login desde
-  `/reportar` y crea una cuenta vuelve a `/reportar`.
+- **US-01** registro (`/registro`) · **US-02** login (`/login`). El login
+  termina en `destinoTrasAcceso` (QA-1 I-2): el `?redirect=` si es una ruta
+  interna (validado con `destinoInterno`), si no la puerta de entrada del rol
+  (el ciudadano, «Mis reportes»), y antes la aceptación de términos si está
+  pendiente. Desde NC-09 el registro no inicia sesión: muestra «Revisa tu
+  correo» y lleva al login. Los enlaces «Regístrate» e «Inicia sesión», y el
+  de «Revisa tu correo», conservan el `?redirect=`: quien llegó al login
+  desde `/reportar` y crea una cuenta vuelve a `/reportar` al entrar.
 - `/sesion` (verificación de `GET /api/auth/me`, andamiaje del primer slice)
   **se eliminó** en QA-1 I-2: el registro llevaba ahí y el ciudadano caía en
   una pantalla de depuración con el rol y la preferencia en crudo y sin
@@ -1206,6 +1757,49 @@ Verificado end-to-end contra el backend real:
   `/mapa`; completar sin severidad muestra «Elige la severidad del daño»; y,
   tras completarlo, se envió con la MISMA `Idempotency-Key` (reporte #185) y
   salió de la cola.
+- **NC-09** confirmación del correo: «Revisa tu correo» tras el registro, el
+  aviso con reenvío en el login y `/confirmar-cuenta` (ver «Confirmación del
+  correo (NC-09)» en Decisiones técnicas). Cubierta por tests de las reglas
+  (`model/confirmacion.ts`), de los hooks (una sola llamada con StrictMode,
+  token fuera de la URL, cada código, espera de 60 s), del gateway y de las
+  tres pantallas. Los tipos salen del OpenAPI del backend de NC-09, y el
+  contrato se probó con `curl` contra ese backend (201 del registro, 409
+  `CORREO_DESECHABLE`, `CORREO_NO_CONFIRMADO` y `CONFIRMACION_INVALIDA`, 202
+  del reenvío). **Todavía no se recorrió en el navegador** con el correo
+  real (Mailhog en local, Resend en producción).
+- **NC-09c** «Reenviar el enlace» de confirmación desde «¿Olvidaste tu
+  contraseña?», tras pedir el token (ver «Confirmación del correo (NC-09)»).
+  Cubierta por tests del componente: aviso y acción tras pedir el token,
+  reenvío al correo escrito con el mensaje neutro y la espera de 60 s, y sin
+  reenvío con «Ya tengo un token».
+- **NC-04** sugerencia de la categoría por la foto en `/reportar` (ver
+  «Sugerencia de la categoría por la foto (NC-04)» en Decisiones técnicas).
+  Cubierta por tests de las reglas (`model/sugerencia.ts`), del hook
+  (cancelación, espera agotada, 409 y fallos), del gateway y del formulario.
+  **Todavía no se verificó contra el backend real**: falta probarla con el
+  clasificador falso del perfil `local` (`CLASIFICACION_FALSO_RESPUESTA` con
+  `bache:0.87`, vacío y `falla`).
+- **NC-10c** moderación de la foto y del texto (ver «Moderación de contenido
+  (NC-10c, D-15)» en Decisiones técnicas). Cubierta por tests de las reglas
+  (`lib/types/moderacion.ts`, `reportes/model/moderacion.ts`), de los hooks
+  (crear, vista previa, cola, editar, comentar y perfil) y de las pantallas.
+  Verificada el 29/10 con la build de producción en Chrome (modo headed),
+  contra el backend de NC-10b en una base desechable:
+  - **en vivo**: el texto rechazado en la descripción al crear, en el título
+    al editar, en el comentario, en el apellido del perfil y en el nombre del
+    registro (siempre en su campo, sin la palabra y conservando lo escrito);
+    con `MODERACION_TIPO=http` y el servicio caído, el 503 real con sus dos
+    salidas: «Enviar sin foto» creó el reporte con la misma clave, y «Guardar
+    para enviar después» lo dejó en la cola, que lo reintentó con la misma
+    clave y lo mantuvo pendiente;
+  - **interceptado**: la vista previa con `fotoRechazada: true` y el 400
+    `FOTO_NO_PERMITIDA` al crear quitan la foto y avisan junto al campo; el
+    reenvío sin foto creó el reporte con la misma clave. La foto rechazada no
+    se pudo provocar en vivo: con `MODERACION_TIPO=ninguna` no se rechaza
+    ninguna, el doble del puerto que rechaza solo existe en los IT del backend
+    (`ModeracionCreacionIT`), y el servicio real no rechaza fotos de pistas.
+    Por eso el navegador recibió el cuerpo exacto del contrato y el resto del
+    flujo fue al backend real.
 
 ### 404 e ids inválidos (QA-1 M-11)
 

@@ -32,6 +32,12 @@ export function rutaInicialDe(rol: Rol): string {
 export const RUTA_SOPORTE_ADMIN = '/admin/soporte';
 
 /**
+ * NC-11b (D-15): bandeja de moderacion del ADMIN (denuncias y contenido
+ * oculto). El detalle de cada reporte cuelga de aqui (`/admin/moderacion/[id]`).
+ */
+export const RUTA_MODERACION_ADMIN = '/admin/moderacion';
+
+/**
  * NC-07b (D-12): pantalla donde el usuario acepta los terminos vigentes. La
  * misma ruta la usa el cliente HTTP ante el 403 `TERMINOS_PENDIENTES`
  * (`lib/api/client.ts`, `RUTA_ACEPTAR_TERMINOS`); los tests de ambos lados la
@@ -41,6 +47,33 @@ export const RUTA_ACEPTAR_TERMINOS = '/aceptar-terminos';
 
 /** Pagina publica con los terminos de uso y la politica de privacidad. */
 export const RUTA_PRIVACIDAD = '/privacidad';
+
+/**
+ * NC-09: pagina publica a la que lleva el enlace del correo de confirmacion
+ * (`<origen de la PWA>/confirmar-cuenta?token=…`). La URL la arma el
+ * BACKEND (`ConfirmacionCorreoService`): cambiarla aqui sin cambiarla alla
+ * deja los enlaces en un 404. El Service Worker no la guarda en cache
+ * (`pwa/cachesDeSesion.ts`, que repite la ruta y un test las compara).
+ */
+export const RUTA_CONFIRMAR_CUENTA = '/confirmar-cuenta';
+
+/** Pantalla de inicio de sesion. */
+export const RUTA_LOGIN = '/login';
+
+/**
+ * Pantallas de acceso: las del grupo `(auth)`, con su propio marco centrado
+ * y sin la navegacion de la app (`modoDelMarco`). Tampoco ofrecen «inicia
+ * sesion» para la cola offline (`AvisoPendientesSinSesion`): ya se esta en
+ * eso, y volver a `/confirmar-cuenta` sin el token mostraria un enlace
+ * invalido. Una sola lista para los dos: al agregar una pantalla de acceso,
+ * se agrega aqui.
+ */
+export const RUTAS_DE_ACCESO: readonly string[] = [
+  RUTA_LOGIN,
+  '/registro',
+  '/recuperar-password',
+  RUTA_CONFIRMAR_CUENTA,
+];
 
 /**
  * Destino de una redireccion que viene en la URL (`?redirect=`), o
@@ -90,12 +123,13 @@ export function rutaAceptarTerminos(destino: string): string {
 }
 
 /**
- * A donde ir tras iniciar sesion O registrarse (QA-1 I-2: el registro llevaba
- * a `/sesion`, una pantalla de depuracion). Una sola regla para los dos:
- * vuelve a `?redirect=` si es una ruta interna (p. ej. llego desde `/reportar`
- * sin sesion), si no a la puerta de entrada de su rol; y con los terminos
- * vigentes sin aceptar (NC-07b), antes de nada a la pantalla de aceptacion,
- * que al terminar sigue a ese mismo destino.
+ * A donde ir tras iniciar sesion (QA-1 I-2). Vuelve a `?redirect=` si es una
+ * ruta interna (p. ej. llego desde `/reportar` sin sesion), si no a la puerta
+ * de entrada de su rol; y con los terminos vigentes sin aceptar (NC-07b),
+ * antes de nada a la pantalla de aceptacion, que al terminar sigue a ese
+ * mismo destino. Desde NC-09 el registro ya no inicia sesion: su pantalla
+ * «Revisa tu correo» lleva al login con el mismo `?redirect=`, y es el login
+ * el que aplica esta regla.
  */
 export function destinoTrasAcceso(
   usuario: { rol: Rol; debeAceptarTerminos?: boolean },

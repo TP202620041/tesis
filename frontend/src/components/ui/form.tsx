@@ -93,6 +93,24 @@ export function Boton({
   );
 }
 
+/**
+ * Clases que marcan en rojo un control `aria-invalid` que no usa
+ * {@link CLASE_CONTROL} (p. ej. un `<textarea>` con su propio estilo).
+ */
+export const CLASE_CONTROL_INVALIDO = 'aria-[invalid=true]:border-2 aria-[invalid=true]:border-error';
+
+/**
+ * Error de un campo que no pasa por {@link Campo} (un `<textarea>`, p. ej.).
+ * El control lo enlaza con `aria-describedby={id}` y queda `aria-invalid`.
+ */
+export function ErrorDelCampo({ id, mensaje }: { id: string; mensaje: string }) {
+  return (
+    <p id={id} role="alert" className="text-sm font-medium text-error">
+      {mensaje}
+    </p>
+  );
+}
+
 /** Error de la operacion completa (no de un campo). */
 export function AlertaError({ mensaje, detalles = [] }: { mensaje: string; detalles?: string[] }) {
   return (

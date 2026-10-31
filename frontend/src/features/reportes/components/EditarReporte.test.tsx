@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { EditarReporte } from './EditarReporte';
 import { listarCategorias } from '@/lib/api/catalogos';
+import { ApiError } from '@/lib/api/errors';
 import { editarReporte } from '../api';
 import type { ReporteResumen } from '../model/tipos';
 
@@ -103,6 +104,64 @@ describe('EditarReporte (US-08 con categoría desactivada, US-29)', () => {
       titulo: 'Conos en la ciclovía norte',
       severidad: 'ALTA',
       descripcion: 'Conos',
+    });
+  });
+
+  describe('la moderación (NC-10c)', () => {
+    const TITULO =
+      'El título tiene palabras que no están permitidas. Cámbialo para continuar.';
+    const DESCRIPCION =
+      'La descripción tiene palabras que no están permitidas. Cámbiala para continuar.';
+    const textoNoPermitido = (campo: string, mensaje: string) =>
+      new ApiError(400, mensaje, '/api/reportes/9', [campo], 'TEXTO_NO_PERMITIDO');
+
+    it('400 TEXTO_NO_PERMITIDO en la descripción: el error va en el campo, no arriba', async () => {
+      editar.mockRejectedValueOnce(textoNoPermitido('descripcion', DESCRIPCION));
+      const onActualizado = vi.fn();
+      render(<EditarReporte reporte={REPORTE} onActualizado={onActualizado} />);
+      const usuario = userEvent.setup();
+      await screen.findByRole('option', { name: 'Bache' });
+
+      await usuario.type(screen.getByLabelText('Descripción'), ' con una grosería');
+      await usuario.click(screen.getByRole('button', { name: 'Guardar cambios' }));
+
+      const error = await screen.findByText(DESCRIPCION);
+      const descripcion = screen.getByLabelText('Descripción');
+      expect(descripcion).toHaveAttribute('aria-invalid', 'true');
+      expect(descripcion).toHaveAccessibleDescription(DESCRIPCION);
+      expect(descripcion).toHaveValue('Conos con una grosería');
+      expect(screen.getAllByRole('alert')).toEqual([error]);
+      expect(onActualizado).not.toHaveBeenCalled();
+
+      // Al cambiar lo escrito, el error ya no aplica.
+      await usuario.type(descripcion, '!');
+      expect(screen.queryByText(DESCRIPCION)).not.toBeInTheDocument();
+    });
+
+    it('400 TEXTO_NO_PERMITIDO en el título: el error va en el título', async () => {
+      editar.mockRejectedValueOnce(textoNoPermitido('titulo', TITULO));
+      render(<EditarReporte reporte={REPORTE} onActualizado={vi.fn()} />);
+      const usuario = userEvent.setup();
+      await screen.findByRole('option', { name: 'Bache' });
+
+      await usuario.type(screen.getByLabelText('Título'), ' y algo más');
+      await usuario.click(screen.getByRole('button', { name: 'Guardar cambios' }));
+
+      expect(await screen.findByText(TITULO)).toBeInTheDocument();
+      expect(screen.getByLabelText('Título')).toHaveAttribute('aria-invalid', 'true');
+      expect(screen.getByLabelText('Descripción')).not.toHaveAttribute('aria-invalid');
+    });
+
+    it('un 409 sigue siendo un error general', async () => {
+      editar.mockRejectedValueOnce(new ApiError(409, 'El reporte ya no está pendiente'));
+      render(<EditarReporte reporte={REPORTE} onActualizado={vi.fn()} />);
+      const usuario = userEvent.setup();
+      await screen.findByRole('option', { name: 'Bache' });
+
+      await usuario.click(screen.getByRole('button', { name: 'Guardar cambios' }));
+
+      expect(await screen.findByText('El reporte ya no está pendiente')).toBeInTheDocument();
+      expect(screen.getByLabelText('Descripción')).not.toHaveAttribute('aria-invalid');
     });
   });
 });

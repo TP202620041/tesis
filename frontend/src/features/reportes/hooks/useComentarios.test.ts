@@ -71,4 +71,35 @@ describe('useComentarios (US-27)', () => {
     expect(result.current.error?.mensaje).toBe('El reporte no está resuelto');
     expect(listarComentarios).toHaveBeenCalledTimes(1);
   });
+
+  it('NC-10c: un 400 TEXTO_NO_PERMITIDO queda para el campo, con lo escrito, y no recarga', async () => {
+    const mensaje = 'El comentario tiene palabras que no están permitidas. Cámbialo para continuar.';
+    vi.mocked(listarComentarios).mockResolvedValue([PRIMERO]);
+    vi.mocked(comentar).mockRejectedValueOnce(
+      new ApiError(400, mensaje, '/api/reportes/8/comentarios', ['contenido'], 'TEXTO_NO_PERMITIDO'),
+    );
+    const { result } = renderHook(() => useComentarios(8));
+    await waitFor(() => expect(result.current.cargando).toBe(false));
+
+    let ok = true;
+    await act(async () => {
+      ok = await result.current.publicar('Sigue roto, qué grosería');
+    });
+
+    expect(ok).toBe(false);
+    expect(result.current.textoRechazado).toEqual({
+      campo: 'contenido',
+      mensaje,
+      valor: 'Sigue roto, qué grosería',
+    });
+    expect(result.current.error).toBeNull();
+    expect(listarComentarios).toHaveBeenCalledTimes(1);
+
+    // Publicar de nuevo lo borra.
+    vi.mocked(comentar).mockResolvedValueOnce(SEGUNDO);
+    await act(async () => {
+      await result.current.publicar('Sigue roto');
+    });
+    expect(result.current.textoRechazado).toBeNull();
+  });
 });

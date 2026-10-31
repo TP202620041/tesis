@@ -15,6 +15,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import pe.edu.upc.viasegura.common.exception.BusinessException;
 import pe.edu.upc.viasegura.common.exception.ServicioNoDisponibleException;
 import pe.edu.upc.viasegura.common.port.ArchivoSubido;
+import pe.edu.upc.viasegura.common.port.FotoSaneada;
 import pe.edu.upc.viasegura.support.ImagenesDePrueba;
 
 /**
@@ -29,8 +30,9 @@ class ImageIoSaneadorDeImagenTest {
 
     private final ImageIoSaneadorDeImagen saneador = new ImageIoSaneadorDeImagen(2, Duration.ofSeconds(10));
 
+    /** El resultado como archivo: los mismos bytes, con su tipo y su nombre ({@code FotoSaneada#comoArchivo}). */
     private ArchivoSubido sanear(byte[] bytes, String nombre) {
-        return saneador.sanear(new ArchivoSubido(bytes, "image/x", nombre));
+        return saneador.sanear(new ArchivoSubido(bytes, "image/x", nombre)).comoArchivo();
     }
 
     private static boolean esRojo(int rgb) {
@@ -62,7 +64,7 @@ class ImageIoSaneadorDeImagenTest {
         assertThat(ImagenesDePrueba.tieneApp1(jpeg)).isFalse();
         assertThat(ImagenesDePrueba.contiene(jpeg, "Exif")).isFalse();
         assertThat(ImagenesDePrueba.contiene(jpeg, ImagenesDePrueba.MARCA_EXIF)).isFalse();
-        assertThat(saneada.contentType()).isEqualTo("image/jpeg");
+        // El tipo es la constante FotoSaneada.TIPO; que sea un JPEG lo dicen los bytes FF D8 de arriba.
         assertThat(saneada.nombreOriginal()).isEqualTo("IMG_0001.jpg");
     }
 
@@ -301,14 +303,15 @@ class ImageIoSaneadorDeImagenTest {
     void siUnTurnoSeLiberaDentroDelPlazo_laFotoSeSanea() throws Exception {
         ImageIoSaneadorDeImagen conDosTurnos = new ImageIoSaneadorDeImagen(2, Duration.ofSeconds(5));
         conDosTurnos.turnos().acquireUninterruptibly(2);
-        CompletableFuture<ArchivoSubido> tercera = CompletableFuture.supplyAsync(
+        CompletableFuture<FotoSaneada> tercera = CompletableFuture.supplyAsync(
                 () -> conDosTurnos.sanear(new ArchivoSubido(ImagenesDePrueba.png(10, 10), null, "a.png")));
 
         TimeUnit.MILLISECONDS.sleep(200);
         assertThat(tercera).isNotDone();
         conDosTurnos.turnos().release();
 
-        assertThat(tercera.get(5, TimeUnit.SECONDS).contentType()).isEqualTo("image/jpeg");
+        // Un JPEG (FF D8), no el PNG que entro.
+        assertThat(tercera.get(5, TimeUnit.SECONDS).contenido()).startsWith((byte) 0xFF, (byte) 0xD8);
         conDosTurnos.turnos().release();
         assertThat(conDosTurnos.turnos().availablePermits()).isEqualTo(2);
     }

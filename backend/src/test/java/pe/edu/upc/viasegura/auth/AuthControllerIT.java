@@ -9,14 +9,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
 import pe.edu.upc.viasegura.support.AbstractPostgisIT;
 
 /** Tests de integracion de los endpoints de acceso (US-01, US-02). */
@@ -24,8 +21,6 @@ class AuthControllerIT extends AbstractPostgisIT {
 
     @Autowired
     MockMvc mockMvc;
-    @Autowired
-    ObjectMapper objectMapper;
 
     private String email() {
         return "user-" + UUID.randomUUID() + "@lima.pe";
@@ -38,14 +33,21 @@ class AuthControllerIT extends AbstractPostgisIT {
     }
 
     @Test
-    void registro_exitoso_devuelve201YTokenConRolCiudadano() throws Exception {
+    void registro_exitoso_devuelve201SinSesion_yLaCuentaEsCiudadana() throws Exception {
+        // NC-09: la cuenta nace sin confirmar y el registro ya no inicia sesion.
+        String correo = email();
         mockMvc.perform(post("/api/auth/registro")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(registro(email(), "secreta123")))
+                        .content(registro(correo, "secreta123")))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.token").isNotEmpty())
-                .andExpect(jsonPath("$.tokenType", is("Bearer")))
-                .andExpect(jsonPath("$.usuario.rol", is("CIUDADANO")));
+                .andExpect(jsonPath("$.email", is(correo)))
+                .andExpect(jsonPath("$.vigenciaEnlaceHoras", is(24)))
+                .andExpect(jsonPath("$.token").doesNotExist());
+
+        String token = confirmarEIniciarSesion(correo, "secreta123");
+        mockMvc.perform(get("/api/auth/me").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.rol", is("CIUDADANO")));
     }
 
     @Test
@@ -97,6 +99,7 @@ class AuthControllerIT extends AbstractPostgisIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(registro(correo, "secreta123")))
                 .andExpect(status().isCreated());
+        confirmarCorreo(correo);
 
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -114,6 +117,7 @@ class AuthControllerIT extends AbstractPostgisIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(registro(correo, "secreta123")))
                 .andExpect(status().isCreated());
+        confirmarCorreo(correo);
 
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -130,13 +134,11 @@ class AuthControllerIT extends AbstractPostgisIT {
     @Test
     void me_conToken_devuelve200YUsuarioAutenticado() throws Exception {
         String correo = email();
-        MvcResult res = mockMvc.perform(post("/api/auth/registro")
+        mockMvc.perform(post("/api/auth/registro")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(registro(correo, "secreta123")))
-                .andExpect(status().isCreated())
-                .andReturn();
-        JsonNode body = objectMapper.readTree(res.getResponse().getContentAsString());
-        String token = body.get("token").asText();
+                .andExpect(status().isCreated());
+        String token = confirmarEIniciarSesion(correo, "secreta123");
 
         mockMvc.perform(get("/api/auth/me").header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
@@ -148,13 +150,13 @@ class AuthControllerIT extends AbstractPostgisIT {
     void me_actualizaPreferenciaNotificacion_persisteYSeRefleja() throws Exception {
         // US-30 minimo: el ciudadano cambia su canal (default AMBAS -> EMAIL).
         String correo = email();
-        MvcResult res = mockMvc.perform(post("/api/auth/registro")
+        mockMvc.perform(post("/api/auth/registro")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(registro(correo, "secreta123")))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.usuario.preferenciaNotificacion", is("AMBAS")))
-                .andReturn();
-        String token = objectMapper.readTree(res.getResponse().getContentAsString()).get("token").asText();
+                .andExpect(status().isCreated());
+        String token = confirmarEIniciarSesion(correo, "secreta123");
+        mockMvc.perform(get("/api/auth/me").header("Authorization", "Bearer " + token))
+                .andExpect(jsonPath("$.preferenciaNotificacion", is("AMBAS")));
 
         mockMvc.perform(patch("/api/auth/me/preferencia-notificacion")
                         .header("Authorization", "Bearer " + token)

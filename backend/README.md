@@ -86,13 +86,29 @@ preferible que no arranque y que el log diga qué falta.
 | `FOTOS_S3_BUCKET_REPORTES`, `FOTOS_S3_BUCKET_PERFILES` | con `s3` | Dos buckets privados y **distintos** (no arranca si coinciden). |
 | `FOTOS_S3_ACCESS_KEY_ID`, `FOTOS_S3_SECRET_ACCESS_KEY` | con `s3` | Token de R2 con *Object Read & Write* limitado a esos dos buckets. |
 | `FOTOS_DIR` | con `local` | Directorio de las fotos. La imagen ya trae `FOTOS_DIR=/data/fotos`. |
-| `FOTOS_SANEADO_MAX_CONCURRENTES` | no (2) | Saneados de fotos simultáneos; con `-Xmx512m`, 2. |
+| `FOTOS_SANEADO_MAX_CONCURRENTES` | no (2) | Saneados de fotos simultáneos; con `-Xmx512m`, 2. **No bajar de 2**: la vista previa de NC-04 toma como máximo un turno, y la garantía de que siempre quede otro para las creaciones depende de que haya al menos dos. |
 | `CORREO_TIPO` | sí | `resend` (el plan de Railway bloquea el SMTP saliente); `smtp` solo en local y en los tests. Sin ella no arranca (DEP-08, ver «Correo saliente»). Con otro valor tampoco: `common/config/ValidacionCorreoSaliente` lo rechaza antes de crear ningún bean, con un mensaje que nombra la variable y los valores admitidos. |
 | `NOTIF_FROM` | sí | Remitente de todos los correos: `Ciudad Viva <no-reply@<dominio verificado en Resend>>`. Sin ella no arranca. |
 | `CORREO_API_KEY` | con `CORREO_TIPO=resend` | Clave de la API de Resend (secreto). Sin ella el adaptador no arranca. |
+| `CAPTCHA_TIPO` | sí | Captcha del registro de cuenta (NC-08): `turnstile` (Cloudflare Turnstile, desde NC-08b) o `ninguno` (no se exige). Sin ella no arranca: con el `ninguno` de desarrollo, un despliegue que la olvidara dejaría el registro sin captcha sin que nada lo advierta. Con otro valor tampoco: `auth/infra/ValidacionTipoCaptcha` lo rechaza antes de crear ningún bean; `recaptcha`, el valor de NC-08 hasta el 28/10, ya no existe y el mensaje lo dice (ver «Captcha en el registro»). |
+| `CAPTCHA_SECRET` | con `CAPTCHA_TIPO=turnstile` | Clave secreta del widget de Turnstile en el panel de Cloudflare (secreto). Sin ella el adaptador no arranca. La clave del sitio (pública) la usa el frontend, no el backend. |
+| `CAPTCHA_HOSTNAMES` | no (`ciudadviva.app,www.ciudadviva.app` en `prod`) | Hostnames donde puede resolverse el widget, separados por coma, sin esquema ni puerto: un token aprobado en otro es 409. Con valor por defecto **a propósito**, el de la PWA en producción; solo hace falta si la PWA se sirve en otro dominio. Vacía, no se compara (es lo que pasa fuera de `prod`, donde las claves de prueba responden `example.com`). Una entrada que no es un hostname no arranca. |
+| `DOMINIO_CORREO_TIPO` | no (`dns` en `prod`) | Verificación del dominio del correo al registrarse (NC-09): `dns` consulta el MX; `ninguno` la apaga (la lista de desechables se aplica igual). Con valor por defecto **a propósito**: no es una variable obligatoria nueva, porque `dns` no necesita ninguna clave y falla abierto si el DNS no responde. Otro valor no arranca (`auth/infra/ValidacionTipoDominioCorreo`). Ver «Confirmación del correo». |
+| `FRONTEND_URL` | no (el primer origen de `CORS_ALLOWED_ORIGINS`) | Origen de la PWA para el enlace de confirmación (`<origen>/confirmar-cuenta?token=…`), sin ruta. Sin ella se usa el primer origen de `CORS_ALLOWED_ORIGINS`, que es el de la PWA (`https://ciudadviva.app`); solo hace falta si ese primer origen no lo es (por ejemplo, si la lista empieza por `https://www.…`: funcionaría por la redirección 308, pero con un salto de más). Una URL que no es un origen `http(s)` no arranca. |
 | `PORT` | no (8080) | Lo inyecta la plataforma. |
+| `CUENTAS_SIN_CONFIRMAR_PLAZO` | no (`30d`) | Edad a partir de la cual se borra una cuenta que nunca confirmó su correo (BE-15). Duración de Spring (`30d`, `720h`); menos de 1 día no arranca. Ver [Purga de cuentas sin confirmar](#purga-de-cuentas-sin-confirmar-be-15). |
+| `CUENTAS_SIN_CONFIRMAR_PURGA_CRON` | no (`0 30 3 * * *`) | Cuándo corre esa purga: expresión cron de Spring (segundo, minuto, hora, día, mes, día de la semana) en hora de Lima; por defecto, todos los días a las 03:30. `-` la apaga. |
 | `SPRINGDOC_HABILITADO` | no (`false`) | `true` publica `/v3/api-docs` y Swagger UI. |
 | `ADMIN_INICIAL_EMAIL`, `ADMIN_INICIAL_PASSWORD`, `ADMIN_INICIAL_NOMBRE` | solo en el primer arranque | Crean el primer ADMIN en una base sin ninguno. Después se borra `ADMIN_INICIAL_PASSWORD`; las otras dos pueden quedar (ver «Operación en producción»). |
+| `CLASIFICACION_TIPO` | sí | Adaptador del clasificador de fotos (NC-04b): `http` (el servicio `inferencia/` por la red privada) en el despliegue. `falso` es el **interruptor** para apagar la clasificación: en `prod` el falso responde siempre «sin detecciones» (`application-prod.yml`, literal) y no escribe nada. Sin ella no arranca: con el `falso` de desarrollo por defecto la clasificación quedaría apagada sin que nada lo advierta, porque cualquier falla del adaptador también termina en «sin sugerencia». Otro valor tampoco arranca (`clasificacion/infra/ValidacionTipoClasificador`). Ver [Sugerencia de categoría](#sugerencia-de-categoría-por-la-foto-nc-04-fase-0). |
+| `CLASIFICACION_URL` | con `CLASIFICACION_TIPO=http` | URL base del servicio de inferencia, sin la ruta: `http://${{inferencia.RAILWAY_PRIVATE_DOMAIN}}:8000` en Railway. Sin ella, sin esquema `http(s)` y host, o con ruta (`…:8000/v1`), query, fragmento o usuario, no arranca: el adaptador agrega `/v1/detecciones`, y una ruta de más daría un 404 en cada llamada que solo se vería en el log. No es un secreto. |
+| `CLASIFICACION_UMBRAL` | no (`0.50`) | Confianza mínima para sugerir, en (0, 1]. Se calibra en NC-03b. |
+| `CLASIFICACION_ESPERA_TURNO_MS` | no (`10000`) | Cuánto espera la sugerencia oficial un turno del servicio de inferencia (NC-04c), entre 0 y 60000 ms; fuera de rango no arranca. La vista previa nunca espera. |
+| `MODERACION_TIPO` | sí | Moderación de la foto antes de publicarla (NC-10b, D-15): `http` (`POST /v1/moderacion` del servicio `inferencia/`) en el despliegue. Con `http`, si el servicio no responde, un reporte con foto recibe **503 `MODERACION_NO_DISPONIBLE`** (falla cerrada). `ninguna` es el **interruptor de emergencia** ante una caída larga: mientras está puesto **se publican fotos sin revisar**, y cada arranque deja un WARN. Sin ella no arranca: con el `ninguna` de desarrollo por defecto, un despliegue que la olvidara publicaría fotos sin revisar sin que nada lo advierta. Otro valor tampoco arranca (`moderacion/infra/ValidacionTipoModeracion`). **Se despliega con `http` solo después del servicio con el modelo de moderación** (DEP-13, NC-10a). Ver [Moderación de contenido](#moderación-de-contenido-nc-10b-d-15). |
+| `MODERACION_URL` | con `MODERACION_TIPO=http` | URL base del servicio de inferencia, sin la ruta; la misma que `CLASIFICACION_URL`. Las mismas reglas: sin ella, sin esquema `http(s)` y host, o con ruta, query, fragmento o usuario, no arranca (el adaptador agrega `/v1/moderacion`). No es un secreto. |
+| `MODERACION_UMBRAL` | no (`0.70`) | Se rechaza la foto si el puntaje es mayor o igual. Entre 0.5 y 0.9 (con punto decimal); fuera de rango o no numérico, no arranca. 0.70 es la decisión del usuario del 28/10; la calibración de NC-10a sugiere mantenerlo hasta medir fotos de calles con gente. |
+| `ORIGEN_SECRETO` | sí | El secreto que la *Transform Rule* de Cloudflare agrega en `X-Origen-Secreto` (DEP-14): sin ese encabezado, toda petición recibe 403, salvo `GET /actuator/health`. 32 caracteres ASCII visibles o más (`openssl rand -hex 32`); el mismo valor va en Cloudflare. Sin ella no arranca: con el `ninguno` de desarrollo por defecto, el API volvería a atender las peticiones que se saltan Cloudflare sin que nada lo advierta. Vacía, más corta o con espacios, tampoco. `ninguno` es el **interruptor** para apagarlo a propósito (deja un WARN en cada arranque). Ver [Encabezado de origen](#encabezado-de-origen-dep-14). |
+| `ORIGEN_SECRETO_ANTERIOR` | solo durante una rotación | El secreto viejo, que se sigue aceptando mientras Cloudflare pasa al nuevo. Fuera de una rotación, vacía; si queda puesta, cada arranque deja un WARN. Igual a `ORIGEN_SECRETO`, o débil, no arranca. |
 | `JWT_EXPIRATION_MINUTES`, `VAPID_*`, `PUSH_*`, `MAIL_*` (solo con `smtp`), `LEGAL_VERSION_TERMINOS`, `ASYNC_*` | no | Las mismas de `application.yml`, con sus valores por defecto. |
 
 ### Qué cambia respecto de `local`
@@ -115,6 +131,10 @@ preferible que no arranque y que el log diga qué falta.
   algún día se usa (límite de intentos, auditoría), conviene pasar a
   `native` con la lista de proxies de confianza, porque `framework` acepta las
   cabeceras `X-Forwarded-*` de quien las envíe.
+- **Solo lo que pasa por Cloudflare** (DEP-14): sin el encabezado de origen
+  con el secreto de `ORIGEN_SECRETO`, 403 en cualquier ruta salvo
+  `GET /actuator/health`. Fuera de `prod` está apagado. Ver
+  [Encabezado de origen](#encabezado-de-origen-dep-14).
 - **Apagado ordenado** (`server.shutdown: graceful`): en un redespliegue
   terminan las peticiones en curso.
 - **Logs** en `INFO` y sin el SQL de Hibernate.
@@ -126,7 +146,9 @@ preferible que no arranque y que el log diga qué falta.
   componentes que revelen la base o las versiones. Ningún otro endpoint de
   Actuator se expone por web, ni siquiera a un ADMIN (`/actuator/env` o
   `/actuator/heapdump` entregarían el secreto JWT y la contraseña de la base).
-  Lo prueba `ActuatorHealthIT`.
+  Lo prueba `ActuatorHealthIT`. En `prod` es además la única ruta que no
+  exige el encabezado de origen (DEP-14): el health check de Railway entra
+  directo, sin pasar por Cloudflare.
 - El health **no incluye el correo** (`management.health.mail.enabled:
   false`): un SMTP caído afecta a cada envío, no a la API, y no debe marcarla
   como caída ni hacer fallar un despliegue. La base de datos sí cuenta: sin
@@ -136,6 +158,11 @@ preferible que no arranque y que el log diga qué falta.
   y 10 s de lectura. Desde DEP-08 ningún correo se envía dentro de una
   petición: un proveedor lento ocupa un hilo del executor asíncrono, no la
   respuesta al usuario ni una conexión de la base.
+- **Inferencia con timeouts** (NC-04b): 0,5 s de conexión y 2,5 s de lectura,
+  3 s en total, y nunca con una conexión de la base tomada. El health **no
+  incluye la inferencia**: un servicio de inferencia caído deja los reportes
+  sin sugerencia, no deja sin API, y no debe marcarla como caída ni hacer
+  fallar un despliegue.
 
 ### Imagen (`backend/Dockerfile`)
 
@@ -237,6 +264,168 @@ como código. El paso a paso está en el runbook de despliegue
   volúmenes como `root`, la imagen corre como `viasegura`, y
   `RAILWAY_RUN_UID=0` **hace correr el contenedor como root**. Es la salida
   de emergencia si R2 no estuviera disponible, no la configuración normal.
+- **Encabezado de origen (DEP-14).** El health check entra directo al
+  contenedor, sin pasar por Cloudflare: por eso `GET /actuator/health` es la
+  única ruta que no exige `X-Origen-Secreto` (ver la sección siguiente).
+
+## Encabezado de origen (DEP-14)
+
+**El problema (SEC-05).** `api.ciudadviva.app` va con el proxy de
+Cloudflare: el WAF, la regla «solo rutas de la app» y el límite de
+peticiones de escritura (runbook, §11.1). Pero el borde de Railway enruta
+por el `Host`: una petición con `Host: api.ciudadviva.app` enviada directo a
+la IP de Railway llegaba al backend sin pasar por ninguna de esas defensas
+(comprobado el 28/10: 200 en `/api/categorias`). Borrar el dominio
+`*.up.railway.app` (25/10) no lo cerraba, y el backend no limita por IP.
+
+**La solución** es la «HTTP Header Validation» que recomienda Cloudflare
+([Protect your origin server](https://developers.cloudflare.com/fundamentals/security/protect-your-origin-server/)):
+
+1. Una *Request Header Transform Rule* de Cloudflare agrega
+   `X-Origen-Secreto: <secreto>` a cada petición hacia
+   `api.ciudadviva.app`. Es *Set static*: si el cliente manda su propio
+   `X-Origen-Secreto`, Cloudflare lo reemplaza.
+2. `common/security/EncabezadoDeOrigenFilter` responde 403 a toda petición
+   que no lo traiga con ese valor.
+
+Las decisiones:
+
+- **Va con la máxima precedencia, antes que Spring Security.**
+  `EncabezadoDeOrigenConfig` lo registra con un `FilterRegistrationBean` de
+  orden `Ordered.HIGHEST_PRECEDENCE`, antes que Spring Security (−100). Una
+  petición rechazada no llega a CORS, al JWT ni a ningún controlador. Empata
+  con el `CharacterEncodingFilter` y el `ForwardedHeaderFilter` de Spring
+  Boot, que pueden correr antes sin cambiar lo que mira: la ruta exenta se
+  compara contra el *context path* más la ruta, que ese filtro cambia en
+  conjunto si aplica un `X-Forwarded-Prefix`. No es un `@Component`, para no
+  quedar registrado dos veces.
+- **El 403 no da pistas.** Es el mismo `ApiError` «Acceso denegado» de
+  cualquier 403 de la cadena de seguridad, igual sin el encabezado que con un
+  valor equivocado: no dice qué falta ni cómo se llama.
+- **Nunca se registra el secreto.** Ni el valor recibido ni el esperado
+  aparecen en el log (un rechazo deja, en DEBUG, solo el método y la ruta), y
+  los mensajes de un arranque fallido nombran la variable y la regla, nunca
+  el valor ni su longitud.
+- **Comparación en tiempo constante.** `MessageDigest.isEqual` sobre los
+  bytes, con el secreto como primer argumento: en el JDK 21, la duración
+  depende solo de la longitud de ese argumento, no de cuántos bytes
+  coinciden. Durante una rotación compara siempre con los dos secretos, sin
+  cortocircuito.
+- **Única excepción: `GET /actuator/health`, exacta.** El health check de
+  Railway entra directo al contenedor, sin pasar por Cloudflare, y solo
+  responde `{"status":"UP"}`. Se compara la URI cruda, así que `HEAD`,
+  `/actuator/health/db`, `/actuator/health/` o `/actuator/%68ealth` exigen el
+  encabezado. Ninguna otra ruta queda exenta: el preflight CORS (`OPTIONS`) y
+  las fotos de `/media/fotos/reportes/**` también pasan por Cloudflare, y la
+  regla agrega el encabezado a toda petición al host.
+- **No autentica a nadie.** Solo prueba que la petición pasó por el proxy.
+  Detrás siguen el JWT, los roles y la autorización por instancia.
+
+**Configuración.**
+
+| Propiedad | Variable | Valor |
+|---|---|---|
+| `app.origen.secreto` | `ORIGEN_SECRETO` | Obligatoria en `prod`, sin valor por defecto. `ninguno` lo apaga. Fuera de `prod` vale `ninguno` por defecto, y en los tests es `ninguno` literal. |
+| `app.origen.secreto-anterior` | `ORIGEN_SECRETO_ANTERIOR` | Solo durante una rotación; si no, vacía. |
+| `app.origen.encabezado` | — | `X-Origen-Secreto`, fijo en `application.yml`. No es secreto. |
+
+- **Sin `ORIGEN_SECRETO`, `prod` no arranca**, igual que con `CAPTCHA_TIPO` o
+  `CLASIFICACION_TIPO`. Con el `ninguno` de desarrollo por defecto, un
+  despliegue que olvidara la variable volvería a atender las peticiones que
+  se saltan Cloudflare sin que nada lo advierta. Falla al leer la
+  configuración, antes de crear ningún bean.
+- **Un secreto débil tampoco arranca.** Se rechaza si está vacío, si tiene
+  menos de 32 caracteres o si lleva caracteres que no son ASCII visibles
+  (espacios, saltos de línea, letras con tilde). Esos caracteres se pierden al
+  pegar el valor o al enviarlo en un encabezado, y el API respondería 403 a
+  todo. El arranque falla al construir el filtro, junto con el servidor web y
+  antes de conectarse a la base. El secreto se genera con
+  `openssl rand -hex 32`: 64 caracteres hexadecimales, 256 bits.
+- **El interruptor `ORIGEN_SECRETO=ninguno`.** Sigue el estilo de
+  `CAPTCHA_TIPO=ninguno` y `CLASIFICACION_TIPO=falso`: no distingue
+  mayúsculas ni recorta espacios, así que `ninguno ` es un secreto corto y no
+  arranca. Existe para un caso concreto: si hubiera que quitar el proxy de
+  Cloudflare (nube gris) durante un incidente, el encabezado dejaría de
+  llegar y el API respondería 403 a todo. Sin el interruptor, la única salida
+  sería un cambio de código. En `prod` deja un WARN en cada arranque. Hay que
+  escribirlo a propósito, porque no es el valor por defecto.
+- **Rotación sin corte**, con `ORIGEN_SECRETO_ANTERIOR`. Con un solo secreto,
+  rotar cortaría el servicio: desde que Railway activa la versión con el
+  secreto nuevo hasta que se guarda la regla en Cloudflare, todo daría 403.
+  Con la variable, el filtro acepta los dos secretos mientras Cloudflare
+  cambia de valor; el paso a paso está en el runbook. Si la variable queda
+  puesta, cada arranque deja un WARN. Si es igual a `ORIGEN_SECRETO` o es
+  débil, no arranca.
+- **Cómo se ve en el log.** Con el filtro activo, el arranque registra
+  «Encabezado de origen exigido (DEP-14)». Con `ninguno` en `prod`, registra
+  el WARN «Encabezado de origen APAGADO».
+
+**Alternativas descartadas.**
+
+- **Aceptar solo las IP de Cloudflare.** El contenedor recibe la conexión
+  del borde de Railway, no la de quien envía la petición. Habría que confiar
+  en la IP que el borde informa en una cabecera (`X-Forwarded-For`, que el
+  cliente también puede enviar) y mantener la lista de IP de Cloudflare, que
+  cambia.
+- **Authenticated Origin Pulls (mTLS).** Railway termina el TLS en su borde,
+  así que el certificado de cliente de Cloudflare no llega al contenedor.
+- **Cloudflare Tunnel.** Exige un proceso `cloudflared` junto al backend y
+  cambia cómo llega el tráfico a Railway: demasiado cambio para el MVP.
+
+El encabezado funciona con la plataforma actual, no agrega dependencias y es
+lo que Cloudflare documenta para este caso. Su límite: si el secreto se
+filtra, quien lo tenga puede volver a saltarse Cloudflare hasta que se rote.
+Por eso el secreto solo vive en la regla de Cloudflare y en la variable de
+Railway, nunca en el repositorio.
+
+**Pruebas.**
+
+- `EncabezadoDeOrigenFilterTest` (Surefire) cubre:
+  - pasan el secreto vigente, el anterior durante una rotación, el nombre del
+    encabezado en minúsculas y el health check;
+  - recibe 403 cualquier otro valor: un carácter de más o de menos, otra
+    capitalización, espacios alrededor, un carácter no ASCII o el anterior
+    sin rotación;
+  - recibe 403 el secreto en otro encabezado;
+  - recibe 403 toda variante del health check y toda otra ruta;
+  - el cuerpo es el mismo sin el encabezado que con un valor equivocado, y no
+    menciona el encabezado;
+  - el rechazo no registra el valor recibido ni los secretos;
+  - el arranque falla con un secreto vacío, de 31 caracteres o con caracteres
+    que no son ASCII visibles, con el anterior corto o igual al vigente, o con
+    un nombre de encabezado inválido, y ningún mensaje repite el valor. Con 32
+    caracteres, arranca.
+- `EncabezadoDeOrigenConfigTest` cubre:
+  - cuándo se exige: `ninguno` en cualquier capitalización lo apaga, y
+    `ninguno ` (con espacio) o cualquier otro valor lo enciende;
+  - que la variable sin definir falla nombrándola;
+  - el lugar en la cadena, antes que Spring Security;
+  - lo que queda en el log, sin los secretos.
+- `EncabezadoDeOrigenIT` usa el perfil `prod` en plena rotación:
+  - sin el encabezado, 403 en una ruta pública, con el cuerpo de cualquier
+    403;
+  - con un valor equivocado, el mismo 403;
+  - con el secreto vigente o el anterior, pasa;
+  - una ruta privada sigue exigiendo token;
+  - `GET /actuator/health` responde sin el encabezado;
+  - `HEAD` o `POST` al health, `/actuator/health/db`, `/actuator/env`, el
+    preflight CORS, una foto de reporte, la búsqueda, la resolución de
+    distrito y `/error` reciben 403, sin cabeceras CORS;
+  - con el encabezado, el preflight y la foto llegan a la app.
+- `ArranqueEncabezadoDeOrigenIT`: el perfil `prod` no arranca sin
+  `ORIGEN_SECRETO`, ni vacía, ni con 31 caracteres. La base apunta a un
+  puerto cerrado, y el error de abajo es el del secreto, sin el valor en la
+  traza.
+- `PerfilProdIT`: todas sus peticiones llevan el encabezado, como si pasaran
+  por Cloudflare. Así prueba que con él el API funciona igual, y que un valor
+  equivocado recibe 403 en una ruta pública. Los demás `Arranque*IT` que
+  arrancan `prod` pasan `ORIGEN_SECRETO`.
+
+**Activación en producción.** El orden importa: primero la regla de
+Cloudflare, después la variable en Railway y al final el despliegue. Si se
+invierte, el API responde 403 a todo hasta que la regla exista. El paso a
+paso, la verificación con `curl --resolve` y la rotación están en el runbook
+(`docs/despliegue.md`).
 
 ## Operación en producción
 
@@ -276,16 +465,17 @@ Los ADMIN siguientes se gestionan aparte (decisión del usuario, 22/10).
 |---|---|
 | `ADMIN_INICIAL_EMAIL` ausente o en blanco | Nada (log `INFO`). Es el caso de todo arranque normal. |
 | Ya hay algún `ADMIN` (sea o no la cuenta de la variable) | Nada (log `INFO`, sin repetir el correo ni la contraseña). No valida las variables, no crea un segundo ADMIN aunque el correo sea nuevo y **nunca** cambia la contraseña ni el nombre de un ADMIN. |
-| Sin ADMIN y sin cuenta con ese correo | La crea: `ADMIN`, activa, sin distrito, con la contraseña hasheada por el `PasswordEncoder` de la aplicación. |
+| Sin ADMIN y sin cuenta con ese correo | La crea: `ADMIN`, activa, sin distrito, con el correo confirmado (NC-09: lo dio el operador, no un registro público) y la contraseña hasheada por el `PasswordEncoder` de la aplicación. |
 | Sin ADMIN y el correo ya tiene cuenta (con otro rol, por fuerza) | **No arranca** («…nunca se promueve…»). |
 | Sin ADMIN, y falta la contraseña, tiene menos de 12 caracteres o más de 72 bytes, o el correo no cumple las reglas del registro (`@Email`, 150 caracteres como máximo) | **No arranca**, sin crear nada y sin repetir el valor en el mensaje. |
 
 Decisiones:
 
-- **Crea, nunca promueve** (decisión del usuario, 22/10). El registro no
-  verifica la propiedad del correo: cualquiera puede registrarse con un
-  correo ajeno. Si el seeder promoviera una cuenta existente, quien se
-  registrara primero con ese correo quedaría como ADMIN. Promover una cuenta
+- **Crea, nunca promueve** (decisión del usuario, 22/10). Cualquiera puede
+  registrarse con un correo ajeno (hasta NC-09 el registro no verificaba la
+  propiedad del correo, y una cuenta sin confirmar sigue sin probarla). Si el
+  seeder promoviera una cuenta existente, quien se registrara primero con ese
+  correo quedaría como ADMIN. Promover una cuenta
   ya registrada fue la primera versión de la propuesta de despliegue y
   dependía del orden de los pasos: registrar la cuenta *antes* de definir la
   variable. Creándola, el orden deja de importar y el caso peligroso se
@@ -360,13 +550,21 @@ ADMIN.
    contraseña queda con el hash de la aplicación y su aceptación de los
    términos, registrada (D-12).
 2. **Antes de asignar, la persona confirma que el registro le funcionó a
-   ella** (entra con su contraseña). El registro no verifica la propiedad
-   del correo: si al registrarse vio «El correo ya está registrado», alguien
-   pudo registrarse antes con su correo, y asignar le daría el rol a esa
-   cuenta. En ese caso no se asigna hasta que recupere la cuenta con
-   «¿Olvidaste tu contraseña?» (cuando funcione DEP-08) o se revise con ella.
-   El script muestra la fecha de registro de la cuenta (`created_at`, hora
-   de Lima) para compararla con lo que la persona recuerda.
+   ella** (entra con su contraseña). Desde NC-09 una cuenta no inicia sesión
+   sin confirmar su correo, así que entrar prueba que el correo es suyo, y
+   desde NC-09b el script no asigna una cuenta sin confirmar. Si al
+   registrarse vio «El correo ya está registrado», alguien pudo registrarse
+   antes con su correo, y asignar le daría el rol a esa cuenta. En ese caso
+   no se asigna hasta que ella recupere la cuenta: abre el enlace del correo
+   de confirmación que recibió cuando el otro se registró (si venció, la
+   página del enlace le deja pedir otro), y después cambia la contraseña con
+   «¿Olvidaste tu contraseña?», que solo funciona con la cuenta confirmada.
+   Si ya no tiene ese correo, pide el enlace de nuevo con «Reenviar el
+   enlace», que «¿Olvidaste tu contraseña?» ofrece tras pedir el token
+   (NC-09c; ver «Cuentas sin confirmar (NC-09b)»).
+   El script muestra la fecha de registro de la
+   cuenta (`created_at`, hora de Lima) y si confirmó su correo, para
+   compararlo con lo que la persona recuerda.
 3. Un operador con acceso a la base corre `backend/scripts/asignar-funcionario.sql`
    con variables de `psql`, desde la raíz del repositorio:
 
@@ -393,7 +591,8 @@ ADMIN.
 
 | Caso | `asignar` (por defecto) | `accion=revocar` |
 |---|---|---|
-| Cuenta `CIUDADANO` | Pasa a `FUNCIONARIO_MUNICIPAL` con ese distrito. Si tenía distrito de residencia, avisa que se reemplaza (es el mismo campo). | Nada (aviso). |
+| Cuenta `CIUDADANO` con el correo confirmado | Pasa a `FUNCIONARIO_MUNICIPAL` con ese distrito. Si tenía distrito de residencia, avisa que se reemplaza (es el mismo campo). | Nada (aviso). |
+| Cuenta `CIUDADANO` sin confirmar el correo (NC-09b) | **Falla**: «La cuenta … no confirmo su correo: no se le asigna el rol.», con la pista de abrir el enlace o pedir otro con «Reenviar». | Nada (aviso). |
 | `FUNCIONARIO_MUNICIPAL` del mismo distrito | Nada (aviso): se puede repetir. | Vuelve a `CIUDADANO`, sin distrito. |
 | `FUNCIONARIO_MUNICIPAL` de otro distrito | **Falla**: primero se revoca. | Vuelve a `CIUDADANO`, sin distrito. |
 | `ADMIN` | **Falla.** | **Falla.** |
@@ -418,6 +617,13 @@ Decisiones:
 - **Solo de `CIUDADANO` a funcionario.** Cambiar de distrito a un
   funcionario mueve su bandeja: se pide revocar y volver a asignar, para
   que no ocurra por un error de tipeo. Un ADMIN nunca se toca.
+- **Solo una cuenta con el correo confirmado** (NC-09b, decisión del
+  usuario del 28/10). Sin confirmar, nada prueba que el correo sea de la
+  persona: es el caso de quien registró antes un correo ajeno. Antes de
+  NC-09b dependía de que el operador siguiera el paso 2; ahora lo comprueba
+  el script, en el mismo bloque `DO`, así que falla sin asignar nada. El
+  aviso inicial dice si la cuenta confirmó su correo. Revocar no lo mira:
+  quitar el rol siempre debe poder hacerse.
 - **Atómico y sin restos en la sesión.** Todas las comprobaciones y el
   `UPDATE` van en un bloque `DO` dentro de `BEGIN … COMMIT`, y los datos
   pasan de `psql` a la base con `SET LOCAL`, que desaparece al terminar la
@@ -459,6 +665,16 @@ cambios), el aviso con la fecha de registro, el archivo con CRLF y, en una
 misma sesión, un `\i` que falla (la cuenta ADMIN) seguido de otro que
 funciona: tras el fallo no queda transacción abierta, ni el `SET LOCAL`, ni
 las variables, y la persona siguiente se asigna sin arrastrar nada.
+
+**Verificación de NC-09b (2026-10-28)** contra `viasegura_test`, con el
+`psql` del contenedor (entrada estándar) y dos cuentas propias que se
+borraron al final: la cuenta sin confirmar da el aviso «correo SIN
+CONFIRMAR», el error y la pista de arriba y código 3, y queda `CIUDADANO`
+sin distrito; la confirmada (aviso «correo confirmado») se asigna a
+Miraflores con `miraflores` y se revoca. Lo prueba además
+`AsignarFuncionarioScriptIT` en cada `mvn verify`: corre el bloque `DO` leído
+del archivo (no una copia), porque `psql` no está garantizado en la CI ni en
+el PATH de Windows.
 
 ### Respaldo diario de la base (DEP-09, v0.7.2)
 
@@ -521,8 +737,10 @@ bucket. Además crea un bucket de Railway que no se usa. Decisión del usuario
 
 | Método | Ruta                | Auth | Historia | Descripción |
 |--------|---------------------|------|----------|-------------|
-| POST   | `/api/auth/registro`| No   | US-01    | Registrar cuenta ciudadana (exige aceptar los términos vigentes, D-12) |
-| POST   | `/api/auth/login`   | No   | US-02    | Iniciar sesión (devuelve JWT) |
+| POST   | `/api/auth/registro`| No   | US-01    | Registrar cuenta ciudadana (exige aceptar los términos vigentes, D-12). Desde NC-09 la cuenta nace sin confirmar y la respuesta no trae token |
+| POST   | `/api/auth/confirmar-correo` | No | NC-09 | Confirmar el correo con el token del enlace (204; no inicia sesión) |
+| POST   | `/api/auth/reenviar-confirmacion` | No | NC-09 | Pedir otro enlace (202 siempre) |
+| POST   | `/api/auth/login`   | No   | US-02    | Iniciar sesión (devuelve JWT). Sin el correo confirmado, 409 `CORREO_NO_CONFIRMADO` |
 | GET    | `/api/auth/me`      | Sí   | US-02    | Datos del usuario autenticado (con `debeAceptarTerminos`) |
 | GET/POST | `/api/auth/me/consentimientos` | Sí | NC-07b | Consentimientos propios: listar y aceptar (ver [Consentimiento](#consentimiento-d-12-nc-07b)) |
 | DELETE | `/api/auth/me/consentimientos/{finalidad}` | Sí | NC-07b | Revocar un consentimiento propio |
@@ -530,10 +748,16 @@ bucket. Además crea un bucket de Railway que no se usa. Decisión del usuario
 ### Ejemplo rápido
 
 ```bash
-# Registro
+# Registro (201 con {"email", "vigenciaEnlaceHoras"}; sin token desde NC-09)
 curl -X POST http://localhost:8080/api/auth/registro \
   -H "Content-Type: application/json" \
   -d '{"email":"vecino@lima.pe","password":"secreta123","nombre":"Ana","apellido":"Ruiz","aceptaTerminos":true,"versionTerminos":"2026-10-v1"}'
+
+# Confirmar el correo: el enlace llega a Mailhog (http://localhost:8025),
+# http://localhost:3000/confirmar-cuenta?token=<TOKEN_DEL_ENLACE>
+curl -X POST http://localhost:8080/api/auth/confirmar-correo \
+  -H "Content-Type: application/json" \
+  -d '{"token":"<TOKEN_DEL_ENLACE>"}'
 
 # Login
 curl -X POST http://localhost:8080/api/auth/login \
@@ -550,7 +774,7 @@ curl http://localhost:8080/api/auth/me -H "Authorization: Bearer <TOKEN>"
 src/main/java/pe/edu/upc/viasegura/
 ├── common/            # Transversal: config, seguridad (JWT), excepciones, entidad base
 │   ├── config/        # (reservado) OpenApiConfig, etc.
-│   ├── security/      # SecurityConfig, JwtService, JwtAuthenticationFilter
+│   ├── security/      # SecurityConfig, JwtService, JwtAuthenticationFilter, EncabezadoDeOrigenFilter (DEP-14)
 │   ├── exception/     # GlobalExceptionHandler, ApiError, excepciones de dominio
 │   ├── domain/        # BaseAuditableEntity (createdAt/updatedAt)
 │   ├── port/          # FotoStorageService (fotos, D-11), SaneadorDeImagen (DEP-12) y CorreoSaliente (DEP-08)
@@ -559,6 +783,12 @@ src/main/java/pe/edu/upc/viasegura/
 ├── auth/              # US-01..US-04  (Usuario, login/registro, roles)
 ├── distritos/         # Distrito (límites GEOGRAPHY, base de asignación)
 ├── municipalidades/   # Municipalidad (1:1 con distrito, D-09) y PeriodoGestion (NC-01)
+├── clasificacion/     # Sugerencia de categoría por la foto (NC-04): port/ClasificadorDano,
+│                      #   infra/InferenciaHttpAdapter (NC-04b) y FalsoClasificadorAdapter,
+│                      #   domain/PoliticaDeSugerencia
+├── moderacion/        # Moderacion de contenido (NC-10b, D-15): port/ModeradorDeImagen,
+│                      #   infra/InferenciaModeracionHttpAdapter y SinModeracionAdapter,
+│                      #   domain/PoliticaDeModeracion y FiltroDeGroserias (resources/moderacion/)
 ├── reportes/          # Reporte + CategoriaDano, Adhesion, Historial, Asignacion,
 │                      #   Calificacion, ComentarioPublico  (+ port/ + infra/ para Strategy geo)
 ├── notificaciones/    # Notificacion  (+ port/ + infra/ para Strategy push/email)
@@ -630,6 +860,15 @@ la vigencia vive en `reportes/service/IdempotencyKeyService.java`.
 Ambos conviven sin pisarse: la clave de idempotencia se resuelve antes de
 tocar la lógica de US-09; si la clave no se ha visto antes (o venció), la
 deduplicación de US-09 se ejecuta exactamente igual que sin idempotencia.
+
+**Dos lecturas de la clave desde BE-11.** La foto se sanea y se sube antes
+de abrir la transacción (ver [La foto del reporte, fuera de la
+transacción](#la-foto-del-reporte-fuera-de-la-transacción-be-11)), así que la
+clave se lee dos veces: antes de la foto, para que un reenvío con respuesta
+guardada vuelva **sin sanear ni subir nada** (y, con NC-10b, sin moderar), y
+otra vez al empezar la transacción, porque mientras la foto subía otro envío
+con la misma clave pudo confirmarse. En ese caso se devuelve su respuesta y
+la foto de este envío, que ningún reporte usa, se borra.
 
 **Concurrencia — limitación conocida y acotada.** La lectura de la clave
 es la ruta rápida, no la garantía. Si dos requests con la misma clave
@@ -957,7 +1196,7 @@ todas necesitan un `categoriaId` o un `distritoId` válido.
 
 | Método | Ruta | Auth | Descripción |
 |---|---|---|---|
-| GET | `/api/categorias` | No | Categorías seleccionables. Sin `?distritoId=`: solo las 6 estándar. Con él: estándar + personalizadas activas de ese distrito (US-29). |
+| GET | `/api/categorias` | No | Categorías seleccionables. Sin `?distritoId=`: solo las estándar activas (5 desde V19, que desactivó «Hueco en calzada», NC-04). Con él: estándar + personalizadas activas de ese distrito (US-29). |
 | GET | `/api/distritos` | No | Los 43 distritos (id, nombre, ubigeo) en orden alfabético. |
 
 Son públicos por el mismo criterio que la búsqueda de reportes (US-10/US-12),
@@ -1162,6 +1401,17 @@ un "Acceso denegado" fijo (correcto: esa excepción también la lanza Spring
 Security desde `@PreAuthorize` y sus textos internos no son para el usuario
 final), pero aquí el mensaje era la parte útil.
 
+**Moderación (NC-11a, 28/10).** Desde V21 hay una segunda salida del índice
+fuera de `CANCELADO`: un reporte **oculto por el ADMIN** no cuenta (decisión
+del usuario). SEC-01 se mantiene porque esa salida está en manos de un actor
+que **no se mide**: solo el ADMIN (la plataforma) oculta, con un motivo, una
+entrada en la línea de tiempo y de forma reversible. El
+`FUNCIONARIO_MUNICIPAL` no tiene ninguna ruta de moderación ni de denuncia
+(403, `OcultamientoReporteIT`), y su única vía para descartar sigue siendo
+`RECHAZADO`, que cuenta. Las denuncias de los ciudadanos no tienen efecto
+automático: juntar cuentas no saca nada del índice. Si el daño es real y solo
+la foto incumple, el ADMIN oculta la foto, que no mueve el índice.
+
 ### SEC-02 — La señal de reincidencia llegaba al mapa público y al ciudadano
 
 **Detectado:** 2026-10-13, en la revisión del Sprint 2 (B5).
@@ -1317,6 +1567,34 @@ un título `=HYPERLINK(…)` y otro `-2+3 …` y un responsable `@cuadrilla` sal
 con apóstrofo en el CSV, la ubicación sin él, y en el XLSX el título `=1+1 …`
 es una celda de texto sin apóstrofo.
 
+### SEC-05 — El API se podía alcanzar sin pasar por Cloudflare
+
+**Detectado:** 2026-10-28, al revisar las defensas del despliegue (v0.7.x en
+producción).
+**Estado:** corregido en el código (DEP-14, para la v0.8.0) y cubierto por
+tests. En producción se activa con la *Transform Rule* de Cloudflare y
+`ORIGEN_SECRETO`, en ese orden (runbook).
+
+**El problema.** El borde de Railway enruta por el `Host`. Una petición con
+`Host: api.ciudadviva.app` enviada directo a su IP llegaba al backend sin
+pasar por Cloudflare: 200 en `/api/categorias`. Borrar el dominio
+`*.up.railway.app` no lo cerraba.
+
+**Por qué importaba.** El WAF, la regla «solo rutas de la app» y el límite
+de 30 escrituras cada 10 s por IP están en Cloudflare, y el backend no limita
+por IP. Quien se saltaba el proxy podía mandar ráfagas de escrituras (inicio
+de sesión, adhesiones, reportes) sin ningún límite, o probar rutas que la
+regla de Cloudflare no deja pasar.
+
+**La corrección.** Cloudflare agrega un encabezado con un secreto, y el
+backend, en un filtro que corre antes que Spring Security, rechaza con 403
+lo que no lo trae. Ver
+[Encabezado de origen (DEP-14)](#encabezado-de-origen-dep-14).
+
+**Regresión:** `EncabezadoDeOrigenFilterTest`, `EncabezadoDeOrigenConfigTest`,
+`EncabezadoDeOrigenIT`, `ArranqueEncabezadoDeOrigenIT` y `PerfilProdIT` (el
+detalle, en esa sección).
+
 ## Frescura del índice de desempeño
 
 El índice público (US-18/US-20) se sirve desde una vista materializada que se
@@ -1340,6 +1618,7 @@ casos más del mismo tipo:
 | Cancelar un reporte (US-08) | −1 en `total_reportes` (la vista excluye `CANCELADO`, migración V7) |
 | Calificar la atención (US-26) | cambia la satisfacción promedio |
 | Cambiar la categoría (US-08) | mueve el reporte entre filas `(distrito, categoría)`: afecta el desglose de US-20, no el agregado |
+| Ocultar o restablecer un reporte (NC-11a, solo el ADMIN) | lo saca o lo devuelve: la vista excluye los ocultos desde V21, con sus resueltos y sus calificaciones (`ReporteVisibilidadCambiadaEvent`). Ocultar **solo la foto** no mueve nada y no refresca |
 
 **No** disparan refresco, deliberadamente: adherirse a un reporte existente
 (US-09 no crea una fila nueva, así que el total no cambia) y los estados
@@ -1350,6 +1629,80 @@ La lección que vale registrar: al elegir un modelo dirigido por eventos, la
 parte frágil no es el mecanismo sino **la enumeración de los eventos**. Aquí
 se enumeraron los que cambian el *numerador* y se pasó por alto el
 *denominador*.
+
+### Refresco asíncrono y coalescido (BE-12)
+
+Hasta BE-12 el `REFRESH` corría en el hilo de la petición, dentro del
+`AFTER_COMMIT`, cuando la conexión de la transacción original todavía no
+había vuelto al pool: cada creación tomaba **dos** conexiones a la vez, y 16
+creaciones con foto en el mismo segundo agotaban el pool de 10 (ver [Prueba
+de memoria](#prueba-de-memoria-dep-12)). Por eso producción corre con
+`SPRING_DATASOURCE_HIKARI_MAXIMUMPOOLSIZE=20` desde el 25/10. Decisión del
+usuario (25/10): opción A de `propuestas/2026-10-22-refresco-indice-asincrono.md`.
+
+Cómo funciona (`desempeno/listener/IndiceDesempenoRefreshListener`):
+
+- cada evento de la tabla de arriba solo **marca el índice como sucio** y, si
+  no hay ya una tarea pendiente, encola una en el executor del índice
+  (`ejecutorIndice`, ver [Executor asíncrono](#executor-asíncrono-asyncconfig));
+  la petición vuelve sin esperar;
+- la tarea repite `while (sucio.getAndSet(false)) refrescar()`. La marca se
+  baja **antes** de refrescar, así que un evento que llega durante el
+  refresco la vuelve a subir y la vuelta siguiente lo recoge. Si llega justo
+  después de la última vuelta, la tarea lo ve al salir y se vuelve a encolar.
+  **Siempre hay un refresco que empieza después del último evento**: la regla
+  «todo evento que mueve el índice lo refresca» se mantiene;
+- **coalesce:** los eventos que llegan mientras un refresco corre producen
+  uno solo más. Lo que se garantiza es **a lo sumo un refresco en curso y uno
+  pendiente**, no un número fijo: cuántos hay depende de cómo caen los
+  eventos respecto de los refrescos (en `IndiceCoalescidoIT`, con el primero
+  retenido a propósito, 16 creaciones dan exactamente 2);
+- **si el executor rechaza la tarea** (no debería: hay a lo sumo una
+  pendiente, y por un instante dos, la que termina y la que se acaba de
+  encolar; por eso la cola es de una), la marca queda puesta y el siguiente
+  evento la recoge;
+- **si el refresco falla** (cualquier `Throwable`: la base caída, o un
+  `Error`, que se relanza después), la marca se vuelve a subir. Si mientras
+  fallaba llegaron eventos, se intenta **una vez más** por ellos: un intento
+  por tanda de eventos, como antes de BE-12 era uno por evento. Si no llegó
+  ninguno, **no hay reintento diferido**: con la base caída sería un bucle, y
+  el índice queda desactualizado hasta el próximo evento o el próximo
+  arranque. Un reintento único con demora se descartó por simple: no aporta
+  nada que no dé el siguiente evento y obliga a programar tareas;
+- **al arrancar** la aplicación se refresca una vez (`ApplicationReadyEvent`):
+  recoge lo que haya quedado pendiente si un apagado descartó la tarea
+  encolada, o si el último refresco falló y no hubo más eventos;
+- el refresco sigue en `DesempenoService#refrescarIndice` con `REQUIRES_NEW`:
+  cada vuelta es una transacción corta propia.
+
+**Costo aceptado:** el índice público tarda lo que dura un refresco (o dos)
+en reflejar un cambio, en vez de reflejarlo al volver la petición. Para una
+métrica agregada eso es aceptable, y era el riesgo previsto en la propuesta.
+**Sin ventana mínima** entre refrescos: coalescer lo que llega durante un
+refresco ya acota el trabajo a uno en curso y uno pendiente, y una ventana
+solo retrasaría el primero.
+
+**Los IT:** el executor de prueba del índice (`support/EjecutorSincronoTestConfig`)
+corre la tarea en otro hilo y la espera, como los otros dos, así que los IT
+que leen el índice después de un evento (`DesempenoIT`, `IndiceSinOcultosIT`)
+siguen afirmando lo mismo sin esperas ni refresco manual. Lo que ese executor
+no puede mostrar lo prueba `IndiceCoalescidoIT`, que lo reemplaza por el real
+(`@TestBean`).
+
+| Test | Tipo | Qué fija |
+|---|---|---|
+| `IndiceCoalescidoIT` | IT, executor real | Con el primer refresco retenido (espía de `DesempenoService`), 15 creaciones más por `POST /api/reportes` terminan en 201 sin esperarlo y el índice todavía no las cuenta; al soltarlo hay **exactamente 2 refrescos para 16 eventos** y el índice cuenta las 16. |
+| `IndiceDesempenoRefreshListenerTest` | unitaria, executor real | El refresco corre en `viasegura-indice-*`; 16 eventos durante un refresco retenido dan 2; qué eventos refrescan y cuáles no; el rechazo deja la marca para el siguiente evento; un fallo sin eventos no reintenta, y uno con eventos durante el intento se reintenta una vez; un `Error` deja la marca puesta; un evento en la ventana entre la última vuelta y el fin de la tarea (gancho `alSalirDelBucle`) da un segundo refresco; con 4000 eventos desde 8 hilos, el último refresco empieza después del último evento. |
+| `AsyncConfigTest` | unitaria | Un hilo, cola de una, `AbortPolicy`, nombre propio y no `@Primary`. |
+
+La carrera más estrecha (un evento que marca justo entre la última vuelta del
+bucle y la liberación de la tarea) la cubre la segunda lectura de la marca al
+salir. La prueba de 8 hilos no fuerza esa ventana (un mutante sin esa lectura
+la pasaba), así que el listener tiene un gancho package-private,
+`alSalirDelBucle`, que en producción no hace nada y corre justo en esa
+ventana: el test publica ahí un evento y exige el segundo refresco. Los
+mutantes sin la relectura y sin el reintento por eventos durante un fallo
+mueren de forma determinista.
 
 ## Fotos: dos visibilidades, dos buckets y sin EXIF (DEP-12)
 
@@ -1363,11 +1716,13 @@ seguridad, no de orden:
 | Dónde (`s3`) | bucket `FOTOS_S3_BUCKET_REPORTES` (privado) | bucket `FOTOS_S3_BUCKET_PERFILES` (privado) |
 | URL | `/media/fotos/reportes/{uuid}.jpg` | `/api/perfiles/fotos/{uuid}.jpg` |
 | Acceso | **Público**, sin token | **Solo el dueño** |
-| Mecanismo | resource handler con `ResourceResolver` propio (`WebMvcConfig`) | `PerfilFotoController` |
+| Mecanismo | resource handler con `ResourceResolver` propio (`reportes/infra/FotosDeReporteWebConfig`, antes `common/config/WebMvcConfig`) | `PerfilFotoController` |
 
 **Por qué las de reporte son públicas:** el mapa y la búsqueda (US-10/US-12)
 ya son públicos y devuelven `fotoUrl`; si la foto exigiera token, el mapa
-mostraría imágenes rotas a cualquier visitante.
+mostraría imágenes rotas a cualquier visitante. Desde NC-11a, públicas **si
+son visibles**: la foto que ocultó el ADMIN, la de un reporte oculto y la que
+no es de ningún reporte responden 404 (ver «Ocultar y denunciar (NC-11a)»).
 
 **Por qué mecanismos distintos.** Una foto de reporte no tiene regla de
 autorización: el resource handler de Spring resuelve content-type,
@@ -1416,7 +1771,8 @@ confirmaría que ese archivo existe y se trata de fotos de personas.
   cadenas que el local, y el backend lee del bucket para servirlas. El
   navegador nunca habla con R2: **sin cambio de contrato ni de CSP**, y
   `reporte.foto_url` y `usuario.foto_url` siguen guardando la URL relativa.
-  Para eso el puerto suma `cargarFotoReporte`, y `WebMvcConfig` registra el
+  Para eso el puerto suma `cargarFotoReporte`, y `WebMvcConfig` (desde NC-11a,
+  `reportes/infra/FotosDeReporteWebConfig`) registra el
   mismo *resource handler* de antes con un `ResourceResolver` propio que la
   llama (antes apuntaba al directorio local). Es **un solo camino** para los
   dos adaptadores: el IT de siempre (`FotoReporteIT`) prueba el que corre en
@@ -1469,8 +1825,16 @@ Las fotos de los teléfonos traen **EXIF**: la ubicación GPS del teléfono, el
 modelo del equipo y la fecha. La foto de un reporte es pública, así que
 publicarlo expondría dónde vive o por dónde anda quien reporta. Toda foto
 pasa por `common/port/SaneadorDeImagen` (implementado por
-`common/infra/ImageIoSaneadorDeImagen`) al principio de los `almacenar…` de
-**los dos** adaptadores, venga del caso de uso que venga:
+`common/infra/ImageIoSaneadorDeImagen`) antes de guardarse: la de perfil, al
+principio de `almacenarFotoPerfil` de **los dos** adaptadores; la de reporte,
+en `ReporteService#crear`, antes de subirla, y el adaptador la guarda tal
+cual con `almacenarFotoReporteSaneada` (BE-11, abajo). El saneado devuelve
+un tipo propio, `common/port/FotoSaneada`, y ese método solo acepta ese
+tipo: una foto cruda del cliente no compila donde se espera una saneada. Como
+un record no puede ocultar su constructor, una regla de ArchUnit
+(`FotoSaneadaSoloDelSaneadoTest`) exige que en el código de producción solo
+un `SaneadorDeImagen` construya una `FotoSaneada`. Así una foto no puede
+publicarse con su EXIF por error. El saneado:
 
 1. Valida la extensión (jpg, jpeg, png, webp) y luego **el contenido**: el
    lector se elige por los bytes, no por el nombre, y solo se aceptan JPEG,
@@ -1508,8 +1872,9 @@ pasa por `common/port/SaneadorDeImagen` (implementado por
   `IndexOutOfBounds`) también es 409: el error es del cliente, no un 500.
 - **Determinista.** Los mismos bytes dan los mismos bytes (mismo lector, mismo
   paso, giros exactos con vecino más cercano, mismo codificador y calidad).
-  D-08 depende de eso: con NC-04 la vista previa pasará por el mismo
-  saneador, y la sugerencia oficial leerá la foto guardada, ya saneada.
+  D-08 depende de eso: desde NC-04 la vista previa pasa por el mismo
+  saneador y la sugerencia oficial lee la foto guardada, ya saneada (ver
+  [Sugerencia de categoría](#sugerencia-de-categoría-por-la-foto-nc-04-fase-0)).
 
 **Memoria acotada.** El API corre con `-Xmx512m` (runbook). Cada saneado en
 curso ocupa el archivo subido (hasta 10 MB), la imagen decodificada
@@ -1540,18 +1905,104 @@ encabezados):
   `VP8` con pérdida): el decodificador arma un raster entero de 4 bytes por
   píxel (64 MB con 16 MP). Un teléfono no produce estos archivos.
 
+### La foto del reporte, fuera de la transacción (BE-11)
+
+Hasta BE-11, `ReporteService#crear` era un `@Transactional` que saneaba y
+subía la foto adentro: con R2, ~100–500 ms de red, y antes hasta 10 s de
+espera de turno de saneado, con una conexión del pool tomada (con 16
+creaciones con foto simultáneas el pool se agotaba, ver [Prueba de
+memoria](#prueba-de-memoria-dep-12)). Ahora `crear` no abre una transacción
+propia y sigue este orden:
+
+1. El usuario y el reenvío idempotente (US-06), cada lectura en su propia
+   transacción corta. Un reenvío con respuesta guardada vuelve aquí, sin
+   sanear, moderar ni subir nada.
+2. Los campos (NC-02) y, desde NC-10b, el texto sin groserías, sin tocar la
+   base.
+3. La foto se sanea **una sola vez**, se **modera** (NC-10b: una foto
+   rechazada o que no se pudo revisar no llega a subirse) y se sube con
+   `FotoStorageService#almacenarFotoReporteSaneada`, que la guarda **tal
+   cual**, sin volver a sanearla: los mismos bytes que vio la vista previa
+   (D-08). Todo esto sin transacción ni conexión tomada.
+4. Recién entonces la transacción: categoría, distrito, deduplicación
+   (US-09), reporte o adhesión, la clave de idempotencia y
+   `ReporteCreadoEvent`.
+5. Al volver de ella, la foto se borra si ningún reporte confirmado la usa.
+
+**La compensación** (`reportes/service/FotoProvisional`). La foto subida se
+registra como `TransactionSynchronization` de esa transacción, y
+`afterCompletion` da su desenlace real:
+
+| Desenlace de la transacción | ¿La usa el reporte nuevo? | La foto |
+|---|---|---|
+| Confirmada | Sí | Se conserva |
+| Confirmada | No: adhesión (US-09) o reenvío que se cruzó (US-06) | Se borra |
+| Revertida | — | Se borra |
+| Desconocido (falló el commit sin saber si llegó a la base) | Sí | Se conserva, con un WARN: un reporte publicado sin su foto es peor que un objeto huérfano |
+| No llegó a empezar (sin conexión en el pool) | — | Se borra |
+
+- **El borrado no va dentro de `afterCompletion`.** Spring la llama antes de
+  devolver la conexión al pool (`cleanupAfterCompletion` va después), y
+  borrar en R2 es otra llamada de red. `afterCompletion` solo anota el
+  desenlace; el borrado lo hace `FotoProvisional#resolver` apenas vuelve la
+  transacción, ya sin conexión. Nunca lanza: si falla, queda un WARN con el
+  nombre del objeto y la respuesta al ciudadano no cambia.
+- **Transacción programática.** Tiene que empezar después de la subida y
+  terminar antes de la compensación, dentro del mismo caso de uso. Un
+  `@Transactional` en un método del mismo bean no se aplicaría (el proxy no
+  intercepta llamadas internas), y partir el caso de uso en dos beans solo
+  para eso escondería el orden. `ReporteService` usa el `TransactionTemplate`
+  de Spring Boot (inyectado como `TransactionOperations`): el borde queda a la
+  vista y sigue en `service/` (ARCHITECTURE.md §4.5).
+- **`crear` no corre dentro de otra transacción.** Su transacción se uniría a
+  la de afuera y no habría terminado al volver: la foto se decidiría antes de
+  saber si el reporte se confirma. Lanza `IllegalStateException` antes de
+  tocar nada. Se prefirió esa comprobación a
+  `@Transactional(propagation = NEVER)`, que abre un ámbito con
+  sincronización: ahí una consulta sin transacción propia ligaría un
+  `EntityManager` al hilo, con su conexión, durante todo el método.
+- **Preparado para la moderación (NC-10b, D-15).** El saneado y la subida
+  son dos pasos separados en `crear`. La moderación va entre ellos, sobre la
+  foto ya saneada y sin transacción, y una foto rechazada no llega a subirse.
+  Como el puerto ya recibe la foto saneada (`FotoSaneada`), NC-10b no tiene
+  que agregar ese método ni volver a sanear, y el puerto de moderación puede
+  recibir el mismo tipo.
+
+**Cambios de comportamiento, sin cambio de contrato.**
+
+- La foto se sanea antes de saber si el pedido termina en adhesión. Un
+  archivo que no es una imagen da el 409 de siempre también al adherirse
+  (antes se descartaba sin mirarlo), y sin turno de saneado o con R2 caído
+  una adhesión con foto da 503. Es el orden que pide NC-10b, que también
+  revisa la foto de una adhesión.
+- Si el pedido trae una foto inválida y además una categoría o una ubicación
+  inválidas, ahora se responde primero el error de la foto. Los códigos de
+  cada error son los mismos de antes.
+- Una adhesión con foto sube la foto y la borra: dos llamadas a R2 que antes
+  no había, sin conexión tomada.
+
+**Lo que no cubre.** La foto de perfil todavía se sube dentro de la
+transacción de `AuthService#editarPerfil` (deuda técnica). La prueba de carga
+de 16 creaciones con foto simultáneas se repitió al cerrar BE-12 (ver
+[Prueba de memoria](#prueba-de-memoria-dep-12)).
+
 ### Pruebas de las fotos
 
 | Prueba | Tipo | Qué afirma |
 |---|---|---|
 | `ImageIoSaneadorDeImagenTest` | unitaria | Un JPEG con GPS y fabricante en el EXIF sale sin APP1; las 8 orientaciones EXIF dejan los píxeles donde se verían; una foto de 4200 px sale de 1400 px (submuestreo al decodificar, no reescalado); PNG transparente → fondo blanco; mismos bytes → mismos bytes; no imagen, GIF disfrazado o PNG roto → 409; más de 40 MP se rechaza **sin decodificar**, y más de 16 MP si el archivo se decodifica entero (JPEG progresivo, WEBP sin pérdida o con alfa sin pérdida, con encabezados armados en el test), mientras un JPEG secuencial o un WEBP con alfa sin comprimir de 20 MP no se rechaza por tamaño; con los turnos ocupados, la tercera espera y a los 10 s es 503, y si un turno se libera a tiempo, pasa. |
-| `S3FotoStorageServiceTest` | unitaria, `S3Client` simulado | Cada foto a su bucket con `image/jpeg`; la misma URL que el local; nombres que no son `<uuid>.<ext>` no llegan al bucket; inexistente → `null`; bucket caído → 503; no arranca sin endpoint, token o bucket, ni con un solo bucket para las dos visibilidades. |
-| `LocalFotoStorageServiceTest` | unitaria | Lo de antes, más que se guarda el JPEG saneado y `cargarFotoReporte` y `eliminarFotoPerfil` no salen del directorio. |
+| `S3FotoStorageServiceTest` | unitaria, `S3Client` simulado | Cada foto a su bucket con `image/jpeg`; la de reporte se sube tal cual, sin llamar al saneado (BE-11), y la de perfil saneada; la misma URL que el local; nombres que no son `<uuid>.<ext>` no llegan al bucket; inexistente → `null`; bucket caído → 503; `eliminarFotoReporte` borra del bucket de reportes y no lanza; no arranca sin endpoint, token o bucket, ni con un solo bucket para las dos visibilidades. |
+| `LocalFotoStorageServiceTest` | unitaria | Lo de antes, más que se guarda el JPEG saneado, que la foto de reporte ya saneada se guarda sin volver a sanearla (BE-11) y que `cargarFotoReporte`, `eliminarFotoPerfil` y `eliminarFotoReporte` no salen del directorio. |
+| `FotoSaneadaTest` | unitaria | Una foto saneada no puede estar vacía, pasa al clasificador con los mismos bytes y no vuelca sus bytes en un log. |
+| `FotoSaneadaSoloDelSaneadoTest` | ArchUnit, sin congelar | En el código de producción, solo un `SaneadorDeImagen` construye una `FotoSaneada` (BE-11). |
+| `NombreDeArchivoDeFotoTest` | unitaria | `FotoStorageService.nombreDeArchivo` saca `<uuid>.<ext>` de una URL del servidor y da `null` para lo demás (vacío, `..`, otro nombre u otra extensión), así que nada de eso llega al almacenamiento. |
+| `FotoProvisionalTest` | unitaria, gestor de transacciones de prueba | BE-11: la foto subida se conserva si la usa un reporte confirmado o si el desenlace es desconocido; se borra si la transacción se revierte, si se confirma sin usarla o si no llega a empezar; el borrado ocurre después de la transacción, nunca dentro. |
+| `FotoFueraDeTransaccionIT` | IT (`local`) | BE-11 con PostGIS: el saneado, la subida y el borrado corren sin transacción y sin recursos transaccionales en el hilo; una reversión en el commit, una adhesión y un reenvío que se cruza con la subida no dejan su foto; un reenvío idempotente no sanea ni sube otra vez; `crear` dentro de una transacción se rechaza sin tocar nada. |
 | `FotoReporteIT`, `FotoPerfilIT` | IT (`local`) | Misma URL y visibilidad; la foto descargada ya no trae EXIF y se ve derecha; `Cache-Control`, 304 y 206; nombres raros → 404; foto inválida → 409; al reemplazar la foto de perfil, la anterior se borra. |
 | `ArranqueAlmacenDeFotosIT` | IT | Con el perfil `prod` y sin `FOTOS_ALMACEN`, la aplicación no arranca. |
 | `ValidacionAlmacenDeFotosTest` | unitaria, sin base | `local` y `s3` (sin distinguir mayúsculas) pasan; otro valor (`r2`, vacío, `s3 ` con espacio) no arranca con un mensaje que nombra `FOTOS_ALMACEN` y los valores admitidos, también con la aplicación real y antes de tocar la base. |
 | `FotoDePerfilReemplazadaListenerTest` | unitaria | El listener solo encola el borrado de la foto reemplazada; ni la cola llena ni un almacenamiento caído lanzan. |
-| `S3FotoStorageServiceIT` | IT, **solo si existe `FOTOS_S3_TEST_ENDPOINT`** | La aplicación entera con `app.storage.tipo=s3` contra un servicio S3 real: cada foto solo en su bucket, servida por la misma URL e idéntica a la del bucket, sin EXIF; la de perfil solo para su dueño; la reemplazada se borra del bucket; inexistente → 404. Sin la variable se omite y la suite local no cambia. |
+| `S3FotoStorageServiceIT` | IT, **solo si existe `FOTOS_S3_TEST_ENDPOINT`** | La aplicación entera con `app.storage.tipo=s3` contra un servicio S3 real: cada foto solo en su bucket, servida por la misma URL e idéntica a la del bucket, sin EXIF; la de perfil solo para su dueño; la reemplazada se borra del bucket; inexistente → 404; una adhesión o una creación que se revierte no dejan su objeto en el bucket (BE-11). Sin la variable se omite y la suite local no cambia. |
 
 El emulador es **Adobe S3Mock** (Apache-2.0), no MinIO: el repositorio de
 MinIO quedó archivado y su imagen ya no se distribuye, y LocalStack exige un
@@ -1596,12 +2047,35 @@ available»): los refrescos fallan (se registran y el reporte ya está
 creado), y lo que no consigue conexión en ese lapso falla también (el
 filtro JWT no puede cargar al usuario → 401; una transacción que no puede
 empezar → 500). Las mismas 16 creaciones **sin foto** terminan en 201 en
-menos de 0,5 s: el saneado y la subida dentro de la transacción (deuda
-aceptada, ver «Deuda técnica conocida») alargan las transacciones lo
-suficiente para que el refresco existente agote el pool. Se resuelve
-sacando la subida de la transacción (NC-04) y el refresco del hilo de la
-petición (como las notificaciones, D-13); mientras tanto, un pool más
-grande en producción amplía el margen.
+menos de 0,5 s: el saneado y la subida dentro de la transacción alargaban
+las transacciones lo suficiente para que el refresco existente agotara el
+pool. **BE-11 sacó el saneado y la subida de la transacción** (ver [La foto
+del reporte, fuera de la
+transacción](#la-foto-del-reporte-fuera-de-la-transacción-be-11)); queda
+sacar el refresco del hilo de la petición (BE-12, como las notificaciones,
+D-13). Mientras tanto, un pool más grande en producción amplía el margen.
+Esta medición es anterior a BE-11.
+
+**Repetición con BE-12 (2026-10-30).** Las mismas condiciones: la imagen de
+`backend/Dockerfile` construida desde la rama de BE-12, el mismo
+`JAVA_TOOL_OPTIONS` (`-Xms256m -Xmx512m -XX:+UseSerialGC
+-XX:+ExitOnOutOfMemoryError`, más `-Xlog:gc`), `FOTOS_ALMACEN=s3` contra
+S3Mock 5.2.3 y un PostGIS vacío y temporal en una red de Docker propia, y el
+pool **en 10** (`SPRING_DATASOURCE_HIKARI_MAXIMUMPOOLSIZE=10`, explícito).
+16 fotos generadas tipo cámara de 24, 32 y 40 MP, de 7,8 a 8,4 MB, dos con
+orientación EXIF 6 y 8; 16 ciudadanos distintos, cada uno en un punto
+distinto de Pueblo Libre (~55 m entre puntos), lanzados con una barrera:
+
+| Imagen | Subidas simultáneas | Respuestas | Tiempo por petición | Pico de heap usado (antes de GC) | Heap comprometido |
+|---|---|---|---|---|---|
+| BE-12, pool 10 | 16 | **16 × 201** | 4,9–11,3 s (ráfaga entera: 11,6 s) | 377 MB de 512 | 481 MB |
+
+Ningún «Connection is not available», ningún `OutOfMemoryError` ni
+reinicio. El índice cuenta los 16 reportes (`calculated_at` 19 ms después
+del último `created_at`): el refresco final llegó. Los tiempos los marca el
+saneado, no la base: con `FOTOS_SANEADO_MAX_CONCURRENTES=2` las fotos de 24
+a 40 MP se sanean de a dos y el resto espera su turno, sin conexión tomada
+(BE-11).
 
 ### Migración futura a una CDN
 
@@ -1785,19 +2259,95 @@ Timeouts del push: 3 s de conexión y 5 s de pedido
 
 ### Executor asíncrono (`AsyncConfig`)
 
-Uno solo, con nombre (`ejecutorAsincrono`, hilos `viasegura-async-*`), para
-reutilizar en todo trabajo posterior al commit: los avisos de hoy y la
-sugerencia de categoría de D-08 (`@Async(AsyncConfig.EJECUTOR)`). Reemplaza
-al `applicationTaskExecutor` de Spring Boot (Boot solo crea el suyo si no hay
-ningún `Executor`), así que también es el executor por defecto de cualquier
-`@Async` sin nombre.
+Tres, con nombre, para el trabajo posterior al commit:
 
-| Parámetro | Por defecto | Variable |
-|---|---|---|
-| Hilos base / máximo | 2 / 4 | `ASYNC_HILOS_BASE`, `ASYNC_HILOS_MAX` |
-| Cola | 100 tareas | `ASYNC_COLA` |
-| Cola llena | **se rechaza** (`TaskRejectedException`): quien encola registra qué se pierde y la descarta | — |
-| Apagado | espera hasta 10 s a las tareas en curso | — |
+- **El general** (`ejecutorAsincrono`, hilos `viasegura-async-*`,
+  `@Async(AsyncConfig.EJECUTOR)`): los avisos y los correos. Es `@Primary`,
+  así que también es el executor por defecto de cualquier `@Async` sin
+  nombre.
+- **El de las sugerencias** (`ejecutorSugerencias`, hilos
+  `viasegura-sugerencia-*`, `@Async(AsyncConfig.EJECUTOR_SUGERENCIAS)`,
+  desde NC-04c): solo la sugerencia oficial de categoría de D-08. Ver abajo
+  por qué va aparte.
+- **El del índice** (`ejecutorIndice`, hilo `viasegura-indice-1`, desde
+  BE-12): solo el refresco coalescido del índice de desempeño
+  (`IndiceDesempenoRefreshListener` encola con `execute`, sin `@Async`). Ver
+  abajo por qué va aparte.
+
+Los tres reemplazan al `applicationTaskExecutor` de Spring Boot (Boot solo
+crea el suyo si no hay ningún `Executor`).
+
+| Parámetro | General | Sugerencias | Índice |
+|---|---|---|---|
+| Hilos | 2 base, hasta 4 (`ASYNC_HILOS_BASE`, `ASYNC_HILOS_MAX`) | 2 fijos (`ASYNC_SUGERENCIAS_HILOS`) | 1, fijo en el código |
+| Cola | 100 tareas (`ASYNC_COLA`) | 100 tareas (`ASYNC_SUGERENCIAS_COLA`) | 1 tarea |
+| Cola llena | **se rechaza** (`TaskRejectedException`): quien encola registra qué se pierde y la descarta | igual | se rechaza; el índice queda marcado y lo recoge el siguiente evento |
+| Apagado | espera hasta 10 s a las tareas en curso y corre la cola | deja terminar las que corren y **descarta la cola** (ver abajo) | igual que el de las sugerencias; lo descartado lo recoge el refresco del arranque |
+
+**Por qué el refresco del índice tiene su propio executor (BE-12).** Con el
+coalescido nunca hay más de una tarea de refresco pendiente, así que podría
+correr en el general. Va aparte por tres razones:
+
+- **Una sola conexión, y conocida:** con un hilo nunca corren dos
+  `REFRESH MATERIALIZED VIEW CONCURRENTLY` a la vez. El segundo esperaría el
+  candado del primero (PostgreSQL no deja refrescar la misma vista en
+  paralelo) con su propia conexión tomada. Así el índice usa como máximo
+  **una** conexión del pool, y el resto queda para las peticiones.
+- **No retrasa correos ni avisos:** un refresco crece con la tabla de
+  reportes y es trabajo de la base. En el general, que trabaja con 2 hilos,
+  ocuparía la mitad de su capacidad mientras dura.
+- **No en el de las sugerencias:** ahí esperaría detrás de tareas que
+  aguardan hasta 10 s un turno de inferencia (hasta ~11 minutos con la cola
+  llena), y el índice quedaría desactualizado todo ese tiempo.
+
+La cola es de **una** tarea y no de cero: al terminar, la tarea puede
+encolar la siguiente (un evento que llegó justo al salir del bucle) antes de
+soltar su hilo. Cuesta un hilo más, dormido casi siempre.
+
+**Por qué la sugerencia oficial tiene su propio executor (NC-04c).** Desde
+NC-04c espera hasta 10 s un turno del servicio de inferencia (ver «Espera de
+turno de la sugerencia oficial»), y mientras espera ocupa su hilo. En el
+executor general, que en la práctica trabaja con sus 2 hilos base (el pool
+solo crece hacia 4 con la cola de 100 llena), dos sugerencias esperando lo
+dejarían sin hilos: los correos de confirmación y de recuperación y los
+avisos quedarían en cola detrás de ellas, y con una carga sostenida de
+vistas previas cada sugerencia esperaría el plazo entero (2 tareas cada
+~13 s). Subir los hilos del general no lo resuelve: más hilos también son
+más sugerencias a la vez, que ocuparían los 4 turnos y dejarían sin
+sugerencia a las vistas previas. Con un executor aparte (un *bulkhead* de
+hilos, como el semáforo lo es de llamadas):
+
+- esperar un turno solo retrasa a otras sugerencias, nunca un correo ni un
+  aviso;
+- con **2 hilos fijos**, a lo sumo 2 sugerencias oficiales llaman a la vez,
+  así que de los 4 turnos del adaptador quedan 2 para las vistas previas,
+  igual que antes de NC-04c. Por eso `ASYNC_SUGERENCIAS_HILOS` debe estar
+  entre 1 y 3: con 4 o más no arranca (lo valida `InferenciaHttpAdapter`, en
+  `clasificacion`, porque `common` no puede depender de ese módulo). Hilos
+  fijos (base = máximo) porque un pool que solo crece con la cola llena se
+  quedaría en los base de todos modos;
+- la cola de 100 guarda solo el id del reporte (la foto se descarga al
+  correr), así que no pesa en memoria. En el peor caso, con cada tarea
+  esperando el plazo entero, se vacía en unos 100 / 2 × 13 s ≈ 11 minutos, y
+  una sugerencia tardía sigue sirviendo: es interna y no la espera nadie.
+  El servicio infiere de a una foto (≈0,3 s cada una, unas 3 por segundo),
+  así que dos hilos ya lo mantienen ocupado, muy por encima de los reportes
+  con foto que se esperan en el piloto;
+- **al apagar** (un redespliegue) no espera a la cola: con
+  `waitForTasksToCompleteOnShutdown` en `false`, el valor por defecto de
+  Spring, el cierre del contexto primero pausa el executor y espera a que
+  terminen las sugerencias que corren (como mucho 10 s de espera más 3 s de
+  llamada, dentro de los 30 s por fase de Spring), antes de que se cierre el
+  pool de conexiones; después, al destruirlo, descarta la cola e interrumpe
+  lo que quede. Una tarea que un hilo ya había tomado de la cola arranca
+  interrumpida y `SugerenciaCategoriaService` no hace nada. Las sugerencias
+  encoladas se pierden, como cualquier sugerencia rechazada. El general, en
+  cambio, corre su cola al apagar (son correos y avisos), con el plazo de
+  10 s. Con la regla del general, las sugerencias correrían la cola entera
+  durante el apagado, y lo que pasara del plazo escribiría con el pool ya
+  cerrado (hallazgo de la revisión del 28/10).
+
+Cuesta dos hilos más, dormidos la mayor parte del tiempo.
 
 Con la cola llena la tarea **nunca** corre en el hilo que la pidió (no se usa
 `CallerRunsPolicy`): eso le devolvería al funcionario la latencia de la red
@@ -1806,12 +2356,15 @@ el rechazo y deja un WARN con el reporte, el ciudadano y el estado del aviso
 perdido. Perder un aviso en ese caso se acepta: el reporte y su historial no
 dependen de él. Lo mismo hacen los correos de recuperación y de soporte
 (DEP-08): `RecuperacionSolicitadaListener` y `TicketRespondidoListener`
-encolan en este executor y, si los rechaza, registran el id del token o del
-ticket (ver «Correo saliente»).
+encolan en el executor general y, si los rechaza, registran el id del token
+o del ticket (ver «Correo saliente»), y `SugerenciaCategoriaListener`
+registra el reporte cuya sugerencia se pierde si el de las sugerencias la
+rechaza (NC-04).
 
-**En los IT** el bean real no existe (`@Profile("!test")`) y
-`support/EjecutorSincronoTestConfig` registra uno con el mismo nombre que
-corre cada tarea en un hilo nuevo y **espera a que termine**: los IT siguen
+**En los IT** los beans reales no existen (`@Profile("!test")`) y
+`support/EjecutorSincronoTestConfig` registra dos con los mismos nombres (el
+general, `@Primary` como el real) que corren cada tarea en un hilo nuevo y
+**esperan a que termine**: los IT siguen
 siendo deterministas, sin esperas ni `Thread.sleep`. No es un
 `SyncTaskExecutor` (mismo hilo) porque en `AFTER_COMMIT` ese hilo todavía
 tiene ligada la transacción ya confirmada, y las escrituras «participarían» en
@@ -1842,7 +2395,8 @@ con `app.correo.tipo` (`CORREO_TIPO`):
 **Por qué un puerto, y por qué en `common`.** El plan de Railway bloquea el
 SMTP saliente, así que en producción el correo va por HTTP, y cambiar de
 proveedor tiene que ser solo configuración. El correo lo usan tres módulos
-(`auth`: recuperación de contraseña, US-03; `soporte`: respuesta a un ticket,
+(`auth`: recuperación de contraseña, US-03, y desde NC-09 el enlace de
+confirmación de la cuenta; `soporte`: respuesta a un ticket,
 US-25; `notificaciones`: aviso de cambio de estado, US-16), y D-11 reserva
 `common/port` para la E/S que usan dos o más. En `notificaciones` crearía el
 ciclo `auth` → `notificaciones` → `auth`. Ninguna clase fuera de
@@ -1852,7 +2406,7 @@ eligió el usuario; la comparación está en
 `project-context/decisions/propuestas/2026-10-21-correo-saliente-http.md`.
 
 **El mensaje.** `MensajeCorreo` lleva destinatario, asunto, texto y una
-etiqueta (`recuperacion`, `soporte` o `aviso-reporte`), pero no el remitente:
+etiqueta (`recuperacion`, `confirmacion-correo`, `soporte` o `aviso-reporte`), pero no el remitente:
 lo fija el adaptador desde `NOTIF_FROM`. La etiqueta viaja a Resend como
 `tags: [{"name": "categoria", "value": …}]`, para filtrar en su panel, y nunca
 es un dato personal. Su `toString` solo muestra la etiqueta, porque el texto
@@ -1982,6 +2536,558 @@ proveedor). El envío corre en `viasegura-async-1`, y la API real de Resend lo
 rechaza con 401 `validation_error` (clave inválida, no el 403 de un
 `User-Agent` faltante), que queda como un WARN con el id del token.
 
+## Captcha en el registro (NC-08)
+
+> **De reCAPTCHA a Turnstile, decisión del usuario del 28/10 (NC-08b).** NC-08
+> se hizo con la casilla de Google reCAPTCHA v2; antes de llegar a
+> producción se reemplazó por **Cloudflare Turnstile**. El contrato del API
+> no cambió (`RegistroRequest.captchaToken`, los mismos 409 y 503); cambiaron
+> el adaptador, el valor de `CAPTCHA_TIPO` y la clave de `CAPTCHA_SECRET`.
+> Los motivos:
+>
+> - **Privacidad.** Cloudflare ya es proveedor del sistema (DNS, correo
+>   entrante y las fotos en R2) y Google no lo es: reCAPTCHA habría sumado un
+>   encargado más que recibe datos del navegador de cada ciudadano que se
+>   registra (Ley N.° 29733). Cloudflare declara que las señales que recoge
+>   Turnstile son las estrictamente necesarias para detectar bots, «no para
+>   identificar, perfilar ni dirigirse a ninguna persona» (política de
+>   privacidad de Turnstile).
+> - **Costo.** El plan gratuito de Turnstile no limita las verificaciones
+>   (hasta 20 widgets por cuenta); el nivel gratuito de reCAPTCHA, hoy en
+>   Google Cloud, cubre 10 000 evaluaciones al mes y después se cobra.
+> - **Una CSP más simple.** El widget es un solo origen,
+>   `https://challenges.cloudflare.com` (en `script-src`, `frame-src` y
+>   `connect-src`, ver `frontend/README.md`), en lugar de las rutas de
+>   `www.google.com`, `www.gstatic.com` y `recaptcha.google.com` que pedía
+>   reCAPTCHA.
+>
+> `CAPTCHA_TIPO=recaptcha` ya no arranca, y el mensaje dice que cambiar.
+
+`POST /api/auth/registro` exige, cuando está activo, el widget de
+**Cloudflare Turnstile**. El frontend lo muestra con la clave del sitio
+(pública) y envía su respuesta en `captchaToken`; el backend la comprueba
+contra `POST https://challenges.cloudflare.com/turnstile/v0/siteverify` con la
+clave secreta (`CAPTCHA_SECRET`). Es I/O externo, así que va detrás del puerto
+`auth/port/VerificadorDeCaptcha`, con dos adaptadores elegidos por
+`app.captcha.tipo` (`CAPTCHA_TIPO`), como los de correo:
+
+| Valor | Adaptador | Uso |
+|---|---|---|
+| `turnstile` | `auth/infra/TurnstileAdapter` | Producción. |
+| `ninguno` | `auth/infra/SinCaptchaAdapter` | Por defecto fuera de `prod`; fijo en los tests. `captchaToken` se ignora. |
+
+**Por qué un widget visible.** Lo pidió el usuario, y el jurado puede verlo y
+comprobarlo: el widget aparece en el formulario y sin resolverlo el registro
+no pasa. Turnstile decide solo si basta con una comprobación invisible o si
+pide un clic, pero siempre devuelve un token que el backend verifica: no hay
+un puntaje que calibrar (como el de reCAPTCHA v3) sin datos de tráfico real.
+
+**Falla cerrado.** Solo una respuesta `{"success": true}` de Cloudflare (y,
+en `prod`, con un `hostname` de la PWA) deja pasar el registro:
+
+| Respuesta de Cloudflare | Registro | Por qué |
+|---|---|---|
+| `success: true` y, si hay lista, un `hostname` de `CAPTCHA_HOSTNAMES` | sigue | — |
+| `success: false` con `invalid-input-response`, `timeout-or-duplicate`, `missing-input-response` u otro código | **409** «No pudimos confirmar que no eres un robot. Vuelve a intentarlo.» | El token venció (dura 5 minutos), ya se usó o no es válido: el ciudadano lo corrige resolviendo el widget otra vez (la convención de `BusinessException`). |
+| `success: true` en un `hostname` fuera de la lista | **409**, el mismo mensaje | El token no es de la PWA. |
+| `success: false` con `invalid-input-secret`, `missing-input-secret`, `bad-request` o `internal-error` | **503** «No pudimos verificar el captcha en este momento…» | No es culpa del ciudadano (la clave secreta está mal o Cloudflare falló): un 409 «vuelve a intentarlo» lo haría reintentar sin remedio. |
+| Error HTTP (Cloudflare responde **400** a una clave secreta inválida), timeout (3 s de conexión, 5 s de lectura), error de conexión, cuerpo ilegible, sin `success` booleano, o `success: true` sin `hostname` cuando hay lista | **503** | Lo mismo: `ServicioNoDisponibleException`, y la PWA lo muestra en vez de tomarlo como error de red. |
+
+Un token ausente o en blanco es **409** «Confirma que no eres un robot», sin
+llamar a Cloudflare. Dejar pasar el registro cuando Cloudflare no responde
+abriría el registro masivo justo cuando un atacante consiga degradar esa
+llamada. **Sin reintentos ni redirecciones:** el token es de un solo uso, y
+reintentar un pedido que sí llegó daría `timeout-or-duplicate`. Por eso
+tampoco se envía `idempotency_key`, que Cloudflare ofrece solo para
+reintentar.
+
+**El hostname, sí; la acción, no.** Cloudflare devuelve el `hostname` donde se
+resolvió el widget y recomienda compararlo. Es una comparación exacta contra
+una lista corta, así que se hace: `CAPTCHA_HOSTNAMES` (en `prod`, por defecto
+`ciudadviva.app,www.ciudadviva.app`; sin comodines ni sufijos, sin
+distinguir mayúsculas). Fuera de `prod` va vacía y no se compara, porque las
+claves de prueba de Cloudflare responden `example.com`. De paso cubre un
+error de despliegue: una clave secreta de **prueba** en producción aprobaría
+cualquier token, pero con `hostname` `example.com`, así que el registro no
+pasa y el log lo dice («la clave secreta es una de prueba de Cloudflare»).
+Una entrada que no es un hostname (`https://…`, con puerto o comodín) no
+arranca, porque no coincidiría nunca y bloquearía todos los registros. La
+`action` del widget **no** se compara: la PWA tiene un solo widget (el
+registro) y el token es de un solo uso, así que no agrega nada, y exigiría
+que el frontend fije `data-action`, un cambio de contrato.
+
+**Antes que todo lo demás.** `AuthService#registrar` verifica el captcha antes
+de la versión de los términos y del correo duplicado. Si lo hiciera después,
+el 409 «El correo ya está registrado» respondería sin captcha y el endpoint
+serviría para averiguar qué correos tienen cuenta (`RegistroCaptchaIT` lo
+comprueba con un correo existente y un token rechazado).
+
+**Fuera de la transacción.** La llamada a Cloudflare puede tardar segundos;
+dentro de una transacción retendría una conexión del pool mientras tanto
+(D-13, ARCHITECTURE.md §4.5). Por eso `registrar` dejó de ser
+`@Transactional`: verifica el captcha y recién entonces llama a
+`RegistroCuentaService#crearCuentaCiudadana`, otro bean de `auth/service`
+cuyo método `@Transactional` pasa por el proxy de Spring (una llamada interna
+a un método del mismo bean no abriría la transacción). Con
+`spring.jpa.open-in-view: false` (application.yml) tampoco hay una sesión de
+Hibernate abierta por la petición que retenga la conexión.
+
+**Sin `remoteip`.** Cloudflare lo acepta como opcional; enviarlo cedería al
+proveedor la IP de cada ciudadano que se registra, un dato personal que no
+hace falta para verificar (principio de proporcionalidad o minimización, Ley
+N.° 29733). El pedido lleva solo `secret` y `response`. En el log solo quedan
+los `error-codes` que tienen forma de código (`timeout-or-duplicate`) y el
+`hostname` si tiene forma de hostname; nunca el token ni el secreto. Un 400 de
+Cloudflare también deja sus códigos: `invalid-input-secret` dice que revisar.
+
+**Por qué `ninguno` por defecto fuera de `prod`.** Los IT y el desarrollo local
+corren sin red y sin claves; con `turnstile` por defecto cada registro de la
+suite llamaría a Cloudflare. En `prod`, `CAPTCHA_TIPO` no tiene valor por
+defecto (no arranca sin ella, `ArranqueCaptchaIT`), así que desactivar el
+captcha en producción exige escribir `ninguno` a propósito. Para probar el
+flujo real en local, Cloudflare publica claves de prueba (una que siempre
+aprueba, una que siempre rechaza y una que responde «token ya usado»,
+anotadas en `.env.example`); nunca van a producción, y si llegaran, la lista
+de hostnames lo detecta.
+
+**Pruebas.** `TurnstileAdapterTest` (`MockRestServiceServer`, con las
+respuestas reales del `siteverify`: formulario sin `remoteip`, aprobación,
+rechazo con varios `error-codes`, los códigos que son del servidor, 4xx/5xx,
+el 400 de una clave inválida, cuerpos mal formados, timeout real contra un
+socket local, conexión rechazada, el hostname contra la lista y que el log
+no lleve el token ni el secreto); `RegistroTurnstileIT` (el adaptador real,
+elegido por la configuración y con la lista de hostnames de `prod`, contra un
+`siteverify` local: 201, 409 rechazado, 409 por hostname, 503 y 409 sin
+token); `RegistroCaptchaIT` (con un `VerificadorDeCaptcha` simulado que exige
+el captcha: sin token, rechazado, proveedor caído, correo existente y token
+válido); `ValidacionTipoCaptchaTest` y `ArranqueCaptchaIT` (valores no
+admitidos, `recaptcha` incluido, y `prod` sin la variable); `PerfilProdIT`
+(la lista de hostnames por defecto en `prod`).
+
+**Prueba en vivo (28/10).** Con la app en `:8081` y `CAPTCHA_TIPO=turnstile`
+contra el `siteverify` real: la clave de prueba que aprueba y el token
+`XXXX.DUMMY.TOKEN.XXXX` dan **201** (y un WARN «clave secreta de prueba»);
+sin token, **409** «Confirma que no eres un robot»; la clave que siempre
+rechaza, **409** (`invalid-input-response`), también con un correo que ya
+tiene cuenta; la clave que aprueba con
+`CAPTCHA_HOSTNAMES=ciudadviva.app,www.ciudadviva.app`, **409** (hostname
+`example.com`, «la clave secreta es una de prueba de Cloudflare»); una clave
+secreta inventada, **503** (HTTP 400, `invalid-input-secret`). Ni el token ni
+el secreto aparecen en el log.
+
+## Confirmación del correo (NC-09)
+
+Desde NC-09 el correo de una cuenta tiene que ser verídico. Tres decisiones
+del usuario (28/10):
+
+1. **Una cuenta sin confirmar no puede iniciar sesión** hasta abrir el
+   enlace que recibe por correo.
+2. **Las cuentas que ya existían se dan por confirmadas** (la migración V20):
+   en producción ya hay usuarios reales y ninguno debe quedar fuera.
+3. **El registro rechaza el correo** si su dominio no recibe correo (sin
+   registro MX en el DNS) o si es un dominio desechable conocido (temp-mail,
+   10minutemail, mailinator…), según una lista fija versionada.
+
+### El flujo
+
+| Paso | Endpoint | Respuesta |
+|---|---|---|
+| Registro | `POST /api/auth/registro` | 201 `{"email", "vigenciaEnlaceHoras": 24}`. **Ya no inicia sesión ni devuelve token** (antes: `AuthResponse`). La cuenta queda con `correo_confirmado = false` y se envía el enlace. |
+| Enlace | `<PWA>/confirmar-cuenta?token=<43 caracteres>` | La PWA lee el token y llama al endpoint de abajo. |
+| Confirmar | `POST /api/auth/confirmar-correo` `{"token"}` | 204. No inicia sesión, como `restablecer-password`: la persona entra después con su contraseña. |
+| Login sin confirmar | `POST /api/auth/login` | 409 con `codigo: CORREO_NO_CONFIRMADO`, **solo con la contraseña correcta**. Con una incorrecta sigue el 401 de siempre. |
+| Reenviar | `POST /api/auth/reenviar-confirmacion` `{"email"}` | 202 sin cuerpo, siempre. |
+
+Errores de `confirmar-correo`, todos 409 con un `codigo` estable para la
+PWA (`BusinessException` suma un código opcional, que
+`GlobalExceptionHandler` copia a `ApiError.codigo` como el
+`TERMINOS_PENDIENTES` de D-12):
+
+| `codigo` | Cuándo |
+|---|---|
+| `CONFIRMACION_INVALIDA` | Token desconocido. |
+| `CORREO_YA_CONFIRMADO` | La cuenta ya está confirmada (incluye volver a abrir un enlace usado). |
+| `CONFIRMACION_REEMPLAZADA` | Se pidió un enlace nuevo después de este. |
+| `CONFIRMACION_VENCIDA` | Pasaron 24 horas. |
+
+Un enlace usado implica una cuenta confirmada, así que «usado» responde
+`CORREO_YA_CONFIRMADO` («Tu correo ya está confirmado. Inicia sesión…»): es
+lo que le sirve a quien vuelve a abrir el enlace, o a quien se le adelantó el
+antivirus del correo abriéndolo primero.
+
+### El token: aleatorio, de un solo uso y guardado como hash
+
+Sigue el patrón de la recuperación de contraseña (`PasswordResetService`,
+DEP-08): tabla propia (`token_confirmacion_correo`, V20), un solo uso,
+vencimiento (24 h) y el correo después del commit, fuera de la petición y de
+la transacción (`ConfirmacionCorreoSolicitadaListener`, D-13). Dos
+diferencias:
+
+- **Se guarda el SHA-256 del token, nunca el token** (`token_hash`). Quien
+  lea la base o un respaldo no puede confirmar cuentas ajenas. Sin sal: el
+  token ya tiene 256 bits de azar (`SecureRandom`, 43 caracteres base64url),
+  así que no hay diccionario contra el que probar, y la búsqueda por igualdad
+  necesita un hash determinista.
+- **El token lo genera el hilo que envía el correo.** Con el token hasheado,
+  el listener no podría reconstruirlo a partir del id del evento (como hace
+  la recuperación). El registro y el reenvío guardan una fila sin hash y
+  publican `ConfirmacionCorreoSolicitadaEvent(tokenId)`; en el executor
+  asíncrono, `ConfirmacionCorreoService#emitirMensaje` genera el token,
+  guarda su hash en una transacción corta y arma el mensaje, que se envía
+  sin transacción. El valor no pasa por la petición, por el evento ni por la
+  base: solo existe en ese hilo y en el correo.
+
+**Pedir uno nuevo anula los anteriores** (`invalidated_at`), y confirmar
+anula los demás pendientes. Si mientras un envío esperaba en la cola la
+persona pidió otro, ya confirmó o el enlace venció, `emitirMensaje` devuelve
+vacío y no se envía nada. El hash se escribe con un `UPDATE` condicional
+(`TokenConfirmacionCorreoRepository#emitir`: solo si la fila sigue sin hash,
+sin usar, sin anular y vigente), no guardando la entidad leída: si un reenvío
+anula la fila entre la lectura y la escritura, PostgreSQL vuelve a evaluar la
+condición tras esperar el candado de la fila y no la emite. Guardar la
+entidad reescribiría `invalidated_at` con el valor leído y dejaría dos
+enlaces válidos (hallazgo de la revisión del 28/10). Por lo mismo la entidad
+lleva `@DynamicUpdate`: confirmar solo escribe `used_at`.
+
+**Topes del reenvío, por cuenta:** uno por minuto (el del registro cuenta),
+5 por hora y 10 por día. El endpoint responde igual exista o no la cuenta,
+esté o no confirmada y se alcance o no un tope: no sirve para averiguar qué
+correos tienen cuenta. Con solo el minuto, un bucle sobre una cuenta pediría
+1440 enlaces al día; con solo el tope por hora, 120, que igual superan la
+cuota diaria de Resend Free (100) y dejarían sin correo a todos. Con el tope
+diario una cuenta gasta a lo sumo 10, y agotar la cuota exige muchas
+cuentas, cada una con su captcha. (La recuperación de contraseña, 3 por hora
+y sin tope diario, sigue como en DEP-08.) Los pedidos simultáneos de una
+cuenta se serializan con un candado consultivo (`pg_advisory_xact_lock`
+sobre `confirmacion-correo:<id>`), como la recuperación. La PWA debe
+deshabilitar el botón «reenviar» un minuto: la respuesta no dice si se
+envió.
+
+**El enlace apunta a la PWA** con la URL de `FRONTEND_URL` o, sin ella, el
+primer origen de `CORS_ALLOWED_ORIGINS`, que en todos los entornos es el de
+la PWA y en `prod` ya es obligatorio: así no se suma una variable
+obligatoria. La recuperación de contraseña no arma enlaces (el correo trae un
+token para pegar), así que no había una propiedad que reutilizar. Una URL que
+no sea un origen `http(s)://host[:puerto]` sin ruta no arranca.
+
+**El token va en la query (`?token=`)**, como pidió la tarea, y por eso
+llega al servidor de la PWA y puede quedar en sus registros de acceso
+(Vercel). Se acepta porque el token es de un solo uso, vence en 24 horas y
+deja de servir al confirmar. La alternativa, un fragmento
+(`/confirmar-cuenta#token=…`), que el navegador no envía, queda anotada como
+endurecimiento posible: cambia el contrato con la PWA.
+
+### El correo tiene que ser verídico: dominio desechable o sin MX
+
+En `AuthService#registrar`, el orden es: captcha (NC-08) → **dominio del
+correo** → términos y correo duplicado → crear la cuenta. El dominio va
+antes de crear nada y, como el captcha, **sin transacción**: la consulta DNS
+no retiene una conexión del pool (D-13). No revela nada de las cuentas, así
+que puede ir antes del 409 «El correo ya está registrado».
+
+| Rechazo (409) | `codigo` | Mensaje |
+|---|---|---|
+| Dominio desechable, o subdominio de uno | `CORREO_DESECHABLE` | «No aceptamos correos temporales o desechables. Usa una dirección que revises seguido: ahí te avisaremos cómo avanzan tus reportes.» |
+| El dominio no recibe correo | `DOMINIO_SIN_CORREO` | «El dominio «gmail.con» no puede recibir correos. Revisa que esté bien escrito o usa otra dirección.» (nombra el dominio: casi siempre es un error de tipeo) |
+
+**Desechables: lista fija y versionada.** `resources/data/dominios-desechables.txt`
+es una instantánea de la lista
+[`disposable-email-domains`](https://github.com/disposable-email-domains/disposable-email-domains)
+(`disposable_email_blocklist.conf`, commit `fa96007`, del 27/10/2026,
+descargada el 28/10/2026, **9963 dominios**), con licencia **CC0 1.0**
+(dominio público). Fuente, commit, fecha y licencia van también en la
+cabecera del archivo. No se actualiza sola: actualizarla es reemplazar el
+archivo y la cabecera, y correr `DominiosDesechablesTest`. La regla
+(`auth/domain/DominiosDesechables`, pura) cubre los subdominios
+(`x.mailinator.com`), compara en minúsculas y en ASCII (IDN) y nunca un
+dominio de primer nivel solo. La lee `auth/infra/ArchivoDominiosDesechables`
+al arrancar (sin el archivo no arranca). No necesita red, así que se aplica
+en todos los perfiles, también en los tests. La lista incluye dominios de
+tipeo de los proveedores grandes (`gmial.com`, `hotmial.com`), que se usan
+para recibir correo ajeno.
+
+**MX: un puerto con dos adaptadores**, elegidos con `app.dominio-correo.tipo`
+(`DOMINIO_CORREO_TIPO`), como el captcha:
+
+| Valor | Adaptador | Uso |
+|---|---|---|
+| `dns` | `auth/infra/DnsVerificadorDeDominioAdapter` | Por defecto en `prod`: `application-prod.yml` dice `${DOMINIO_CORREO_TIPO:dns}`, así que no hace falta definir la variable; solo sirve para apagarlo. |
+| `ninguno` | `auth/infra/SinVerificacionDeDominioAdapter` | Por defecto fuera de `prod` (en local se registran cuentas `@viasegura.test`, sin MX) y fijo en los tests, sin red. |
+
+El adaptador DNS usa el proveedor DNS de JNDI que trae el JDK (sin
+dependencias nuevas; el módulo `jdk.naming.dns` viene en la imagen
+`eclipse-temurin:21-jre`) con los servidores del sistema. **Rechaza** un
+dominio que no existe (NXDOMAIN), uno sin MX y uno con «null MX» (RFC 7505,
+un único `0 .` que declara que no recibe correo); también, sin consultar, un
+literal de IP o un nombre sin punto. No aplica el «MX implícito» del
+RFC 5321 (entregar al registro A cuando no hay MX): la decisión fue «sin
+registro MX, no recibe correo», y un dominio que recibe correo de verdad
+publica su MX.
+
+**Falla abierto, con un plazo garantizado.** Si el DNS falla (SERVFAIL, sin
+servidores) o no responde, se acepta el registro y queda un WARN con el
+dominio (nunca el correo): el enlace es la prueba definitiva y un DNS caído
+no debe impedir registrarse. JNDI espera 1 s y reintenta una vez con 2 s,
+pero **por servidor**; por eso la consulta corre en un hilo virtual y la
+petición espera como máximo `app.dominio-correo.dns.plazo-milisegundos`
+(3000).
+
+**Verificación contra el DNS real (2026-10-28, Windows)**, con la misma
+consulta JNDI: `gmail.com` → 5 MX (128 ms); `upc.edu.pe` →
+`0 upc-edu-pe.mail.protection.outlook.com.` (preferencia 0 con servidor: se
+acepta); `example.com` → `0 .` (null MX: se rechaza); un dominio inexistente
+→ NXDOMAIN (`NameNotFoundException`, 16 ms); `lima.pe` → NXDOMAIN. Este
+último es el dominio de los correos de los IT: por eso los tests fijan
+`ninguno`, y `PerfilProdIT` (que corre con `dns`) simula el puerto.
+
+### Quién nace confirmado
+
+- El **ADMIN inicial** (`AdministradorInicialSeeder`): su correo lo da el
+  operador del despliegue.
+- Las cuentas de `scripts/seed-datos-prueba.sql` (desarrollo): el script las
+  marca confirmadas.
+- En los IT, los usuarios de fixture (`AbstractPostgisIT#guardarConTerminos`).
+  Los IT que registran por el API confirman con
+  `AbstractPostgisIT#confirmarEIniciarSesion` (un `UPDATE` directo, porque el
+  token solo está en el correo) y entran por `POST /api/auth/login`: la
+  regla no se debilita. El flujo real del enlace lo prueba
+  `ConfirmacionCorreoIT`.
+- Un funcionario (DEP-05) se registra como cualquier ciudadano, así que
+  confirma su correo antes de que se le asigne el rol. Desde NC-09b,
+  `asignar-funcionario.sql` lo exige (ver abajo).
+
+`Usuario.correoConfirmado` es `false` por defecto, también en el builder:
+una cuenta nueva nace sin confirmar salvo que quien la crea diga lo
+contrario.
+
+### Cuentas sin confirmar (NC-09b)
+
+NC-09 dejó tres casos borde en la propuesta
+`project-context/decisions/propuestas/2026-10-28-cuentas-sin-confirmar.md`.
+El usuario los decidió el 28/10:
+
+1. **Una cuenta sin confirmar no recupera la contraseña, y restablecerla no
+   confirma el correo.** En palabras del usuario: «No pueden restablecer la
+   contraseña de una cuenta no creada, de todas maneras tendrán que pasar por
+   la confirmación del correo». El único camino a una cuenta confirmada es el
+   enlace de confirmación.
+   - `POST /api/auth/recuperar-password` con el correo de una cuenta sin
+     confirmar hace **lo mismo que con un correo sin cuenta**: 202 sin
+     cuerpo, sin token y sin correo. `PasswordResetService` corta en el
+     mismo punto que con la cuenta inexistente, después de la misma
+     consulta y antes del candado y del conteo del tope, así que tampoco el
+     tiempo de respuesta lo distingue. Deja un `INFO` con el id de la
+     cuenta, nunca el correo.
+   - Un token de recuperación de una cuenta sin confirmar (solo pudo quedar
+     de antes de esta regla) **vale lo mismo que uno inexistente**:
+     `restablecer-password` responde el 404 «Token de recuperación
+     inválido», antes de mirar si se usó o venció, y no cambia nada. Si
+     estaba en la cola asíncrona, `mensajeDeRecuperacion` no lo envía. Se
+     eligió el 404 de siempre y no un 409 con código nuevo: el contrato no
+     cambia y la PWA no necesita otro caso para una situación que, con la
+     regla, ya no se produce.
+2. **Las cuentas que nunca se confirman se purgan a los 30 días**, en su
+   propia tarea: **BE-15**, ver «Purga de cuentas sin confirmar (BE-15)»
+   más abajo.
+3. **`asignar-funcionario.sql` exige la cuenta confirmada**: con una cuenta
+   sin confirmar falla con un mensaje claro y no asigna nada (ver «Alta y
+   baja de funcionarios»).
+
+**La dueña de un correo que otro registró** ve «El correo ya está
+registrado», y «¿Olvidaste tu contraseña?» no le envía nada. Recupera la
+cuenta con el correo de confirmación que le llegó cuando el otro se
+registró: abre el enlace, que confirma la cuenta (con la contraseña que
+puso el otro, que no conoce), y después cambia la contraseña con
+«¿Olvidaste tu contraseña?», que ya funciona. Si el enlace venció, la página
+a la que lleva (`/confirmar-cuenta`) le deja pedir otro escribiendo su
+correo. El enlace de confirmación sigue siendo la única prueba de que el
+correo es suyo, como decidió el usuario.
+
+**Si ya no tiene ese correo (NC-09c).** La revisión del 28/10 encontró un
+hueco: la PWA no mostraba dónde pedir el enlace sin la contraseña. El
+«Reenviar el enlace» del inicio de sesión solo aparece con el 409
+`CORREO_NO_CONFIRMADO`, que exige la contraseña correcta, y antes de NC-09b
+la sacaba de ahí «¿Olvidaste tu contraseña?». El usuario decidió el 28/10 la
+opción C de
+`project-context/decisions/propuestas/2026-10-28-reenviar-confirmacion-sin-contrasena.md`.
+Tras pedir el token, «¿Olvidaste tu contraseña?» dice siempre que a una
+cuenta sin confirmar no le llegará el correo y ofrece «Reenviar el enlace»
+de confirmación al correo escrito. Usa `POST /api/auth/reenviar-confirmacion`,
+que solo pide el correo y responde 202 siempre, así que no revela nada. Está
+implementado en NC-09c, solo en el frontend: el backend no cambia.
+
+Riesgo que queda: entre la
+confirmación y el cambio de contraseña, quien registró la cuenta puede
+entrar con su contraseña, y su JWT sigue valiendo hasta que vence (120
+minutos como máximo: no hay blacklist de tokens, ver «Decisiones de
+seguridad»). Es una ventana corta y la cuenta recién confirmada todavía no
+tiene datos de la dueña.
+
+### Purga de cuentas sin confirmar (BE-15)
+
+Decisión del usuario del 28/10 (pregunta 2 de la propuesta de NC-09b): una
+cuenta que nunca confirmó su correo se **borra a los 30 días de creada**.
+Sin la purga quedaba para siempre en `usuario`, con nombre, apellido, correo y
+la aceptación de los términos, sin finalidad (Ley N.° 29733,
+proporcionalidad), y ocupaba el correo («El correo ya está registrado»).
+Desde NC-09b tampoco podía recuperar la contraseña.
+
+**Qué borra.** `auth/service/PurgaCuentasSinConfirmarService`, una vez al
+día, borra las cuentas con `correo_confirmado = false`:
+
+- solo `CIUDADANO`: nunca el ADMIN ni un funcionario, aunque estén sin
+  confirmar (desde NC-09b `asignar-funcionario.sql` no asigna una cuenta sin
+  confirmar);
+- creadas hace más de `CUENTAS_SIN_CONFIRMAR_PLAZO` (30 días por defecto;
+  menos de 1 día no arranca, porque un `0` borraría cada cuenta recién
+  creada);
+- sin un **enlace de confirmación vigente** (sin usar, sin anular y sin
+  vencer, contando el que todavía espera su correo): quien pidió «Reenviar»
+  el día 30 puede usarlo, y la cuenta se borra en la primera corrida después
+  de que venza.
+
+**En qué orden.** Con la cuenta se borran, primero, sus filas de
+`token_confirmacion_correo`, `password_reset_token` (desde NC-09b no recibe
+ninguno, pero puede quedar alguno de antes) y `consentimiento`, y al final
+la fila de `usuario`. No se anonimiza nada: una cuenta sin confirmar no tiene
+contenido que conservar. **Los consentimientos se borran con la cuenta, y eso
+lo tiene que ratificar el usuario**: la ficha de BE-15 lo dejó abierto (D-12,
+la misma duda que BE-14 para el cierre de cuenta) y está en
+`project-context/decisions/propuestas/2026-10-30-consentimientos-de-cuentas-purgadas.md`,
+con las opciones. Se implementó la recomendada, que es la que ya anuncian los
+términos v2 (§8: «borramos la cuenta y sus datos»): la aceptación de un correo
+que nadie verificó no prueba el consentimiento de nadie, y sin cuenta no queda
+ningún tratamiento que justificar.
+
+**Lo que no debería existir.** Una cuenta sin confirmar no pudo iniciar
+sesión, así que no tiene reportes, adhesiones, comentarios, calificaciones,
+suscripciones push, claves de idempotencia, tickets, notificaciones,
+denuncias ni foto de perfil. Si aparece alguna de esas filas, **la cuenta no
+se borra** y queda un `WARN` con su id y el nombre de la clave foránea que lo
+impidió (por ejemplo `suscripcion_push_usuario_id_fkey`, que extrae
+`common/exception/RestriccionDeIntegridad` para que el servicio no dependa de
+las excepciones de Hibernate), o «tiene foto de perfil». La lista de tablas no está en el código: el `DELETE` de `usuario`
+falla por la clave foránea, la transacción de esa cuenta se revierte entera
+(también los consentimientos y los enlaces ya borrados) y se sigue con la
+siguiente. Así, una tabla nueva que referencie a `usuario` queda cubierta
+sin tocar la purga. La foto de perfil es una columna, no una clave foránea,
+y se mira aparte.
+
+**Carreras.** Cada cuenta va en su propia transacción corta
+(`TransactionOperations`, como `ReporteService#crear`), con dos candados:
+
+1. el candado consultivo de los reenvíos de esa cuenta, el mismo que toma
+   `ConfirmacionCorreoService#reenviar`. Un reenvío en curso termina antes, y
+   la purga ve su enlace nuevo y no borra; o empieza después, y `reenviar`
+   comprueba tras el candado que la cuenta sigue existiendo (si no, no hace
+   nada, sin error);
+2. el candado de la fila de `usuario` (`FOR UPDATE`), solo si sigue sin
+   confirmar. Si una confirmación la está escribiendo, la purga espera y
+   PostgreSQL vuelve a evaluar la condición: **gana la confirmación** y la
+   cuenta no se toca. La confirmación, a su vez, toma el candado de la fila
+   (`FOR NO KEY UPDATE`, que no choca con quien inserta filas que la
+   referencian) antes de escribir: si **gana el borrado**, el enlace deja de
+   existir y la PWA muestra `CONFIRMACION_INVALIDA`, lo mismo que si la purga
+   hubiera terminado antes de abrirlo.
+
+Con los candados tomados, la purga vuelve a mirar el enlace vigente y la
+foto, y el `DELETE` final vuelve a exigir `correo_confirmado = false` (y el
+rol y el plazo) **en la misma sentencia**. Una segunda corrida no encuentra
+nada (idempotente), y dos instancias a la vez no se pisan.
+
+**Registro.** Un `INFO` por corrida con cuántas cuentas borró (y cuántas
+conservó con datos asociados, si hubo); los `WARN` llevan ids, nunca un
+correo ni un nombre, y el de un fallo, solo la clase de la excepción (su
+mensaje puede traer valores de la base). **Sin aviso por correo** antes de
+borrar: la decisión no lo pide y gastaría cuota de Resend; si se quiere, va
+con `/propuesta`.
+
+### Tareas programadas (BE-15)
+
+La purga es la primera tarea programada del backend, así que fija el patrón
+(la ficha lo pedía si entraba antes que BE-13, el borrado de las consultas de
+soporte):
+
+- `common/config/TareasProgramadasConfig` activa `@EnableScheduling`. Usa el
+  `ThreadPoolTaskScheduler` de Spring Boot (un hilo), aparte de los executors
+  de `AsyncConfig`: una tarea larga no quita hilos a los correos ni a los
+  avisos.
+- El `@Scheduled` va en un método del **servicio** del módulo dueño de los
+  datos (`auth` aquí, `soporte` en BE-13), con la expresión cron en una
+  propiedad (`app.<tema>.purga.cron`) y `zone = "America/Lima"`. Una tarea
+  programada es un caso de uso sin HTTP, de la capa de aplicación. No va en
+  `infra/`, porque `infra` no puede llamar a un `service` (ArchUnit), ni en
+  `listener/`, que es para eventos de dominio. Tampoco en un controlador.
+- El método programado **no es `@Transactional`**: abre transacciones cortas
+  por dato, para que uno que falla no revierta los demás, y se niega a correr
+  dentro de otra transacción. Atrapa cualquier fallo y lo registra (sin el
+  mensaje), para que el planificador siga con la próxima corrida.
+- **Sin candado distribuido (ShedLock):** el backend corre en una sola
+  instancia en Railway, y la purga es idempotente y segura con dos a la vez
+  (candados de fila y `DELETE` condicional). Si algún día hay réplicas y una
+  tarea no lo es, se agrega.
+- **En los tests está apagada** (`cron: "-"` en `application-test.yml`): una
+  corrida a mitad de la suite haría que los IT dependan de la hora. Los IT
+  llaman al método del servicio directamente.
+
+### Lo que no cubre
+
+- El 409 `CORREO_NO_CONFIRMADO` del login solo aparece con la contraseña
+  correcta, así que no revela nada que no sepa quien ya la tiene.
+- La purga de las cuentas sin confirmar (BE-15) corre una vez al día: una
+  cuenta vencida puede durar hasta un día más que el plazo, y una con un
+  enlace pedido el último día, hasta que ese enlace venza (24 h).
+
+### Pruebas
+
+- `ConfirmacionCorreoIT` (GreenMail, el token se lee del correo):
+  registro sin sesión; el correo con el enlace y, en la base, solo el hash;
+  login sin confirmar 409 con código y con contraseña incorrecta el 401 de
+  siempre; confirmar y entrar; confirmar dos veces; enlace vencido,
+  desconocido y reemplazado; reenvío que no enumera (cuenta inexistente,
+  confirmada y sin confirmar: misma respuesta, un solo correo), uno por
+  minuto, topes por hora y por día, seis reenvíos simultáneos que crean un
+  solo enlace, y que una fila anulada o ya emitida no se emite.
+- `PasswordResetIT` (NC-09b): pedir la recuperación de una cuenta sin
+  confirmar responde igual que con un correo sin cuenta (estado, cuerpo y
+  cabeceras), sin token ni correo en GreenMail, y deja el `INFO` sin el
+  correo; un token de esa cuenta, vigente o vencido, da el mismo 404 que uno
+  inexistente y no cambia la contraseña ni confirma el correo; el listener no
+  lo envía; y, ya confirmada, la cuenta sí recupera.
+- `AsignarFuncionarioScriptIT` (NC-09b): el bloque `DO` de
+  `asignar-funcionario.sql`, leído del archivo, falla con una cuenta sin
+  confirmar (mensaje y pista exactos) sin asignar nada, y asigna una
+  confirmada.
+- `PurgaCuentasSinConfirmarIT` (BE-15, cuentas registradas por el API y
+  llevadas al pasado con `JdbcTemplate`): borra la cuenta sin confirmar de
+  hace 31 días con sus enlaces, tokens de recuperación y consentimientos, y
+  no toca una sin confirmar de hace 29, una confirmada de hace 31 ni una sin
+  confirmar de hace 31 con un enlace pedido hace una hora; nunca el ADMIN ni
+  un funcionario; el correo borrado se vuelve a registrar; una segunda
+  corrida no borra nada y el `INFO` no lleva correos; una suscripción push o
+  una foto de perfil la conservan con un `WARN` con su id, sin dejarla a
+  medias; las dos carreras con la confirmación (gana la confirmación si llega
+  antes al candado; si gana el borrado, el enlace da 409
+  `CONFIRMACION_INVALIDA`); un reenvío después de la purga no falla; y se
+  niega a correr dentro de otra transacción.
+- `PurgaCuentasSinConfirmarServiceTest` (sin base): el plazo mínimo, la
+  anotación `@Scheduled` (propiedad y zona de Lima), que la tarea programada
+  no propaga un fallo, cada desenlace por cuenta (confirmada o con enlace
+  nuevo mientras tanto, foto, clave foránea con su nombre, un fallo que no
+  detiene a las demás, el `DELETE` que no borra y revierte) y que ningún
+  registro lleva el mensaje de la excepción.
+- `RegistroDominioCorreoIT` (el puerto del DNS simulado): sin MX → 409 sin
+  crear la cuenta; desechable (y subdominio con mayúsculas) → 409 sin
+  consultar el DNS; DNS caído → registra; el dominio va antes del correo
+  duplicado. `RegistroCaptchaIT` suma que el captcha va antes del dominio.
+- Unitarios: `DnsVerificadorDeDominioAdapterTest` (resolvedor inyectado:
+  MX, sin MX, null MX, NXDOMAIN, SERVFAIL, un DNS colgado que vuelve dentro
+  del plazo), `DominiosDesechablesTest` (la regla y la instantánea:
+  9963 dominios, cabecera con fuente y licencia, conocidos dentro y
+  proveedores comunes fuera), `ValidacionTipoDominioCorreoTest`,
+  `ConfirmacionCorreoSolicitadaListenerTest` y `ConfirmacionCorreoServiceTest`
+  (URL de la PWA, hash y ciclo del token).
+
 ## Consentimiento (D-12, NC-07b)
 
 La Ley N.° 29733 de Protección de Datos Personales pide un consentimiento
@@ -2016,7 +3122,7 @@ dispositivo, no la autorización del titular de los datos.
 
 Cualquier rol autenticado y **solo los propios**: ninguna ruta lleva id de
 usuario, así que nadie lee ni revoca los de otro. Sin token, 401.
-`UsuarioResponse` (de `/me`, login y registro) suma `debeAceptarTerminos`. Es
+`UsuarioResponse` (de `/me` y del login; desde NC-09 el registro ya no la devuelve) suma `debeAceptarTerminos`. Es
 un dato del propio usuario, no una señal interna, y ese DTO no lo lee nadie más.
 
 **Usuarios existentes.** La migración no les crea filas: D-12 prohíbe darlos
@@ -2190,6 +3296,806 @@ Verificado en una copia de la base de desarrollo con 15 reportes: títulos
 como «Bache en Miraflores», severidad `MEDIA` y todos con periodo. También
 verificado en una base de test vacía.
 
+## Sugerencia de categoría por la foto (NC-04, fase 0)
+
+**Qué agrega.** Al reportar, la PWA puede enviar la foto a
+`POST /api/clasificaciones` y recibir la categoría que el modelo sugiere
+(«Bache», «Pista deteriorada») para proponerla al ciudadano. Después de crear
+el reporte, el backend vuelve a clasificar la foto **guardada** y registra la
+sugerencia oficial en `reporte` (`categoria_sugerida_id`,
+`confianza_sugerencia`, `version_modelo_sugerencia`). Esa es la que mide la
+evaluación del modelo (OE3: sugerida frente a confirmada). Sigue la propuesta
+aceptada el 21/10 (`project-context/decisions/propuestas/2026-10-21-ml-clases-modelo.md`),
+fase 0: todo el flujo con un **clasificador falso**, antes de que existieran
+el servicio `inferencia/` (NC-03) y su adaptador HTTP. Desde NC-04b (v0.8.0)
+producción sugiere con el modelo real: ver
+[El adaptador del servicio de inferencia](#el-adaptador-del-servicio-de-inferencia-nc-04b).
+
+| Pieza | Capa | Qué hace |
+|---|---|---|
+| `clasificacion/port/ClasificadorDano` | Puerto | Detecta daños en una foto ya saneada y devuelve `ResultadoDeteccion(versionModelo, detecciones)`. Sus errores salen como `ClasificacionNoDisponibleException`. |
+| `clasificacion/infra/InferenciaHttpAdapter` | Adaptador | `POST /v1/detecciones` del servicio `inferencia/` (NC-04b, `CLASIFICACION_TIPO=http`). |
+| `clasificacion/infra/FalsoClasificadorAdapter` | Adaptador | Respuesta fija por configuración (`CLASIFICACION_FALSO_RESPUESTA`): vacía, pares `clase:confianza` o `falla`. |
+| `clasificacion/domain/PoliticaDeSugerencia` | Dominio | Umbral y clase dominante (abajo). Regla pura, con `PoliticaDeSugerenciaTest`. |
+| `clasificacion/service/ClasificacionService` | Aplicación | Vista previa (sanea, detecta y aplica la política) y sugerencia sobre una foto ya saneada. Sin transacción. |
+| `clasificacion/controller/ClasificacionController` | Presentación | `POST /api/clasificaciones`. |
+| `clasificacion/port/CategoriasClasificables` ← `reportes/infra/JpaCategoriasClasificablesAdapter` | Puerto y adaptador | Las categorías activas con clase del modelo. |
+| `reportes/listener/SugerenciaCategoriaListener` → `reportes/service/SugerenciaCategoriaService` → `ReporteService#registrarSugerencia` | Aplicación | Sugerencia oficial después del commit (D-08). |
+| V19 | Esquema | Columnas nuevas con sus `CHECK`, clases del modelo y baja de «Hueco en calzada». |
+
+### Política de sugerencia
+
+1. Se descartan las detecciones cuya clase no corresponde a ninguna categoría
+   **activa** con `clase_modelo`, y las de confianza fuera de [0, 1].
+2. El puntaje de cada categoría es la **máxima** confianza de sus detecciones
+   (no la suma: tres grietas de 0,4 no hacen una de 1,2).
+3. Se sugiere la de mayor puntaje si es **≥ umbral** (`CLASIFICACION_UMBRAL`,
+   0,50). Un empate exacto en el primer lugar o ningún puntaje sobre el umbral
+   dan «sin sugerencia».
+4. La confianza es ese puntaje con 3 decimales (`NUMERIC(4,3)`). El umbral se
+   compara con el valor **sin redondear**: 0,4996 no se sugiere aunque se
+   guardaría como 0,500.
+
+**Por qué 0,50 y no el 0,25 habitual** de los detectores: aquí una sugerencia
+equivocada empuja al ciudadano a la categoría errónea (anclaje), y equivocarse
+cuesta más que no sugerir. El umbral se calibra en NC-03b con fotos de Lima.
+La agregación por máximo es una elección razonable sin respaldo específico en
+la literatura; las alternativas (suma, área de la caja) se comparan con ese
+mismo conjunto de fotos.
+
+Las clases del contrato son las de la propuesta (opción A): `bache` (D40 de
+RDD2022) para «Bache» y `grieta` (D00, D10 y D20) para «Pista deteriorada».
+Se comparan tal cual, en minúsculas. Una categoría sin `clase_modelo` (las
+demás estándar y todas las de un distrito) **nunca** se sugiere: el ciudadano
+la elige a mano, como siempre.
+
+### Vista previa: `POST /api/clasificaciones`
+
+| | |
+|---|---|
+| Quién | Solo `CIUDADANO` con los términos vigentes (401 sin token, 403 con otro rol): es el único que crea reportes. |
+| Entrada | `multipart/form-data` con la parte `foto` (JPEG, PNG o WEBP, hasta 10 MB). |
+| Respuesta | **200** `{"categoriaId": 1, "categoriaNombre": "Bache", "fotoRechazada": false}`, o `{"categoriaId": null, "categoriaNombre": null, "fotoRechazada": false}` sin sugerencia. Desde NC-10b, `fotoRechazada: true` (y sin categoría) si la moderación rechazaría la foto: ver [Moderación de contenido](#moderación-de-contenido-nc-10b-d-15). |
+| Errores | Sin la parte `foto`, o vacía: 400. No es una imagen válida: 409, el mismo de la creación (solo con la clasificación o la moderación encendidas: con las dos apagadas no se sanea y la respuesta es 200 «sin sugerencia»). **Nunca 503**: sin turno, o con la moderación caída, 200 «sin sugerencia» y `fotoRechazada: false`. |
+| Persistencia | **Ninguna**: ni la foto ni el resultado (`ClasificacionVistaPreviaIT` cuenta reportes y archivos antes y después). |
+
+- **La foto pasa por el mismo `SaneadorDeImagen` que el almacenamiento**
+  antes de clasificarse (ajuste a D-08 de la propuesta de fotos del 21/10):
+  el modelo ve la imagen que verá la sugerencia oficial (orientada, a 2048 px,
+  recomprimida). Como el saneado y el modelo son deterministas, la misma foto
+  da la misma sugerencia en los dos momentos. La sugerencia oficial **no**
+  vuelve a sanear la foto guardada: recomprimirla daría otros píxeles.
+- **Solo la categoría, sin confianza ni versión.** La sugerencia es una señal
+  interna, y la vista previa muestra lo mínimo que necesita la interfaz.
+  Exponer el puntaje daría a cualquier ciudadano un instrumento para sondear
+  el detector foto a foto, y no ayuda a elegir (por debajo del umbral ya no se
+  sugiere nada). Agregar un campo después es compatible; quitarlo, no.
+- **Un error del clasificador nunca llega al ciudadano**: ni el servicio
+  caído (`ClasificacionNoDisponibleException`) ni cualquier otra excepción del
+  adaptador (un bug, una respuesta fuera del contrato). La respuesta es «sin
+  sugerencia», con un WARN en el log, y el ciudadano elige a mano. La PWA no
+  distingue esos casos del de una foto sin un daño claro.
+- **La vista previa no compite con las subidas por el saneado** (la IA nunca
+  bloquea un reporte, §4.3). El saneado admite 2 fotos a la vez en todo el
+  servidor, y cada turno que ocupa una vista previa lo puede estar esperando
+  un ciudadano que envía su reporte (desde BE-11 esa espera ya no retiene una
+  conexión, pero sigue demorando la creación). Por eso la vista previa tiene un **turno
+  propio que no espera** (`ClasificacionService`, uno a la vez): si está
+  ocupado, la respuesta es «sin sugerencia» al instante. Así las vistas
+  previas nunca ocupan más de uno de los dos turnos y siempre queda otro para
+  las creaciones. Si las creaciones ocupan los dos, la vista previa que tiene
+  su turno espera el del saneado como cualquier subida (hasta 10 s) y, sin él,
+  responde «sin sugerencia», nunca 503.
+- **Con la clasificación apagada no se sanea nada** (salvo que la moderación
+  esté encendida: desde NC-10b la vista previa también avisa si la foto se
+  rechazaría, y para eso la sanea). `ClasificadorDano`
+  declara si puede detectar algo (`estaDisponible()`); el falso sin respuesta,
+  que es como corre producción con `CLASIFICACION_TIPO=falso`, dice que no.
+  Entonces la vista previa responde «sin sugerencia» sin sanear la foto (por eso ahí una foto
+  inválida no da 409) y la sugerencia oficial no lee la base ni descarga la
+  foto. Lo decide el adaptador y no una propiedad `habilitada` aparte, para
+  que no puedan contradecirse (una «habilitada» con un falso que no detecta
+  nada). El adaptador HTTP (NC-04b) responde `true`: un servicio caído se
+  nota al llamarlo, no antes.
+
+### Sugerencia oficial (D-08)
+
+1. `ReporteService` publica `ReporteCreadoEvent` (que ahora lleva `conFoto`)
+   solo al crear un reporte nuevo. Una **adhesión** (US-09) no crea un reporte
+   ni lo vuelve a clasificar, y su foto no se guarda.
+2. `SugerenciaCategoriaListener` (`AFTER_COMMIT`) solo encola, y solo si hay
+   foto. Con la cola del executor llena registra un WARN con el reporte y la
+   descarta, como los avisos (D-13).
+3. `SugerenciaCategoriaService#sugerir` (`@Async`, **sin transacción**)
+   termina enseguida si la clasificación está apagada. Si no, lee la URL de la
+   foto, la descarga por `FotoStorageService` y la clasifica. Ese I/O ocurre
+   sin ninguna conexión de la base tomada.
+4. `ReporteService#registrarSugerencia` escribe en una **transacción corta**
+   un `UPDATE` de tres columnas **condicionado a que sigan nulas**: la
+   sugerencia se escribe una sola vez, y un segundo intento (otro evento, un
+   reproceso futuro) no la reemplaza.
+
+**La creación nunca espera ni falla por la clasificación.** Si el servicio
+falla, la foto no se puede leer o no hay una sugerencia clara, las columnas
+quedan nulas y el reporte sigue su curso. Un error del clasificador, aunque
+sea inesperado, da «sin sugerencia» con un WARN; cualquier otro error
+inesperado (leer la base, por ejemplo) escapa al manejador de `@Async`, que lo
+registra.
+
+**Lo que envía el cliente se ignora.** `POST /api/reportes` no tiene
+parámetros de sugerencia, y las tres columnas son de **solo lectura para JPA**
+(`insertable = false, updatable = false` en `Reporte`): ni la creación ni
+ningún `save()` posterior pueden escribirlas. Eso además evita una carrera:
+una edición del ciudadano o un cambio de estado del funcionario que cargó el
+reporte antes de la sugerencia no la pisa con un nulo al guardar.
+
+**SQL nativo, no `save()`.** El `UPDATE` toca solo esas columnas: un `merge`
+de la entidad podría devolver a su valor viejo un estado que el funcionario
+cambió mientras tanto. Tampoco mueve `updated_at`, porque la sugerencia es
+interna y no debe notarse en ninguna fecha visible.
+
+**Las tres columnas van juntas** (`CHECK ck_reporte_sugerencia_completa`): o
+todas nulas o todas con valor. Así «sin sugerencia» es un estado claro, y la
+versión identifica al modelo que produjo cada sugerencia (las del falso dicen
+`falso-0`). Para OE3 se consulta por SQL; si hiciera falta una pantalla, sería
+un endpoint del ADMIN.
+
+### Por qué el catálogo es un puerto que implementa `reportes`
+
+La política necesita las categorías activas con clase del modelo, que viven
+en `reportes` (`CategoriaDano`). Pero `reportes` ya depende de
+`clasificacion` (la sugerencia oficial llama a `ClasificacionService`), así
+que si `clasificacion` llamara a `reportes` habría un **ciclo entre módulos**
+(`modulosSinCiclos`). La dependencia se invierte: `clasificacion` declara lo
+que necesita en `port/CategoriasClasificables` y `reportes` lo implementa en
+su `infra/` (`JpaCategoriasClasificablesAdapter`, una consulta derivada). El
+grafo queda `clasificacion ← reportes`, como en ARCHITECTURE.md §4.3, y
+ArchUnit sigue sin violaciones. Alternativas descartadas: llevar la vista
+previa a `reportes` (contradice el paso 1 de §4.3) o que el cliente envíe las
+categorías candidatas (el cliente decidiría qué se puede sugerir).
+
+### La sugerencia es una señal interna
+
+Sale de un detector, así que **no va en ningún DTO** del reporte: ni en el
+mapa y la búsqueda públicos, ni en las vistas del ciudadano (mis reportes, mis
+adhesiones, editar, cancelar, crear o adherirse), ni en la bandeja, el cambio
+de estado, el historial o la exportación del funcionario. Mostrársela al
+funcionario es una decisión aparte (pregunta 5 de la propuesta).
+`SugerenciaFueraDeDtosIT` lo fija endpoint por endpoint **sobre el cuerpo
+entero**: con una sugerencia de valores reconocibles en el reporte, la
+respuesta no puede contener esos valores ni ningún nombre de campo de la
+sugerencia. `clase_modelo` tampoco está en el catálogo público.
+
+### «Hueco en calzada» desactivada (V19)
+
+En una foto no se distingue de «Bache» (la profundidad no se ve), y con dos
+nombres para el mismo daño la deduplicación de US-09, que es por categoría,
+deja crear dos reportes del mismo hueco. La gravedad la expresa la
+`severidad` (NC-02). Es la decisión del usuario del 21/10.
+
+- V19 la pone en `activo = false`: sale del catálogo público y crear con ella
+  es 409, como con cualquier inactiva.
+- **Los reportes que ya la usan no cambian**: guardan `categoria_id`, se
+  siguen viendo con su categoría y el creador puede seguir editándolos sin
+  cambiarla (`ReporteService#editar` solo valida la categoría cuando cambia).
+  Lo prueba `CategoriasDelModeloIT`.
+- **La deduplicación no cruza categorías.** Un «Bache» nuevo a 20 m o menos
+  de un reporte activo de «Hueco en calzada» no se suma a él (US-09 busca la
+  misma categoría): se crea un reporte aparte para el mismo daño. Y como el
+  catálogo público ya no la ofrece, la PWA no puede filtrar el mapa por
+  «Hueco en calzada». Las dos cosas solo afectan a datos que ya existían:
+  **producción todavía no está desplegada** (v0.7.0 está lista, sin
+  desplegar), así que allí no hay reportes con esa categoría; las bases de
+  desarrollo sí pueden tenerlos. No se pasaron a «Bache» con la migración
+  porque cambiaría lo que eligió el ciudadano.
+- Las estándar no se reactivan por el API (US-29); volver atrás sería otra
+  migración.
+
+### El adaptador del servicio de inferencia (NC-04b)
+
+`clasificacion/infra/InferenciaHttpAdapter` (`CLASIFICACION_TIPO=http`)
+llama a `POST /v1/detecciones` del servicio `inferencia/` (RF-DETR Nano) por
+la red privada, en `CLASIFICACION_URL`, según el contrato
+`project-context/handoffs/2026-10-25-contrato-inferencia-v1.md`. Es el
+adaptador de producción desde la v0.8.0 (decisión del usuario del 26/10).
+
+| Decisión | Por qué |
+|---|---|
+| `RestClient` sobre el `HttpClient` del JDK, como `ResendCorreoAdapter` | Sin dependencias nuevas: la imagen está al borde de los 400 MB. |
+| **HTTP/1.1 explícito** | Por defecto el cliente del JDK intenta HTTP/2 y, sobre `http://`, lo negocia con un `Upgrade: h2c` que uvicorn no habla. Con HTTP/1.1 cada conexión lleva una llamada a la vez, así que las conexiones abiertas, también las que quedan en keep-alive, nunca pasan de las llamadas simultáneas. |
+| **Cuerpo en chunks** (`Transfer-Encoding: chunked`, sin `Content-Length`) | El multipart se escribe en streaming. uvicorn lo acepta, y el límite de cuerpo del servicio cuenta los bytes que recibe, no solo el `Content-Length` declarado (`inferencia/app/api/limite_cuerpo.py`). Lo comprueban `InferenciaHttpAdapterTest` con un servidor local e `InferenciaHttpAdapterIT` contra el servicio real. |
+| **0,5 s de conexión + 2,5 s de lectura** (3 s como máximo) | El tope de la vista previa: el ciudadano espera la sugerencia mientras arma el reporte. La conexión es por la red privada y tarda milisegundos; la lectura se lleva casi todo porque incluye la espera en el servicio, que infiere de a una imagen. Spring 6.2 cuenta la lectura desde que sale el pedido hasta cerrar el cuerpo, así que también corta una respuesta que llega a medias. |
+| **Turno (*bulkhead*): 4 llamadas a la vez; la vista previa no espera y la sugerencia oficial espera hasta 10 s** (NC-04c) | El `HttpClient` del JDK no limita sus conexiones y el servicio responde 503 desde 10 conexiones o tareas abiertas, contando las de keep-alive. Un `Semaphore(4)` lo mantiene lejos de ese tope. **La vista previa y la sugerencia oficial compiten por los mismos turnos**, pero no los esperan igual: la vista previa toma turno sin esperar (sin turno, «sin sugerencia» al instante), y la sugerencia oficial, asíncrona, espera uno hasta 10 s (ver «Espera de turno de la sugerencia oficial»). La oficial corre en su propio executor de 2 hilos, así que como mucho ocupa 2 turnos y quedan 2 para las vistas previas en curso. El turno propio de la vista previa solo acota el saneado y se suelta antes de clasificar, así que puede haber varias clasificando a la vez, una por ciudadano con la pantalla abierta. El tope protege al servicio; no reserva turnos para nadie. |
+| **Sin reintentos** | La IA nunca bloquea un reporte (§4.3), y un reintento solo cargaría más a un servicio que ya no respondió. |
+| **Cualquier falla es «sin sugerencia»** | Una respuesta distinta de 200, un timeout o un error de conexión se traducen a `ClasificacionNoDisponibleException`, que `ClasificacionService` convierte en «sin sugerencia» con un WARN. |
+| **La respuesta se valida solo por su estructura** | Se rechaza entera si falta `version_modelo` o `detecciones`, si los tipos no son los del contrato o si `version_modelo` pasa de 40 caracteres (la columna). Se ignoran `caja` y los campos desconocidos. Una clase desconocida o una confianza fuera de [0, 1] **no** la invalidan: las descarta `PoliticaDeSugerencia` y las demás detecciones de la foto siguen valiendo. El cuerpo de un 200 se lee hasta **256 KiB** (100 detecciones caben en unos 10 KB): uno más grande es «fuera del contrato» y no se carga entero en memoria. |
+| **La foto viaja sin datos del ciudadano** | La parte `imagen` lleva la foto **saneada** (sin EXIF) con el nombre fijo `foto.jpg`, nunca el del archivo original. |
+| **`estaDisponible()` siempre `true`** | Un servicio caído se nota al llamarlo; no se adivina antes. |
+
+**Una línea de log por llamada**, con su duración: es la medida de latencia
+de DEP-13. El nivel separa las causas:
+
+| Nivel | Ejemplo | Qué indica |
+|---|---|---|
+| `INFO` | `Inferencia: 200 en 287 ms, 1 deteccion(es), modelo rdd2022-…`; `la sugerencia oficial espero 224 ms por un turno` | Respondió; o la sugerencia oficial tuvo que esperar turno (NC-04c). |
+| `WARN` | `error del servicio, HTTP 500, error_de_inferencia`; `servicio saturado, HTTP 503`; `sin respuesta en 2589 ms (HttpTimeoutException)`; `sin turno para la vista previa`; `la sugerencia oficial espero 10000 ms sin turno` | Un problema del servicio o de capacidad, pasajero. |
+| `ERROR` | `pedido rechazado, HTTP 400, imagen_invalida`; `200 … fuera del contrato /v1` | Un defecto de un lado del contrato: la foto llega saneada (JPEG de 2048 px o menos), así que el servicio no debería rechazarla. Hay que corregirlo, no esperar. |
+
+Del cuerpo de un error solo se copia el `codigo` del contrato, y solo si
+tiene forma de código; nunca el `mensaje`.
+
+**Medido contra el contenedor real** (`ciudadviva-inferencia:nc03` con
+`--cpus=2` en la máquina de desarrollo, fotos sintéticas saneadas, dos
+corridas de `InferenciaHttpAdapterIT` el 26/10): una llamada sola tarda
+234–298 ms (457–651 ms la primera, que abre la conexión). Con seis a la vez,
+cuatro toman turno y el servicio las atiende en fila: terminan a los ~0,3,
+~0,55, ~0,8 y ~1,0 s (287–310, 526–563, 768–811 y 1002–1045 ms); las otras
+dos reciben «sin turno» al instante y ninguna llega al 503. Con un servicio
+mudo y los tiempos de producción, la llamada se corta a los 2,6 s. La
+latencia en Railway se mide en DEP-13 con estas mismas líneas.
+
+### Espera de turno de la sugerencia oficial (NC-04c)
+
+Hasta NC-04c ninguna llamada esperaba turno: si coincidían más de cuatro, las
+que no lo tenían daban «sin sugerencia». En la vista previa el ciudadano
+elige a mano, pero **una sugerencia oficial sin turno se perdía**: las
+columnas quedan nulas y no se reintenta (se escribe una sola vez), así que
+esa foto contaba como «sin sugerencia» en la evaluación del modelo (OE3).
+Decisión del usuario del 28/10: **la sugerencia oficial asíncrona espera
+hasta 10 s por un turno**; la vista previa sigue igual.
+
+- **El puerto dice quién llama, no cuánto esperar.**
+  `ClasificadorDano#detectar(foto, origen)` recibe un
+  `clasificacion/domain/OrigenDeConsulta` (`VISTA_PREVIA` o
+  `SUGERENCIA_OFICIAL`): `ClasificacionService#vistaPrevia` pasa el primero
+  y `ClasificacionService#sugerenciaOficial`, el segundo. Cuánto se espera es
+  un detalle del adaptador HTTP, el único con turnos; el falso lo ignora.
+  Pasar un tiempo de espera por el puerto obligaría a la aplicación a saber
+  que hay turnos.
+- **El adaptador** (`InferenciaHttpAdapter`): la vista previa usa
+  `tryAcquire()` como antes; la oficial, `tryAcquire(espera)`. Si en el plazo
+  no se libera un turno, se rinde con «sin sugerencia» (WARN con lo que
+  esperó). Si el hilo se interrumpe mientras espera, se rinde y conserva la
+  interrupción; es defensivo, porque al apagar el executor deja terminar la
+  espera (ver «Executor asíncrono»). El semáforo no es justo: un turno que
+  se libera puede tomarlo antes una vista previa que llega en ese instante, y
+  la oficial sigue esperando hasta su plazo. Así la vista previa no cambia en
+  nada, y la oficial no puede adelantarse a un ciudadano que espera en
+  pantalla.
+- **Configurable** para que los tests usen un plazo corto:
+  `app.clasificacion.http.espera-turno-oficial-ms`
+  (`CLASIFICACION_ESPERA_TURNO_MS`, 10000 por defecto, entre 0 y 60000; fuera
+  de rango no arranca, porque mientras espera ocupa un hilo). Con 0, la
+  oficial tampoco espera, como antes de NC-04c.
+- **Un executor propio** (`ejecutorSugerencias`, 2 hilos fijos): esperar
+  ocupa el hilo, y en el executor general retrasaría correos y avisos. El
+  dimensionamiento y su justificación están en «Executor asíncrono»: con 2
+  hilos, la oficial ocupa como mucho 2 de los 4 turnos.
+- **Tiempo máximo de una sugerencia oficial**: la espera (10 s) más la
+  llamada (3 s). Nadie la espera: la creación del reporte respondió antes.
+
+**Medido contra el contenedor real** (28/10, misma imagen y máquina):
+`InferenciaHttpAdapterIT` lanza seis sugerencias oficiales a la vez; cuatro
+toman turno, las otras dos esperan 224 y 448 ms a que se libere uno, y las
+seis reciben respuesta, ninguna un 503 ni «sin turno». Las mismas seis como
+vista previa siguen dando dos «sin turno» al instante.
+
+### Configuración
+
+| Propiedad (variable) | Por defecto | Qué es |
+|---|---|---|
+| `app.clasificacion.tipo` (`CLASIFICACION_TIPO`) | `falso`; en `prod`, sin valor por defecto | `http` (`InferenciaHttpAdapter`) o `falso`. Otro valor no arranca. |
+| `app.clasificacion.http.url` (`CLASIFICACION_URL`) | vacía | URL base del servicio, sin la ruta (`http://inferencia.railway.internal:8000`; en local, `http://localhost:8090`). Obligatoria con `http`: sin ella, sin esquema `http(s)` y host, o con ruta, query, fragmento o usuario, no arranca. Con `falso` no se mira. |
+| `app.clasificacion.umbral` (`CLASIFICACION_UMBRAL`) | `0.50` | En (0, 1]; fuera de rango no arranca. |
+| `app.clasificacion.http.espera-turno-oficial-ms` (`CLASIFICACION_ESPERA_TURNO_MS`) | `10000` | Cuánto espera la sugerencia oficial un turno (NC-04c), entre 0 y 60000 ms; fuera de rango no arranca. Solo con `http`. |
+| `app.async.sugerencias.hilos` / `.cola` (`ASYNC_SUGERENCIAS_HILOS`, `ASYNC_SUGERENCIAS_COLA`) | `2` / `100` | El executor de la sugerencia oficial (NC-04c, ver «Executor asíncrono»). Los hilos, entre 1 y 3 (menos que los 4 turnos del adaptador); con `http`, fuera de rango no arranca. |
+| `app.clasificacion.falso.respuesta` (`CLASIFICACION_FALSO_RESPUESTA`) | vacía | Lo que el falso «detecta» en cualquier foto. Si está mal escrita, no arranca. |
+| `app.clasificacion.falso.version-modelo` | `falso-0` | Versión que informa el falso. |
+
+- **`local`**: `falso` con `bache:0.87` por defecto, para ver la vista previa
+  y la sugerencia sin el servicio de inferencia. Con el modelo real:
+  `docker run --rm -d --name inferencia -p 8090:8000 --cpus=2 ciudadviva-inferencia`
+  y `CLASIFICACION_TIPO=http CLASIFICACION_URL=http://localhost:8090`.
+- **`prod`**: `CLASIFICACION_TIPO` **obligatoria**, sin valor por defecto
+  (como `FOTOS_ALMACEN`, `CORREO_TIPO` y `CAPTCHA_TIPO`): `http` en el despliegue. La
+  respuesta del falso sigue vacía y **literal**, no por entorno, así que
+  `CLASIFICACION_TIPO=falso` es el interruptor para apagar la clasificación
+  sin escribir nada más: `estaDisponible()` en `false`, nunca sugiere ni
+  escribe, y ni sanea ni descarga fotos para eso. Una respuesta fija en
+  producción llenaría la base de sugerencias inventadas y arruinaría la
+  evaluación del modelo.
+- **`test`**: `bache:0.87,grieta:0.30`, literal, para que un
+  `CLASIFICACION_*` del entorno no cambie la suite. La sugerencia esperada es
+  siempre «Bache» con 0,870.
+
+### Pruebas
+
+- Unitarias: `PoliticaDeSugerenciaTest` (las cuatro reglas, umbral exacto,
+  empates, redondeo y rangos), `FalsoClasificadorAdapterTest`,
+  `InferenciaHttpAdapterTest` (NC-04b, con `MockRestServiceServer`: 200 con y
+  sin detecciones, con una clase desconocida y con confianza 1,5; 400, 413,
+  500, 503 y otros estados; timeout (también cuando Spring 6.2 lo entrega
+  como `CancellationException` y no envuelto, una carrera que apareció en
+  la verificación de NC-04c); respuestas fuera del contrato, entre
+  ellas sin `version_modelo` y con una de 41 caracteres; el nivel de log de
+  cada causa; con seis llamadas simultáneas, a lo sumo cuatro llegan al
+  servidor, y los turnos se devuelven también cuando la llamada falla; el
+  tope de 256 KiB del cuerpo. Desde NC-04c, con los cuatro turnos ocupados:
+  la sugerencia oficial espera y sigue cuando se libera uno; con un plazo
+  corto se rinde sin llegar al servidor; la vista previa no espera (falla en
+  menos de 1 s con la oficial configurada en 5 s); interrumpida mientras
+  espera, se rinde y conserva la interrupción; la espera fuera de 0–60 s no
+  arranca, y tampoco 4 o más hilos de sugerencias. Con sockets locales y un `@Timeout` de JUnit
+  para no colgar la CI: HTTP/1.1 sin `Upgrade` y el cuerpo en chunks, que con
+  los tiempos de producción un servicio mudo se corta por la lectura, una
+  respuesta que se corta a medias y una conexión rechazada),
+  `ValidacionTipoClasificadorTest` (con `http`, la URL: solo la base),
+  `ClasificacionServiceTest` (la vista previa
+  clasifica la foto **saneada** y pide `VISTA_PREVIA`; la oficial no la
+  vuelve a sanear y pide `SUGERENCIA_OFICIAL`; una vista
+  previa a la vez, sin esperar; sin turno de saneado, error inesperado del
+  adaptador o clasificación apagada = «sin sugerencia»),
+  `SugerenciaCategoriaListenerTest` (cola llena),
+  `SugerenciaCategoriaServiceTest` (clasificación apagada, foto ausente,
+  almacenamiento caído, URL que no es un nombre del servidor; desde NC-04c,
+  que corre en el executor de las sugerencias y que con el hilo interrumpido
+  no hace nada) y `AsyncConfigTest` (NC-04c: el executor de las sugerencias,
+  con hilos fijos, cola acotada y rechazo con la cola llena; al apagar espera
+  a la que corre y la encolada no empieza sin interrupción; el general sigue
+  siendo el primario).
+- Integración: `ClasificacionVistaPreviaIT` (rol, términos pendientes, no
+  persiste, errores),
+  `SugerenciaCategoriaIT` (se escribe una sola vez, lo del cliente se ignora,
+  la adhesión no clasifica, la edición no la borra), `SugerenciaCategoriaFallaIT`
+  (con el falso en `falla`, el reporte se crea igual y la vista previa es «sin
+  sugerencia»; es el único contexto de Spring nuevo), `SugerenciaFueraDeDtosIT`
+  y `CategoriasDelModeloIT` (V19). Desde NC-04b, `ArranqueClasificacionIT`
+  (en `prod`, sin `CLASIFICACION_TIPO` o con `http` sin URL, no arranca) y
+  `PerfilProdIT` (con `http`, el clasificador es el adaptador HTTP; la
+  respuesta del falso sigue vacía).
+- Contra el servicio real: `InferenciaHttpAdapterIT`, **solo si existe
+  `CLASIFICACION_TEST_URL`** (como `S3FotoStorageServiceIT` con
+  `FOTOS_S3_TEST_ENDPOINT`). La CI no construye la imagen (descarga torch y
+  los pesos), así que no está en `CLASES_OBLIGATORIAS` y allí queda omitido.
+  Comprueba que FastAPI acepta el multipart del adaptador, que la respuesta
+  real cumple el contrato y es la misma para la misma foto (D-08), un 400
+  real, que el turno mantiene al servicio lejos del 503, que seis
+  sugerencias oficiales a la vez reciben respuesta todas (las sin turno
+  esperan, NC-04c) y el flujo entero
+  (vista previa y sugerencia oficial) con `CLASIFICACION_TIPO=http`. Las
+  fotos son sintéticas: que el modelo encuentre un bache en una foto real lo
+  prueba la prueba de humo del despliegue (DEP-13).
+  ```bash
+  docker run --rm -d --name inferencia-it -p 8090:8000 --cpus=2 ciudadviva-inferencia:nc03
+  CLASIFICACION_TEST_URL=http://localhost:8090 mvn verify -Dit.test=InferenciaHttpAdapterIT
+  docker stop inferencia-it
+  ```
+
+### Pendiente
+
+- **Aviso de privacidad** (frontend y textos legales): decir que la foto se
+  analiza automáticamente para sugerir una categoría y que la decisión es del
+  ciudadano (DS 016-2024-JUS, art. 6.1).
+
+## Moderación de contenido (NC-10b, D-15)
+
+> Decisión del usuario del 28/10 (propuesta
+> `project-context/decisions/propuestas/2026-10-28-moderacion-de-contenido.md`,
+> ARCHITECTURE.md §4.3 y D-15). El servicio lo publica NC-10a
+> (`handoffs/2026-10-28-contrato-moderacion-v1.md`); los avisos de la PWA son
+> NC-10c (`handoffs/2026-10-29-moderacion.md`). Ocultar y denunciar lo ya
+> publicado es NC-11.
+
+Antes de publicar, el backend rechaza **una foto con contenido sexual u
+obsceno** y **un texto con groserías**. Lo rechazado **no se guarda**: ni la
+foto, ni el puntaje, ni el texto.
+
+### Las piezas
+
+Módulo nuevo `moderacion`, que solo usa `common`; lo usan `reportes`,
+`clasificacion` (vista previa) y `auth` (nombre del perfil). Sin ciclos:
+ocultar y denunciar (NC-11) viven en `reportes`, no aquí.
+
+| Pieza | Capa | Qué hace |
+|---|---|---|
+| `port/ModeradorDeImagen` | Puerto | Mide una `FotoSaneada` (la misma que se guarda) y devuelve `PuntajeDeModeracion` (versión y puntaje). Solo mide. |
+| `infra/InferenciaModeracionHttpAdapter` | Adaptador | `POST /v1/moderacion` del servicio `inferencia/` (`MODERACION_TIPO=http`). |
+| `infra/SinModeracionAdapter` | Adaptador | `ninguna`: no revisa nada (local, tests y el interruptor de emergencia en `prod`, con un WARN al arrancar). |
+| `infra/ValidacionTipoModeracion` | Arranque | Tipo, URL base y umbral, antes de crear ningún bean. |
+| `infra/ListaDeGroseriasConfig` | Arranque | Lee `resources/moderacion/groserias-es-pe.txt`; sin archivo, sin versión, con una entrada inválida o vacío, no arranca. |
+| `domain/PoliticaDeModeracion` | Dominio | Rechaza si `puntaje ≥ umbral` (0,70; entre 0,5 y 0,9). |
+| `domain/FiltroDeGroserias` | Dominio | Regla pura: normaliza el texto y lo compara con la lista. |
+| `service/ModeracionService` | Aplicación | `exigirTextoPermitido`, `exigirFotoPermitida` (creación) y `fotoRechazadaEnVistaPrevia`. Sin `@Transactional`. |
+
+`common/exception/ContenidoNoPermitidoException` (400 con `codigo` y el campo
+en `details`) y el `codigo` opcional de `ServicioNoDisponibleException` viven
+en `common` porque `GlobalExceptionHandler` no puede depender de un módulo.
+
+### Dónde se modera cada cosa
+
+| Momento | Foto | Texto | Si el servicio no responde |
+|---|---|---|---|
+| Creación (`POST /api/reportes`) | Sí: saneada una vez, **sin transacción**, antes de subirla | `titulo`, `descripcion` | **503 `MODERACION_NO_DISPONIBLE`** (falla cerrada). Sin foto, el reporte se crea igual |
+| Adhesión (US-09, mismo `POST`) | Sí: llega en el mismo pedido, se modera antes de saber si es adhesión | Igual | Igual |
+| Reenvío idempotente (US-06) | **No**: la respuesta guardada vuelve antes de moderar | No | Recibe su respuesta aunque el servicio esté caído |
+| Edición (`PATCH /api/reportes/{id}`) | — (no cambia la foto) | `titulo`, `descripcion` | — |
+| Comentario (`POST /api/reportes/{id}/comentarios`) | — | `contenido` | — |
+| Registro (`POST /api/auth/registro`) | — | `nombre`, `apellido`, **después del captcha** y antes del DNS | — |
+| Perfil (`PATCH /api/auth/me`) | — (la foto de perfil es privada) | `nombre`, `apellido` | — |
+| Vista previa (`POST /api/clasificaciones`) | Sí, sin esperar turno: `fotoRechazada` | — | `fotoRechazada: false` y la sugerencia de siempre |
+| Sugerencia oficial (D-08) | **No**: la foto guardada ya pasó al crear | — | — |
+
+No se filtran los tickets de soporte, el responsable asignado ni las
+categorías: son privados o los escribe el personal municipal.
+
+### Contrato
+
+| Respuesta | Cuándo | Cuerpo |
+|---|---|---|
+| **400 `FOTO_NO_PERMITIDA`** | La foto supera el umbral | `message`: «La foto no está permitida. Toma otra.»; `details: ["foto"]` |
+| **400 `TEXTO_NO_PERMITIDO`** | Un texto tiene una grosería de la lista | `message`: «La descripción tiene palabras que no están permitidas. Cámbiala para continuar.» (uno por campo); `details`: el campo del pedido (`titulo`, `descripcion`, `contenido`, `nombre` o `apellido`). **Nunca repite la palabra** |
+| **503 `MODERACION_NO_DISPONIBLE`** | Sin respuesta, sin turno en 1 s, un 4xx/5xx del servicio o un 200 fuera de contrato, al crear con foto | `message`: «No pudimos revisar la foto en este momento. Guarda el reporte para enviarlo después o envíalo sin foto.» |
+| `ClasificacionResponse.fotoRechazada` (`boolean`, nunca nulo) | Vista previa | `true` solo si la moderación rechazó la foto; entonces no se clasifica y la categoría es nula |
+
+- **Por qué 400 y no 409.** Es la entrada la que no se puede publicar, no una
+  precondición de estado (convención del proyecto: validación 400, negocio
+  409, relación o rol 403). La PWA marca el campo con `details`.
+- **Por qué el 503 no entra solo a la cola.** La PWA ya reintenta los 5xx
+  desde la cola de US-06 con la misma `Idempotency-Key`; con el `codigo`
+  puede además ofrecer «Enviar sin foto» (NC-10c).
+- **`fotoRechazada` no es una señal interna.** Habla de la foto que el propio
+  ciudadano acaba de subir, y la creación le daría el mismo veredicto. Por el
+  mismo criterio que la confianza de la sugerencia, **no lleva el puntaje**:
+  sería un instrumento para sondear el modelo foto a foto. Ningún DTO lleva el
+  puntaje ni la versión del modelo de moderación.
+
+### Falla cerrada y el interruptor
+
+Decisión del usuario del 28/10 (propuesta §4, opción B): si el servicio no
+responde, la foto **no** se acepta. Fallar abierto rompería «nunca se guarda
+ni se publica» justo cuando el servicio cae (bastan 10 conexiones abiertas
+para su 503). Los resguardos:
+
+1. **`MODERACION_TIPO=ninguna`** es la salida de emergencia ante una caída
+   larga. Mientras está puesto se publican fotos sin revisar; el filtro de
+   texto sigue activo.
+2. **Orden de despliegue:** primero el servicio con el modelo (NC-10a,
+   DEP-13), después el backend con `http`. Hasta entonces, `ninguna`.
+3. Un reporte **sin foto** nunca depende del servicio.
+
+La vista previa, en cambio, **nunca falla** por la moderación: su veredicto
+es solo un aviso, y el oficial es el de la creación.
+
+### El adaptador HTTP
+
+Sigue el patrón de `InferenciaHttpAdapter` (NC-04b): `RestClient` sobre el
+`HttpClient` del JDK con HTTP/1.1 explícito, 500 + 2 500 ms, sin reintentos,
+validación solo de la estructura (sin `version_modelo` o `puntaje`, tipos
+distintos, un puntaje no finito o fuera de [0, 1], o una versión de más de 40
+caracteres: fuera de contrato) y una línea de log con la duración de cada
+llamada (sin el puntaje de una foto aceptada). **No se reutiliza el de
+`clasificacion`**: es `infra` de otro módulo (ARCHITECTURE.md §4.3), así que
+se copia el patrón.
+
+- **Turno propio de 4 llamadas** (`Semaphore`), aparte del de la detección. El
+  servicio responde 503 desde 10 conexiones abiertas **sumando los dos
+  endpoints**, y 4 + 4 = 8 cabe con margen de una (handoff de NC-10a). No se
+  puede subir uno sin bajar el otro, y con más de una réplica del backend hay
+  que repartirlos.
+- **La creación espera un turno hasta 1 s**: sin turno, el ciudadano recibe
+  un 503, no «sin sugerencia». **La vista previa no espera.**
+- Un 400 o 413 del servicio con la foto ya saneada es un defecto de un lado
+  del contrato: queda en `ERROR`, aparte de las caídas (`WARN`).
+
+**Latencia medida** contra el contenedor real (`InferenciaModeracionHttpAdapterIT`,
+29/10, portátil con `--cpus=2`): 230–360 ms por moderación sola; con 4
+moderaciones y 4 detecciones a la vez, la última moderación tardó ~2,1 s, cerca
+de los 2,5 s de lectura. En Railway hay que volver a medirlo (DEP-13): si la
+carga mixta pasa del timeout, una creación con foto recibiría 503.
+
+### La lista de groserías
+
+`resources/moderacion/groserias-es-pe.txt`, **propia del repositorio** (no
+copia ninguna lista de terceros), versión `2026-10-29.1`, **153 entradas**:
+137 palabras y 16 expresiones de varias palabras. La armó el agente de backend con los
+criterios de la propuesta §5, que van en su cabecera; **el usuario aprueba la
+versión inicial en el PR de NC-10b**.
+
+- **Entra:** insultos vulgares inequívocos en el uso peruano con sus formas
+  comunes (plural, femenino, aumentativo, abreviaturas como «ctm», «csm»,
+  «ptm»), vulgaridades sexuales y escatológicas fuertes, insultos homofóbicos
+  inequívocos y expresiones cuyas palabras sueltas son legítimas («concha de
+  tu madre», «hijo de perra»).
+- **No entra:** lo que tiene un sentido legítimo en un reporte o un nombre
+  propio (concha, huevo, polla, paja, Pajero, perra, cono, ano, cholo, negro,
+  chino…), los insultos que no son groserías (idiota, imbécil, estúpido: criticar
+  a una autoridad no es una grosería) y las interjecciones leves (carajo,
+  caramba). Lo que no atrapa la lista lo atrapa la denuncia (NC-11).
+
+**Normalización** (`FiltroDeGroserias`): NFKC, sin caracteres de formato y en
+minúsculas; sin tildes ni diéresis **pero con la ñ** («coño» no es «cono», ni
+«año» es «ano»); *leetspeak* solo dentro de palabras con letras (0→o, 3→e,
+4→a, 5→s, 7→t, @→a, $→s, y el 1 como i y como l), así que «km 15» no cambia;
+`*` o `#` dentro de una palabra valen por una letra («p*ta»), siempre que haya
+más letras que comodines; tres o más letras sueltas seguidas se unen («p u t
+a», «C.T.M.»); y cada palabra se compara con sus rachas de 3 o más letras
+reducidas a 2 y a 1 («putaaa»). Las entradas no se reducen: «pera» no es
+«perra».
+
+**El problema de Scunthorpe.** Se compara **por palabra entera** (o por
+secuencias de 2 a 4 palabras para las expresiones), **nunca por subcadena**:
+«vehículo», «obstáculo», «película», «disputa», «computadora» o el apellido
+«Culqui» no coinciden. Lo protegen dos guardas:
+
+- `ListaDeGroseriasTest`: el archivo tiene versión, ninguna entrada duplicada
+  y cada una escrita ya normalizada; el filtro detecta cada entrada; y
+  **ninguna línea ni palabra** del corpus legítimo
+  (`test/resources/moderacion/corpus-legitimo.txt`: vocabulario vial, los 43
+  distritos, apellidos y nombres frecuentes y las palabras legítimas de la
+  propuesta y siglas frecuentes de Lima: 434 líneas) coincide con la lista.
+  **Riesgo que queda: las abreviaturas.** «ctm», «csm», «ptm», «hdp» y «mrd»
+  coinciden como palabra entera, también escritas con puntos o espacios
+  («C. S. M.»): una sigla legítima con esas letras daría 400. Ninguna sigla
+  frecuente de Lima del corpus choca, pero el usuario decide al aprobar la
+  lista si se quedan. Si una palabra legítima
+  empieza a coincidir, se corrige la lista, no el corpus.
+- `FiltroDeGroseriasTest`: cada paso de la normalización, en positivo y en
+  negativo.
+
+**El texto no depende de ningún servicio**: es una regla pura, sin puerto
+(D-04). La PWA no duplica la lista: el 400 llega al instante y el formulario
+conserva lo escrito.
+
+### El orden de las validaciones
+
+- **Creación:** idempotencia → campos → **texto** → saneado → **foto** →
+  subida → transacción. El texto va antes que la foto: no cuesta nada y no
+  gasta un turno del servicio en un reporte que igual se rechaza. La
+  moderación de la foto corre **sin transacción**
+  (`ModeracionCreacionIT` lo comprueba desde el doble del puerto).
+- **Registro:** captcha (NC-08) → **nombre y apellido** → dominio del correo
+  (NC-09) → términos y correo duplicado. El captcha sigue primero; el filtro,
+  que es puro, va antes de la consulta DNS.
+- **Edición del reporte:** el texto nuevo se revisa antes de cambiar nada.
+- **Comentario:** el texto se revisa primero, como el resto de la validación
+  de la entrada.
+
+### Registro (log)
+
+- Foto rechazada al crear: `WARN` con el **id del usuario**, el puntaje
+  redondeado a dos decimales y la versión del modelo. Así se ve si alguien
+  insiste, sin datos de más. En la vista previa, el mismo `WARN` sin usuario
+  (el servicio de `clasificacion` no lo conoce).
+- Texto rechazado: `WARN` con el campo, la **entrada de la lista** que
+  coincidió y la versión de la lista. **Nunca el texto** del ciudadano.
+- Moderación no disponible al crear: `WARN` con el usuario y la causa.
+
+### Pruebas
+
+- Unitarias: `FiltroDeGroseriasTest`, `ListaDeGroseriasTest`,
+  `PoliticaDeModeracionTest` (el borde del umbral y el rango),
+  `ModeracionServiceTest` (códigos, mensajes, falla cerrada, la vista previa
+  que nunca falla y qué queda en el log), `ValidacionTipoModeracionTest` e
+  `InferenciaModeracionHttpAdapterTest` (con `MockRestServiceServer`: 200, 200
+  sin `version_modelo` o sin `puntaje`, `puntaje` 1,5, −0,01, de texto o no
+  finito, versión de 41 caracteres, 400, 413, 500, 503, timeout; con seis vistas
+  previas a la vez, a lo sumo cuatro llegan al servidor y las otras no
+  esperan; la creación espera un turno y sigue, o se rinde en el plazo; con
+  sockets locales, HTTP/1.1 en chunks, el timeout real y una conexión
+  rechazada). `ClasificacionServiceTest` suma la vista previa con la
+  moderación y que la sugerencia oficial no la llama.
+- Integración: `ModeracionCreacionIT` (foto rechazada: 400, sin reporte, sin
+  adhesión, sin `ReporteCreadoEvent` y sin objeto en el almacenamiento; sin
+  servicio: 503 y nada creado; sin foto, el moderador no se llama; el reenvío
+  idempotente con el servicio caído; sin transacción al moderar; **la
+  sugerencia oficial, cero llamadas al moderador**, contadas por el doble),
+  `VistaPreviaModeracionIT`, `ModeracionTextoIT` (edición, comentario, perfil
+  y registro, con el captcha primero) y `ArranqueModeracionIT` (en `prod`, sin
+  `MODERACION_TIPO`, con un valor no admitido, con `http` sin URL o con un
+  umbral fuera de rango, no arranca). `PerfilProdIT` arranca con `http`.
+- Contra el servicio real: `InferenciaModeracionHttpAdapterIT`, **solo si
+  existe `MODERACION_TEST_URL`** (fuera de `CLASES_OBLIGATORIAS`). Comprueba
+  el contrato, un 400 real, el mismo puntaje en la vista previa y en la
+  creación, que 4 moderaciones y 4 detecciones a la vez no reciben un 503, y
+  la creación y la vista previa con el servicio real. **No hay muestras
+  positivas y no se van a juntar**: el rechazo se prueba con el doble.
+  ```bash
+  docker run --rm -d --name inferencia-it -p 8010:8000 --cpus=2 ciudadviva-inferencia:nc10a
+  MODERACION_TEST_URL=http://localhost:8010 mvn verify -Dit.test=InferenciaModeracionHttpAdapterIT
+  docker stop inferencia-it
+  ```
+
+### Pendiente
+
+- **Despliegue (DEP-13):** `MODERACION_TIPO=http` y `MODERACION_URL` en
+  Railway, solo después del servicio con el modelo; la latencia con carga
+  mixta, medida allí; el interruptor y la purga manual van al runbook.
+- **Calibración del umbral** con fotos de calles con gente y de Lima (NC-10a,
+  «Dudas»): 0,70 se mantiene hasta entonces.
+- **Términos v2** (PR #116): el párrafo de la revisión del contenido sale en la
+  misma versión que este código (v0.8.0).
+
+## Ocultar y denunciar (NC-11a, D-15)
+
+Red de seguridad de la moderación automática (NC-10b): **el ADMIN oculta un
+reporte o solo su foto** ya publicados, con un motivo, y **los ciudadanos
+denuncian** un reporte público. Diseño: `project-context/decisions/propuestas/2026-10-28-moderacion-de-contenido.md`
+§6, decidido por el usuario el 28/10. Vive en `reportes` y no en `moderacion`:
+si viviera allí, `moderacion` usaría `reportes` y habría un ciclo
+(ARCHITECTURE.md §4.3).
+
+### Las piezas
+
+| Pieza | Qué hace |
+|---|---|
+| V21 | `reporte.oculto` y `reporte.foto_oculta` (por separado), índice en `reporte.foto_url`, cuatro tipos de evento en `historial_estado_reporte` (sin estados y con el motivo obligatorio), la tabla `denuncia_reporte` y la vista del índice creada de nuevo con `AND NOT r.oculto` |
+| `DenunciaReporteController` / `DenunciaReporteService` | `POST /api/reportes/{id}/denuncias` (CIUDADANO) |
+| `ModeracionReporteController` / `ModeracionReporteService` | `/api/admin/moderacion/reportes/**` (ADMIN) |
+| `reportes/infra/FotosDeReporteWebConfig` | sirve `/media/fotos/reportes/**` solo si la foto es visible |
+| `ReporteVisibilidadCambiadaEvent` | ocultar o restablecer el reporte refresca el índice (AFTER_COMMIT) |
+| `SeguimientoReporteService` | redacta las entradas de moderación según quién lee |
+
+### Las rutas
+
+| Ruta | Rol | Respuestas |
+|---|---|---|
+| `POST /api/reportes/{id}/denuncias` `{motivo, detalle?}` | CIUDADANO | 201; 404 si el reporte no existe, está cancelado u oculto; 409 `DENUNCIA_PROPIA`, `DENUNCIA_REPETIDA` o `LIMITE_DENUNCIAS`; 400 |
+| `GET /api/admin/moderacion/reportes?estado=PENDIENTE` | ADMIN | página de reportes con denuncias en ese estado, de más a menos denunciados y, entre iguales, del que espera hace más; con el conteo por motivo |
+| `GET /api/admin/moderacion/reportes?ocultos=true` (NC-11a2) | ADMIN | página de reportes con el reporte **o** la foto ocultos, tengan denuncias o no, lo ocultado más recientemente primero; `estado` no filtra (si viene, debe ser válido) y el resumen cuenta todas las denuncias. Mismo DTO |
+| `GET /api/admin/moderacion/reportes/{id}` | ADMIN | el reporte (en cualquier estado), su moderación y sus denuncias con el denunciante; 404 |
+| `GET /api/admin/moderacion/reportes/{id}/foto` | ADMIN | la foto aunque esté oculta; 404 sin foto |
+| `POST /api/admin/moderacion/reportes/{id}/ocultamiento` `{alcance, motivo}` | ADMIN | 200; 409 `YA_OCULTO` o `SIN_FOTO`; 400 |
+| `POST /api/admin/moderacion/reportes/{id}/restablecimiento` `{alcance, motivo}` | ADMIN | 200; 409 `NO_OCULTO` o `SIN_FOTO`; 400 |
+| `POST /api/admin/moderacion/reportes/{id}/desestimacion` `{motivo?}` | ADMIN | 200, también sin pendientes |
+
+Ninguna es pública (`SecurityConfig` no cambia); el funcionario y el ciudadano
+reciben 403 en las del ADMIN, y el funcionario y el ADMIN en la de denunciar.
+Las del ADMIN responden con `Cache-Control: no-store, private`, porque traen
+la identidad de quien denunció o la foto oculta.
+
+### Qué ve cada quien
+
+- **Reporte oculto:** sale de la búsqueda, del área, de la densidad, del
+  detalle público (404), de los comentarios (404 al leerlos y al comentar),
+  de `mis-adhesiones`, de la deduplicación, de la bandeja municipal (y de sus
+  conteos de US-17), del índice y de la exportación. Su creador lo sigue
+  viendo en `mis-reportes`, sin foto. En el historial, el creador y el ADMIN
+  reciben 200; el funcionario del distrito y los adheridos, **404**; los
+  demás, el 403 de siempre. El funcionario también recibe 404 al cambiarle el
+  estado y en el responsable (GET y POST). El 404 va después de la
+  jurisdicción: el funcionario de otro distrito sigue recibiendo 403, sin
+  enterarse de que está oculto.
+- **Foto oculta:** el reporte sigue visible y contando en el índice, con
+  `fotoUrl` en `null` en todo DTO que no es del ADMIN; la URL de la foto da
+  404.
+- **Al restablecer, todo vuelve a como era antes.**
+- **Ningún DTO público gana un campo** (`DtoPublicosSinModeracionTest` fija
+  la lista de `ReporteResumenResponse`, `ReporteResponse`,
+  `ReporteGestionResponse` y `ComentarioPublicoResponse`). Las denuncias solo
+  van en los DTO del ADMIN (`ReporteModeracionResponse`,
+  `ReporteModeracionResumenResponse`, `DenunciaResponse`): ni el creador ni el
+  funcionario saben quién ni cuántos denunciaron.
+
+### La línea de tiempo
+
+Los cuatro eventos (`FOTO_OCULTA`, `REPORTE_OCULTO`, `FOTO_RESTABLECIDA`,
+`REPORTE_RESTABLECIDO`) llevan el motivo en `comentario` y al ADMIN en
+`autor_id`: la línea de tiempo sigue siendo **única** (V4).
+
+| Quién lee (si tiene acceso) | `comentario` | `autor` |
+|---|---|---|
+| ADMIN | el motivo | el ADMIN |
+| Creador y funcionario | el motivo | «Moderación de Ciudad Viva» |
+| Adheridos | «Se ocultó contenido de este reporte por las reglas de uso.» o «Se restableció contenido de este reporte.» | «Moderación de Ciudad Viva» |
+
+`HistorialEntradaResponse` suma `avisoIndice`, un texto fijo **que arma el
+servidor y no el ADMIN**: en `REPORTE_OCULTO`, «Mientras esté oculto, este
+reporte no cuenta en el índice de desempeño.», y en `REPORTE_RESTABLECIDO`,
+«Vuelve a contar en el índice de desempeño.». En el resto, `null`. Así el
+creador sabe por qué su reporte dejó de pesar en la métrica, y cada salida
+del índice queda auditada.
+
+### El motivo no delata a quien denunció
+
+Lo leen el creador y el funcionario, y los términos v2 (§5) prometen que
+quien hizo el reporte no sabe quién lo denunció. El servidor nunca agrega al
+motivo datos de las denuncias (ni la identidad ni el conteo), y rechaza con
+**400 `MOTIVO_IDENTIFICA_DENUNCIANTE`** (con `motivo` en `details`, como el
+400 de la moderación del texto) un motivo que contenga, sin distinguir
+mayúsculas, el correo de un denunciante de ese reporte. Lo demás lo cubre el
+aviso del diálogo del ADMIN en la PWA (NC-11b). El motivo tiene de 10 a 500
+caracteres sin los espacios del borde.
+
+### Decisiones de implementación
+
+- **`UPDATE` condicional y sin `updated_at`.** `oculto` y `foto_oculta` son de
+  solo lectura para JPA, como la sugerencia de NC-04: los escribe
+  `ReporteRepository#cambiarOculto` / `#cambiarFotoOculta` con
+  `WHERE ... <> :valor`. Dos ADMIN simultáneos no duplican la entrada del
+  historial (el segundo recibe 409), un `save()` del ciudadano o del
+  funcionario no puede restablecer el reporte con un valor viejo, y ocultar no
+  mueve `updated_at`, que mide los reportes estancados de US-17.
+- **La vista de ocultos de la bandeja (NC-11a2, decidido el 30/10).** Sin
+  ella, un reporte oculto sin denuncias no aparecía en ninguna lista y el
+  ADMIN no podía revisar lo que ocultó ni restablecerlo desde ahí. Es una
+  consulta aparte (`ReporteRepository#ocultosParaModeracion`), no un
+  parámetro opcional en la de denuncias: evita la trampa de `:param IS NULL`
+  en Postgres y cada consulta conserva su orden. **El orden sale del
+  historial**, no de `updated_at`: el `REPORTE_OCULTO` o `FOTO_OCULTA` más
+  reciente cuyo alcance siga oculto, porque ocultar no mueve `updated_at` a
+  propósito (punto anterior) y un cambio de estado del funcionario sí lo
+  movería (un reporte con solo la foto oculta sigue en su bandeja). Sin
+  migración: ninguna columna del `WHERE` tiene índice, así que la consulta y
+  su `countQuery` recorren `reporte` completa, un recorrido aceptable a la
+  escala de la tesis y en una ruta que solo usa el ADMIN; el `JOIN` al
+  historial sí usa `ix_historial_reporte` (V1). Si la tabla creciera, un
+  índice parcial `ON reporte (id) WHERE oculto OR foto_oculta` (una V22) lo
+  resuelve sin tocar la consulta. `estado`, si viene, tiene que ser un valor
+  válido (si no, 400 como siempre); con `ocultos=true` simplemente no
+  filtra. El resumen de denuncias cuenta todas,
+  en cualquier estado (`resumenEnCualquierEstado`,
+  `conteoPorMotivoEnCualquierEstado`): en esta vista `totalDenuncias` puede
+  ser 0 y `primeraDenuncia`/`ultimaDenuncia` nulas; el DTO no cambia.
+- **Las denuncias no ocultan nada (SEC-01).** Ocultar atiende las pendientes
+  (`ATENDIDA`, con el motivo en `motivo_resolucion`); desestimar las pasa a
+  `DESESTIMADA`. `motivo_resolucion` no estaba en la propuesta: se agregó para
+  guardar el motivo opcional de la desestimación, y solo lo leen los DTO del
+  ADMIN.
+- **Tope de denuncias:** `app.moderacion.denuncias-por-dia` (10 por defecto),
+  en una **ventana móvil de 24 h**, no por día calendario. El `UNIQUE
+  (reporte_id, denunciante_id)` cubre los envíos simultáneos (el segundo
+  recibe el mismo 409). **El tope no es atómico:** el conteo va antes del
+  `INSERT`, así que varias denuncias simultáneas del mismo ciudadano a reportes
+  distintos pueden pasarlo por unas pocas. Se acepta a esta escala, porque una
+  denuncia de más no oculta nada; si hiciera falta cerrarlo, un
+  `pg_advisory_xact_lock(denunciante_id)` antes de contar.
+- **BE-14 (cierre de cuenta):** las denuncias se conservan mientras exista el
+  reporte; al cerrar la cuenta hay que anonimizar al denunciante con
+  `DenunciaReporteRepository#anonimizarDenunciante`. Por eso
+  `denuncia_reporte.denunciante_id` admite NULL (la propuesta lo tenía `NOT
+  NULL`): así BE-14 no necesita otra migración. El gancho está probado en
+  `DenunciaReporteIT`.
+- **La foto (D-15, opción A).** El *resource handler* pasó con `git mv` de
+  `common/config/WebMvcConfig` a `reportes/infra/FotosDeReporteWebConfig`. Su
+  resolver pregunta a `ReporteRepository#existeFotoVisible` (una consulta por
+  `ix_reporte_foto_url`) antes de cargarla por `common.port.FotoStorageService`;
+  si no, 404 sin llamar a R2. No hay puerto nuevo en `common/port`, que es
+  solo para E/S externa. El ADMIN la ve por su ruta, que la PWA muestra como
+  `blob:`.
+- **Caché de la foto:** `Cache-Control: max-age=2592000, public,
+  s-maxage=3600, immutable`. El borde de Cloudflare deja de servir una foto
+  oculta en una hora como máximo; para un caso urgente, la purga manual de la
+  URL. El navegador conserva sus 30 días: lo que ya descargó no se puede
+  retirar. **Falta comprobar** con `curl -sI` en producción que Cloudflare
+  respeta `s-maxage`.
+
+### Pruebas
+
+- `OcultamientoReporteIT` (21): cada fila de la tabla de visibilidad, el
+  historial por rol con el reporte oculto y después de restablecerlo, la foto
+  oculta (DTO, `/media`, ruta del ADMIN), la foto sin reporte, 409, 400, 403,
+  el correo del denunciante en el motivo y que ninguna respuesta del creador,
+  del funcionario o del público traiga denuncias, la bandeja del ADMIN y la
+  desestimación, la vista de ocultos (NC-11a2: con y sin denuncias, solo la
+  foto, el orden, `estado` ignorado, `ocultos=false` igual que antes, 403), y
+  la deduplicación.
+- `DenunciaReporteIT` (14): 201, 409 (repetida, propia, tope y la ventana de
+  24 h), 404 (oculto, cancelado, inexistente), 401, 403, 400 y el gancho de BE-14.
+- `IndiceSinOcultosIT` (5): ocultar el reporte baja `total_reportes`,
+  `total_resueltos` y las calificaciones del distrito y de su categoría por el
+  evento, sin refrescar a mano; restablecerlo los devuelve; ocultar la foto no
+  cambia ni refresca nada; el ranking público y la exportación; los
+  estancados de US-17.
+- `DtoPublicosSinModeracionTest` (4) y `reportes/domain/ModeracionDominioTest` (4).
+
+### Pendiente
+
+- **Runbook** (`docs/despliegue.md`, fuera de `backend/`): la purga manual de
+  una URL en Cloudflare y el procedimiento ante material ilegal (este último,
+  cuando el usuario lo confirme con su asesor).
+- La notificación al creador cuando se oculta, ocultar un comentario suelto y
+  borrar la foto oculta quedan fuera de alcance (ficha NC-11).
+
 ## Deuda técnica conocida
 
 - **Testcontainers bloqueado por Docker 29 / docker-java 1.20.x.** Los tests
@@ -2207,24 +4113,38 @@ verificado en una base de test vacía.
     Sigue siendo PostGIS real (geography/GiST), aislado por nombre de base.
   - **Prerequisito para correr tests:** `docker compose up -d` y crear la base
     una vez: `docker exec viasegura-db psql -U viasegura -d viasegura -c "CREATE DATABASE viasegura_test;"`.
+  - **Conexiones (NC-10b):** la base es una sola para toda la suite, y Spring
+    guarda en cache cada contexto de test distinto (uno por combinación de
+    `@MockitoBean`, perfiles y propiedades) con su pool de Hikari abierto.
+    Con 11 contextos y los 10 ociosos por pool de Hikari se pasaba del
+    `max_connections` de 100 de PostgreSQL («too many clients already»).
+    `application-test.yml` deja cada pool con **1 conexión ociosa** y 10 s de
+    inactividad (el máximo sigue en 10). Al sumar un IT con un `@MockitoBean`
+    nuevo, conviene reutilizar el de otra clase (mismo tipo y mismo nombre de
+    campo) para compartir el contexto.
   - **A revertir cuando:** Testcontainers publique una versión con `docker-java`
     compatible con Docker 29 (o se fije `<testcontainers.version>` a una que lo
     soporte). La migración es local a `AbstractPostgisIT` — el resto de los
     tests no cambia.
-- **La foto se sube dentro de la transacción** de la creación del reporte y
-  de la edición del perfil (DEP-12). Con el disco local era instantáneo; con
-  R2 son ~100–500 ms de red con una conexión del pool retenida, y antes, si
-  no hay turno de saneado, hasta 10 s de espera también con la conexión
-  tomada (el pool de Hikari tiene 10). Se acepta para el MVP, acotado por los
-  timeouts del cliente (10 s) y del semáforo (10 s). Sacar la subida de la
-  transacción cambia la estructura del caso de uso (idempotencia,
-  deduplicación) y se hace con NC-04, que vuelve a tocar la creación (§4.5,
-  D-13). Medido: con 16 creaciones con foto simultáneas, sumado al refresco
-  del índice en `AFTER_COMMIT` (que pide una segunda conexión), el pool se
-  agota durante 30 s (ver [Prueba de memoria](#prueba-de-memoria-dep-12)).
-- **Fotos huérfanas.** Si la transacción falla después de subir la foto, el
-  archivo u objeto queda en el disco o el bucket (aceptable en el MVP).
-  Mejora posible: borrarlo en `afterCompletion` con estado `ROLLED_BACK`.
+- **La foto de perfil se sube dentro de la transacción** de la edición del
+  perfil (DEP-12). Con R2 son ~100–500 ms de red con una conexión del pool
+  retenida, y antes, si no hay turno de saneado, hasta 10 s de espera también
+  con la conexión tomada. Se acepta: cambiar la foto de perfil es poco
+  frecuente, y está acotado por los timeouts del cliente (10 s) y del
+  semáforo (10 s). La foto de un reporte ya no tiene esta deuda: BE-11 la
+  sanea y la sube sin transacción (ver [La foto del reporte, fuera de la
+  transacción](#la-foto-del-reporte-fuera-de-la-transacción-be-11)). NC-04 ya
+  lo acotaba así: la sugerencia oficial corre en el executor asíncrono y solo
+  toma una conexión para leer la URL de la foto y para el `UPDATE` final,
+  nunca durante la descarga ni la clasificación; y la vista previa ocupa como
+  mucho uno de los dos turnos de saneado y no espera el suyo. Con el modelo
+  real (NC-04b), la inferencia (hasta 3 s) tampoco retiene una conexión.
+- **Fotos huérfanas.** Desde BE-11 la foto de un reporte que no llega a
+  usarse (la transacción se revierte, o el pedido termina en adhesión o en un
+  reenvío idempotente) se borra después de la transacción. Quedan huérfanas
+  solo si ese borrado falla (R2 caído: un WARN con el nombre), si no se sabe
+  si el commit llegó a la base (se conserva a propósito) o si la edición del
+  perfil se revierte después de subir la foto nueva.
 - **Correo sin reintentos ni registro de envíos (DEP-08).** Si el proveedor
   rechaza o no responde, el correo de recuperación o de soporte se pierde y
   solo queda un WARN con el id (la persona puede volver a pedir el token; la
@@ -2250,5 +4170,7 @@ verificado en una base de test vacía.
 (`GEOGRAPHY(Point,4326)`), ambas con índice **GiST**. Ver
 `src/main/resources/db/migration/V1__init_schema.sql`. Las migraciones
 posteriores agregan tablas propias, como `suscripcion_push` (V12, NC-07),
-`consentimiento` (V13 y V14, NC-07b) y `municipalidad` y `periodo_gestion`
-(V15 y V16, NC-01).
+`consentimiento` (V13 y V14, NC-07b), `municipalidad` y `periodo_gestion`
+(V15 y V16, NC-01) y `token_confirmacion_correo` (V20, NC-09), o columnas,
+como la sugerencia de categoría de `reporte` y la clase del modelo de
+`categoria_dano` (V19, NC-04) y `usuario.correo_confirmado` (V20, NC-09).

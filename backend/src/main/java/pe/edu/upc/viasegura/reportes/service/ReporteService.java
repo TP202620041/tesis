@@ -11,16 +11,23 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionOperations;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 import pe.edu.upc.viasegura.auth.domain.Usuario;
 import pe.edu.upc.viasegura.auth.service.UsuarioConsultaService;
+import pe.edu.upc.viasegura.clasificacion.domain.Sugerencia;
 import pe.edu.upc.viasegura.common.exception.BusinessException;
 import pe.edu.upc.viasegura.common.exception.ResourceNotFoundException;
 import pe.edu.upc.viasegura.common.geo.GeometryUtils;
 import pe.edu.upc.viasegura.common.port.ArchivoSubido;
+import pe.edu.upc.viasegura.common.port.FotoSaneada;
 import pe.edu.upc.viasegura.common.port.FotoStorageService;
+import pe.edu.upc.viasegura.common.port.SaneadorDeImagen;
 import pe.edu.upc.viasegura.distritos.domain.Distrito;
 import pe.edu.upc.viasegura.distritos.port.GeoAssignmentStrategy;
+import pe.edu.upc.viasegura.moderacion.domain.CampoDeTexto;
+import pe.edu.upc.viasegura.moderacion.service.ModeracionService;
 import pe.edu.upc.viasegura.municipalidades.service.MunicipalidadService;
 import pe.edu.upc.viasegura.reportes.domain.AdhesionReporte;
 import pe.edu.upc.viasegura.reportes.domain.CategoriaDano;
@@ -47,6 +54,15 @@ import pe.edu.upc.viasegura.reportes.repository.ReporteRepository;
  * coordenadas mediante {@link GeoAssignmentStrategy}. Ademas, si ya existe
  * un reporte activo de la misma categoria a menos de {@value #RADIO_DUPLICADO_METROS}
  * m, el ciudadano se adhiere a el en lugar de duplicar el reporte.</p>
+ *
+ * <p><b>La foto, fuera de la transaccion (BE-11).</b> {@link #crear} sanea y
+ * sube la foto antes de abrir su transaccion, y la borra si al final ningun
+ * reporte la usa ({@link FotoProvisional}). Asi el saneado (hasta 10 s de
+ * espera de turno) y la subida a R2 (~100-500 ms de red) no retienen una
+ * conexion del pool. Por eso esa transaccion es programatica
+ * ({@link TransactionOperations}) y no un {@code @Transactional} en el metodo:
+ * tiene que empezar despues de la subida y terminar antes de la compensacion,
+ * dentro del mismo caso de uso.</p>
  */
 @Service
 @RequiredArgsConstructor
@@ -64,20 +80,47 @@ public class ReporteService {
     private final UsuarioConsultaService usuarioConsultaService;
     private final GeoAssignmentStrategy geoAssignmentStrategy;
     private final FotoStorageService fotoStorageService;
+    private final SaneadorDeImagen saneador;
     private final HistorialEstadoReporteRepository historialRepository;
     private final IdempotencyKeyService idempotencyKeyService;
     private final MunicipalidadService municipalidadService;
+    private final ModeracionService moderacionService;
     private final ApplicationEventPublisher eventPublisher;
+    /** La transaccion de la creacion (BE-11): el bean {@code TransactionTemplate} de Spring Boot. */
+    private final TransactionOperations transaccion;
 
     /**
-     * US-06: si el cliente envia {@code Idempotency-Key} y ya existe una
+     * US-05: crea el reporte, o adhiere al ciudadano a uno activo de la misma
+     * categoria a menos de {@value #RADIO_DUPLICADO_METROS} m (US-09).
+     *
+     * <p>US-06: si el cliente envia {@code Idempotency-Key} y ya existe una
      * respuesta vigente para esa clave+usuario, se devuelve tal cual, sin
      * re-ejecutar nada de lo de abajo (incluida la deduplicacion de
      * US-09) -- ver {@link IdempotencyKeyService}. Sin header (o clave en
-     * blanco), el comportamiento es identico al de antes de US-06.
+     * blanco), el comportamiento es identico al de antes de US-06.</p>
+     *
+     * <p><b>Sin transaccion propia (BE-11).</b> En este orden:</p>
+     * <ol>
+     *   <li>el usuario y el reenvio idempotente, cada lectura en su propia
+     *       transaccion corta: un reenvio con respuesta guardada vuelve aqui,
+     *       sin sanear, moderar ni subir nada (NC-10b: aunque la moderacion
+     *       este caida, el reporte que ya entro recibe su respuesta);</li>
+     *   <li>los campos y el texto (NC-10b: sin groserias), sin tocar la
+     *       base;</li>
+     *   <li>la foto se sanea <b>una sola vez</b>, se modera (NC-10b, D-15) y
+     *       recien entonces se sube, sin transaccion abierta;</li>
+     *   <li>recien entonces la transaccion: la categoria, el distrito, la
+     *       deduplicacion, el reporte o la adhesion, la clave y el evento;</li>
+     *   <li>al volver de ella, sin conexion tomada, la foto se borra si no
+     *       quedo en ningun reporte confirmado (ver {@link FotoProvisional}).</li>
+     * </ol>
+     *
+     * @throws IllegalStateException si se llama dentro de una transaccion: la
+     *         de la creacion se uniria a ella y la foto se decidiria antes de
+     *         saber si el reporte se confirma
      */
-    @Transactional
     public ReporteResponse crear(String emailCreador, CrearReporteCommand cmd, String idempotencyKey) {
+        exigirSinTransaccion();
         Usuario ciudadano = usuarioConsultaService.usuarioPorEmail(emailCreador);
 
         String clave = StringUtils.hasText(idempotencyKey) ? idempotencyKey.trim() : null;
@@ -96,6 +139,57 @@ public class ReporteService {
         Reporte.validarDescripcion(cmd.descripcion());
         if (cmd.severidad() == null) {
             throw new IllegalArgumentException("La severidad es obligatoria (Baja, Media o Alta)");
+        }
+        // NC-10b (D-15): el texto que se va a publicar, sin groserias (400
+        // TEXTO_NO_PERMITIDO). Tambien en una adhesion: llega en el mismo pedido.
+        moderacionService.exigirTextoPermitido(CampoDeTexto.TITULO, titulo);
+        moderacionService.exigirTextoPermitido(CampoDeTexto.DESCRIPCION, cmd.descripcion());
+
+        // BE-11: la foto se sanea una sola vez y se sube sin transaccion
+        // abierta. Se guardan los mismos bytes saneados, sin volver a sanearlos
+        // (D-08). NC-10b (D-15): entre los dos pasos se modera `saneada`, sin
+        // transaccion: una foto rechazada (400 FOTO_NO_PERMITIDA) o que no se
+        // pudo revisar (503 MODERACION_NO_DISPONIBLE, falla cerrada) no llega a
+        // subirse, y no se crea ni el reporte ni la adhesion.
+        FotoSaneada saneada = sanearSiHayFoto(cmd.foto());
+        if (saneada != null) {
+            moderacionService.exigirFotoPermitida(saneada, ciudadano.getId());
+        }
+        FotoProvisional foto = saneada == null ? null
+                : new FotoProvisional(fotoStorageService, fotoStorageService.almacenarFotoReporteSaneada(saneada));
+        try {
+            return transaccion.execute(estado -> crearOAdherir(emailCreador, cmd, titulo, clave, foto));
+        } finally {
+            if (foto != null) {
+                foto.resolver();
+            }
+        }
+    }
+
+    /** La foto saneada, o {@code null} si el pedido no trae foto (o llega vacia). */
+    private FotoSaneada sanearSiHayFoto(ArchivoSubido foto) {
+        return foto == null || foto.vacio() ? null : saneador.sanear(foto);
+    }
+
+    /**
+     * La parte transaccional de {@link #crear}: corre dentro de
+     * {@link #transaccion}, con la foto (si la hay) ya subida.
+     */
+    private ReporteResponse crearOAdherir(String emailCreador, CrearReporteCommand cmd, String titulo,
+                                          String clave, FotoProvisional foto) {
+        if (foto != null) {
+            foto.acompanarTransaccionActual();
+        }
+        Usuario ciudadano = usuarioConsultaService.usuarioPorEmail(emailCreador);
+
+        if (clave != null) {
+            // BE-11: otro envio con la misma clave pudo confirmarse mientras esta
+            // foto se saneaba y subia. Se devuelve su respuesta, y la foto, que
+            // ningun reporte usa, se borra al terminar.
+            Optional<ReporteResponse> previa = idempotencyKeyService.respuestaPrevia(clave, ciudadano);
+            if (previa.isPresent()) {
+                return previa.get();
+            }
         }
 
         CategoriaDano categoria = categoriaRepository.findById(cmd.categoriaId())
@@ -118,12 +212,13 @@ public class ReporteService {
         double lat = cmd.latitud();
 
         // US-09: si hay un reporte activo de la misma categoria en el radio,
-        // el ciudadano se adhiere en vez de crear un duplicado.
+        // el ciudadano se adhiere en vez de crear un duplicado. La foto, que
+        // ya se subio, no se usa y se borra al terminar (BE-11).
         var cercano = reporteRepository.findReporteActivoCercano(
                 lon, lat, categoria.getId(), RADIO_DUPLICADO_METROS);
         ReporteResponse respuesta = cercano.isPresent()
                 ? adherir(cercano.get(), ciudadano)
-                : crearNuevo(cmd, titulo, ciudadano, categoria, distrito, ubicacion);
+                : crearNuevo(cmd, titulo, ciudadano, categoria, distrito, ubicacion, foto);
 
         if (clave != null) {
             idempotencyKeyService.registrar(clave, ciudadano, respuesta);
@@ -131,13 +226,24 @@ public class ReporteService {
         return respuesta;
     }
 
-    private ReporteResponse crearNuevo(CrearReporteCommand cmd, String titulo, Usuario ciudadano,
-                                        CategoriaDano categoria, Distrito distrito, Point ubicacion) {
-        String fotoUrl = null;
-        ArchivoSubido foto = cmd.foto();
-        if (foto != null && !foto.vacio()) {
-            fotoUrl = fotoStorageService.almacenarFotoReporte(foto);
+    /**
+     * BE-11: {@link #crear} sube la foto sin transaccion y decide si la borra
+     * cuando termina la suya. Dentro de otra transaccion (o de un ambito con
+     * sincronizacion, como {@code SUPPORTS}), la suya se uniria a la de afuera
+     * y no habria terminado al volver: se rechaza antes de tocar nada.
+     */
+    private static void exigirSinTransaccion() {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            throw new IllegalStateException(
+                    "ReporteService#crear no puede correr dentro de una transaccion: sube la foto fuera de ella (BE-11)");
         }
+    }
+
+    private ReporteResponse crearNuevo(CrearReporteCommand cmd, String titulo, Usuario ciudadano,
+                                        CategoriaDano categoria, Distrito distrito, Point ubicacion,
+                                        FotoProvisional foto) {
+        // La foto ya esta subida (BE-11): el reporte solo guarda su URL.
+        String fotoUrl = foto != null ? foto.usarEnReporte() : null;
 
         Reporte reporte = reporteRepository.save(Reporte.builder()
                 .ubicacion(ubicacion)
@@ -168,10 +274,28 @@ public class ReporteService {
         // Un reporte nuevo suma al denominador de la tasa de resolucion
         // (US-18/US-20). Se publica solo aqui y no en adherir(): una adhesion
         // no crea fila en `reporte`, asi que no mueve ninguna metrica.
+        // Tambien dispara la sugerencia oficial de categoria (NC-04, D-08), que
+        // corre despues del commit y fuera de esta transaccion: la creacion
+        // nunca espera al clasificador ni falla por el.
         eventPublisher.publishEvent(new ReporteCreadoEvent(
-                reporte.getId(), distrito.getId(), categoria.getId()));
+                reporte.getId(), distrito.getId(), categoria.getId(), fotoUrl != null));
 
         return ReporteResponse.from(reporte, false);
+    }
+
+    /**
+     * NC-04 (D-08): guarda la sugerencia oficial de categoria, calculada por
+     * {@link SugerenciaCategoriaService} fuera de toda transaccion. Esta es la
+     * transaccion corta del final: un {@code UPDATE} de tres columnas que solo
+     * escribe si siguen nulas.
+     *
+     * @return {@code true} si la guardo; {@code false} si el reporte ya tenia
+     *         una (no se reemplaza) o ya no existe
+     */
+    @Transactional
+    public boolean registrarSugerencia(Long reporteId, Sugerencia sugerencia) {
+        return reporteRepository.registrarSugerencia(reporteId, sugerencia.categoriaId(),
+                sugerencia.confianza(), sugerencia.versionModelo()) == 1;
     }
 
     private ReporteResponse adherir(Reporte existente, Usuario ciudadano) {
@@ -231,6 +355,12 @@ public class ReporteService {
     public ReporteResumenResponse editar(String emailCiudadano, Long reporteId, EditarReporteRequest req) {
         Reporte reporte = reportePendienteDelCreador(emailCiudadano, reporteId);
 
+        // NC-10b (D-15): el texto nuevo, sin groserias, antes de cambiar nada
+        // (400 TEXTO_NO_PERMITIDO). La edicion no cambia la foto.
+        String tituloNuevo = req.titulo() != null ? Reporte.normalizarTitulo(req.titulo()) : null;
+        moderacionService.exigirTextoPermitido(CampoDeTexto.TITULO, tituloNuevo);
+        moderacionService.exigirTextoPermitido(CampoDeTexto.DESCRIPCION, req.descripcion());
+
         Long categoriaAnterior = reporte.getCategoria() != null ? reporte.getCategoria().getId() : null;
 
         // US-29: solo se valida (activa y del distrito) al CAMBIAR de categoria.
@@ -248,8 +378,8 @@ public class ReporteService {
             validarCategoriaParaDistrito(categoria, reporte.getDistrito());
             reporte.setCategoria(categoria);
         }
-        if (req.titulo() != null) {
-            reporte.setTitulo(Reporte.normalizarTitulo(req.titulo()));
+        if (tituloNuevo != null) {
+            reporte.setTitulo(tituloNuevo);
         }
         if (req.descripcion() != null) {
             reporte.setDescripcion(req.descripcion());

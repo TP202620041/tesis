@@ -56,14 +56,13 @@ class TituloSeveridadPeriodoIT extends AbstractPostgisIT {
 
     private String tokenCiudadano() throws Exception {
         String correo = "nc02-" + UUID.randomUUID() + "@lima.pe";
-        MvcResult res = mockMvc.perform(post("/api/auth/registro")
+        mockMvc.perform(post("/api/auth/registro")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"email":"%s","password":"secreta123","nombre":"Rosa","apellido":"Vecina","aceptaTerminos":true,"versionTerminos":"%s"}
                                 """.formatted(correo, versionTerminos)))
-                .andExpect(status().isCreated())
-                .andReturn();
-        return objectMapper.readTree(res.getResponse().getContentAsString()).get("token").asText();
+                .andExpect(status().isCreated());
+        return confirmarEIniciarSesion(correo, "secreta123");
     }
 
     /** {@code null} en titulo o severidad: no se envia ese parametro. */

@@ -40,6 +40,7 @@ import org.springframework.util.StringUtils;
 import pe.edu.upc.viasegura.common.exception.BusinessException;
 import pe.edu.upc.viasegura.common.exception.ServicioNoDisponibleException;
 import pe.edu.upc.viasegura.common.port.ArchivoSubido;
+import pe.edu.upc.viasegura.common.port.FotoSaneada;
 import pe.edu.upc.viasegura.common.port.SaneadorDeImagen;
 
 /**
@@ -142,7 +143,7 @@ public class ImageIoSaneadorDeImagen implements SaneadorDeImagen {
     }
 
     @Override
-    public ArchivoSubido sanear(ArchivoSubido foto) {
+    public FotoSaneada sanear(ArchivoSubido foto) {
         if (foto == null || foto.vacio()) {
             throw new BusinessException(MENSAJE_VACIA);
         }
@@ -153,7 +154,7 @@ public class ImageIoSaneadorDeImagen implements SaneadorDeImagen {
         esperarTurno();
         try {
             byte[] jpeg = recodificar(foto.contenido());
-            return new ArchivoSubido(jpeg, "image/jpeg", nombreJpg(foto.nombreOriginal()));
+            return new FotoSaneada(jpeg, nombreJpg(foto.nombreOriginal()));
         } finally {
             turnos.release();
         }

@@ -4,7 +4,7 @@ import { defaultCache } from '@serwist/next/worker';
 import type { PrecacheEntry, SerwistGlobalConfig } from 'serwist';
 import { NetworkOnly, Serwist } from 'serwist';
 import { AVISO_GENERICO, elegirVentana, leerAvisoPush, opcionesDeNotificacion, rutaInterna } from './avisosPush';
-import { esPeticionAlApi } from './cachesDeSesion';
+import { esPaginaConTokenEnLaUrl, esPeticionAlApi, esPeticionAlCaptcha } from './cachesDeSesion';
 
 /**
  * Service Worker de la PWA.
@@ -41,9 +41,13 @@ const serwist = new Serwist({
   navigationPreload: true,
   // La primera regla que coincide gana: el API va siempre a la red y nunca
   // se guarda (ver `cachesDeSesion.ts`), antes de que la regla `cross-origin`
-  // de `defaultCache` lo cachee.
+  // de `defaultCache` lo cachee. Lo mismo la pagina del enlace de
+  // confirmacion (NC-09), que llega con el token en la URL, y el script de
+  // Turnstile (NC-08b), que Cloudflare pide no cachear nunca.
   runtimeCaching: [
     { matcher: ({ url }) => esPeticionAlApi(url), handler: new NetworkOnly() },
+    { matcher: ({ url, sameOrigin }) => sameOrigin && esPaginaConTokenEnLaUrl(url), handler: new NetworkOnly() },
+    { matcher: ({ url }) => esPeticionAlCaptcha(url), handler: new NetworkOnly() },
     ...defaultCache,
   ],
 });

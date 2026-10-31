@@ -11,7 +11,7 @@ import {
   navegacionDe,
   type ItemNavegacion,
 } from './navegacion';
-import { RUTA_SOPORTE_ADMIN, rutaInicialDe } from './rutas';
+import { RUTA_MODERACION_ADMIN, RUTA_SOPORTE_ADMIN, rutaInicialDe } from './rutas';
 
 const hrefs = (items: readonly ItemNavegacion[]) => items.map((i) => i.href);
 
@@ -41,8 +41,13 @@ describe('navegacionDe (DIS-1)', () => {
     expect(hrefs(nav.principal)).not.toContain('/reportar');
   });
 
-  it('admin: solo la bandeja de soporte', () => {
-    expect(hrefs(navegacionDe('ADMIN').inferior)).toEqual([RUTA_SOPORTE_ADMIN]);
+  it('admin: la bandeja de soporte y la moderación (NC-11b)', () => {
+    const nav = navegacionDe('ADMIN');
+    expect(hrefs(nav.inferior)).toEqual([RUTA_SOPORTE_ADMIN, RUTA_MODERACION_ADMIN]);
+    expect(hrefs(nav.principal)).toEqual([RUTA_SOPORTE_ADMIN, RUTA_MODERACION_ADMIN]);
+    // El detalle de un reporte en moderacion cuenta como «Moderación».
+    const moderacion = nav.principal.find((item) => item.href === RUTA_MODERACION_ADMIN)!;
+    expect(esRutaActual('/admin/moderacion/42', moderacion)).toBe(true);
   });
 
   it('visitante: lo público, Reportar (lleva al login) y la entrada', () => {
@@ -126,6 +131,8 @@ describe('modoDelMarco', () => {
     expect(modoDelMarco('/login')).toBe('ninguno');
     expect(modoDelMarco('/registro')).toBe('ninguno');
     expect(modoDelMarco('/recuperar-password')).toBe('ninguno');
+    // NC-09: sin la cabecera ni la navegación alrededor de la tarjeta (dos logos).
+    expect(modoDelMarco('/confirmar-cuenta')).toBe('ninguno');
   });
 
   it('la aceptación de términos lleva solo el logo', () => {

@@ -48,7 +48,7 @@ spring:
 # Almacenamiento de fotos (US-05 reportes, US-30 perfil). Las fotos se separan
 # segun su visibilidad (ver FotoStorageService), y las URL son las mismas con
 # cualquier adaptador:
-#   reportes -> PUBLICAS en `fotos-url`/reportes/<uuid>.jpg (WebMvcConfig)
+#   reportes -> PUBLICAS en `fotos-url`/reportes/<uuid>.jpg (reportes.infra.FotosDeReporteWebConfig)
 #   perfiles -> SOLO al dueno en `fotos-perfil-url`/<uuid>.jpg (PerfilFotoController)
 app:
   storage:
@@ -96,6 +96,47 @@ app:
       # la peticion, asi que esperar mas a Resend no demora a nadie.
       timeout-conexion-segundos: 3
       timeout-lectura-segundos: 10
+  # Captcha del registro de cuenta (NC-08): puerto auth/port/VerificadorDeCaptcha,
+  # el widget de Cloudflare Turnstile (NC-08b: de reCAPTCHA a Turnstile,
+  # decision del usuario del 28/10):
+  #   ninguno   -> SinCaptchaAdapter, no se exige ni verifica (desarrollo, tests)
+  #   turnstile -> TurnstileAdapter, POST https://challenges.cloudflare.com/turnstile/v0/siteverify
+  # En prod CAPTCHA_TIPO es obligatoria (application-prod.yml).
+  captcha:
+    tipo: ${CAPTCHA_TIPO:ninguno}
+    # Solo `turnstile`: clave secreta del widget, SOLO por entorno y nunca en
+    # el repo. Con tipo=turnstile y sin secreto, la aplicacion no arranca.
+    secret: ${CAPTCHA_SECRET:}
+    turnstile:
+      # Hostnames donde puede resolverse el widget, separados por coma (sin
+      # esquema ni puerto). Vacio fuera de prod: las claves de prueba de
+      # Cloudflare responden hostname example.com. En prod, por defecto
+      # ciudadviva.app y www.ciudadviva.app (application-prod.yml).
+      hostnames: ${CAPTCHA_HOSTNAMES:}
+      # La verificacion corre en el hilo de la peticion (fuera de la
+      # transaccion): el ciudadano espera, asi que la lectura es mas corta
+      # que la de Resend. Sin reintentos (el token es de un solo uso).
+      timeout-conexion-segundos: 3
+      timeout-lectura-segundos: 5
+  # Dominio del correo al registrarse (NC-09): puerto
+  # auth/port/VerificadorDeDominioDeCorreo, si el dominio tiene MX:
+  #   ninguno -> SinVerificacionDeDominioAdapter, no consulta el DNS (por
+  #              defecto fuera de prod; fijo en los tests, sin red)
+  #   dns     -> DnsVerificadorDeDominioAdapter, consulta el MX (por defecto
+  #              en prod, application-prod.yml)
+  # Falla abierto: si el DNS falla o no responde en el plazo, se acepta. La
+  # lista de dominios desechables (resources/data/dominios-desechables.txt)
+  # se aplica siempre: no necesita red.
+  dominio-correo:
+    tipo: ${DOMINIO_CORREO_TIPO:ninguno}
+    dns:
+      # Lo que la peticion del registro espera al DNS, como maximo.
+      plazo-milisegundos: 3000
+  # Origen de la PWA para armar los enlaces de los correos (NC-09:
+  # <origen>/confirmar-cuenta?token=...). Vacio = el primer origen de
+  # app.cors.allowed-origins, que es el de la PWA en todos los entornos.
+  frontend:
+    url: ${FRONTEND_URL:}
   # Notificaciones al ciudadano (US-16/US-21). El remitente es el de todos
   # los correos (NOTIF_FROM); con Resend, de un dominio verificado.
   notificaciones:
@@ -126,6 +167,17 @@ app:
   # usuarios pasan a debeAceptarTerminos=true sin migrar datos.
   legal:
     version-terminos: ${LEGAL_VERSION_TERMINOS:2026-10-v1}
+  # Cuentas que nunca confirmaron su correo (BE-15, decision del usuario del
+  # 28/10): PurgaCuentasSinConfirmarService las borra una vez al dia, con sus
+  # enlaces de confirmacion, sus tokens de recuperacion y sus consentimientos,
+  # si fueron creadas hace mas de `plazo` y no tienen un enlace vigente. Solo
+  # cuentas CIUDADANO. `plazo` es una duracion de Spring (30d, 720h); menos de
+  # 1 dia no arranca. `cron` (seg min hora dia mes dia-semana) es en hora de
+  # Lima; "-" apaga la tarea (asi corren los tests).
+  cuentas-sin-confirmar:
+    plazo: ${CUENTAS_SIN_CONFIRMAR_PLAZO:30d}
+    purga:
+      cron: "${CUENTAS_SIN_CONFIRMAR_PURGA_CRON:0 30 3 * * *}"
   # Primer ADMIN de un entorno (DEP-04, AdministradorInicialSeeder). Sin
   # valores por defecto: sin ADMIN_INICIAL_EMAIL no hace nada, y con algun
   # ADMIN en la base tampoco. En una base sin ADMIN crea la cuenta con
@@ -139,18 +191,94 @@ app:
     email: ${ADMIN_INICIAL_EMAIL:}
     password: ${ADMIN_INICIAL_PASSWORD:}
     nombre: ${ADMIN_INICIAL_NOMBRE:}
-  # Executor asincrono acotado (AsyncConfig): avisos al ciudadano y, mas
-  # adelante, la sugerencia de categoria (D-08). Con la cola llena la tarea
-  # se descarta y se registra; nunca corre en el hilo de la peticion.
+  # Sugerencia de categoria por la foto (NC-04, D-08): puerto
+  # clasificacion/port/ClasificadorDano, con el adaptador elegido aqui:
+  #   falso -> FalsoClasificadorAdapter, respuestas fijas (local y tests)
+  #   http  -> InferenciaHttpAdapter, el servicio inferencia/ (NC-04b;
+  #            produccion), en CLASIFICACION_URL
+  # La usan la vista previa (POST /api/clasificaciones) y la sugerencia
+  # oficial, que corre despues del commit en el executor asincrono.
+  clasificacion:
+    tipo: ${CLASIFICACION_TIPO:falso}
+    http:
+      # URL base del servicio, sin la ruta (el adaptador agrega
+      # /v1/detecciones): p. ej. http://inferencia.railway.internal:8000 o,
+      # en local, http://localhost:8090. Obligatoria con CLASIFICACION_TIPO=http
+      # (ValidacionTipoClasificador); con 'falso' no se mira.
+      url: ${CLASIFICACION_URL:}
+      # NC-04c: cuanto espera la sugerencia oficial (asincrona) un turno del
+      # servicio cuando las 4 llamadas simultaneas estan ocupadas, en ms, entre
+      # 0 y 60000. La vista previa nunca espera. Sin turno a tiempo: sin
+      # sugerencia.
+      espera-turno-oficial-ms: ${CLASIFICACION_ESPERA_TURNO_MS:10000}
+    # Confianza minima para sugerir (PoliticaDeSugerencia), en (0, 1]. 0.50
+    # inicial; se calibra en NC-03b con fotos de Lima.
+    umbral: ${CLASIFICACION_UMBRAL:0.50}
+    falso:
+      # Lo que "detecta" en cualquier foto: vacio = nada (nunca sugiere),
+      # 'falla' = el servicio caido, o pares clase:confianza separados por
+      # coma ('bache:0.87,grieta:0.30'). En produccion siempre vacio: ahi
+      # CLASIFICACION_TIPO=falso apaga la clasificacion.
+      respuesta: ${CLASIFICACION_FALSO_RESPUESTA:}
+      version-modelo: falso-0
+  # Moderacion de la foto antes de publicarla (NC-10b, D-15): puerto
+  # moderacion/port/ModeradorDeImagen, con el adaptador elegido aqui:
+  #   ninguna -> SinModeracionAdapter, acepta toda foto sin revisarla (local y
+  #              tests; en produccion, el interruptor de emergencia, con un WARN)
+  #   http    -> InferenciaModeracionHttpAdapter, POST /v1/moderacion del
+  #              servicio inferencia/ en MODERACION_URL (produccion)
+  # Con `http`, si el servicio no responde, un reporte con foto recibe 503
+  # MODERACION_NO_DISPONIBLE (falla cerrada). El filtro de groserias del texto
+  # no depende de esto: corre siempre (resources/moderacion/groserias-es-pe.txt).
+  # En prod MODERACION_TIPO es obligatoria (application-prod.yml).
+  moderacion:
+    tipo: ${MODERACION_TIPO:ninguna}
+    http:
+      # URL base del servicio, sin la ruta (el adaptador agrega /v1/moderacion);
+      # la misma que CLASIFICACION_URL. Obligatoria con MODERACION_TIPO=http
+      # (ValidacionTipoModeracion).
+      url: ${MODERACION_URL:}
+    # Se rechaza la foto si el puntaje es >= umbral (PoliticaDeModeracion),
+    # entre 0.5 y 0.9. 0.70 inicial (decision del usuario del 28/10).
+    umbral: ${MODERACION_UMBRAL:0.70}
+    # Tope de denuncias por ciudadano en una ventana movil de 24 h (NC-11a,
+    # decision del 28/10). Sin variable de entorno: es una regla, no un ajuste
+    # del despliegue.
+    denuncias-por-dia: 10
+  # Executors asincronos acotados (AsyncConfig): el general, para avisos al
+  # ciudadano y correos, y uno propio para la sugerencia de categoria (D-08,
+  # NC-04c), que puede esperar hasta 10 s un turno de inferencia sin
+  # retrasar a los otros. Con la cola llena la tarea se descarta y se
+  # registra; nunca corre en el hilo de la peticion.
   async:
     hilos-base: ${ASYNC_HILOS_BASE:2}
     hilos-max: ${ASYNC_HILOS_MAX:4}
     cola: ${ASYNC_COLA:100}
+    sugerencias:
+      # Hilos fijos. Menos de 4 (los turnos de inferencia), para que la vista
+      # previa conserve turnos libres.
+      hilos: ${ASYNC_SUGERENCIAS_HILOS:2}
+      cola: ${ASYNC_SUGERENCIAS_COLA:100}
   # CORS: el frontend es una PWA Next.js desplegada como proyecto
   # independiente, en otro origen. Lista de origenes permitidos separados
   # por coma; en dev, el servidor de desarrollo de Next (puerto 3000).
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
+  # Encabezado de origen (DEP-14): el API solo atiende las peticiones que
+  # pasaron por Cloudflare. Una Request Header Transform Rule agrega
+  # `encabezado` con el secreto, y common/security/EncabezadoDeOrigenFilter,
+  # antes que Spring Security, responde 403 a toda peticion que no lo traiga,
+  # salvo GET /actuator/health (el health check de Railway entra directo).
+  #   ninguno -> apagado: por defecto fuera de prod; en prod, el interruptor
+  #   otro    -> el secreto: 32 caracteres ASCII visibles o mas
+  #              (`openssl rand -hex 32`); mas corto o con espacios, no arranca
+  # En prod ORIGEN_SECRETO es obligatoria (application-prod.yml).
+  origen:
+    encabezado: X-Origen-Secreto
+    secreto: ${ORIGEN_SECRETO:ninguno}
+    # Solo durante una rotacion: el secreto viejo, que se sigue aceptando
+    # hasta que la Transform Rule envie el nuevo. Vacio fuera de una rotacion.
+    secreto-anterior: ${ORIGEN_SECRETO_ANTERIOR:}
 
 # Parametros de seguridad / JWT (leidos por JwtService)
 security:

@@ -1,11 +1,13 @@
 package pe.edu.upc.viasegura.reportes.repository;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import pe.edu.upc.viasegura.reportes.domain.EstadoReporte;
@@ -24,6 +26,7 @@ public interface ReporteRepository extends JpaRepository<Reporte, Long> {
             WHERE r.distrito.id = :distritoId
               AND (:estado IS NULL OR r.estado = :estado)
               AND (:categoriaId IS NULL OR r.categoria.id = :categoriaId)
+              AND r.oculto = false
             ORDER BY r.createdAt DESC
             """)
     List<Reporte> findBandeja(
@@ -44,6 +47,7 @@ public interface ReporteRepository extends JpaRepository<Reporte, Long> {
             SELECT * FROM reporte r
             WHERE r.categoria_id = :categoriaId
               AND r.estado NOT IN ('RESUELTO', 'RECHAZADO', 'CANCELADO')
+              AND NOT r.oculto
               AND ST_DWithin(r.ubicacion,
                              ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)::geography,
                              :radioMetros)
@@ -108,6 +112,7 @@ public interface ReporteRepository extends JpaRepository<Reporte, Long> {
               AND (CAST(:categoriaId AS bigint) IS NULL OR r.categoria_id = :categoriaId)
               AND (CAST(:estado AS varchar) IS NULL OR r.estado = :estado)
               AND (CAST(:estado AS varchar) IS NOT NULL OR r.estado <> 'CANCELADO')
+              AND NOT r.oculto
               AND (CAST(:fechaDesde AS timestamptz) IS NULL OR r.created_at >= :fechaDesde)
               AND (CAST(:fechaHasta AS timestamptz) IS NULL OR r.created_at <= :fechaHasta)
             ORDER BY r.created_at DESC
@@ -118,6 +123,7 @@ public interface ReporteRepository extends JpaRepository<Reporte, Long> {
               AND (CAST(:categoriaId AS bigint) IS NULL OR r.categoria_id = :categoriaId)
               AND (CAST(:estado AS varchar) IS NULL OR r.estado = :estado)
               AND (CAST(:estado AS varchar) IS NOT NULL OR r.estado <> 'CANCELADO')
+              AND NOT r.oculto
               AND (CAST(:fechaDesde AS timestamptz) IS NULL OR r.created_at >= :fechaDesde)
               AND (CAST(:fechaHasta AS timestamptz) IS NULL OR r.created_at <= :fechaHasta)
             """,
@@ -150,6 +156,7 @@ public interface ReporteRepository extends JpaRepository<Reporte, Long> {
               AND (CAST(:categoriaId AS bigint) IS NULL OR r.categoria_id = :categoriaId)
               AND (CAST(:estado AS varchar) IS NULL OR r.estado = :estado)
               AND (CAST(:estado AS varchar) IS NOT NULL OR r.estado <> 'CANCELADO')
+              AND NOT r.oculto
               AND (CAST(:fechaDesde AS timestamptz) IS NULL OR r.created_at >= :fechaDesde)
               AND (CAST(:fechaHasta AS timestamptz) IS NULL OR r.created_at <= :fechaHasta)
               AND ST_Within(r.ubicacion::geometry,
@@ -162,6 +169,7 @@ public interface ReporteRepository extends JpaRepository<Reporte, Long> {
               AND (CAST(:categoriaId AS bigint) IS NULL OR r.categoria_id = :categoriaId)
               AND (CAST(:estado AS varchar) IS NULL OR r.estado = :estado)
               AND (CAST(:estado AS varchar) IS NOT NULL OR r.estado <> 'CANCELADO')
+              AND NOT r.oculto
               AND (CAST(:fechaDesde AS timestamptz) IS NULL OR r.created_at >= :fechaDesde)
               AND (CAST(:fechaHasta AS timestamptz) IS NULL OR r.created_at <= :fechaHasta)
               AND ST_Within(r.ubicacion::geometry,
@@ -193,6 +201,7 @@ public interface ReporteRepository extends JpaRepository<Reporte, Long> {
     @Query(value = """
             SELECT * FROM reporte r
             WHERE r.distrito_id = :distritoId
+              AND NOT r.oculto
               AND (CAST(:categoriaId AS bigint) IS NULL OR r.categoria_id = :categoriaId)
               AND (CAST(:estado AS varchar) IS NULL OR r.estado = :estado)
               AND (CAST(:fechaDesde AS timestamptz) IS NULL OR r.created_at >= :fechaDesde)
@@ -220,6 +229,7 @@ public interface ReporteRepository extends JpaRepository<Reporte, Long> {
               AND NOT EXISTS (
                   SELECT 1 FROM AsignacionResponsable a
                   WHERE a.reporte = r AND a.activo = true)
+              AND r.oculto = false
             """)
     long countSinResponsable(@Param("distritoId") Long distritoId);
 
@@ -236,6 +246,7 @@ public interface ReporteRepository extends JpaRepository<Reporte, Long> {
                                     pe.edu.upc.viasegura.reportes.domain.EstadoReporte.RECHAZADO,
                                     pe.edu.upc.viasegura.reportes.domain.EstadoReporte.CANCELADO)
               AND r.updatedAt < :limite
+              AND r.oculto = false
             """)
     long countEstancados(@Param("distritoId") Long distritoId, @Param("limite") Instant limite);
 
@@ -269,6 +280,7 @@ public interface ReporteRepository extends JpaRepository<Reporte, Long> {
                   AND (CAST(:categoriaId AS bigint) IS NULL OR r.categoria_id = :categoriaId)
                   AND (CAST(:estado AS varchar) IS NULL OR r.estado = :estado)
                   AND (CAST(:estado AS varchar) IS NOT NULL OR r.estado <> 'CANCELADO')
+              AND NOT r.oculto
                   AND (CAST(:fechaDesde AS timestamptz) IS NULL OR r.created_at >= :fechaDesde)
                   AND (CAST(:fechaHasta AS timestamptz) IS NULL OR r.created_at <= :fechaHasta)
                 GROUP BY 1
@@ -282,4 +294,120 @@ public interface ReporteRepository extends JpaRepository<Reporte, Long> {
             @Param("estado") String estado,
             @Param("fechaDesde") Instant fechaDesde,
             @Param("fechaHasta") Instant fechaHasta);
+
+    /**
+     * NC-04: URL relativa de la foto del reporte, o vacio si no tiene (o si el
+     * reporte no existe). Solo la columna: la sugerencia oficial corre fuera
+     * de toda transaccion y no necesita la entidad.
+     */
+    @Query("SELECT r.fotoUrl FROM Reporte r WHERE r.id = :id")
+    Optional<String> findFotoUrlById(@Param("id") Long id);
+
+    /**
+     * NC-04 (D-08): escribe la sugerencia oficial <b>una sola vez</b>. El
+     * {@code WHERE} exige que las columnas sigan nulas, asi que un segundo
+     * intento (otro evento, un reproceso) no pisa la primera; devuelve las
+     * filas actualizadas (0 o 1).
+     *
+     * <p>SQL nativo y no {@code save()}: escribe solo estas tres columnas, sin
+     * cargar la entidad, sin tocar el resto de la fila (un {@code merge}
+     * podria devolver a su valor viejo un estado que el funcionario cambio
+     * mientras tanto) y sin mover {@code updated_at}: la sugerencia es una
+     * senal interna y no debe notarse en ninguna fecha visible.</p>
+     */
+    @Modifying
+    @Query(value = """
+            UPDATE reporte
+               SET categoria_sugerida_id = :categoriaId,
+                   confianza_sugerencia = :confianza,
+                   version_modelo_sugerencia = :versionModelo
+             WHERE id = :reporteId
+               AND categoria_sugerida_id IS NULL
+               AND confianza_sugerencia IS NULL
+               AND version_modelo_sugerencia IS NULL
+            """, nativeQuery = true)
+    int registrarSugerencia(
+            @Param("reporteId") Long reporteId,
+            @Param("categoriaId") Long categoriaId,
+            @Param("confianza") BigDecimal confianza,
+            @Param("versionModelo") String versionModelo);
+
+    /*
+     * Moderacion (NC-11a, D-15). Un reporte oculto sale de la busqueda, del
+     * area, de la densidad, de la deduplicacion, de la bandeja municipal, de
+     * sus conteos (US-17) y de la exportacion: todas esas consultas llevan
+     * `NOT r.oculto`. Una regla de visibilidad nueva va en todas ellas.
+     */
+
+    /** {@code true} si el reporte existe y esta oculto (comentarios publicos, NC-11a). */
+    boolean existsByIdAndOcultoTrue(Long id);
+
+    /** Fila de la bandeja de ocultos del ADMIN (NC-11a2): el reporte y cuando se oculto. */
+    interface FilaOcultos {
+        Long getReporteId();
+
+        /** Fecha del ultimo ocultamiento todavia vigente; {@code null} si no quedo en el historial. */
+        Instant getOcultadoEn();
+    }
+
+    /**
+     * Bandeja de ocultos del ADMIN (NC-11a2): los reportes con el reporte o la
+     * foto ocultos, tengan denuncias o no, <b>lo ocultado mas recientemente
+     * primero</b>. La fecha sale del historial (el {@code REPORTE_OCULTO} o
+     * {@code FOTO_OCULTA} mas reciente cuyo alcance siga oculto) y no de
+     * {@code updated_at}, porque ocultar no lo mueve a proposito (mide los
+     * estancados de US-17) y porque un cambio de estado del funcionario si lo
+     * moveria. Consulta aparte de la de denuncias: sin parametros opcionales
+     * (ver CLAUDE.md). Sin indice nuevo: el WHERE recorre {@code reporte}
+     * completa (aceptable a esta escala y solo para el ADMIN); si la tabla
+     * creciera, un indice parcial {@code WHERE oculto OR foto_oculta}. El JOIN
+     * al historial usa {@code ix_historial_reporte}.
+     */
+    @Query(value = """
+            SELECT r.id AS reporteId, MAX(h.createdAt) AS ocultadoEn
+            FROM Reporte r
+            LEFT JOIN HistorialEstadoReporte h
+                   ON h.reporte = r
+                  AND ((h.tipoEvento = pe.edu.upc.viasegura.reportes.domain.TipoEventoHistorial.REPORTE_OCULTO
+                        AND r.oculto = true)
+                    OR (h.tipoEvento = pe.edu.upc.viasegura.reportes.domain.TipoEventoHistorial.FOTO_OCULTA
+                        AND r.fotoOculta = true))
+            WHERE r.oculto = true OR r.fotoOculta = true
+            GROUP BY r.id
+            ORDER BY MAX(h.createdAt) DESC NULLS LAST, r.id DESC
+            """,
+            countQuery = "SELECT COUNT(r) FROM Reporte r WHERE r.oculto = true OR r.fotoOculta = true")
+    Page<FilaOcultos> ocultosParaModeracion(Pageable pageable);
+
+    /**
+     * Resolver de {@code /media/fotos/reportes/**} (D-15, opcion A): la foto se
+     * sirve solo si es de un reporte visible con la foto visible. Una foto sin
+     * reporte (huerfana) tampoco. Usa {@code ix_reporte_foto_url} (V21).
+     */
+    @Query("""
+            SELECT COUNT(r) > 0 FROM Reporte r
+            WHERE r.fotoUrl = :fotoUrl AND r.oculto = false AND r.fotoOculta = false
+            """)
+    boolean existeFotoVisible(@Param("fotoUrl") String fotoUrl);
+
+    /**
+     * Oculta o restablece el reporte entero, <b>solo si cambia</b>: devuelve 0
+     * si ya estaba en {@code oculto} (el servicio responde 409) y 1 si lo
+     * cambio. El {@code UPDATE} condicional serializa a dos ADMIN simultaneos
+     * sin duplicar la entrada del historial. No toca {@code updated_at}: la
+     * moderacion no debe hacer que un reporte estancado parezca atendido
+     * (US-17). Limpia el contexto para que la entidad se relea con el valor nuevo.
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = "UPDATE reporte SET oculto = :oculto WHERE id = :id AND oculto <> :oculto",
+            nativeQuery = true)
+    int cambiarOculto(@Param("id") Long id, @Param("oculto") boolean oculto);
+
+    /** Como {@link #cambiarOculto}, solo para la foto; exige que el reporte tenga foto. */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = """
+            UPDATE reporte SET foto_oculta = :oculta
+             WHERE id = :id AND foto_oculta <> :oculta AND foto_url IS NOT NULL
+            """, nativeQuery = true)
+    int cambiarFotoOculta(@Param("id") Long id, @Param("oculta") boolean oculta);
 }

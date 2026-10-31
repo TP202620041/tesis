@@ -12,9 +12,11 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
+import org.springframework.util.Assert;
 import org.springframework.util.StringUtils;
 import pe.edu.upc.viasegura.common.exception.ServicioNoDisponibleException;
 import pe.edu.upc.viasegura.common.port.ArchivoSubido;
+import pe.edu.upc.viasegura.common.port.FotoSaneada;
 import pe.edu.upc.viasegura.common.port.FotoStorageService;
 import pe.edu.upc.viasegura.common.port.SaneadorDeImagen;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -50,7 +52,7 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
  *
  * <p><b>Mismas URL que con el disco local:</b> devuelve
  * {@code /media/fotos/reportes/<uuid>.jpg} y {@code /api/perfiles/fotos/<uuid>.jpg},
- * y el backend lee del bucket para servirlas ({@code WebMvcConfig} y
+ * y el backend lee del bucket para servirlas (el resource handler de fotos de reporte del modulo que las sirve y
  * {@code PerfilFotoController}). El navegador nunca habla con R2: sin cambio
  * de contrato ni de CSP.</p>
  *
@@ -64,9 +66,11 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
  *   <li>Checksums solo cuando la operacion los exige: desde la 2.30 el SDK
  *       calcula CRC32 en cada subida, y R2 tuvo un incidente con eso.</li>
  *   <li>Timeouts: 5 s por intento y 10 s por llamada, con los reintentos
- *       estandar del SDK. La subida ocurre dentro de la transaccion de la
- *       creacion del reporte, asi que el timeout acota cuanto se retiene la
- *       conexion a la base (deuda conocida, se resuelve con NC-04).</li>
+ *       estandar del SDK. La foto de un reporte se sube sin transaccion
+ *       abierta (BE-11), asi que una subida lenta no retiene una conexion a la
+ *       base; la de perfil todavia se sube dentro de la transaccion de la
+ *       edicion del perfil, y ahi el timeout acota cuanto se retiene (deuda
+ *       conocida del README).</li>
  *   <li>Cliente HTTP de {@code java.net.URLConnection}: una llamada sincrona
  *       por peticion no necesita Apache ni Netty, y pesa menos en la imagen.</li>
  * </ul>
@@ -159,13 +163,14 @@ public class S3FotoStorageService implements FotoStorageService {
     }
 
     @Override
-    public String almacenarFotoReporte(ArchivoSubido foto) {
-        return guardar(foto, bucketReportes, urlBaseReportes);
+    public String almacenarFotoReporteSaneada(FotoSaneada fotoSaneada) {
+        Assert.notNull(fotoSaneada, "La foto de reporte debe llegar saneada");
+        return guardar(fotoSaneada.contenido(), bucketReportes, urlBaseReportes);
     }
 
     @Override
     public String almacenarFotoPerfil(ArchivoSubido foto) {
-        return guardar(foto, bucketPerfiles, urlBasePerfiles);
+        return guardar(saneador.sanear(foto).contenido(), bucketPerfiles, urlBasePerfiles);
     }
 
     @Override
@@ -180,18 +185,26 @@ public class S3FotoStorageService implements FotoStorageService {
 
     @Override
     public void eliminarFotoPerfil(String nombreArchivo) {
+        eliminar(bucketPerfiles, nombreArchivo, "la foto de perfil reemplazada");
+    }
+
+    @Override
+    public void eliminarFotoReporte(String nombreArchivo) {
+        eliminar(bucketReportes, nombreArchivo, "la foto de reporte sin usar");
+    }
+
+    private void eliminar(String bucket, String nombreArchivo, String queFoto) {
         if (!FotoStorageService.esNombreDeArchivoValido(nombreArchivo)) {
             return;
         }
         try {
-            s3.deleteObject(DeleteObjectRequest.builder().bucket(bucketPerfiles).key(nombreArchivo).build());
+            s3.deleteObject(DeleteObjectRequest.builder().bucket(bucket).key(nombreArchivo).build());
         } catch (RuntimeException e) {
-            log.warn("No se pudo borrar la foto de perfil reemplazada {}: {}", nombreArchivo, e.toString());
+            log.warn("No se pudo borrar {} {} del bucket {}: {}", queFoto, nombreArchivo, bucket, e.toString());
         }
     }
 
-    private String guardar(ArchivoSubido foto, String bucket, String urlBase) {
-        ArchivoSubido saneada = saneador.sanear(foto);
+    private String guardar(byte[] jpegSaneado, String bucket, String urlBase) {
         // El nombre lo genera el servidor (UUID): el del cliente nunca llega al bucket.
         String clave = UUID.randomUUID() + ".jpg";
         try {
@@ -199,9 +212,9 @@ public class S3FotoStorageService implements FotoStorageService {
                             .bucket(bucket)
                             .key(clave)
                             .contentType(CONTENT_TYPE)
-                            .contentLength((long) saneada.contenido().length)
+                            .contentLength((long) jpegSaneado.length)
                             .build(),
-                    RequestBody.fromBytes(saneada.contenido()));
+                    RequestBody.fromBytes(jpegSaneado));
         } catch (SdkException e) {
             log.error("No se pudo subir la foto {} al bucket {}", clave, bucket, e);
             throw new ServicioNoDisponibleException(MENSAJE_SIN_ALMACENAMIENTO);

@@ -8,7 +8,7 @@
  * `components/LineaDeTiempo`.
  */
 import type { components } from '@/lib/api/generated/schema';
-import type { Severidad } from '@/lib/types/domain';
+import type { MotivoDenuncia, Severidad } from '@/lib/types/domain';
 
 type Schemas = components['schemas'];
 
@@ -32,6 +32,30 @@ export type ComentarioPublico = Schemas['ComentarioPublicoResponse'];
 
 export type Calificacion = Schemas['CalificacionResponse'];
 
+/** Respuesta cruda de `POST /api/reportes/{id}/denuncias`; `api.ts` la traduce. */
+export type DenunciaRegistradaResponse = Schemas['DenunciaRegistradaResponse'];
+
+/**
+ * NC-11b (D-15): lo que el CIUDADANO envia al denunciar un reporte
+ * publicado. `detalle` es opcional (hasta 500 caracteres).
+ */
+export interface NuevaDenuncia {
+  motivo: MotivoDenuncia;
+  detalle?: string;
+}
+
+/**
+ * NC-11b: la denuncia que el ciudadano acaba de registrar (201). Solo la ve
+ * quien denuncio; «¿ya denuncie?» no viaja en ningun DTO (el 409
+ * `DENUNCIA_REPETIDA` lo dice al intentarlo de nuevo).
+ */
+export interface DenunciaRegistrada {
+  id: number;
+  reporteId: number;
+  motivo: MotivoDenuncia;
+  createdAt: string;
+}
+
 /**
  * US-11: una celda de la grilla de densidad. Su punto es el CENTRO de la
  * celda (el backend lleva cada reporte al nodo mas cercano con
@@ -48,6 +72,12 @@ export type CeldaDensidad = Required<Schemas['CeldaDensidadResponse']>;
 export type DensidadReportes = Required<Omit<Schemas['DensidadReportesResponse'], 'celdas'>> & {
   celdas: CeldaDensidad[];
 };
+
+/**
+ * Si el catálogo de categorías del formulario ya llegó, sigue cargando (al
+ * montar o tras un cambio de distrito) o no se pudo traer.
+ */
+export type EstadoDelCatalogo = 'cargando' | 'listo' | 'fallido';
 
 export interface PaginaReportes {
   contenido: ReporteResumen[];

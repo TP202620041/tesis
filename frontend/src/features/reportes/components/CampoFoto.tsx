@@ -22,11 +22,26 @@ import { ACEPTA_FOTO, AYUDA_DE_FOTO, errorDeFoto } from '@/lib/types/fotoParaSub
  * (`aria-describedby`). Sin foto, el campo queda `aria-invalid`; si habia una
  * foto valida, se conserva y es la que se enviara, asi que el campo NO se
  * marca invalido y el aviso lo aclara ({@link AVISO_FOTO_ANTERIOR}).
+ *
+ * NC-04: `rechazo` es el motivo por el que el SERVIDOR rechazo la foto ya
+ * elegida (el 409 de la vista previa: no es una imagen valida). Se muestra
+ * junto a la foto y el campo queda `aria-invalid`, porque es la que se
+ * enviaria y el reporte fallaria igual; el ciudadano la cambia o la quita.
+ * `aviso` es una indicacion que se ve ANTES de elegir (que la foto se analiza
+ * al elegirla): va junto a la ayuda y tambien describe el campo.
+ *
+ * NC-10c: `noPermitida` es el aviso de la moderacion («La foto no está
+ * permitida. Toma otra.»). El formulario ya QUITO la foto, asi que se muestra
+ * sin foto y describe el campo hasta que se elija otra. El campo no queda
+ * `aria-invalid`: la foto es opcional y el reporte se puede enviar sin ella.
  */
 
 const ID = 'foto';
 const ID_AYUDA = `${ID}-ayuda`;
 const ID_ERROR = `${ID}-error`;
+const ID_RECHAZO = `${ID}-rechazo`;
+const ID_AVISO = `${ID}-aviso`;
+const ID_NO_PERMITIDA = `${ID}-no-permitida`;
 
 /** Se agrega al motivo del rechazo cuando la foto ya elegida no cambia. */
 const AVISO_FOTO_ANTERIOR = 'Se mantiene la foto anterior.';
@@ -34,9 +49,15 @@ const AVISO_FOTO_ANTERIOR = 'Se mantiene la foto anterior.';
 interface Props {
   valor: File | null;
   onCambiar: (foto: File | null) => void;
+  /** NC-04: el servidor rechazo la foto elegida (409), o `null`. */
+  rechazo?: string | null;
+  /** NC-04: indicacion previa a la eleccion (el analisis automatico), o nada. */
+  aviso?: string;
+  /** NC-10c: la moderacion rechazo la foto (ya quitada), o `null`. */
+  noPermitida?: string | null;
 }
 
-export function CampoFoto({ valor, onCambiar }: Props) {
+export function CampoFoto({ valor, onCambiar, rechazo = null, aviso, noPermitida = null }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -52,6 +73,13 @@ export function CampoFoto({ valor, onCambiar }: Props) {
     if (!previsualizacion) return;
     return () => URL.revokeObjectURL(previsualizacion);
   }, [previsualizacion]);
+
+  // NC-10c: el formulario puede quitar la foto desde fuera (la moderacion la
+  // rechazo, o «Enviar sin foto»). El selector nativo seguiria con ese archivo
+  // y elegirlo de nuevo no dispararia `change`: se vacia con el valor.
+  useEffect(() => {
+    if (!valor && inputRef.current) inputRef.current.value = '';
+  }, [valor]);
 
   function seleccionar(input: HTMLInputElement) {
     const archivo = input.files?.[0];
@@ -70,10 +98,19 @@ export function CampoFoto({ valor, onCambiar }: Props) {
     onCambiar(archivo);
   }
 
-  const descripcion = error ? `${ID_ERROR} ${ID_AYUDA}` : ID_AYUDA;
+  const rechazada = rechazo != null && valor != null;
+  const descripcion = [
+    error ? ID_ERROR : null,
+    rechazada ? ID_RECHAZO : null,
+    noPermitida ? ID_NO_PERMITIDA : null,
+    ID_AYUDA,
+    aviso ? ID_AVISO : null,
+  ]
+    .filter(Boolean)
+    .join(' ');
   // Con una foto valida conservada, el rechazo fue de la nueva eleccion: lo
-  // que se enviara es valido.
-  const invalido = error != null && valor == null;
+  // que se enviara es valido. Si el servidor rechazo la conservada, no.
+  const invalido = (error != null && valor == null) || rechazada;
 
   return (
     <div className="flex flex-col gap-2">
@@ -139,9 +176,27 @@ export function CampoFoto({ valor, onCambiar }: Props) {
         {AYUDA_DE_FOTO}
       </p>
 
+      {aviso && (
+        <p id={ID_AVISO} className="text-xs text-texto-2">
+          {aviso}
+        </p>
+      )}
+
       {error && (
         <p id={ID_ERROR} role="alert" className="text-sm text-error">
           {valor ? `${error} ${AVISO_FOTO_ANTERIOR}` : error}
+        </p>
+      )}
+
+      {rechazada && (
+        <p id={ID_RECHAZO} role="alert" className="text-sm text-error">
+          {rechazo}
+        </p>
+      )}
+
+      {noPermitida && (
+        <p id={ID_NO_PERMITIDA} role="alert" className="text-sm font-medium text-error">
+          {noPermitida}
         </p>
       )}
     </div>

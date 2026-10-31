@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { FotoDeReporte } from '@/components/FotoDeReporte';
 import { etiquetaDeSeveridad, tituloVisible } from '@/lib/types/tituloYSeveridad';
+import type { MotivoDeEspera } from '../hooks/useCrearReporte';
 import { RUTA_REPORTES_QUE_APOYAS } from '../model/apoyos';
 import type { ReporteCreado } from '../model/tipos';
 import { FormularioReporte } from './FormularioReporte';
@@ -16,10 +17,12 @@ import { clasesDeBoton } from '@/components/ui/Boton';
  */
 export function NuevoReporte({ usuarioId }: { usuarioId: number }) {
   const [creado, setCreado] = useState<ReporteCreado | null>(null);
-  const [encolado, setEncolado] = useState(false);
+  const [encolado, setEncolado] = useState<MotivoDeEspera | null>(null);
 
   if (creado) return <Confirmacion reporte={creado} onOtro={() => setCreado(null)} />;
-  if (encolado) return <ConfirmacionSinConexion onOtro={() => setEncolado(false)} />;
+  if (encolado) {
+    return <ConfirmacionSinConexion motivo={encolado} onOtro={() => setEncolado(null)} />;
+  }
 
   return (
     <>
@@ -35,7 +38,7 @@ export function NuevoReporte({ usuarioId }: { usuarioId: number }) {
       <FormularioReporte
         usuarioId={usuarioId}
         onCreado={setCreado}
-        onEncolado={() => setEncolado(true)}
+        onEncolado={setEncolado}
       />
     </>
   );
@@ -45,8 +48,12 @@ export function NuevoReporte({ usuarioId }: { usuarioId: number }) {
  * US-06: el reporte quedo guardado en el dispositivo. Se dice sin rodeos que
  * TODAVIA no llego a la municipalidad: no hay distrito ni numero que mostrar
  * hasta que el backend lo reciba.
+ *
+ * NC-10c: si quedo ahi porque no se pudo revisar la foto (el ciudadano eligio
+ * «Guardar para enviar después»), no se dice «No hay conexión»: la cola lo
+ * reintenta solo igual (un 5xx la deja pendiente).
  */
-function ConfirmacionSinConexion({ onOtro }: { onOtro: () => void }) {
+function ConfirmacionSinConexion({ motivo, onOtro }: { motivo: MotivoDeEspera; onOtro: () => void }) {
   return (
     <section
       className="flex flex-col gap-4 rounded-tarjeta border border-aviso-borde bg-aviso-fondo p-6"
@@ -55,11 +62,20 @@ function ConfirmacionSinConexion({ onOtro }: { onOtro: () => void }) {
       <h1 className="text-xl font-semibold text-aviso-texto">
         Pendiente de envío
       </h1>
-      <p className="text-aviso-texto">
-        No hay conexión, así que tu reporte quedó <strong>guardado en este dispositivo</strong>.
-        Se enviará solo cuando vuelva la señal, sin que tengas que hacer nada. Si para entonces tu
-        sesión venció, se enviará cuando vuelvas a iniciarla.
-      </p>
+      {motivo === 'moderacion-no-disponible' ? (
+        <p className="text-aviso-texto">
+          No pudimos revisar la foto en este momento, así que tu reporte quedó{' '}
+          <strong>guardado en este dispositivo</strong>. Lo volveremos a intentar solo, sin que
+          tengas que hacer nada. Si para entonces tu sesión venció, se enviará cuando vuelvas a
+          iniciarla.
+        </p>
+      ) : (
+        <p className="text-aviso-texto">
+          No hay conexión, así que tu reporte quedó <strong>guardado en este dispositivo</strong>.
+          Se enviará solo cuando vuelva la señal, sin que tengas que hacer nada. Si para entonces tu
+          sesión venció, se enviará cuando vuelvas a iniciarla.
+        </p>
+      )}
       <div className="flex flex-wrap gap-3">
         <button
           type="button"

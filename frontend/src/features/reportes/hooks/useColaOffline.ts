@@ -18,6 +18,12 @@ import {
   type EstadoVisible,
   type ReporteEnCola,
 } from '../model/colaOffline';
+import {
+  puedeEnviarConFoto,
+  trasModeracionNoDisponible,
+  type EsperaDeModeracion,
+} from '../model/esperaDeModeracion';
+import { esModeracionNoDisponible, motivoDeRechazoEnLaCola } from '../model/moderacion';
 import { errorDelTitulo, MENSAJE_SIN_SEVERIDAD } from '../model/titulo';
 import type { NuevoReporte, ReporteCreado } from '../model/tipos';
 
@@ -110,9 +116,41 @@ export interface ResultadoDeSincronizacion {
   enviados: ReporteCreado[];
   /**
    * Por que se detuvo antes de terminar: sin red, sin sesion (401), o porque
-   * la sesion cambio o el llamador cancelo (`interrumpida`).
+   * la sesion cambio o el llamador cancelo (`interrumpida`). NC-10c: tambien
+   * `sin-conexion` si la moderacion no estaba disponible y quedaron reportes
+   * con foto sin enviar (los demas si se intentaron).
    */
   detenidaPor: Extract<DesenlaceDeEnvio, 'sin-conexion' | 'sin-sesion'> | 'interrumpida' | null;
+}
+
+/**
+ * NC-10c (decision del 29/10): espera tras el 503 de la moderacion, por
+ * usuario y en memoria de la pestaña (regla en `model/esperaDeModeracion`).
+ * No se guarda en IndexedDB: al recargar se intenta una vez enseguida y,
+ * si el servicio sigue caido, vuelve a empezar en 30 s. Se reinicia cuando
+ * un reporte con foto se envia bien.
+ */
+const esperasDeModeracion = new Map<number, EsperaDeModeracion>();
+
+/**
+ * Anota un 503 de la moderacion fuera de la cola (el formulario, antes de
+ * «Guardar para enviar después»): asi la cola no reintenta enseguida.
+ */
+export function anotarModeracionNoDisponible(usuarioId: number, ahora: Date = new Date()): void {
+  esperasDeModeracion.set(
+    usuarioId,
+    trasModeracionNoDisponible(esperasDeModeracion.get(usuarioId) ?? null, ahora),
+  );
+}
+
+/** Un reporte con foto se envio bien (tambien desde el formulario): la moderacion volvio. */
+export function reiniciarEsperaDeModeracion(usuarioId: number): void {
+  esperasDeModeracion.delete(usuarioId);
+}
+
+/** Solo para tests: olvida las esperas de la moderacion. */
+export function olvidarEsperasDeModeracion(): void {
+  esperasDeModeracion.clear();
 }
 
 /** Una sincronizacion en curso por usuario (no global: no se mezclan sesiones). */
@@ -135,6 +173,17 @@ const enCurso = new Map<
  *   pero sin borrar el token; se reenvia tras aceptar los terminos.
  * - Otro 4xx: se marca `rechazado` con el motivo y se sigue con el resto.
  *   Nunca se borra: un 400 de validacion tampoco saca un reporte de la cola.
+ *   NC-10c: los 400 de la moderacion (`FOTO_NO_PERMITIDA`,
+ *   `TEXTO_NO_PERMITIDO`) tambien, con un motivo que dice que hacer en la
+ *   cola ({@link motivoDeRechazoEnLaCola}).
+ * - 503 `MODERACION_NO_DISPONIBLE` (NC-10c): el reporte sigue pendiente, con
+ *   la misma clave, pero la cola NO se detiene: la moderacion caida solo
+ *   afecta a los reportes con foto. Los siguientes con foto ya no se envian
+ *   en esta vuelta (darian el mismo 503 y cada uno subiria su foto); los que
+ *   no tienen foto si, y no esperan a que vuelva el servicio (ni caducan a
+ *   las 48 h por eso). Los reportes con foto se reintentan con retroceso
+ *   progresivo (30 s, 1, 2, 4, 8 min; tope 10 min), aunque la cola siga
+ *   pasando cada 30 s o vuelva la conexion: el 503 es del servidor.
  *
  * **Nunca envia con la sesion de otro:** `generacionEsperada` es la
  * generacion de sesion en la que se identifico a `usuarioId` (la devuelve
@@ -187,20 +236,29 @@ async function sincronizar(
   }
 
   const aEnviar = pendientesDe(cola, usuarioId).filter((r) => seReenviaSolo(r, ahora));
+  // NC-10c: la moderacion de la foto no estuvo disponible en esta vuelta, o
+  // todavia no toca reintentar tras el ultimo 503 (retroceso progresivo).
+  let sinModeracion = !puedeEnviarConFoto(esperasDeModeracion.get(usuarioId) ?? null, ahora);
   for (const enCola of aEnviar) {
     if (!sesionVigente()) return { enviados, detenidaPor: 'interrumpida' };
     const peticion = comoNuevoReporte(enCola);
     if (!peticion) continue;
+    if (sinModeracion && peticion.foto) continue;
 
     let creado: ReporteCreado;
     try {
       creado = await deps.enviar(peticion);
     } catch (e) {
+      if (e instanceof ApiError && esModeracionNoDisponible(e)) {
+        sinModeracion = true;
+        anotarModeracionNoDisponible(usuarioId, deps.ahora());
+        continue;
+      }
       const desenlace = desenlaceDe(e);
       if (desenlace === 'rechazado') {
         await deps.almacen.marcarRechazado(
           enCola.idempotencyKey,
-          e instanceof Error ? e.message : null,
+          e instanceof ApiError ? motivoDeRechazoEnLaCola(e) : e instanceof Error ? e.message : null,
         );
         continue;
       }
@@ -209,10 +267,11 @@ async function sincronizar(
       }
       continue;
     }
+    if (peticion.foto) reiniciarEsperaDeModeracion(usuarioId);
     await deps.almacen.quitar(enCola.idempotencyKey);
     enviados.push(creado);
   }
-  return { enviados, detenidaPor: null };
+  return { enviados, detenidaPor: sinModeracion ? 'sin-conexion' : null };
 }
 
 /** El ciudadano descarta un reporte de la cola (rechazado, caducado o al cerrar sesion). */

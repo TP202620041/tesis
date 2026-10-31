@@ -1,10 +1,20 @@
 import { apiFetch, api, conFotoAbsoluta, urlDeFoto } from '@/lib/api/client';
 import { ApiError } from '@/lib/api/errors';
-import { esSeveridad, type HistorialEntrada, type Severidad } from '@/lib/types/domain';
+import {
+  esMotivoDenuncia,
+  esSeveridad,
+  type ClasificacionResponse,
+  type HistorialEntrada,
+  type Severidad,
+} from '@/lib/types/domain';
+import { clasificacionDeRespuesta, type ClasificacionDeLaFoto } from './model/sugerencia';
 import type {
   Calificacion,
   ComentarioPublico,
   DensidadReportes,
+  DenunciaRegistrada,
+  DenunciaRegistradaResponse,
+  NuevaDenuncia,
   NuevoReporte,
   PaginaReportes,
   ReporteCreado,
@@ -195,6 +205,31 @@ export function calificar(
 }
 
 /**
+ * NC-11b (D-15): el CIUDADANO denuncia un reporte publicado. Exige sesion de
+ * ciudadano (403 para otro rol). El backend responde 409 con `codigo`
+ * `DENUNCIA_REPETIDA`, `LIMITE_DENUNCIAS` o `DENUNCIA_PROPIA`, y 404 si el
+ * reporte no existe, esta cancelado u oculto; los traduce
+ * `model/denuncia.ts`. La denuncia no cambia nada a la vista: llega a la
+ * bandeja del ADMIN, que decide.
+ */
+export async function denunciarReporte(
+  reporteId: number,
+  denuncia: NuevaDenuncia,
+): Promise<DenunciaRegistrada> {
+  const detalle = denuncia.detalle?.trim();
+  const d = await api.post<DenunciaRegistradaResponse>(`/api/reportes/${reporteId}/denuncias`, {
+    motivo: denuncia.motivo,
+    detalle: detalle || undefined,
+  });
+  return {
+    id: d.id ?? 0,
+    reporteId: d.reporteId ?? reporteId,
+    motivo: esMotivoDenuncia(d.motivo) ? d.motivo : denuncia.motivo,
+    createdAt: d.createdAt ?? '',
+  };
+}
+
+/**
  * US-05: crea el reporte. `multipart/form-data` porque lleva la foto junto
  * con los datos.
  *
@@ -246,4 +281,39 @@ export async function crearReporte(
     titulo: creado.titulo ?? null,
     severidad: esSeveridad(creado.severidad) ? creado.severidad : null,
   };
+}
+
+/**
+ * NC-04: vista previa de la categoría que sugiere la foto, mientras el
+ * ciudadano arma el reporte. El servidor **no guarda nada** y responde 200
+ * aun sin sugerencia (devuelve `null`); el reporte se crea después con la
+ * categoría que el ciudadano elija, y la sugerencia oficial la recalcula el
+ * backend sobre la foto guardada (D-08), así que aquí no se reenvía nada.
+ *
+ * - `signal`: la cancela el hook cuando cambia la foto, se envía el reporte o
+ *   se agota la espera. Una petición cancelada llega como `NetworkError`.
+ * - `redirigirEn401: false`: es una ayuda que el ciudadano no pidió. Con la
+ *   sesión vencida, no debe tirar el formulario a medio llenar con una
+ *   navegación al login (ni con el 403 de términos pendientes); el token se
+ *   borra igual y el envío del reporte, que sí es la acción del ciudadano,
+ *   lleva al login como siempre.
+ * - Errores: 409 = la foto no es una imagen válida (el mismo mensaje que al
+ *   crear el reporte). Los demás los traduce el hook a «sin sugerencia».
+ * - NC-10c: con `fotoRechazada: true` la moderación rechazó la foto, y no hay
+ *   sugerencia ({@link clasificacionDeRespuesta}).
+ */
+export async function clasificarFoto(
+  foto: File,
+  signal?: AbortSignal,
+): Promise<ClasificacionDeLaFoto> {
+  const cuerpo = new FormData();
+  cuerpo.append('foto', foto);
+  // Sin `json`: el navegador fija el Content-Type con el boundary del multipart.
+  const respuesta = await apiFetch<ClasificacionResponse | undefined>('/api/clasificaciones', {
+    method: 'POST',
+    body: cuerpo,
+    signal,
+    redirigirEn401: false,
+  });
+  return clasificacionDeRespuesta(respuesta);
 }

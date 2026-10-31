@@ -2,6 +2,155 @@
 
 Versiones de Ciudad Viva (antes ViaSegura) según GitFlow (`WORKFLOW.md` §8): cada sprint cierra con una versión minor en `main`. Plan: `project-context/decisions/plan-sprints.md`.
 
+## v0.8.0 — Sprint 7: ML real, registro verificado y moderación (2026-10-31)
+
+Cierra el S7, que salió antes que el S6 por decisión del usuario del 25/10 (`project-context/decisions/plan-sprints.md`). Reúne los PR #108, #109, #112, #115 y #117 a #141, fusionados en `develop` después de v0.7.2:
+- la sugerencia de categoría con el modelo real (RF-DETR Nano) en un servicio nuevo, `inferencia/`;
+- el registro con captcha y confirmación del correo, y la purga de las cuentas que nunca se confirman;
+- la moderación de fotos y textos, y que el ADMIN pueda ocultar lo publicado y los ciudadanos denunciarlo;
+- el API solo atiende lo que pasa por Cloudflare.
+
+**Los términos siguen en v1** (decisión del usuario del 30/10). La v2 (#116), con el aviso del análisis automático de la foto, la revisión del contenido, la atribución de RDD2022 y de los pesos, y los plazos de BE-13 y BE-14, sale en una versión posterior, cuando la revise el asesor. Esta versión no cambia `LEGAL_VERSION_TERMINOS` ni pide volver a aceptar. Mientras tanto, la PWA avisa del análisis automático junto al campo de la foto (#117).
+
+### ⚠️ Antes de publicar: cambios incompatibles y variables nuevas
+La v0.8.0 **no arranca en `prod`** sin variables nuevas, y el `backend` con la moderación en `http` no puede llegar antes que el servicio que modera. Todo se hace **antes de fusionar en `main`**, en el orden de `docs/despliegue.md` §10.1:
+1. subir `inferencia` a Railway con NC-10a y comprobar que `/salud` devuelve `version_moderacion` (§5.4, DEP-13);
+2. crear en Cloudflare la *Transform Rule* de `X-Origen-Secreto` (§11.4) y el widget de Turnstile (§5.2);
+3. cargar las variables con *Alt + Deploy*.
+
+**Variables obligatorias nuevas del `backend` en `prod`** (sin ellas, o con un valor no admitido, la app no arranca):
+
+| Variable | Valor en producción | Tarea |
+|---|---|---|
+| `CLASIFICACION_TIPO` | `http` (`falso` es el interruptor de apagado) | NC-04b |
+| `CLASIFICACION_URL` | la URL privada de `inferencia`, solo la base | NC-04b |
+| `MODERACION_TIPO` | `http` (`ninguna` publica fotos sin revisar) | NC-10b |
+| `MODERACION_URL` | la misma URL privada de `inferencia` | NC-10b |
+| `CAPTCHA_TIPO` | `turnstile` (`recaptcha` ya no arranca) | NC-08b |
+| `CAPTCHA_SECRET` | la clave secreta del widget de Turnstile | NC-08b |
+| `ORIGEN_SECRETO` | el valor de la *Transform Rule*, de al menos 32 caracteres; primero la regla y después la variable | DEP-14 |
+
+**En Vercel:** `NEXT_PUBLIC_TURNSTILE_SITE_KEY` reemplaza a `NEXT_PUBLIC_RECAPTCHA_SITE_KEY`. Sin ella, el build de producción falla.
+
+**Pool de conexiones:** `SPRING_DATASOURCE_HIKARI_MAXIMUMPOOLSIZE` vuelve de 20 a **10** (decisión del usuario del 30/10, por BE-12), en el mismo paso que las demás variables.
+
+**Opcionales nuevas** (con valor por defecto): `FRONTEND_URL` (recomendada), `DOMINIO_CORREO_TIPO`, `CAPTCHA_HOSTNAMES`, `CLASIFICACION_UMBRAL`, `CLASIFICACION_ESPERA_TURNO_MS`, `ASYNC_SUGERENCIAS_HILOS`, `MODERACION_UMBRAL`, `ORIGEN_SECRETO_ANTERIOR`, `CUENTAS_SIN_CONFIRMAR_PLAZO` y `CUENTAS_SIN_CONFIRMAR_PURGA_CRON`.
+
+**Cambios incompatibles del contrato y del comportamiento:**
+- **Registro sin sesión (NC-09):** `POST /api/auth/registro` responde 201 `RegistroResponse {email, vigenciaEnlaceHoras}` en lugar de `AuthResponse`. La PWA de esta versión lo atiende; la anterior no, y tampoco envía el captcha, así que entre el despliegue del API y el de la PWA el registro desde la PWA vieja no funciona (runbook §10, compatibilidad durante una versión). El login de una cuenta sin confirmar responde 409 `CORREO_NO_CONFIRMADO`. Las cuentas que ya existían quedan confirmadas (V20).
+- **Captcha obligatorio en `prod`:** el registro sin `captchaToken` válido responde 409, y 503 si Cloudflare no responde.
+- **Moderación:** 400 `FOTO_NO_PERMITIDA` y `TEXTO_NO_PERMITIDO`, y 503 `MODERACION_NO_DISPONIBLE` al crear un reporte con foto si el servicio no responde (falla cerrada).
+- **Reportes ocultos:** un reporte oculto da 404 en el detalle y sale de la búsqueda, el mapa, la bandeja municipal, la exportación y el índice. Solo lo ven el ADMIN y su creador, en «Mis reportes». Una foto oculta llega como `fotoUrl: null`, y `/media` responde 404.
+- **Origen:** una petición que no pasa por Cloudflare recibe 403, salvo `GET /actuator/health`.
+- **Adhesión con foto (BE-11):** un archivo que no es imagen responde 409 en vez de descartarse, y 503 si no hay turno para sanear o R2 no responde.
+- **Categorías:** V19 desactiva «Hueco en calzada»; los reportes que ya la usan no cambian.
+- **Migraciones:** V19, V20 y V21; Flyway aplica las tres al pasar de v0.7.x. V21 rehace `mv_indice_desempeno_distrital` para excluir los reportes ocultos. Volver a una v0.7.x sobre este esquema no está probado (runbook §10).
+
+### ML real
+- **NC-03a · Servicio de inferencia** (#109): `inferencia/`, con FastAPI y ONNX en CPU.
+  - **Modelo:** RF-DETR Nano entrenado en RDD2022, con las clases `bache` y `grieta`. Pesos Apache-2.0; la exportación es reproducible byte a byte y el Dockerfile falla si el sha256 no coincide.
+  - **Contrato:** `POST /v1/detecciones` y `GET /salud`. El servicio solo detecta; el umbral de 0,50 lo aplica el backend.
+  - **Capas:** las de ARCHITECTURE §6, con import-linter. Dependencias con hashes y telemetría de onnxruntime apagada.
+  - **CI:** job `inferencia` con guarda de completitud.
+- **NC-04 · Sugerencia de categoría** (#108 backend, #117 PWA):
+  - **Módulo `clasificacion`:** el puerto `ClasificadorDano` y `PoliticaDeSugerencia`.
+  - **Vista previa:** `POST /api/clasificaciones` sanea la foto y no guarda nada. La PWA **propone** la categoría con un botón y no la preselecciona, para que la decisión sea del ciudadano.
+  - **Sugerencia oficial:** asíncrona después del commit (D-08 con el patrón de D-13). Es una señal interna: ningún DTO la expone.
+  - **V19:** `clase_modelo` en las categorías, las tres columnas de la sugerencia en `reporte`, y «Hueco en calzada» desactivada.
+- **NC-04b · El modelo real en el backend** (#118): `InferenciaHttpAdapter`, con 3 s como máximo, *bulkhead* de 4 turnos y «sin sugerencia» ante cualquier falla. `CLASIFICACION_TIPO` pasa a ser obligatoria en `prod`.
+- **NC-04c · La sugerencia oficial espera turno** (#126): hasta 10 s, en un executor propio de 2 hilos. La vista previa sigue sin esperar.
+- **DEP-13 · El servicio en Railway** (#115, #139): 2 vCPU y 1 GB, solo por la red privada, con healthcheck `/salud`. Runbook §5.4. El repo de `inferencia` se conecta a `main` al publicar esta versión.
+
+### Registro
+- **NC-08 y NC-08b · Captcha** (#119 y #120; #132 y #131): primero reCAPTCHA v2 y, por decisión del usuario del 28/10, **Cloudflare Turnstile**. reCAPTCHA no llegó a producción.
+  - **Backend:** el puerto `VerificadorDeCaptcha`, con la verificación antes que las demás comprobaciones y fuera de la transacción. Valida el *hostname* (`CAPTCHA_HOSTNAMES`) y no envía la IP.
+  - **PWA:** el widget en español, que se reinicia tras cada error. La CSP solo suma `challenges.cloudflare.com`, y el Service Worker no lo cachea.
+- **NC-09 · Confirmación del correo** (#122 backend, #123 PWA):
+  - **Antes de crear la cuenta:** rechaza los dominios sin MX y los desechables. Si el DNS falla, acepta.
+  - **Enlace:** vale 24 h y la base guarda solo su hash. Sale por `CorreoSaliente`, después del commit.
+  - **Reenvío:** siempre 202, con topes por cuenta.
+  - **PWA:** «Revisa tu correo» al registrarse; `/confirmar-cuenta` quita el token de la URL y no se cachea.
+  - **V20:** `usuario.correo_confirmado` y la tabla `token_confirmacion_correo`.
+- **NC-09b · Cuentas sin confirmar** (#125): no recuperan la contraseña, y `asignar-funcionario.sql` exige la cuenta confirmada.
+- **NC-09c · Reenviar desde «¿Olvidaste tu contraseña?»** (#127): un aviso que se muestra siempre, así que no revela si la cuenta existe.
+- **BE-15 · Purga de las cuentas sin confirmar** (#141): una vez al día borra los ciudadanos que no confirmaron en 30 días y no tienen un enlace vigente, junto con sus consentimientos (opción A, aceptada el 31/10). Cada cuenta va en su propia transacción; si la confirmación coincide con la purga, gana la confirmación. Es la primera tarea programada del backend (ARCHITECTURE §4.5).
+
+### Moderación
+- **Propuesta y D-15** (#121): decisiones del usuario del 28/10. La foto se analiza en nuestro servicio, sin terceros; la moderación falla cerrada; el ADMIN oculta y los ciudadanos denuncian.
+- **NC-10a · Moderación en `inferencia/`** (#129, #133): `POST /v1/moderacion` con Marqo `nsfw-image-detection-384` (Apache-2.0), exportado de forma reproducible. El tope de la foto baja de 16 a 8 MP y la RAM queda en ~505 MiB con los dos modelos.
+- **NC-10b · Moderación en el backend** (#134): módulo `moderacion`.
+  - **Foto:** umbral 0,70; se revisa ya saneada, sin transacción y antes de subirla. La sugerencia oficial no se modera.
+  - **Texto:** una lista propia de groserías (153 entradas, versión `2026-10-29.1`), por palabra o expresión entera, nunca por subcadena. Revisa título, descripción, comentarios, y nombre y apellido del perfil.
+  - **Vista previa:** `ClasificacionResponse.fotoRechazada`. Ningún DTO expone el puntaje.
+- **NC-10c · Moderación en la PWA** (#135): avisos por campo que no repiten la palabra; ante un 503, «Guardar para enviar después» o «Enviar sin foto» con la misma `Idempotency-Key`; la cola sin conexión distingue el rechazo de la falta de servicio.
+- **NC-11a · Ocultar y denunciar** (#136):
+  - **Denuncias:** `POST /api/reportes/{id}/denuncias`, una por reporte y hasta 10 por día. No tienen efecto automático (SEC-01).
+  - **Bandeja del ADMIN:** `/api/admin/moderacion/reportes`, para ocultar o restablecer el reporte o su foto con un motivo que queda en la línea de tiempo, y desestimar.
+  - **V21:** `reporte.oculto`, `reporte.foto_oculta`, la tabla `denuncia_reporte` y el índice sin los reportes ocultos.
+  - **Fotos:** el *resource handler* pasa a `reportes/infra/FotosDeReporteWebConfig`, con `s-maxage=3600`.
+- **NC-11a2 · Filtro «ocultos»** (#137): la bandeja del ADMIN lista lo que ocultó, tenga denuncias o no, ordenado por el último ocultamiento.
+- **NC-11b · Denuncias y moderación en la PWA** (#138): «Denunciar contenido» en el detalle, el aviso al creador, los eventos nuevos en la línea de tiempo, y `/admin/moderacion` con las vistas Pendientes, Atendidas, Desestimadas y Ocultos.
+- **Pendiente antes de abrir a usuarios reales:** que el asesor confirme el procedimiento ante material ilegal (runbook §11.5).
+
+### Seguridad
+- **DEP-14 · Encabezado de origen** (#130): cierra SEC-05, el atajo de pedir directo a la IP de Railway saltándose el WAF y el límite de peticiones.
+  - **Filtro:** `common/security/EncabezadoDeOrigenFilter`, antes que Spring Security, compara `X-Origen-Secreto` en tiempo constante y responde 403 sin pistas.
+  - **Rotación:** `ORIGEN_SECRETO_ANTERIOR`, sin corte.
+  - **Interruptor:** `ORIGEN_SECRETO=ninguno`, con un WARN en cada arranque.
+- **Configuración de Cloudflare** (runbook §11, #124 y #139):
+  - la *Transform Rule* que agrega el encabezado;
+  - la regla WAF «solo rutas de la aplicación»;
+  - el límite de 30 escrituras cada 10 s por IP, la única regla de *rate limit* del plan Free;
+  - el dominio `*.up.railway.app` del API, borrado;
+  - la purga manual de la caché para una foto oculta con urgencia.
+
+### Robustez
+- **BE-11 · La foto fuera de la transacción** (#128): `ReporteService#crear` sanea y sube la foto sin retener una conexión del pool, abre después una transacción programática y borra la foto si ningún reporte la usa (`FotoProvisional`). Es el patrón de ARCHITECTURE §4.5 que usa la moderación.
+- **BE-12 · Refresco asíncrono y coalescido del índice** (#140): el índice se refresca en un executor de un hilo, a lo sumo uno en curso y otro pendiente, con una sola conexión. Con la imagen `prod` y el pool en 10, 16 creaciones simultáneas con fotos de 24 a 40 MP dieron 16 × 201. Cierra la propuesta del 22/10 (#97).
+
+### Documentación y decisiones
+- **Decisiones del 25/10** (#112): el primer ADMIN es la cuenta del usuario; producción sin datos falsos; *previews* de Vercel y Swagger apagados; pool en 20 hasta BE-12.
+- **El modelo real entra al S7** (#115): NC-04b y DEP-13, con el costo estimado.
+- **Runbook** (`docs/despliegue.md`):
+  - **v0.3 y v0.4** (#124, #139): la operación (§11), el servicio `inferencia` (§5.4), las variables nuevas (§5.2), el orden de publicación (§10.1), los interruptores (§10.2) y la prueba de humo con los puntos 17 a 23;
+  - **v0.5, en esta release:** el pool en 10, las variables de BE-15 y los términos en v1.
+- **ARCHITECTURE.md:**
+  - **v1.7** (#139 y BE-12): §4.5 con el I/O externo antes de escribir (BE-11) y el refresco coalescido del índice, D-13 y D-15;
+  - **v1.8, en esta release:** §4.5 con las tareas programadas (BE-15).
+- **Diagramas C4** (#139): `inferencia` en servicio, Turnstile y DEP-14.
+- **Plan:** el S7 cerrado, con los términos v2 (#116, con BE-13 y BE-14) y NC-03b como pendientes.
+
+### Cifras
+| Métrica | v0.7.2 | v0.8.0 |
+|---|---|---|
+| Tests de integración backend (Failsafe `completed`) | 418 | 612 (598 ejecutados y 14 omitidos) |
+| Tests unitarios backend (Surefire) | 230 | 830 |
+| Violaciones congeladas de ArchUnit | 0 | 0 |
+| Cobertura del backend (JaCoCo, líneas / ramas) | 93,4 % / 80,5 % | 95,8 % / 87,2 % |
+| Tests frontend (archivos) | 1041 (121) | 1420 (152) |
+| Avisos de capas frontend | 0 | 0 |
+| Tests de `inferencia/` sin pesos | — | 264 (9 omitidos, los del modelo real) |
+
+Las cifras del backend son las de la CI de `develop` (run 41241532191, sobre #141), con S3Mock. Los 14 omitidos son los IT contra el servicio `inferencia` real (`InferenciaHttpAdapterIT` e `InferenciaModeracionHttpAdapterIT`), que se activan con su variable. Los mínimos de la guarda de la CI suben a 598 (Failsafe), 830 (Surefire) y 264 (`inferencia`) (`.github/workflows/ci.yml`).
+
+**Verificación** (31/10, Windows, sobre el código de esta versión):
+- **Backend:** `mvn clean verify` con JDK 21 y la base en 5433, sin S3Mock local.
+  - **Tests:** Failsafe `completed` 612, sin errores ni fallos, con 22 omitidos: los 14 de la CI más los 8 del IT de S3, que la CI corre contra S3Mock. Surefire 830.
+  - **Cobertura y capas:** JaCoCo 94,9 % de líneas y 86,6 % de ramas sin el IT de S3; ArchUnit 0.
+  - **Guarda:** con los mínimos nuevos, Surefire pasa y Failsafe da 590 ejecutados, justo los 598 de la CI menos los 8 de S3. La guarda completa la corre la CI de la release, con S3Mock.
+- **Frontend:**
+  - lint sin errores ni avisos (las capas en error) y typecheck OK;
+  - `npm test` con 1420 tests en 152 archivos, todos ejecutados;
+  - build con el Service Worker OK.
+- **`inferencia/`:** sin cambios de código desde #133, donde dio 264 tests sin pesos y `lint-imports` sin contratos rotos. Esta versión solo cambia el número de `pyproject.toml`; la CI de la release lo vuelve a correr.
+- **Antes, en cada PR:**
+  - la CI y la revisión de arquitectura, con sus observaciones atendidas;
+  - el adaptador HTTP contra el contenedor real de `inferencia` (#118, #126, #134);
+  - Turnstile contra el `siteverify` real de Cloudflare con las claves de prueba (#132);
+  - la prueba de carga de BE-12 con la imagen `prod` (#140);
+  - pasadas en Chrome en modo headed (#120, #131, #135, #138).
+- **Sin verificar en producción todavía:** la latencia de la moderación en Railway (NC-10b midió ~2,1 s en local con carga mixta, contra 2,5 s de lectura) y la prueba de humo con los puntos 17 a 23. Se hacen al publicar (runbook §10.1).
+
 ## v0.7.2 — Respaldo diario de la base (2026-10-25)
 
 Hotfix desde `main` sobre v0.7.1, la versión que quedó en producción con el primer despliegue (DEP-09, 25/10). Agrega el servicio de respaldos de la base y no toca el código del API ni de la PWA. Las correcciones que salgan de DEP-09 van por esta vía (decisión del 25/10, registrada en v0.7.1).

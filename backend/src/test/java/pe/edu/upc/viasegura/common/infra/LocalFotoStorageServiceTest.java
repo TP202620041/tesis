@@ -15,14 +15,16 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.core.io.Resource;
 import pe.edu.upc.viasegura.common.exception.BusinessException;
 import pe.edu.upc.viasegura.common.port.ArchivoSubido;
+import pe.edu.upc.viasegura.common.port.FotoSaneada;
 import pe.edu.upc.viasegura.support.ImagenesDePrueba;
 
 /**
  * Fija las validaciones del adaptador de fotos desde que recibe
- * {@link ArchivoSubido} en vez de {@code MultipartFile} (BE-10), y desde
- * DEP-12 que guarda la foto saneada y la lee por el puerto. Sin contexto de
- * Spring: {@code BusinessException} es la que el
- * {@code GlobalExceptionHandler} traduce a 409.
+ * {@link ArchivoSubido} en vez de {@code MultipartFile} (BE-10), desde
+ * DEP-12 que guarda la foto saneada y la lee por el puerto, y desde BE-11 que
+ * la de reporte llega ya saneada y se guarda tal cual (la de perfil la sigue
+ * saneando el adaptador). Sin contexto de Spring: {@code BusinessException}
+ * es la que el {@code GlobalExceptionHandler} traduce a 409.
  */
 class LocalFotoStorageServiceTest {
 
@@ -31,12 +33,18 @@ class LocalFotoStorageServiceTest {
     @TempDir
     Path base;
 
+    private final ImageIoSaneadorDeImagen saneador = new ImageIoSaneadorDeImagen(2, Duration.ofSeconds(10));
+
     private LocalFotoStorageService storage;
 
     @BeforeEach
     void crear() {
-        storage = new LocalFotoStorageService(new ImageIoSaneadorDeImagen(2, Duration.ofSeconds(10)),
-                base.toString(), "/media/fotos", "/api/perfiles/fotos");
+        storage = new LocalFotoStorageService(saneador, base.toString(), "/media/fotos", "/api/perfiles/fotos");
+    }
+
+    /** Lo que hace la creacion del reporte antes de llamar al adaptador (BE-11). */
+    private FotoSaneada saneada(byte[] contenido, String nombre) {
+        return saneador.sanear(new ArchivoSubido(contenido, "image/png", nombre));
     }
 
     private static String nombre(String url) {
@@ -46,14 +54,14 @@ class LocalFotoStorageServiceTest {
     @ParameterizedTest
     @ValueSource(strings = {"animacion.gif", "virus.exe", "sin-extension"})
     void extensionNoPermitida_esBusinessException(String nombre) {
-        assertThatThrownBy(() -> storage.almacenarFotoReporte(new ArchivoSubido(PNG, "image/png", nombre)))
+        assertThatThrownBy(() -> storage.almacenarFotoPerfil(new ArchivoSubido(PNG, "image/png", nombre)))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("Formato de foto no permitido");
     }
 
     @Test
     void nombreNulo_esBusinessException() {
-        assertThatThrownBy(() -> storage.almacenarFotoReporte(new ArchivoSubido(PNG, "image/png", null)))
+        assertThatThrownBy(() -> storage.almacenarFotoPerfil(new ArchivoSubido(PNG, "image/png", null)))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("Formato de foto no permitido");
     }
@@ -61,17 +69,17 @@ class LocalFotoStorageServiceTest {
     @Test
     void contenidoQueNoEsImagen_esBusinessExceptionYNoSeGuardaNada() throws IOException {
         byte[] falso = {(byte) 0x89, 'P', 'N', 'G', 1, 2, 3};
-        assertThatThrownBy(() -> storage.almacenarFotoReporte(new ArchivoSubido(falso, "image/png", "a.png")))
+        assertThatThrownBy(() -> storage.almacenarFotoPerfil(new ArchivoSubido(falso, "image/png", "a.png")))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("Formato de foto no permitido");
-        try (var archivos = Files.list(base.resolve("reportes"))) {
+        try (var archivos = Files.list(base.resolve("perfiles"))) {
             assertThat(archivos).isEmpty();
         }
     }
 
     @Test
     void contenidoVacio_esBusinessException() {
-        assertThatThrownBy(() -> storage.almacenarFotoReporte(new ArchivoSubido(new byte[0], "image/png", "a.png")))
+        assertThatThrownBy(() -> storage.almacenarFotoPerfil(new ArchivoSubido(new byte[0], "image/png", "a.png")))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("La foto está vacía");
         assertThatThrownBy(() -> storage.almacenarFotoPerfil(null))
@@ -81,11 +89,11 @@ class LocalFotoStorageServiceTest {
 
     @Test
     void rutaDelClienteConMayusculas_seGuardaSaneadaComoJpgConUuid() throws IOException {
-        String url = storage.almacenarFotoReporte(new ArchivoSubido(PNG, "image/png", "C:\\fotos\\a.PNG"));
+        String url = storage.almacenarFotoPerfil(new ArchivoSubido(PNG, "image/png", "C:\\fotos\\a.PNG"));
 
-        assertThat(url).startsWith("/media/fotos/reportes/").endsWith(".jpg");
+        assertThat(url).startsWith("/api/perfiles/fotos/").endsWith(".jpg");
         assertThat(nombre(url)).matches("[0-9a-f-]{36}\\.jpg");
-        byte[] guardado = Files.readAllBytes(base.resolve("reportes").resolve(nombre(url)));
+        byte[] guardado = Files.readAllBytes(base.resolve("perfiles").resolve(nombre(url)));
         // JPEG (FF D8), no el PNG que subio el cliente.
         assertThat(guardado[0]).isEqualTo((byte) 0xFF);
         assertThat(guardado[1]).isEqualTo((byte) 0xD8);
@@ -93,13 +101,46 @@ class LocalFotoStorageServiceTest {
     }
 
     @Test
-    void fotoConExif_seGuardaSinExif() throws IOException {
-        String url = storage.almacenarFotoReporte(
+    void fotoDePerfilConExif_seGuardaSinExif() throws IOException {
+        String url = storage.almacenarFotoPerfil(
                 new ArchivoSubido(ImagenesDePrueba.jpegConExif(120, 80, 1), "image/jpeg", "IMG.jpg"));
 
-        byte[] guardado = Files.readAllBytes(base.resolve("reportes").resolve(nombre(url)));
+        byte[] guardado = Files.readAllBytes(base.resolve("perfiles").resolve(nombre(url)));
         assertThat(ImagenesDePrueba.tieneApp1(guardado)).isFalse();
         assertThat(ImagenesDePrueba.contiene(guardado, ImagenesDePrueba.MARCA_EXIF)).isFalse();
+    }
+
+    @Test
+    void fotoDeReporteSaneada_seGuardaTalCualComoJpgConUuidEnElDirectorioPublico() throws IOException {
+        FotoSaneada saneada = saneada(PNG, "C:\\fotos\\a.PNG");
+
+        String url = storage.almacenarFotoReporteSaneada(saneada);
+
+        assertThat(url).startsWith("/media/fotos/reportes/").endsWith(".jpg");
+        assertThat(nombre(url)).matches("[0-9a-f-]{36}\\.jpg");
+        assertThat(Files.readAllBytes(base.resolve("reportes").resolve(nombre(url)))).isEqualTo(saneada.contenido());
+        assertThat(base.resolve("perfiles").resolve(nombre(url))).doesNotExist();
+    }
+
+    @Test
+    void fotoDeReporteSaneada_noSeVuelveASanear() throws IOException {
+        // BE-11: si el adaptador saneara de nuevo, estos bytes (que no son una
+        // imagen) darian 409; y una foto real saldria recomprimida, con otros
+        // pixeles que los de la vista previa (D-08).
+        byte[] yaSaneada = {(byte) 0xFF, (byte) 0xD8, 1, 2, 3};
+
+        String url = storage.almacenarFotoReporteSaneada(new FotoSaneada(yaSaneada, "x.jpg"));
+
+        assertThat(Files.readAllBytes(base.resolve("reportes").resolve(nombre(url)))).isEqualTo(yaSaneada);
+    }
+
+    @Test
+    void fotoDeReporteNula_esUnErrorDeProgramacion() throws IOException {
+        assertThatThrownBy(() -> storage.almacenarFotoReporteSaneada(null))
+                .isInstanceOf(IllegalArgumentException.class);
+        try (var archivos = Files.list(base.resolve("reportes"))) {
+            assertThat(archivos).isEmpty();
+        }
     }
 
     @Test
@@ -116,7 +157,7 @@ class LocalFotoStorageServiceTest {
 
     @Test
     void cargarFotoReporte_devuelveElArchivoConSuNombre() throws IOException {
-        String url = storage.almacenarFotoReporte(new ArchivoSubido(PNG, "image/png", "a.png"));
+        String url = storage.almacenarFotoReporteSaneada(saneada(PNG, "a.png"));
 
         Resource recurso = storage.cargarFotoReporte(nombre(url));
 
@@ -145,6 +186,23 @@ class LocalFotoStorageServiceTest {
         storage.eliminarFotoPerfil(null);
 
         assertThat(base.resolve("perfiles").resolve(nombre(url))).doesNotExist();
+        assertThat(ajeno).exists();
+    }
+
+    @Test
+    void eliminarFotoReporte_borraSoloEseArchivoYNoSaleDelDirectorio() throws IOException {
+        String url = storage.almacenarFotoReporteSaneada(saneada(PNG, "a.png"));
+        String otra = nombre(storage.almacenarFotoReporteSaneada(saneada(PNG, "b.png")));
+        Path ajeno = Files.writeString(base.resolve("perfiles").resolve("ajeno.jpg"), "x");
+
+        storage.eliminarFotoReporte("../perfiles/ajeno.jpg");
+        storage.eliminarFotoReporte(nombre(url));
+        storage.eliminarFotoReporte(nombre(url)); // ya no existe: no lanza
+        storage.eliminarFotoReporte(null);
+
+        assertThat(base.resolve("reportes").resolve(nombre(url))).doesNotExist();
+        assertThat(storage.cargarFotoReporte(nombre(url))).isNull();
+        assertThat(base.resolve("reportes").resolve(otra)).exists();
         assertThat(ajeno).exists();
     }
 }
