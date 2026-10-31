@@ -275,8 +275,9 @@ railway logs --service backend
 #    21 en v0.8.0). Al pasar de v0.7.x a v0.8.0 aplica 3: V19, V20 y V21.
 #  - DistritoSeeder: 43 distritos; MunicipalidadSeeder: 43 municipalidades
 #  - "Started ViaSeguraApplication"; ninguna línea con "show-sql" ni DEBUG
-#  - Desde v0.8.0: "Encabezado de origen exigido (DEP-14)…", "Moderador HTTP: …" y ningún WARN
-#    "APAGADO"/"APAGADA" (esos WARN solo aparecen con un interruptor puesto, §10.2)
+#  - Desde v0.8.0: "Encabezado de origen exigido (DEP-14)…", "Clasificador HTTP: …", "Moderador HTTP: …",
+#    ningún WARN "APAGADO"/"APAGADA" y ninguna línea "Clasificador falso" (las tres solo con un
+#    interruptor puesto, §10.2)
 curl -s $API/actuator/health                       # {"status":"UP"} y nada más
 curl -s $API/api/distritos | grep -o '"id"' | wc -l   # 43 (desde v0.8.0, solo por Cloudflare: directo a Railway da 403, §11.4)
 curl -s -o /dev/null -w "%{http_code}\n" $API/actuator/env         # distinto de 200
@@ -556,7 +557,7 @@ La v0.8.0 no arranca sin variables nuevas, y el `backend` con `MODERACION_TIPO=h
    - en Vercel (§6): `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, en Production y Preview. Sin ella el build de la PWA falla.
 
    Los dos secretos (`ORIGEN_SECRETO` y `CAPTCHA_SECRET`) los pega el usuario, sin sellar (§0). Comprobar en el panel que cada variable existe, mirando solo su nombre.
-5. **Publicar la v0.8.0:** fusionar el `release/v0.8.0` en `main`. Railway reconstruye `backend` (después de la CI) y Vercel, la PWA. En el log del `backend`: las tres migraciones (V19–V21), «Encabezado de origen exigido (DEP-14)», «Moderador HTTP: …» y ningún WARN de interruptor (§5.2, «Verificar»). Si el despliegue falla, Railway sigue sirviendo la versión anterior: el mensaje nombra la variable que falta.
+5. **Publicar la v0.8.0:** fusionar el `release/v0.8.0` en `main`. Railway reconstruye `backend` (después de la CI) y Vercel, la PWA. En el log del `backend`: las tres migraciones (V19–V21), «Encabezado de origen exigido (DEP-14)», «Clasificador HTTP: …», «Moderador HTTP: …» y ninguna línea de interruptor (§5.2, «Verificar»). Si el despliegue falla, Railway sigue sirviendo la versión anterior: el mensaje nombra la variable que falta.
 6. **Prueba de humo** (§7.3), con los puntos 17 a 23.
 7. **Después, conectar el repo de `inferencia` a `main`** (§5.4). Desde entonces se despliega solo, como `backend`.
 
@@ -566,7 +567,7 @@ La v0.8.0 no arranca sin variables nuevas, y el `backend` con `MODERACION_TIPO=h
 
 ### 10.2 Interruptores de emergencia
 
-Cada uno se pone en Railway › `backend` › Variables y se aplica con *Deploy* normal. Mientras está puesto, cada arranque deja un WARN en el log. Se anota aquí cuándo se puso y cuándo se quitó.
+Cada uno se pone en Railway › `backend` › Variables y se aplica con *Deploy* normal. Mientras está puesto, cada arranque lo deja en el log: un WARN con `MODERACION_TIPO=ninguna` («Moderacion de fotos APAGADA») y con `ORIGEN_SECRETO=ninguno` («Encabezado de origen APAGADO»), y solo un INFO («Clasificador falso: …») con `CLASIFICACION_TIPO=falso`. Se anota aquí cuándo se puso y cuándo se quitó.
 
 | Interruptor | Cuándo | Qué se pierde mientras está puesto |
 |---|---|---|
