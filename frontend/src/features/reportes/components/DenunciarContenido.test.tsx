@@ -110,6 +110,18 @@ describe('DenunciarContenido (NC-11b)', () => {
     } else {
       expect(screen.queryByRole('button', { name: 'Enviar denuncia' })).not.toBeInTheDocument();
     }
+
+    // Al cerrar: un 409 definitivo se queda en lugar del boton (repetiria el
+    // mismo 409); el limite diario deja volver a intentar.
+    await userEvent.click(screen.getByRole('button', { name: 'Cerrar' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    if (reintenta) {
+      expect(screen.getByRole('button', { name: 'Denunciar contenido' })).toBeInTheDocument();
+      expect(screen.queryByText(mensaje)).not.toBeInTheDocument();
+    } else {
+      expect(screen.queryByRole('button', { name: 'Denunciar contenido' })).not.toBeInTheDocument();
+      expect(screen.getByText(mensaje)).toBeInTheDocument();
+    }
   });
 
   it('no envía sin motivo (el botón está deshabilitado)', async () => {

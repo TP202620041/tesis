@@ -74,6 +74,12 @@ function BotonYDialogo({ reporteId }: { reporteId: number }) {
     );
   }
 
+  // Un 409 definitivo (ya denunciaste, es tu reporte) se conserva al cerrar
+  // el dialogo: volver a ofrecer el boton repetiria el mismo 409.
+  if (!abierto && error?.definitivo) {
+    return <p className="text-sm text-texto-2">{error.mensaje}</p>;
+  }
+
   return (
     <>
       <button
@@ -89,7 +95,9 @@ function BotonYDialogo({ reporteId }: { reporteId: number }) {
         abierto={abierto}
         alCerrar={() => {
           setAbierto(false);
-          if (error) reiniciar();
+          // Los errores que si admiten reintento (limite diario, red) se
+          // limpian para el proximo intento; el definitivo se queda.
+          if (error && !error.definitivo) reiniciar();
         }}
         titulo={TEXTOS_DENUNCIA.titulo}
       >
