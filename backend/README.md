@@ -1651,10 +1651,22 @@ Cómo funciona (`desempeno/listener/IndiceDesempenoRefreshListener`):
   **Siempre hay un refresco que empieza después del último evento**: la regla
   «todo evento que mueve el índice lo refresca» se mantiene;
 - **coalesce:** los eventos que llegan mientras un refresco corre producen
-  uno solo más. 16 creaciones seguidas dan 2 refrescos, no 16;
+  uno solo más. Lo que se garantiza es **a lo sumo un refresco en curso y uno
+  pendiente**, no un número fijo: cuántos hay depende de cómo caen los
+  eventos respecto de los refrescos (en `IndiceCoalescidoIT`, con el primero
+  retenido a propósito, 16 creaciones dan exactamente 2);
 - **si el executor rechaza la tarea** (no debería: hay a lo sumo una
-  pendiente) **o el refresco falla** (la base caída), la marca queda puesta
-  y el siguiente evento la recoge. No reintenta en bucle;
+  pendiente, y por un instante dos, la que termina y la que se acaba de
+  encolar; por eso la cola es de una), la marca queda puesta y el siguiente
+  evento la recoge;
+- **si el refresco falla** (cualquier `Throwable`: la base caída, o un
+  `Error`, que se relanza después), la marca se vuelve a subir. Si mientras
+  fallaba llegaron eventos, se intenta **una vez más** por ellos: un intento
+  por tanda de eventos, como antes de BE-12 era uno por evento. Si no llegó
+  ninguno, **no hay reintento diferido**: con la base caída sería un bucle, y
+  el índice queda desactualizado hasta el próximo evento o el próximo
+  arranque. Un reintento único con demora se descartó por simple: no aporta
+  nada que no dé el siguiente evento y obliga a programar tareas;
 - **al arrancar** la aplicación se refresca una vez (`ApplicationReadyEvent`):
   recoge lo que haya quedado pendiente si un apagado descartó la tarea
   encolada, o si el último refresco falló y no hubo más eventos;
@@ -1678,14 +1690,17 @@ no puede mostrar lo prueba `IndiceCoalescidoIT`, que lo reemplaza por el real
 | Test | Tipo | Qué fija |
 |---|---|---|
 | `IndiceCoalescidoIT` | IT, executor real | Con el primer refresco retenido (espía de `DesempenoService`), 15 creaciones más por `POST /api/reportes` terminan en 201 sin esperarlo y el índice todavía no las cuenta; al soltarlo hay **exactamente 2 refrescos para 16 eventos** y el índice cuenta las 16. |
-| `IndiceDesempenoRefreshListenerTest` | unitaria, executor real | El refresco corre en `viasegura-indice-*`; 16 eventos durante un refresco retenido dan 2; qué eventos refrescan y cuáles no; el rechazo deja la marca para el siguiente evento; un fallo no reintenta en bucle; con 4000 eventos desde 8 hilos, el último refresco empieza después del último evento. |
+| `IndiceDesempenoRefreshListenerTest` | unitaria, executor real | El refresco corre en `viasegura-indice-*`; 16 eventos durante un refresco retenido dan 2; qué eventos refrescan y cuáles no; el rechazo deja la marca para el siguiente evento; un fallo sin eventos no reintenta, y uno con eventos durante el intento se reintenta una vez; un `Error` deja la marca puesta; un evento en la ventana entre la última vuelta y el fin de la tarea (gancho `alSalirDelBucle`) da un segundo refresco; con 4000 eventos desde 8 hilos, el último refresco empieza después del último evento. |
 | `AsyncConfigTest` | unitaria | Un hilo, cola de una, `AbortPolicy`, nombre propio y no `@Primary`. |
 
 La carrera más estrecha (un evento que marca justo entre la última vuelta del
 bucle y la liberación de la tarea) la cubre la segunda lectura de la marca al
-salir. La prueba de 8 hilos ejercita la concurrencia, pero no fuerza esa
-ventana: un mutante sin esa lectura la pasó. Está razonada en el javadoc del
-listener.
+salir. La prueba de 8 hilos no fuerza esa ventana (un mutante sin esa lectura
+la pasaba), así que el listener tiene un gancho package-private,
+`alSalirDelBucle`, que en producción no hace nada y corre justo en esa
+ventana: el test publica ahí un evento y exige el segundo refresco. Los
+mutantes sin la relectura y sin el reintento por eventos durante un fallo
+mueren de forma determinista.
 
 ## Fotos: dos visibilidades, dos buckets y sin EXIF (DEP-12)
 
