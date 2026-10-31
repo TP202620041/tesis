@@ -136,7 +136,7 @@ Deuda de DEP-12 (`propuestas/2026-10-21-fotos-r2.md`, «La regla de §4.5…»).
 - `mvn clean verify` con S3Mock (`FOTOS_S3_TEST_ENDPOINT`): Failsafe `completed` **493 → 502** (+7 `FotoFueraDeTransaccionIT`, +2 `S3FotoStorageServiceIT`), 0 errores, 0 fallos, 8 omitidos (los IT de servicios reales sin su variable). Surefire **458 → 487**. ArchUnit: 9 reglas en verde, almacén **0 → 0**. JaCoCo: instrucciones 93,1 %, ramas 84,5 %, líneas 93,6 %; `FotoProvisional` 24/24 líneas.
 - Queda: la foto de perfil todavía se sube dentro de la transacción de `AuthService#editarPerfil` (deuda del README). La prueba de carga de 16 creaciones se repite con BE-12.
 
-### [ ] BE-12 · Refresco asíncrono y coalescido del índice de desempeño (S7)
+### [x] BE-12 · Refresco asíncrono y coalescido del índice de desempeño (S7) (2026-10-30)
 Decisión del usuario (25/10): opción A de `propuestas/2026-10-22-refresco-indice-asincrono.md`. Va junto con BE-11. Mientras no entre, producción corre con el pool en 20 (runbook §5.2).
 - `desempeno/listener/IndiceDesempenoRefreshListener` deja de refrescar en el hilo de la petición:
   - marca el índice como sucio y encola una tarea `@Async` en el executor acotado (`AsyncConfig`);
@@ -152,6 +152,25 @@ Decisión del usuario (25/10): opción A de `propuestas/2026-10-22-refresco-indi
 - **Suites:** Failsafe igual o mayor y ArchUnit en 0.
 
 Al cerrarla, se decide si el pool de producción vuelve a 10.
+
+**Cierre (2026-10-30, rama `feature/be-12-refresco-indice-asincrono`):**
+- Cada evento marca el índice como sucio y, si no hay tarea pendiente, encola una en un executor propio, `AsyncConfig.EJECUTOR_INDICE`: 1 hilo y cola de 1.
+  - **Por qué propio:** nunca corren dos `REFRESH CONCURRENTLY` a la vez, así que el índice usa como máximo una conexión. No retrasa los correos del general, y no espera detrás de las sugerencias, que aguardan turno de inferencia.
+- La tarea repite `while (sucio.getAndSet(false)) refrescar()` y relee la marca al salir: a lo sumo hay un refresco en curso y uno pendiente, y siempre uno empieza después del último evento.
+  - **Si falla** (`Throwable`), la marca vuelve a subir. Hay un intento más solo si llegaron eventos durante el intento fallido; si no, no hay reintento diferido y lo recoge el siguiente evento o el arranque, que también refresca una vez.
+- **`execute` y no `@Async`:** el listener encola con `execute` para atrapar el `TaskRejectedException` y dejar la marca puesta, igual que los listeners de correo (DEP-08). Además, la guarda de «una sola tarea programada» tiene que vivir junto al encolado.
+- **Tests:**
+  - **IT existentes:** el executor del índice de `EjecutorSincronoTestConfig` corre la tarea y la espera, así que `DesempenoIT` e `IndiceSinOcultosIT` no cambian.
+  - **`IndiceCoalescidoIT`** (executor real con `@TestBean`): con el primer refresco retenido, 16 creaciones dan 201 sin esperarlo, 2 refrescos, y el índice cuenta las 16.
+  - **`IndiceDesempenoRefreshListenerTest`** (9 casos): con el gancho `alSalirDelBucle`, los mutantes sin la relectura y sin el reintento por eventos mueren de forma determinista.
+- **`mvn clean verify`:**
+  - Failsafe `completed` **600 → 601**, 0 errores, 0 fallos, 22 omitidos.
+  - Surefire **799 → 809**.
+  - ArchUnit: 9 reglas en verde, almacén **0 → 0**.
+  - JaCoCo: instrucciones 94,4 %, ramas 86,5 %, líneas 94,9 %. El listener, 56/56 líneas y 16/16 ramas.
+- **Carga:** imagen `prod` de la rama con `-Xmx512m`, S3Mock y un PostGIS vacío, **pool en 10**. 16 creaciones simultáneas con foto de 24 a 40 MP dan **16 × 201** en 4,9–11,3 s, sin «Connection is not available». Heap: pico de 377 de 512 MB. El índice final cuenta los 16. No se corrió el control con la imagen de `develop`.
+- **Pool de producción:** volver a 10 lo decide el usuario. El agente lo recomienda por el resultado de la carga.
+- **`ARCHITECTURE.md`:** §4.5 y D-13 los integra la sesión de raíz en el PR #139.
 
 ### [ ] BE-15 · Las cuentas que nunca confirmaron su correo se borran a los 30 días
 Decisión del usuario (28/10), pregunta 2 de `propuestas/2026-10-28-cuentas-sin-confirmar.md`. Desde NC-09 una cuenta nace sin confirmar. Si nadie abre el enlace, hoy queda para siempre en `usuario`, con nombre, apellido, correo y la aceptación de los términos, sin finalidad (Ley N.° 29733, proporcionalidad), y ocupa el correo («El correo ya está registrado»). Desde NC-09b esa cuenta tampoco puede recuperar la contraseña.
