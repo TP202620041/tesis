@@ -1,7 +1,7 @@
 # Arquitectura de software — Ciudad Viva
 
 > **Documento normativo.** Define las capas, qué va en cada una y qué puede depender de qué, igual para `backend/`, `frontend/` y el futuro `inferencia/`. Los agentes de cada carpeta lo siguen; no lo modifican salvo pedido explícito (ver §10).
-> Versión 1.6 · 2026-10-28 (D-15: moderación de contenido) · Plan de migración: `project-context/decisions/plan-migracion-capas.md`.
+> Versión 1.7 · 2026-10-30 (§4.5: I/O externo antes de escribir, BE-11) · Plan de migración: `project-context/decisions/plan-migracion-capas.md`.
 
 ## 1. Principios
 
@@ -134,6 +134,12 @@ ArchUnit compara el texto completo de cada violación congelada (solo ignora los
 - **Nombres**: `XController`, `XService`, `XRepository`, `XRequest`, `XResponse`, `XCommand`, `XEvent`, `XListener`; los adaptadores se llaman por tecnología más puerto (`SmtpCorreoAdapter`).
 - **Errores**: el dominio y la aplicación lanzan `BusinessException` (409), `ResourceNotFoundException` (404) u `OperacionNoPermitidaException` (403 con mensaje). Solo `GlobalExceptionHandler` los traduce a HTTP.
 - **Transacciones**: `@Transactional` solo en `service`. Los listeners `AFTER_COMMIT` que escriben abren su propia transacción (`REQUIRES_NEW`), **salvo** los que hacen I/O externo (HTTP, SMTP): esos corren `@Async` en el executor acotado de `common/config/AsyncConfig`, hacen el I/O **fuera** de cualquier transacción y persisten el resultado en transacciones cortas (D-13).
+- **I/O externo antes de escribir, en el mismo caso de uso** (BE-11): cuando un servicio tiene que hacer I/O externo (subir a R2, llamar a `inferencia/`) **antes** de escribir en la base, no lo hace dentro de un `@Transactional`, que retendría una conexión del pool durante la red. El patrón, que usa `ReporteService#crear`:
+  - el método no es `@Transactional`: hace la validación y el I/O sin transacción (sanear, moderar y subir la foto) y después abre una **transacción programática** con el `TransactionTemplate` de Spring Boot, inyectado como `TransactionOperations`. Sigue en `service/`: el borde queda a la vista y en el orden del caso de uso. No se parte el caso de uso en dos beans ni se usa un `@Transactional` en un método del mismo bean, que el proxy no intercepta;
+  - lo que el I/O dejó afuera se **compensa** con una `TransactionSynchronization` registrada en esa transacción (`reportes/service/FotoProvisional`). `afterCompletion` solo **anota** el desenlace (confirmada, revertida o desconocida), y la compensación (borrar el objeto que ningún reporte usa) corre al volver de la transacción, ya sin conexión: `afterCompletion` corre antes de que la conexión vuelva al pool. La compensación nunca lanza; si falla, deja un WARN;
+  - el método se niega a correr dentro de otra transacción (`IllegalStateException` si `TransactionSynchronizationManager.isSynchronizationActive()`), porque la suya se uniría a la de afuera y la compensación se decidiría antes del commit real.
+
+  La moderación de la foto (NC-10b, D-15) ya lo usa: corre entre el saneado y la subida, sin transacción. Detalle y tabla de desenlaces: `backend/README.md`, «La foto del reporte, fuera de la transacción (BE-11)».
 - **Eventos**: toda operación que cambie un KPI publica un evento (regla ya registrada en `backend/CLAUDE.md`).
 - **Esquema**: cada entidad nueva tiene su migración `V<n>__…sql`, y cada tabla con FK a `reporte` entra en `AbstractPostgisIT.limpiezaFkSafe()`.
 - **Tests**: un `*IT` por caso de uso en el paquete del módulo, más tests puros (`*Test`) para las reglas de `domain/`.
