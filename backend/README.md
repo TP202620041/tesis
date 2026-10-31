@@ -96,6 +96,8 @@ preferible que no arranque y que el log diga qué falta.
 | `DOMINIO_CORREO_TIPO` | no (`dns` en `prod`) | Verificación del dominio del correo al registrarse (NC-09): `dns` consulta el MX; `ninguno` la apaga (la lista de desechables se aplica igual). Con valor por defecto **a propósito**: no es una variable obligatoria nueva, porque `dns` no necesita ninguna clave y falla abierto si el DNS no responde. Otro valor no arranca (`auth/infra/ValidacionTipoDominioCorreo`). Ver «Confirmación del correo». |
 | `FRONTEND_URL` | no (el primer origen de `CORS_ALLOWED_ORIGINS`) | Origen de la PWA para el enlace de confirmación (`<origen>/confirmar-cuenta?token=…`), sin ruta. Sin ella se usa el primer origen de `CORS_ALLOWED_ORIGINS`, que es el de la PWA (`https://ciudadviva.app`); solo hace falta si ese primer origen no lo es (por ejemplo, si la lista empieza por `https://www.…`: funcionaría por la redirección 308, pero con un salto de más). Una URL que no es un origen `http(s)` no arranca. |
 | `PORT` | no (8080) | Lo inyecta la plataforma. |
+| `CUENTAS_SIN_CONFIRMAR_PLAZO` | no (`30d`) | Edad a partir de la cual se borra una cuenta que nunca confirmó su correo (BE-15). Duración de Spring (`30d`, `720h`); menos de 1 día no arranca. Ver [Purga de cuentas sin confirmar](#purga-de-cuentas-sin-confirmar-be-15). |
+| `CUENTAS_SIN_CONFIRMAR_PURGA_CRON` | no (`0 30 3 * * *`) | Cuándo corre esa purga: expresión cron de Spring (segundo, minuto, hora, día, mes, día de la semana) en hora de Lima; por defecto, todos los días a las 03:30. `-` la apaga. |
 | `SPRINGDOC_HABILITADO` | no (`false`) | `true` publica `/v3/api-docs` y Swagger UI. |
 | `ADMIN_INICIAL_EMAIL`, `ADMIN_INICIAL_PASSWORD`, `ADMIN_INICIAL_NOMBRE` | solo en el primer arranque | Crean el primer ADMIN en una base sin ninguno. Después se borra `ADMIN_INICIAL_PASSWORD`; las otras dos pueden quedar (ver «Operación en producción»). |
 | `CLASIFICACION_TIPO` | sí | Adaptador del clasificador de fotos (NC-04b): `http` (el servicio `inferencia/` por la red privada) en el despliegue. `falso` es el **interruptor** para apagar la clasificación: en `prod` el falso responde siempre «sin detecciones» (`application-prod.yml`, literal) y no escribe nada. Sin ella no arranca: con el `falso` de desarrollo por defecto la clasificación quedaría apagada sin que nada lo advierta, porque cualquier falla del adaptador también termina en «sin sugerencia». Otro valor tampoco arranca (`clasificacion/infra/ValidacionTipoClasificador`). Ver [Sugerencia de categoría](#sugerencia-de-categoría-por-la-foto-nc-04-fase-0). |
@@ -2766,8 +2768,8 @@ El usuario los decidió el 28/10:
      cambia y la PWA no necesita otro caso para una situación que, con la
      regla, ya no se produce.
 2. **Las cuentas que nunca se confirman se purgan a los 30 días**, en su
-   propia tarea (**BE-15** del plan, sin implementar). Hasta entonces quedan
-   en `usuario`.
+   propia tarea: **BE-15**, ver «Purga de cuentas sin confirmar (BE-15)»
+   más abajo.
 3. **`asignar-funcionario.sql` exige la cuenta confirmada**: con una cuenta
    sin confirmar falla con un mensaje claro y no asigna nada (ver «Alta y
    baja de funcionarios»).
@@ -2802,11 +2804,119 @@ minutos como máximo: no hay blacklist de tokens, ver «Decisiones de
 seguridad»). Es una ventana corta y la cuenta recién confirmada todavía no
 tiene datos de la dueña.
 
+### Purga de cuentas sin confirmar (BE-15)
+
+Decisión del usuario del 28/10 (pregunta 2 de la propuesta de NC-09b): una
+cuenta que nunca confirmó su correo se **borra a los 30 días de creada**.
+Sin la purga quedaba para siempre en `usuario`, con nombre, apellido, correo y
+la aceptación de los términos, sin finalidad (Ley N.° 29733,
+proporcionalidad), y ocupaba el correo («El correo ya está registrado»).
+Desde NC-09b tampoco podía recuperar la contraseña.
+
+**Qué borra.** `auth/service/PurgaCuentasSinConfirmarService`, una vez al
+día, borra las cuentas con `correo_confirmado = false`:
+
+- solo `CIUDADANO`: nunca el ADMIN ni un funcionario, aunque estén sin
+  confirmar (desde NC-09b `asignar-funcionario.sql` no asigna una cuenta sin
+  confirmar);
+- creadas hace más de `CUENTAS_SIN_CONFIRMAR_PLAZO` (30 días por defecto;
+  menos de 1 día no arranca, porque un `0` borraría cada cuenta recién
+  creada);
+- sin un **enlace de confirmación vigente** (sin usar, sin anular y sin
+  vencer, contando el que todavía espera su correo): quien pidió «Reenviar»
+  el día 30 puede usarlo, y la cuenta se borra en la primera corrida después
+  de que venza.
+
+**En qué orden.** Con la cuenta se borran, primero, sus filas de
+`token_confirmacion_correo`, `password_reset_token` (desde NC-09b no recibe
+ninguno, pero puede quedar alguno de antes) y `consentimiento`, y al final
+la fila de `usuario`. No se anonimiza nada: una cuenta sin confirmar no tiene
+contenido que conservar. **Los consentimientos se borran con la cuenta, y eso
+lo tiene que ratificar el usuario**: la ficha de BE-15 lo dejó abierto (D-12,
+la misma duda que BE-14 para el cierre de cuenta) y está en
+`project-context/decisions/propuestas/2026-10-30-consentimientos-de-cuentas-purgadas.md`,
+con las opciones. Se implementó la recomendada, que es la que ya anuncian los
+términos v2 (§8: «borramos la cuenta y sus datos»): la aceptación de un correo
+que nadie verificó no prueba el consentimiento de nadie, y sin cuenta no queda
+ningún tratamiento que justificar.
+
+**Lo que no debería existir.** Una cuenta sin confirmar no pudo iniciar
+sesión, así que no tiene reportes, adhesiones, comentarios, calificaciones,
+suscripciones push, claves de idempotencia, tickets, notificaciones,
+denuncias ni foto de perfil. Si aparece alguna de esas filas, **la cuenta no
+se borra** y queda un `WARN` con su id y el nombre de la clave foránea que lo
+impidió (por ejemplo `suscripcion_push_usuario_id_fkey`), o «tiene foto de
+perfil». La lista de tablas no está en el código: el `DELETE` de `usuario`
+falla por la clave foránea, la transacción de esa cuenta se revierte entera
+(también los consentimientos y los enlaces ya borrados) y se sigue con la
+siguiente. Así, una tabla nueva que referencie a `usuario` queda cubierta
+sin tocar la purga. La foto de perfil es una columna, no una clave foránea,
+y se mira aparte.
+
+**Carreras.** Cada cuenta va en su propia transacción corta
+(`TransactionOperations`, como `ReporteService#crear`), con dos candados:
+
+1. el candado consultivo de los reenvíos de esa cuenta, el mismo que toma
+   `ConfirmacionCorreoService#reenviar`. Un reenvío en curso termina antes, y
+   la purga ve su enlace nuevo y no borra; o empieza después, y `reenviar`
+   comprueba tras el candado que la cuenta sigue existiendo (si no, no hace
+   nada, sin error);
+2. el candado de la fila de `usuario` (`FOR UPDATE`), solo si sigue sin
+   confirmar. Si una confirmación la está escribiendo, la purga espera y
+   PostgreSQL vuelve a evaluar la condición: **gana la confirmación** y la
+   cuenta no se toca. La confirmación, a su vez, toma el candado de la fila
+   (`FOR NO KEY UPDATE`, que no choca con quien inserta filas que la
+   referencian) antes de escribir: si **gana el borrado**, el enlace deja de
+   existir y la PWA muestra `CONFIRMACION_INVALIDA`, lo mismo que si la purga
+   hubiera terminado antes de abrirlo.
+
+Con los candados tomados, la purga vuelve a mirar el enlace vigente y la
+foto, y el `DELETE` final vuelve a exigir `correo_confirmado = false` (y el
+rol y el plazo) **en la misma sentencia**. Una segunda corrida no encuentra
+nada (idempotente), y dos instancias a la vez no se pisan.
+
+**Registro.** Un `INFO` por corrida con cuántas cuentas borró (y cuántas
+conservó con datos asociados, si hubo); los `WARN` llevan ids, nunca un
+correo ni un nombre, y el de un fallo, solo la clase de la excepción (su
+mensaje puede traer valores de la base). **Sin aviso por correo** antes de
+borrar: la decisión no lo pide y gastaría cuota de Resend; si se quiere, va
+con `/propuesta`.
+
+### Tareas programadas (BE-15)
+
+La purga es la primera tarea programada del backend, así que fija el patrón
+(la ficha lo pedía si entraba antes que BE-13, el borrado de las consultas de
+soporte):
+
+- `common/config/TareasProgramadasConfig` activa `@EnableScheduling`. Usa el
+  `ThreadPoolTaskScheduler` de Spring Boot (un hilo), aparte de los executors
+  de `AsyncConfig`: una tarea larga no quita hilos a los correos ni a los
+  avisos.
+- El `@Scheduled` va en un método del **servicio** del módulo dueño de los
+  datos (`auth` aquí, `soporte` en BE-13), con la expresión cron en una
+  propiedad (`app.<tema>.purga.cron`) y `zone = "America/Lima"`. Una tarea
+  programada es un caso de uso sin HTTP, de la capa de aplicación. No va en
+  `infra/`, porque `infra` no puede llamar a un `service` (ArchUnit), ni en
+  `listener/`, que es para eventos de dominio. Tampoco en un controlador.
+- El método programado **no es `@Transactional`**: abre transacciones cortas
+  por dato, para que uno que falla no revierta los demás, y se niega a correr
+  dentro de otra transacción. Atrapa cualquier fallo y lo registra (sin el
+  mensaje), para que el planificador siga con la próxima corrida.
+- **Sin candado distribuido (ShedLock):** el backend corre en una sola
+  instancia en Railway, y la purga es idempotente y segura con dos a la vez
+  (candados de fila y `DELETE` condicional). Si algún día hay réplicas y una
+  tarea no lo es, se agrega.
+- **En los tests está apagada** (`cron: "-"` en `application-test.yml`): una
+  corrida a mitad de la suite haría que los IT dependan de la hora. Los IT
+  llaman al método del servicio directamente.
+
 ### Lo que no cubre
 
 - El 409 `CORREO_NO_CONFIRMADO` del login solo aparece con la contraseña
   correcta, así que no revela nada que no sepa quien ya la tiene.
-- Las cuentas sin confirmar se acumulan hasta que entre la purga (BE-15).
+- La purga de las cuentas sin confirmar (BE-15) corre una vez al día: una
+  cuenta vencida puede durar hasta un día más que el plazo, y una con un
+  enlace pedido el último día, hasta que ese enlace venza (24 h).
 
 ### Pruebas
 
@@ -2828,6 +2938,24 @@ tiene datos de la dueña.
   `asignar-funcionario.sql`, leído del archivo, falla con una cuenta sin
   confirmar (mensaje y pista exactos) sin asignar nada, y asigna una
   confirmada.
+- `PurgaCuentasSinConfirmarIT` (BE-15, cuentas registradas por el API y
+  llevadas al pasado con `JdbcTemplate`): borra la cuenta sin confirmar de
+  hace 31 días con sus enlaces, tokens de recuperación y consentimientos, y
+  no toca una sin confirmar de hace 29, una confirmada de hace 31 ni una sin
+  confirmar de hace 31 con un enlace pedido hace una hora; nunca el ADMIN ni
+  un funcionario; el correo borrado se vuelve a registrar; una segunda
+  corrida no borra nada y el `INFO` no lleva correos; una suscripción push o
+  una foto de perfil la conservan con un `WARN` con su id, sin dejarla a
+  medias; las dos carreras con la confirmación (gana la confirmación si llega
+  antes al candado; si gana el borrado, el enlace da 409
+  `CONFIRMACION_INVALIDA`); un reenvío después de la purga no falla; y se
+  niega a correr dentro de otra transacción.
+- `PurgaCuentasSinConfirmarServiceTest` (sin base): el plazo mínimo, la
+  anotación `@Scheduled` (propiedad y zona de Lima), que la tarea programada
+  no propaga un fallo, cada desenlace por cuenta (confirmada o con enlace
+  nuevo mientras tanto, foto, clave foránea con su nombre, un fallo que no
+  detiene a las demás, el `DELETE` que no borra y revierte) y que ningún
+  registro lleva el mensaje de la excepción.
 - `RegistroDominioCorreoIT` (el puerto del DNS simulado): sin MX → 409 sin
   crear la cuenta; desechable (y subdominio con mayúsculas) → 409 sin
   consultar el DNS; DNS caído → registra; el dominio va antes del correo
