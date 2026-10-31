@@ -2,11 +2,13 @@
 
 > Procedimiento para desplegar el MVP en **Railway** (API + PostGIS + respaldo), **Vercel** (PWA), **Cloudflare R2** (fotos y respaldos) y **Resend** (correo por HTTP). Diseño, opciones y fuentes: `project-context/decisions/propuestas/2026-10-21-despliegue-mvp.md` (aceptada el 21/10). Diagrama: `docs/arquitectura/c4-despliegue.md`.
 >
-> Versión 0.3 · 2026-10-28 · El primer despliegue (DEP-09) se hizo el 25/10 con v0.7.1, y v0.7.2 agrega `respaldo-bd` (§5.3). El 28/10 se sumó la operación: la política de reinicio y la primera corrida de `respaldo-bd`, y una sección nueva (§11) con las defensas del API, los límites de gasto y el DNS de Resend. Lo que sigue marcado **(verificar)** se confirma con la prueba de humo (DEP-10) y se corrige aquí.
+> Versión 0.4 · 2026-10-30 · El primer despliegue (DEP-09) se hizo el 25/10 con v0.7.1, y v0.7.2 agrega `respaldo-bd` (§5.3). El 28/10 se sumó la operación: la política de reinicio y la primera corrida de `respaldo-bd`, y una sección nueva (§11) con las defensas del API, los límites de gasto y el DNS de Resend. El 30/10, lo que pide la **v0.8.0**: el servicio `inferencia` (§5.4, DEP-13), las variables nuevas del `backend` (§5.2), el orden de publicación (§10.1), los interruptores (§10.2), la prueba de humo ampliada (§7.3), el encabezado de origen (§11.4, DEP-14) y la operación de la moderación (§11.5). Lo que sigue marcado **(verificar)** se confirma con la prueba de humo (DEP-10) y se corrige aquí.
 
 ## 0. Antes de empezar
 
 **Requisitos de código.** Este runbook despliega una versión de `main` que ya incluye DEP-01 (secreto JWT), DEP-02 (perfil `prod` y actuator), DEP-03 (`backend/Dockerfile`), DEP-04 (ADMIN inicial), DEP-05 (script de funcionarios), DEP-06 (iconos y Node), DEP-08 (correo HTTP), DEP-11 (errores 413/405) y DEP-12 (fotos en R2). Sin DEP-12, cada despliegue del API borra las fotos.
+
+**Desde la v0.8.0** el `backend` no arranca sin cuatro variables nuevas: `CAPTCHA_TIPO` (NC-08b), `CLASIFICACION_TIPO` (NC-04b), `MODERACION_TIPO` (NC-10b) y `ORIGEN_SECRETO` (DEP-14). Además, con `http`, la clasificación y la moderación necesitan el servicio `inferencia` (§5.4), y la PWA no compila sin `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (§6). El orden para publicarla está en §10.1.
 
 **Reglas.**
 
@@ -14,7 +16,7 @@
   - **Quién:** desde el 25/10 lo hace el usuario, siguiendo este runbook paso a paso. Las sesiones de Claude no crean ni ven secretos. Antes de esa decisión, la sesión «dominio» ya había cargado tres: `JWT_SECRET`, el par VAPID y `POSTGRES_PASSWORD`. Qué hacer con ellos está en §5, «Estado al 25/10».
   - **Sin sellar** (decisión del usuario, 25/10). Railway puede sellar un secreto (menú ⋮ › *Seal*): se sigue usando, pero no vuelve a mostrarse en el panel, por la API ni por la CLI, y no se puede deshacer. El proyecto **no los sella**, y el panel de Railway hace de lugar donde se guardan.
     - **A cambio:** verificación en dos pasos en Railway, GitHub y Cloudflare. Y las sesiones de Claude no leen valores: para comprobar una variable miran solo su nombre o si tiene valor.
-    - **Si más adelante se quiere sellar:** antes, copiar el valor al gestor de contraseñas que use el usuario. Los candidatos son `JWT_SECRET`, `VAPID_PRIVATE_KEY`, `CORREO_API_KEY`, `FOTOS_S3_SECRET_ACCESS_KEY` y `AWS_SECRET_ACCESS_KEY` (`respaldo-bd`).
+    - **Si más adelante se quiere sellar:** antes, copiar el valor al gestor de contraseñas que use el usuario. Los candidatos son `JWT_SECRET`, `VAPID_PRIVATE_KEY`, `CORREO_API_KEY`, `CAPTCHA_SECRET`, `ORIGEN_SECRETO`, `FOTOS_S3_SECRET_ACCESS_KEY` y `AWS_SECRET_ACCESS_KEY` (`respaldo-bd`).
     - **`POSTGRES_PASSWORD`:** se sellaría solo después de comprobar que siguen funcionando las referencias `DB_PASSWORD` y `BACKUP_DATABASE_URL` y `railway connect postgis` (§5.1 y §9).
 - **Producción sin datos falsos** (decisión 6, 25/10): nunca se corre `backend/scripts/seed-datos-prueba.sql` contra producción. Inventa reportes en distritos reales y falsearía el índice público de desempeño. Los reportes de la demo los toma el equipo en calles reales.
 - Los nombres de servicio de este documento (`backend`, `postgis`, `respaldo-bd`) se usan en las variables de referencia de Railway (`${{postgis.…}}`): si se cambian, hay que cambiar también las referencias.
@@ -126,6 +128,7 @@ Si no es 200: `401`, la clave no es válida; `403`, el remitente no es del domin
 | `JWT_SECRET` | `openssl rand -base64 48` | `backend` |
 | `POSTGRES_PASSWORD` | `openssl rand -base64 32 \| tr -d '/+='` | `postgis` |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | `npx web-push generate-vapid-keys` (**un par nuevo**, no el de desarrollo) | `backend` |
+| `ORIGEN_SECRETO` | `openssl rand -hex 32` (64 caracteres hexadecimales, sin espacios ni saltos de línea) | La *Transform Rule* de Cloudflare **y** `backend`, con el mismo valor (§11.4, DEP-14) |
 
 ## 5. Railway
 
@@ -135,6 +138,7 @@ Crear un proyecto («Ciudad Viva», entorno `production`). **Hecho el 25/10**, a
 - **`backend`:** tiene el repo conectado en `main` y está desplegado con v0.7.1. Un disparador redespliega al fusionar en `main` y espera a que pase la CI («Wait for CI»).
   - Ese disparador exige que la app de Railway en GitHub tenga acceso a la organización `TP202620041`. Sin ese acceso, el primer despliegue funciona porque el repo es público, pero no hay despliegue automático.
 - **`respaldo-bd`:** se crea con v0.7.2 (§5.3).
+- **`inferencia`:** creado el 28/10 para la v0.8.0, sin repo conectado hasta la release (§5.4, DEP-13).
 
 **Estado al 25/10** (lo hizo la sesión «dominio» a pedido del usuario):
 - **`postgis`:** desplegado y sano (§5.1). Región `us-east4`, volumen de 5 GB.
@@ -226,6 +230,14 @@ railway connect postgis               # abre psql por túnel SSH (requiere psql 
    | `JAVA_TOOL_OPTIONS` | `-Xms256m -Xmx512m -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError` |
    | `SPRING_DATASOURCE_HIKARI_MAXIMUMPOOLSIZE` | `20` (decisión 20, 25/10). Es temporal hasta BE-12, que hace asíncrono el refresco del índice: sin ella rige el valor por defecto, 10, y 16 reportes con foto en el mismo segundo agotan el pool (`propuestas/2026-10-22-refresco-indice-asincrono.md`). |
    | `SPRINGDOC_HABILITADO` | sin definir (Swagger apagado); `true` solo para una demo y después se quita |
+   | `CLASIFICACION_TIPO` | `http` (NC-04b, desde la v0.8.0). **Obligatoria** en `prod`: sin ella, o con otro valor que `http` o `falso`, la app no arranca. `falso` es el interruptor que apaga la sugerencia (§10.2). |
+   | `CLASIFICACION_URL` | `http://${{inferencia.RAILWAY_PRIVATE_DOMAIN}}:8000`, por referencia al servicio de §5.4. Solo la base, sin ruta ni barra final: con `…:8000/v1` la app no arranca. No es un secreto. |
+   | `CLASIFICACION_UMBRAL` | sin definir (0,50 por defecto). Se cambia al calibrar con fotos de Lima (NC-03b), sin código nuevo. |
+   | `MODERACION_TIPO` | `http` (NC-10b, D-15, desde la v0.8.0). **Obligatoria** en `prod` y sin valor por defecto: sin ella, o con otro valor que `http` o `ninguna`, la app no arranca. Con `http`, si `inferencia` no responde, un reporte **con foto** recibe 503 `MODERACION_NO_DISPONIBLE` (falla cerrada). `ninguna` apaga la revisión de la foto y **publica fotos sin revisar** (§10.2). **Solo se carga con `http` después de que `inferencia` sirve el modelo de moderación** (§5.4 y §10.1). |
+   | `MODERACION_URL` | `http://${{inferencia.RAILWAY_PRIVATE_DOMAIN}}:8000`, la misma referencia que `CLASIFICACION_URL` y con las mismas reglas. |
+   | `MODERACION_UMBRAL` | sin definir (0,70 por defecto, decisión del usuario del 28/10). Se rechaza la foto si el puntaje es mayor o igual. Entre 0.5 y 0.9, con punto decimal; fuera de rango la app no arranca. |
+   | `ORIGEN_SECRETO` | §4 (DEP-14, desde la v0.8.0). **Obligatoria** en `prod`: sin ella, vacía, con menos de 32 caracteres o con caracteres que no son ASCII visibles, la app no arranca. Es el mismo valor que la *Transform Rule* de Cloudflare; **primero la regla, después la variable** (§11.4). Sin sellar, como el resto de los secretos (§0). `ninguno` es el interruptor de emergencia (§10.2). |
+   | `ORIGEN_SECRETO_ANTERIOR` | sin definir. Solo durante una rotación de `ORIGEN_SECRETO` (§9); si queda puesta, cada arranque deja un WARN. |
 
    **`FOTOS_ALMACEN` es obligatoria en el perfil `prod`** (DEP-12): sin ella la app no arranca, para que un despliegue nunca guarde fotos en un disco que se borra. Con R2, `s3` y las variables `FOTOS_S3_*` de la tabla. Opcional: `FOTOS_SANEADO_MAX_CONCURRENTES` (2 por defecto).
 
@@ -259,11 +271,14 @@ railway connect postgis               # abre psql por túnel SSH (requiere psql 
 
 ```bash
 railway logs --service backend
-#  - Flyway: "Successfully applied N migrations" en la primera corrida (todas las V*.sql; 18 en v0.7.0 y v0.7.1)
+#  - Flyway: "Successfully applied N migrations" en la primera corrida (todas las V*.sql; 18 en v0.7.0 y v0.7.1;
+#    21 en v0.8.0). Al pasar de v0.7.x a v0.8.0 aplica 3: V19, V20 y V21.
 #  - DistritoSeeder: 43 distritos; MunicipalidadSeeder: 43 municipalidades
 #  - "Started ViaSeguraApplication"; ninguna línea con "show-sql" ni DEBUG
+#  - Desde v0.8.0: "Encabezado de origen exigido (DEP-14)…", "Moderador HTTP: …" y ningún WARN
+#    "APAGADO"/"APAGADA" (esos WARN solo aparecen con un interruptor puesto, §10.2)
 curl -s $API/actuator/health                       # {"status":"UP"} y nada más
-curl -s $API/api/distritos | grep -o '"id"' | wc -l   # 43
+curl -s $API/api/distritos | grep -o '"id"' | wc -l   # 43 (desde v0.8.0, solo por Cloudflare: directo a Railway da 403, §11.4)
 curl -s -o /dev/null -w "%{http_code}\n" $API/actuator/env         # distinto de 200
 curl -s -o /dev/null -w "%{http_code}\n" $API/v3/api-docs          # distinto de 200 (Swagger apagado)
 ```
@@ -315,6 +330,59 @@ curl -s -o /dev/null -w "%{http_code}\n" $API/v3/api-docs          # distinto de
    - La limpieza del paso 1 (quitar `BACKUP_FILE_PREFIX` y borrar el objeto) sigue valiendo si no se hizo.
 
 Si el plan de Railway incluye respaldos del volumen (en el servicio `postgis` › Backups), activar también el diario y el semanal (verificar disponibilidad en Hobby).
+
+### 5.4 Servicio `inferencia` (DEP-13, v0.8.0)
+
+El servicio de `inferencia/` (FastAPI + ONNX en CPU) sugiere la categoría de la foto (RF-DETR Nano, `POST /v1/detecciones`, NC-03a) y la modera antes de publicarla (`POST /v1/moderacion`, NC-10a). Contrato y cifras: `inferencia/README.md`. Lo llama solo el `backend`, por la red privada. No guarda nada y **no usa secretos**.
+
+**Estado al 28/10:**
+- El servicio `inferencia` existe en el proyecto, con 2 vCPU y 1 GB. Corre el código de `develop` subido con `railway up`, **sin repo conectado**. Esa imagen es anterior al modelo de moderación (NC-10a, #129) y al tope de 8 MP (#133, 29/10): hay que volver a subirla antes de la release.
+- `/salud` responde 200 y en reposo usa 223 MiB.
+- La red privada es doble pila: `0.0.0.0`, el valor del `Dockerfile`, alcanza, y no hace falta `INFERENCIA_HOST`. La URL privada es `inferencia.railway.internal`.
+- El *healthcheck* `/salud` está configurado (Settings › Deploy) desde el 28/10. Con la falla cerrada de la moderación (D-15), un redespliegue sin *healthcheck* dejaría sin entrar los reportes con foto mientras arranca el servicio.
+
+**Configuración** (Settings del servicio):
+
+| Dónde | Valor |
+|---|---|
+| Región | US East (Virginia), como el resto (§5) |
+| *Resource Limits* | **2 vCPU y 1 GB**, fijos. Acotan el costo, y la RAM medida con los dos modelos y 4 clientes no pasa de ~505 MiB con el tope de 8 MP (`inferencia/README.md`). |
+| Source (cuando se conecte el repo, paso 5 de §10.1) | rama `main`; *Root Directory* `inferencia`; *Watch Paths* `/inferencia/**`. Construye con `inferencia/Dockerfile`. |
+| Networking | **Sin dominio público** y sin TCP Proxy: solo red privada. |
+| Deploy | *Healthcheck Path* `/salud` (configurado); *Restart Policy* `On Failure`, como `backend` (verificar que esté así). |
+
+**Variables** (ninguna es secreta; las demás quedan con el valor del `Dockerfile`):
+
+| Variable | Valor | Por qué fija |
+|---|---|---|
+| `PORT` | `8000` | Es el puerto de `CLASIFICACION_URL` y `MODERACION_URL`. |
+| `INFERENCIA_HILOS` | `2` | Igual a las vCPU, y sin cambiar entre despliegues: la misma foto tiene que dar la misma sugerencia (D-08). |
+| `INFERENCIA_MODERACION_HILOS` | `1` | Con los mismos hilos, la misma foto da el mismo puntaje en la vista previa y en la creación. |
+| `INFERENCIA_MAX_MEGAPIXELES` | sin definir (`8` en la imagen, decisión del usuario del 28/10) | Acota la RAM. El `backend` envía fotos saneadas de ≤ 2048 px por lado (≤ 4,2 MP), así que nunca llega a este tope. |
+
+**Subir el código antes de la release** (paso 1 de §10.1). Mientras el servicio no tenga el repo conectado, se sube con la CLI desde la raíz del repo, con la rama `develop` (o la `release/v0.8.0`) al día, que ya traen NC-10a y el tope de 8 MP:
+
+```bash
+git switch release/v0.8.0 && git pull     # o develop
+railway up inferencia --path-as-root --service inferencia
+```
+
+- `--path-as-root` sube la carpeta `inferencia/` como raíz del archivo, así que Railway encuentra el `Dockerfile` arriba ([`railway up`](https://github.com/railwayapp/cli/blob/master/src/commands/up.rs), consultado el 30/10/2026).
+- Cada construcción descarga torch y los pesos de los dos modelos de Hugging Face y comprueba sus hashes contra `modelos/modelo.json` y `modelos/moderacion.json`: tarda, y hay que esperar a que termine. Si un hash no coincide, la construcción falla y sigue sirviendo la versión anterior.
+
+**Verificar** (no tiene dominio público, así que se consulta desde adentro del contenedor):
+
+```bash
+railway ssh --service inferencia -- python -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8000/salud').read())"
+# {"estado":"ok","version_modelo":"rdd2022-…","version_moderacion":"nsfw-vit-tiny-384-0c26ec2-…"}
+```
+
+- **Sin `version_moderacion`, la imagen no trae NC-10a:** no se carga `MODERACION_TIPO=http` en el `backend` (§10.1, paso 3), porque con la falla cerrada ningún reporte con foto entraría.
+- **RAM en reposo** en *Metrics*: se esperan unos 290 MiB con los dos modelos. Es una estimación, no una medida: 223 MiB medidos el 28/10 solo con RF-DETR, más los ~65 MiB que la propuesta de moderación calcula para su modelo. Anotar la cifra real en `inferencia/README.md`.
+
+**Después de la release** (paso 5 de §10.1): Settings › Source › conectar `TP202620041/tesis`, rama `main`, con la configuración de la tabla y el disparador que espera la CI («Wait for CI»), igual que `backend`. Desde entonces se despliega solo al fusionar en `main` y `railway up` ya no se usa.
+
+**Medir en producción** (DEP-13), con la prueba de humo (§7.3, punto 21): la duración de cada llamada queda en el log del `backend`, una línea por llamada («`Moderacion: 200 en … ms`» e «`Inferencia: 200 en … ms`»). No se usa `scripts/medir_latencia.py`, que no está en la imagen. Las cifras van a `inferencia/README.md`.
 
 ## 6. Vercel
 
@@ -405,7 +473,19 @@ Después de cada despliegue de `main`. La corre `qa-e2e` con la PWA en el navega
 | 13 | `$API/actuator/env`, `$API/v3/api-docs` | No responden 200 |
 | 14 | Subir una foto de 11 MB | 413 con mensaje legible; el reporte no queda en la cola offline |
 | 15 | Respaldo de anoche | Existe en `ciudadviva-respaldos` |
-| 16 | Caché de Cloudflare delante del API (`api` va con proxy): `curl -sI` a la foto de perfil (con `Authorization`), a `/api/auth/me` y a una foto de reporte | La foto de perfil y `/api/**` **no** quedan en caché (`cf-cache-status` distinto de `HIT`; el backend envía `Cache-Control: private` en la foto de perfil). La foto de reporte, pública e inmutable, sí puede cachearse. |
+| 16 | Caché de Cloudflare delante del API (`api` va con proxy): `curl -sI` a la foto de perfil (con `Authorization`), a `/api/auth/me` y a una foto de reporte | La foto de perfil y `/api/**` **no** quedan en caché (`cf-cache-status` distinto de `HIT`; el backend envía `Cache-Control: private` en la foto de perfil). La foto de reporte, pública, sí puede cachearse: lleva `Cache-Control: max-age=2592000, public, s-maxage=3600, immutable` (NC-11a). Anotar si Cloudflare respeta `s-maxage` (`cf-cache-status: HIT` y `age` menor que 3600); de eso depende §11.5. |
+
+**Desde la v0.8.0**, además:
+
+| # | Comprobación | Resultado esperado |
+|---|---|---|
+| 17 | **Turnstile** (NC-08b) en el registro de `$PWA`, en escritorio y en el teléfono | Aparece el widget de Cloudflare y, resuelto, el registro sigue al punto 3. La consola no muestra violaciones de la CSP con `challenges.cloudflare.com`. Sin el widget resuelto el registro no se envía. Si todo registro da 409, los *hostnames* del widget no coinciden con `CAPTCHA_HOSTNAMES` (§5.2). |
+| 18 | **Confirmación del correo** (NC-09) con una dirección que no sea la del dueño de la cuenta de Resend | Es el punto 3: el correo llega y su enlace apunta a `https://ciudadviva.app/confirmar-cuenta?token=…` (`FRONTEND_URL`), no a `www` ni a una URL de Vercel. |
+| 19 | **Sugerencia con el modelo real** (NC-04b): una foto con un bache claro, tomada en la calle | La vista previa sugiere **«Bache»**. Después de crear el reporte, en `railway connect postgis`: `SELECT version_modelo_sugerencia FROM reporte ORDER BY id DESC LIMIT 1;` da `rdd2022-…`. Si queda nula, la sugerencia falló sin avisar: revisar el log del `backend` (`Inferencia: …`). |
+| 20 | **Moderación** (NC-10b, NC-10c) | (a) Una foto normal de una pista se crea (201), y el log del `backend` muestra `Moderacion: 200 en … ms`. (b) Un título con una palabra de la lista de groserías recibe el aviso de la PWA (400 `TEXTO_NO_PERMITIDO`) y no aparece en «Mis reportes». (c) **Una foto rechazada no se guarda.** El rechazo de una foto no se provoca en producción: no hay muestras positivas y no se van a juntar (`backend/README.md`, «Moderación de contenido»), y lo prueba `ModeracionCreacionIT` con un doble. Lo que se comprueba es que no quedan objetos huérfanos: la cantidad de objetos de `ciudadviva-fotos-reportes` (panel de R2; verificar dónde lo muestra) es igual a `SELECT count(*) FROM reporte WHERE foto_url IS NOT NULL;`. |
+| 21 | **Latencia de la moderación** en Railway (DEP-13) | En el log del `backend`, las líneas `Moderacion: 200 en … ms` e `Inferencia: 200 en … ms` de la prueba. NC-10b midió en local ~2,1 s para la última moderación con 4 moderaciones y 4 detecciones a la vez, contra **2,5 s** de lectura: si en Railway una moderación sola ya pasa de ~1 s, o aparecen `Moderacion: sin respuesta en …`, avisar antes de abrir a usuarios, porque con la falla cerrada cada timeout es un 503 al ciudadano. Anotar las cifras en `inferencia/README.md`. |
+| 22 | **Denuncia y ocultamiento** (NC-11a, NC-11b), con dos cuentas de ciudadano y la del ADMIN, sobre un reporte de la prueba | (a) La cuenta B denuncia el reporte de A («Denunciar contenido»; si NC-11b no llegó a la release, con `POST $API/api/reportes/{id}/denuncias`); una segunda denuncia de B recibe 409 `DENUNCIA_REPETIDA`. (b) El ADMIN lo ve en la bandeja de moderación y **oculta el reporte** con un motivo: desaparece del mapa, su detalle público da 404 y, en `GET $API/api/desempeno/distritos`, el `totalReportes` de su distrito y categoría baja en 1. (c) **Restablecerlo** lo devuelve todo. (d) **Ocultar solo la foto:** el reporte sigue visible con `fotoUrl` en `null` y no cambia el índice; la URL de la foto da 404 después de purgarla en Cloudflare (§11.5). Al terminar, el creador cancela sus reportes de prueba (un reporte `CANCELADO` no cuenta en el índice). |
+| 23 | **Encabezado de origen** (DEP-14) | Los `curl` de §11.4: directo a Railway, 403; por Cloudflare, 200. |
 
 ## 8. Respaldo y restauración
 
@@ -450,6 +530,7 @@ docker exec viasegura-db psql -U viasegura -d viasegura -c "DROP DATABASE restau
 | Tokens R2 (fotos, respaldos) | Crear un token nuevo con el mismo alcance, reemplazar las variables, redesplegar y **después** revocar el viejo. | Ninguno. |
 | `CORREO_API_KEY` | Igual: clave nueva, redesplegar, revocar la vieja. | Ninguno. |
 | Claves VAPID | **Solo si se comprometió la privada.** Par nuevo, redesplegar. | Todas las suscripciones push dejan de servir; cada usuario vuelve a suscribirse al iniciar sesión. |
+| `ORIGEN_SECRETO` (DEP-14) | **Sin corte**, en cuatro pasos: (1) generar el nuevo con `openssl rand -hex 32`; (2) Railway › `backend`: `ORIGEN_SECRETO_ANTERIOR` = el valor actual (está en el gestor de contraseñas) y `ORIGEN_SECRETO` = el nuevo, y desplegar; desde aquí el API acepta los dos y el log dice «Se acepta tambien ORIGEN_SECRETO_ANTERIOR»; (3) Cloudflare: editar la *Transform Rule* (§11.4) con el valor nuevo y comprobar que por Cloudflare responde 200; (4) Railway: borrar `ORIGEN_SECRETO_ANTERIOR` y desplegar. **Si se filtró**, es la misma rotación; para cortar el acceso antes, se omite el paso 2 (solo el nuevo, desplegar y editar la regla enseguida). | Ninguno con los cuatro pasos. Omitiendo el paso 2, unos segundos de 403 entre el despliegue y la regla. |
 
 **Incidente de seguridad** (por ejemplo, un secreto filtrado o un acceso indebido a datos):
 
@@ -463,15 +544,49 @@ docker exec viasegura-db psql -U viasegura -d viasegura -c "DROP DATABASE restau
 - **Después de publicar:** prueba de humo (§7.3).
 - **Volver atrás:** Railway › `backend` › Deployments › el anterior › *Redeploy*; Vercel › Deployments › el anterior › *Instant Rollback* (en Hobby, verificar hasta cuántas versiones atrás). Las migraciones de Flyway no se deshacen: una versión vieja arranca sobre un esquema más nuevo solo si las migraciones fueron aditivas (columnas nulables, tablas nuevas). Nunca restaurar un respaldo para «deshacer» una migración sin antes medir cuántos datos se perderían.
 
+### 10.1 Publicar la v0.8.0: el orden
+
+La v0.8.0 no arranca sin variables nuevas, y el `backend` con `MODERACION_TIPO=http` no puede llegar a producción antes que el servicio que modera: con la falla cerrada, ningún reporte con foto entraría. Por eso todo lo de abajo se hace **antes de fusionar** el `release/v0.8.0` en `main`, en este orden:
+
+1. **Subir `inferencia`** con NC-10a y el tope de 8 MP: `railway up inferencia --path-as-root --service inferencia` desde `develop` o desde la `release/v0.8.0` (§5.4). Esperar a que termine la construcción.
+2. **Comprobar** que su `/salud` devuelve `version_moderacion` (§5.4, «Verificar»). Si no aparece, no seguir con `MODERACION_TIPO=http`.
+3. **Encabezado de origen, primero en Cloudflare** (§11.4, pasos 1 y 2): generar `ORIGEN_SECRETO` y crear la *Transform Rule*. La v0.7.x ignora el encabezado, así que la regla no cambia nada todavía.
+4. **Cargar las variables** con **Alt + Deploy**, que no redespliega (§5); la v0.7.x las ignora:
+   - en `backend` (§5.2): `CLASIFICACION_TIPO=http`, `CLASIFICACION_URL`, `MODERACION_TIPO=http`, `MODERACION_URL`, `ORIGEN_SECRETO` (el mismo valor de la regla), `CAPTCHA_TIPO=turnstile`, `CAPTCHA_SECRET` y `FRONTEND_URL=https://ciudadviva.app`. `MODERACION_UMBRAL` y `CLASIFICACION_UMBRAL` quedan sin definir;
+   - en Vercel (§6): `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, en Production y Preview. Sin ella el build de la PWA falla.
+
+   Comprobar en el panel que cada variable existe, mirando solo su nombre.
+5. **Publicar la v0.8.0:** fusionar el `release/v0.8.0` en `main`. Railway reconstruye `backend` (después de la CI) y Vercel, la PWA. En el log del `backend`: las tres migraciones (V19–V21), «Encabezado de origen exigido (DEP-14)», «Moderador HTTP: …» y ningún WARN de interruptor (§5.2, «Verificar»). Si el despliegue falla, Railway sigue sirviendo la versión anterior: el mensaje nombra la variable que falta.
+6. **Prueba de humo** (§7.3), con los puntos 17 a 23.
+7. **Después, conectar el repo de `inferencia` a `main`** (§5.4). Desde entonces se despliega solo, como `backend`.
+
+**Los términos v2** (`project-context/legal/`) salen en la misma versión si el asesor los aprobó. Si la v0.8.0 tuviera que salir con `MODERACION_TIPO=ninguna`, la v2 no se publica completa: se recorta el párrafo de la revisión de la foto o se retrasa la v2 (`project-context/decisions/plan-sprints.md`, S7).
+
+**Ventana de los términos:** si la PWA y el API no publican la versión de los términos a la vez, el registro responde 409 durante unos minutos (`plan-sprints.md`, S7).
+
+### 10.2 Interruptores de emergencia
+
+Cada uno se pone en Railway › `backend` › Variables y se aplica con *Deploy* normal. Mientras está puesto, cada arranque deja un WARN en el log. Se anota aquí cuándo se puso y cuándo se quitó.
+
+| Interruptor | Cuándo | Qué se pierde mientras está puesto |
+|---|---|---|
+| `CLASIFICACION_TIPO=falso` | La sugerencia molesta o carga al servicio de más. Nunca hace falta por una caída: una falla del servicio ya termina en «sin sugerencia». | La sugerencia de categoría. El falso de `prod` no sugiere ni escribe nada (`application-prod.yml`). |
+| `MODERACION_TIPO=ninguna` | `inferencia` cae por un rato largo y los reportes con foto reciben 503. | **Se publican fotos sin revisar.** El filtro de texto sigue activo. Revisar después a mano las fotos de los reportes creados en ese lapso y ocultar lo que haga falta (§11.5). Si dura, los términos v2 prometen una revisión que no corre: avisar al usuario. |
+| `ORIGEN_SECRETO=ninguno` | Hay que quitar el proxy de Cloudflare de `api` (nube gris) durante un incidente: sin proxy, el encabezado no llega y el API respondería 403 a todo. | El cierre del atajo de SEC-05: el API atiende también lo que no pasa por Cloudflare, sin su WAF ni su límite de peticiones. Al volver el proxy, se restaura el secreto (§11.4). |
+
 ## 11. Operación: defensas, límites de gasto y DNS
 
-### 11.1 Defensas delante del API (25 y 26/10)
+### 11.1 Defensas delante del API (25, 26 y 28/10; DEP-14 en la v0.8.0)
 
 | Defensa | Qué hace | Cómo se verifica |
 |---|---|---|
-| **Sin dominio `*.up.railway.app` en `backend`** | Se borró el dominio generado de Railway. El API solo se alcanza por `api.ciudadviva.app`, con el proxy de Cloudflare, así que nadie puede saltarse el proxy ni su límite de peticiones. §5.2, paso 5, pide no volver a generarlo. | Railway › `backend` › Settings › Networking muestra solo el dominio propio. `curl -s -D - -o /dev/null $API/actuator/health` muestra `server: cloudflare`. |
+| **Sin dominio `*.up.railway.app` en `backend`** | Se borró el dominio generado de Railway, y §5.2, paso 5, pide no volver a generarlo. **Por sí solo no basta:** el borde de Railway enruta por `Host`, así que una petición con `Host: api.ciudadviva.app` enviada directo a la IP de Railway llegaba al backend sin pasar por Cloudflare (SEC-05, comprobado el 28/10). Lo cierra el encabezado de origen (fila siguiente y §11.4). | Railway › `backend` › Settings › Networking muestra solo el dominio propio. `curl -s -D - -o /dev/null $API/actuator/health` muestra `server: cloudflare`. |
+| **Encabezado de origen (DEP-14, v0.8.0)** | Cloudflare agrega `X-Origen-Secreto` a cada petición a `api.ciudadviva.app`, y el backend responde 403 a lo que no lo trae con el valor correcto (salvo `GET /actuator/health`, el *health check* de Railway). Cierra el atajo de pedir directo a la IP de Railway, que se saltaba el WAF y el límite de peticiones (SEC-05). | Los `curl` de §11.4: directo, 403; por Cloudflare, 200. |
+| **Regla WAF «API: solo rutas de la aplicación»** (28/10) | Una regla personalizada de Cloudflare (Security › WAF › Custom rules), con acción *Block*, sobre `api.ciudadviva.app`. Solo deja pasar `/api/`, `/media/fotos/reportes/`, `/actuator/health`, `/cdn-cgi/` y el desafío ACME, y bloquea lo que contenga `/.` o `.php`. **Una ruta nueva del backend fuera de `/api/` y `/media/fotos/reportes/` hay que agregarla a esta regla en el mismo despliegue**: si no, Cloudflare la bloquea antes de que llegue al API. | Cloudflare › Security › Events muestra los bloqueos. `curl -s -o /dev/null -w '%{http_code}\n' $API/.env` da 403 de Cloudflare. |
 | **Límite de peticiones en Cloudflare** | Una regla de *rate limiting* (Security › WAF › Rate limiting rules) para las peticiones de escritura a `api.ciudadviva.app`: **30 cada 10 s por IP**, con **10 s de bloqueo**. El plan Free admite **una sola** regla de este tipo, y ya está usada: una regla nueva obliga a editar esta. El backend no limita por IP (§5.2), así que esta es la única defensa por IP contra ráfagas. El registro además exige captcha (Cloudflare Turnstile, NC-08b). | Cloudflare › Security › Events muestra los bloqueos. Ante un 429, la cola sin conexión reintenta los reportes encolados (US-06). Las demás escrituras (inicio de sesión, registro, adhesión, gestión) muestran el error y el usuario reintenta. |
 | **`HEAD /actuator/health` responde 401** | `SecurityConfig` solo abre `GET` en esa ruta (rutas públicas exactas y solo `GET`). | **Un monitor externo tiene que usar `GET`:** con `HEAD` daría el servicio por caído. `curl -s $API/actuator/health` da `{"status":"UP"}` y `curl -sI $API/actuator/health` da 401. |
+
+**Emergencia: quitar el proxy.** Si hubiera que quitar el proxy de Cloudflare de `api` (nube gris), el encabezado de origen deja de llegar y el API responde 403 a todo. Se pone `ORIGEN_SECRETO=ninguno` y se despliega (§10.2): el API acepta el tráfico directo, con un WARN en el log. Al volver el proxy, se restaura el secreto y se despliega.
 
 **Si aparecen 429 legítimos.** Con el CGNAT de las redes móviles, varios usuarios pueden compartir una IP. A la escala de la tesis, 30 escrituras cada 10 s alcanzan. Si Security › Events muestra bloqueos de usuarios reales, se sube el umbral de esa misma regla y se anota aquí.
 
@@ -482,10 +597,10 @@ En Railway › Workspace › Usage:
 | Límite | Valor | Qué pasa al alcanzarlo |
 |---|---|---|
 | **Compute: alerta** | US$ 15 | Railway manda un correo y los servicios siguen corriendo. |
-| **Compute: límite duro** | US$ 25 | Railway **apaga todos los servicios** (`backend`, `postgis`, `respaldo-bd`) hasta que se sube o se quita el límite. El sitio queda caído. |
+| **Compute: límite duro** | US$ 25 | Railway **apaga todos los servicios** (`backend`, `postgis`, `respaldo-bd`, `inferencia`) hasta que se sube o se quita el límite. El sitio queda caído. |
 | **Agent** | — | Es solo para las funciones de IA de Railway, **no para los servicios**. Se limita por separado del compute, y alcanzarlo no apaga los servicios. La documentación lo dice: «Compute and Agent usage are tracked and limited independently» y «Hitting the Agent hard limit disables the agent but leaves your workloads running» ([usage-limits](https://docs.railway.com/reference/usage-limits), 28/10/2026). |
 
-Fuente: [docs.railway.com/reference/usage-limits](https://docs.railway.com/reference/usage-limits), consultada el 28/10/2026. El gasto esperado ronda los US$ 9–12 al mes con la inferencia, así que el límite duro deja margen. Si se acerca a la alerta, revisar en Usage qué servicio crece antes de subir el límite.
+Fuente: [docs.railway.com/reference/usage-limits](https://docs.railway.com/reference/usage-limits), consultada el 28/10/2026. El gasto esperado ronda los US$ 10–12 al mes con la inferencia y la moderación (estimación del plan del S7; el costo real del primer mes se anota aquí), así que el límite duro deja margen. Si se acerca a la alerta, revisar en Usage qué servicio crece antes de subir el límite.
 
 ### 11.3 Registros DNS que no se borran (Cloudflare, zona `ciudadviva.app`)
 
@@ -501,3 +616,58 @@ Detalle de cada registro en §3 (correo), §5.2 (`api`) y §6 (PWA).
 | `A` en la raíz y `CNAME` en `www` | PWA en Vercel (§6) | Sin proxy |
 
 **Antes de borrar o cambiar un registro de la zona,** buscarlo en esta tabla. Si no está, averiguar quién lo creó antes de tocarlo.
+
+### 11.4 Encabezado de origen (DEP-14)
+
+El API solo atiende lo que pasa por Cloudflare: sin `X-Origen-Secreto` con el secreto correcto, responde 403 en cualquier ruta salvo `GET /actuator/health` (el *health check* de Railway). **La v0.8.0 no arranca sin `ORIGEN_SECRETO`.** Diseño, pruebas y alternativas descartadas: `backend/README.md`, «Encabezado de origen (DEP-14)».
+
+**Activación** (una vez, antes de publicar la v0.8.0; el orden importa):
+
+1. **Generar el secreto** en la máquina del usuario con `openssl rand -hex 32` y guardarlo en el gestor de contraseñas. Nunca va al chat, a un commit ni a un archivo del repo.
+2. **Regla en Cloudflare:** zona `ciudadviva.app` › Rules › Overview › Create rule › *Request Header Transform Rule*.
+   - Nombre: `Encabezado de origen (DEP-14)`.
+   - Condición: *Custom filter expression* `http.host eq "api.ciudadviva.app"`.
+   - Acción **Set static**: nombre `X-Origen-Secreto`, valor el secreto. *Set static* reemplaza el valor si un cliente manda el suyo.
+   - *Deploy*. La versión actual del API ignora el encabezado, así que este paso no cambia nada todavía.
+3. **Railway:** `backend` › Variables › `ORIGEN_SECRETO` = el mismo valor, sin sellar (§0). Guardar con **Alt + Deploy**, que no redespliega.
+4. **Desplegar la v0.8.0** (§10.1, paso 5).
+   - Log esperado: «Encabezado de origen exigido (DEP-14): sin X-Origen-Secreto valido, 403; solo queda exento GET /actuator/health.»
+   - Si el despliegue falla con `Could not resolve placeholder 'ORIGEN_SECRETO'` o `ORIGEN_SECRETO es demasiado corto`, falta la variable o es inválida. Railway sigue sirviendo la versión anterior.
+   - Si se invierte el orden (variable y despliegue antes que la regla), el API responde 403 a todo hasta que exista la regla.
+
+**Verificación:**
+
+```bash
+API=https://api.ciudadviva.app
+# IP del borde de Railway: el destino del CNAME `api` (Cloudflare › DNS › api)
+nslookup <id>.up.railway.app
+IP=<una de esas IP>
+curl -s -o /dev/null -w '%{http_code}\n' --resolve api.ciudadviva.app:443:$IP $API/api/categorias   # 403
+curl -s --resolve api.ciudadviva.app:443:$IP $API/actuator/health                                 # {"status":"UP"}
+curl -s -o /dev/null -w '%{http_code}\n' $API/api/categorias                                       # 200 (por Cloudflare)
+```
+
+Si `curl --resolve` rechaza el certificado, agregar `-k` solo en esta prueba. Después, la prueba de humo de §7.3.
+
+**Rotación:** §9, fila `ORIGEN_SECRETO`. **Emergencia sin proxy:** §11.1 y §10.2.
+
+### 11.5 Moderación del contenido publicado (NC-10, NC-11)
+
+La moderación automática rechaza antes de publicar (NC-10b). Lo que ya está publicado lo oculta el ADMIN desde la bandeja de moderación de la PWA (NC-11): el reporte entero o solo su foto, siempre con un motivo, que queda en la línea de tiempo. Las denuncias de los ciudadanos no ocultan nada solas. Detalle: `backend/README.md`, «Ocultar y denunciar».
+
+**Purga manual de una foto oculta en Cloudflare.** Al ocultar una foto (o el reporte entero), el API deja de servirla al instante (404). Pero la foto de reporte lleva `s-maxage=3600`, así que el borde de Cloudflare puede seguir entregando su copia **hasta 1 hora**. Si el caso es urgente:
+
+1. Armar la URL completa de la foto: `https://api.ciudadviva.app` seguido de su `foto_url`. Las respuestas del ADMIN no traen esa URL (la PWA le muestra la foto por su ruta propia), así que se lee de la base: `railway connect postgis` y `SELECT foto_url FROM reporte WHERE id = <id>;` (da `/media/fotos/reportes/<archivo>`).
+2. Cloudflare › zona `ciudadviva.app` › Caching › Configuration › **Purge Cache** › **Custom Purge** › *Purge by* **URL** › pegar la URL › *Purge* ([purga por URL](https://developers.cloudflare.com/cache/how-to/purge-cache/purge-by-single-file/), disponible en todos los planes desde abril de 2025; consultado el 30/10/2026).
+3. **Verificar:** `curl -sI <URL>` da 404 y `cf-cache-status` no es `HIT`. Si sigue en `HIT`, purgar por *Prefix* con la misma URL: la purga por URL desde el panel no limpia una copia que se guardó con ciertos encabezados de la petición (por ejemplo `Origin`).
+
+Lo que el navegador de una persona ya descargó (30 días de `max-age`) no se puede retirar.
+
+**Procedimiento ante material ilegal** (por ejemplo, contenido sexual de menores). **Pendiente de confirmar con el asesor** antes de abrir a usuarios reales (`plan-sprints.md`, S7). La propuesta es:
+
+1. **Ocultar** el reporte entero de inmediato desde la bandeja de moderación, con un motivo que no describa el contenido, y purgar la foto en Cloudflare (arriba).
+2. **Conservar en privado:** no borrar el objeto de R2 ni el reporte. El ADMIN es el único que puede ver la foto oculta. No descargarla, copiarla ni reenviarla.
+3. **Denunciar** ante la **DIVINDAT** (División de Investigación de Delitos de Alta Tecnología de la Policía Nacional) o ante el **Ministerio Público**, con la fecha, el identificador del reporte y lo que pidan las autoridades.
+4. **Registrar** el caso como un incidente (§9): qué pasó, cuándo se supo y qué se hizo.
+
+Hasta que el asesor lo confirme, este procedimiento no está aprobado.
