@@ -3693,6 +3693,7 @@ si viviera allí, `moderacion` usaría `reportes` y habría un ciclo
 |---|---|---|
 | `POST /api/reportes/{id}/denuncias` `{motivo, detalle?}` | CIUDADANO | 201; 404 si el reporte no existe, está cancelado u oculto; 409 `DENUNCIA_PROPIA`, `DENUNCIA_REPETIDA` o `LIMITE_DENUNCIAS`; 400 |
 | `GET /api/admin/moderacion/reportes?estado=PENDIENTE` | ADMIN | página de reportes con denuncias en ese estado, de más a menos denunciados y, entre iguales, del que espera hace más; con el conteo por motivo |
+| `GET /api/admin/moderacion/reportes?ocultos=true` (NC-11a2) | ADMIN | página de reportes con el reporte **o** la foto ocultos, tengan denuncias o no, lo ocultado más recientemente primero; `estado` se ignora y el resumen cuenta todas las denuncias. Mismo DTO |
 | `GET /api/admin/moderacion/reportes/{id}` | ADMIN | el reporte (en cualquier estado), su moderación y sus denuncias con el denunciante; 404 |
 | `GET /api/admin/moderacion/reportes/{id}/foto` | ADMIN | la foto aunque esté oculta; 404 sin foto |
 | `POST /api/admin/moderacion/reportes/{id}/ocultamiento` `{alcance, motivo}` | ADMIN | 200; 409 `YA_OCULTO` o `SIN_FOTO`; 400 |
@@ -3766,6 +3767,21 @@ caracteres sin los espacios del borde.
   historial (el segundo recibe 409), un `save()` del ciudadano o del
   funcionario no puede restablecer el reporte con un valor viejo, y ocultar no
   mueve `updated_at`, que mide los reportes estancados de US-17.
+- **La vista de ocultos de la bandeja (NC-11a2, decidido el 30/10).** Sin
+  ella, un reporte oculto sin denuncias no aparecía en ninguna lista y el
+  ADMIN no podía revisar lo que ocultó ni restablecerlo desde ahí. Es una
+  consulta aparte (`ReporteRepository#ocultosParaModeracion`), no un
+  parámetro opcional en la de denuncias: evita la trampa de `:param IS NULL`
+  en Postgres y cada consulta conserva su orden. **El orden sale del
+  historial**, no de `updated_at`: el `REPORTE_OCULTO` o `FOTO_OCULTA` más
+  reciente cuyo alcance siga oculto, porque ocultar no mueve `updated_at` a
+  propósito (punto anterior) y un cambio de estado del funcionario sí lo
+  movería (un reporte con solo la foto oculta sigue en su bandeja). Sin
+  migración: los ocultos son un puñado dentro de `reporte` y el historial ya
+  tiene `ix_historial_reporte` (V1). El resumen de denuncias cuenta todas,
+  en cualquier estado (`resumenEnCualquierEstado`,
+  `conteoPorMotivoEnCualquierEstado`): en esta vista `totalDenuncias` puede
+  ser 0 y `primeraDenuncia`/`ultimaDenuncia` nulas; el DTO no cambia.
 - **Las denuncias no ocultan nada (SEC-01).** Ocultar atiende las pendientes
   (`ATENDIDA`, con el motivo en `motivo_resolucion`); desestimar las pasa a
   `DESESTIMADA`. `motivo_resolucion` no estaba en la propuesta: se agregó para
@@ -3801,12 +3817,14 @@ caracteres sin los espacios del borde.
 
 ### Pruebas
 
-- `OcultamientoReporteIT` (20): cada fila de la tabla de visibilidad, el
+- `OcultamientoReporteIT` (21): cada fila de la tabla de visibilidad, el
   historial por rol con el reporte oculto y después de restablecerlo, la foto
   oculta (DTO, `/media`, ruta del ADMIN), la foto sin reporte, 409, 400, 403,
   el correo del denunciante en el motivo y que ninguna respuesta del creador,
   del funcionario o del público traiga denuncias, la bandeja del ADMIN y la
-  desestimación, y la deduplicación.
+  desestimación, la vista de ocultos (NC-11a2: con y sin denuncias, solo la
+  foto, el orden, `estado` ignorado, `ocultos=false` igual que antes, 403), y
+  la deduplicación.
 - `DenunciaReporteIT` (14): 201, 409 (repetida, propia, tope y la ventana de
   24 h), 404 (oculto, cancelado, inexistente), 401, 403, 400 y el gancho de BE-14.
 - `IndiceSinOcultosIT` (5): ocultar el reporte baja `total_reportes`,
