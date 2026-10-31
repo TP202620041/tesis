@@ -229,13 +229,4 @@ class PurgaCuentasSinConfirmarServiceTest {
         TransactionStatus estado = ultimoEstado;
         assertThat(estado.isRollbackOnly()).isTrue();
     }
-
-    @Test
-    void laRestriccion_sinViolacionDeHibernate_esDesconocida() {
-        assertThat(PurgaCuentasSinConfirmarService.restriccionDe(new DataIntegrityViolationException("x")))
-                .isEqualTo("restriccion desconocida");
-        assertThat(PurgaCuentasSinConfirmarService.restriccionDe(new DataIntegrityViolationException("x",
-                new ConstraintViolationException("x", new SQLException("x"), null))))
-                .isEqualTo("restriccion desconocida");
-    }
 }

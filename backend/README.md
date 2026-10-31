@@ -2845,8 +2845,9 @@ sesión, así que no tiene reportes, adhesiones, comentarios, calificaciones,
 suscripciones push, claves de idempotencia, tickets, notificaciones,
 denuncias ni foto de perfil. Si aparece alguna de esas filas, **la cuenta no
 se borra** y queda un `WARN` con su id y el nombre de la clave foránea que lo
-impidió (por ejemplo `suscripcion_push_usuario_id_fkey`), o «tiene foto de
-perfil». La lista de tablas no está en el código: el `DELETE` de `usuario`
+impidió (por ejemplo `suscripcion_push_usuario_id_fkey`, que extrae
+`common/exception/RestriccionDeIntegridad` para que el servicio no dependa de
+las excepciones de Hibernate), o «tiene foto de perfil». La lista de tablas no está en el código: el `DELETE` de `usuario`
 falla por la clave foránea, la transacción de esa cuenta se revierte entera
 (también los consentimientos y los enlaces ya borrados) y se sigue con la
 siguiente. Así, una tabla nueva que referencie a `usuario` queda cubierta

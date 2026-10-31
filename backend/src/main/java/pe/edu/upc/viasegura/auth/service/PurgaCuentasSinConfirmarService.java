@@ -4,7 +4,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
-import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -15,6 +14,7 @@ import pe.edu.upc.viasegura.auth.repository.ConsentimientoRepository;
 import pe.edu.upc.viasegura.auth.repository.PasswordResetTokenRepository;
 import pe.edu.upc.viasegura.auth.repository.TokenConfirmacionCorreoRepository;
 import pe.edu.upc.viasegura.auth.repository.UsuarioRepository;
+import pe.edu.upc.viasegura.common.exception.RestriccionDeIntegridad;
 
 /**
  * BE-15: borra las cuentas que nunca confirmaron su correo, una vez al dia
@@ -197,26 +197,12 @@ public class PurgaCuentasSinConfirmarService {
             return desenlace == null ? Desenlace.OMITIDA : desenlace;
         } catch (DataIntegrityViolationException e) {
             log.warn("Purga de cuentas sin confirmar: la cuenta {} tiene datos asociados ({}); no se borra",
-                    id, restriccionDe(e));
+                    id, RestriccionDeIntegridad.nombreDe(e));
             return Desenlace.CON_DATOS;
         } catch (RuntimeException e) {
             log.warn("Purga de cuentas sin confirmar: no se pudo borrar la cuenta {} ({}); se reintenta en la"
                     + " proxima corrida", id, e.getClass().getSimpleName());
             return Desenlace.OMITIDA;
         }
-    }
-
-    /**
-     * El nombre de la clave foranea que impidio el borrado (p. ej.
-     * {@code reporte_creador_id_fkey}): dice que tabla tiene datos de la cuenta
-     * sin copiar al log el mensaje del controlador, que trae valores.
-     */
-    static String restriccionDe(Throwable error) {
-        for (Throwable causa = error; causa != null; causa = causa.getCause()) {
-            if (causa instanceof ConstraintViolationException violacion && violacion.getConstraintName() != null) {
-                return violacion.getConstraintName();
-            }
-        }
-        return "restriccion desconocida";
     }
 }
