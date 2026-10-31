@@ -342,6 +342,43 @@ public interface ReporteRepository extends JpaRepository<Reporte, Long> {
     /** {@code true} si el reporte existe y esta oculto (comentarios publicos, NC-11a). */
     boolean existsByIdAndOcultoTrue(Long id);
 
+    /** Fila de la bandeja de ocultos del ADMIN (NC-11a2): el reporte y cuando se oculto. */
+    interface FilaOcultos {
+        Long getReporteId();
+
+        /** Fecha del ultimo ocultamiento todavia vigente; {@code null} si no quedo en el historial. */
+        Instant getOcultadoEn();
+    }
+
+    /**
+     * Bandeja de ocultos del ADMIN (NC-11a2): los reportes con el reporte o la
+     * foto ocultos, tengan denuncias o no, <b>lo ocultado mas recientemente
+     * primero</b>. La fecha sale del historial (el {@code REPORTE_OCULTO} o
+     * {@code FOTO_OCULTA} mas reciente cuyo alcance siga oculto) y no de
+     * {@code updated_at}, porque ocultar no lo mueve a proposito (mide los
+     * estancados de US-17) y porque un cambio de estado del funcionario si lo
+     * moveria. Consulta aparte de la de denuncias: sin parametros opcionales
+     * (ver CLAUDE.md). Sin indice nuevo: el WHERE recorre {@code reporte}
+     * completa (aceptable a esta escala y solo para el ADMIN); si la tabla
+     * creciera, un indice parcial {@code WHERE oculto OR foto_oculta}. El JOIN
+     * al historial usa {@code ix_historial_reporte}.
+     */
+    @Query(value = """
+            SELECT r.id AS reporteId, MAX(h.createdAt) AS ocultadoEn
+            FROM Reporte r
+            LEFT JOIN HistorialEstadoReporte h
+                   ON h.reporte = r
+                  AND ((h.tipoEvento = pe.edu.upc.viasegura.reportes.domain.TipoEventoHistorial.REPORTE_OCULTO
+                        AND r.oculto = true)
+                    OR (h.tipoEvento = pe.edu.upc.viasegura.reportes.domain.TipoEventoHistorial.FOTO_OCULTA
+                        AND r.fotoOculta = true))
+            WHERE r.oculto = true OR r.fotoOculta = true
+            GROUP BY r.id
+            ORDER BY MAX(h.createdAt) DESC NULLS LAST, r.id DESC
+            """,
+            countQuery = "SELECT COUNT(r) FROM Reporte r WHERE r.oculto = true OR r.fotoOculta = true")
+    Page<FilaOcultos> ocultosParaModeracion(Pageable pageable);
+
     /**
      * Resolver de {@code /media/fotos/reportes/**} (D-15, opcion A): la foto se
      * sirve solo si es de un reporte visible con la foto visible. Una foto sin
