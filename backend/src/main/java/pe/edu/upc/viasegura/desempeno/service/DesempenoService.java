@@ -82,10 +82,12 @@ public class DesempenoService {
     }
 
     /**
-     * Recalcula la vista materializada. Se invoca AFTER_COMMIT desde el
-     * listener (por eso {@code REQUIRES_NEW}: transaccion propia, un fallo no
-     * revierte el cambio de negocio ya confirmado). {@code CONCURRENTLY}
-     * evita bloquear las lecturas durante el recalculo.
+     * Recalcula la vista materializada. Desde BE-12 la invoca el listener en
+     * el executor del indice, despues del commit y fuera del hilo de la
+     * peticion, coalesciendo los eventos. {@code REQUIRES_NEW}: transaccion
+     * propia aunque alguien la llame con una abierta, y un fallo nunca
+     * revierte un cambio de negocio. {@code CONCURRENTLY} evita bloquear las
+     * lecturas durante el recalculo.
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void refrescarIndice() {
