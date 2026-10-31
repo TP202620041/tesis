@@ -1,4 +1,4 @@
-package pe.edu.upc.viasegura.desempeno;
+package pe.edu.upc.viasegura.desempeno.listener;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.after;
@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.AfterEach;
@@ -23,7 +24,6 @@ import org.springframework.core.task.TaskExecutor;
 import org.springframework.core.task.TaskRejectedException;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import pe.edu.upc.viasegura.common.config.AsyncConfig;
-import pe.edu.upc.viasegura.desempeno.listener.IndiceDesempenoRefreshListener;
 import pe.edu.upc.viasegura.desempeno.service.DesempenoService;
 import pe.edu.upc.viasegura.reportes.domain.EstadoReporte;
 import pe.edu.upc.viasegura.reportes.event.CalificacionRegistradaEvent;
@@ -159,6 +159,7 @@ class IndiceDesempenoRefreshListenerTest {
 
         listener.alCrearReporte(CREADO);
         verify(servicio, timeout(5_000).times(1)).refrescarIndice();
+        // Sin eventos durante el intento fallido no hay reintento diferido.
         verify(servicio, after(300).times(1)).refrescarIndice();
 
         listener.alCrearReporte(CREADO);
@@ -213,5 +214,65 @@ class IndiceDesempenoRefreshListenerTest {
         }
         assertThat(vistoPorElUltimo).hasValue(total);
         assertThat(refrescos.get()).isPositive();
+    }
+
+    @Test
+    void siElRefreshFalla_conEventosDuranteElIntento_seIntentaUnaVezMasPorEllos() throws Exception {
+        CountDownLatch empezo = new CountDownLatch(1);
+        CountDownLatch soltar = new CountDownLatch(1);
+        AtomicInteger llamadas = new AtomicInteger();
+        doAnswer(inv -> {
+            if (llamadas.incrementAndGet() == 1) {
+                empezo.countDown();
+                assertThat(soltar.await(10, TimeUnit.SECONDS)).isTrue();
+                throw new IllegalStateException("base caida");
+            }
+            return null;
+        }).when(servicio).refrescarIndice();
+
+        listener.alCrearReporte(CREADO);
+        assertThat(empezo.await(5, TimeUnit.SECONDS)).isTrue();
+        // Llega mientras el intento esta en curso: no puede encolar (la tarea
+        // sigue programada) y el intento fallara.
+        listener.alCalificar(new CalificacionRegistradaEvent(1L));
+        soltar.countDown();
+
+        verify(servicio, timeout(5_000).times(2)).refrescarIndice();
+        verify(servicio, after(300).times(2)).refrescarIndice();
+    }
+
+    @Test
+    void siElRefreshLanzaUnError_laMarcaQueda_yElSiguienteEventoLaRecoge() {
+        doThrow(new StackOverflowError("simulado")).doNothing().when(servicio).refrescarIndice();
+
+        listener.alCrearReporte(CREADO);
+        verify(servicio, timeout(5_000).times(1)).refrescarIndice();
+        verify(servicio, after(300).times(1)).refrescarIndice();
+
+        // Un evento que no mueve el indice no refresca nada por si mismo: si
+        // ahora hay refresh es porque la marca del Error quedo puesta y el
+        // executor sigue aceptando tareas.
+        listener.alCalificar(new CalificacionRegistradaEvent(1L));
+        verify(servicio, timeout(5_000).times(2)).refrescarIndice();
+    }
+
+    @Test
+    void unEventoEntreLaUltimaVueltaYElFinDeLaTarea_loRecogeLaRelectura() {
+        // La ventana mas estrecha: el bucle ya vio la marca abajo, pero la
+        // tarea todavia esta programada, asi que el evento no puede encolar.
+        // Solo la relectura final lo recoge. El gancho publica el evento justo
+        // ahi, una vez: sin la relectura habria un solo refresh.
+        AtomicBoolean yaPublico = new AtomicBoolean();
+        listener.alSalirDelBucle = () -> {
+            if (yaPublico.compareAndSet(false, true)) {
+                listener.alCrearReporte(CREADO);
+            }
+        };
+
+        listener.alCrearReporte(CREADO);
+
+        verify(servicio, timeout(5_000).times(2)).refrescarIndice();
+        verify(servicio, after(300).times(2)).refrescarIndice();
+        assertThat(yaPublico).isTrue();
     }
 }

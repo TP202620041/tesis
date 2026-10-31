@@ -1,6 +1,7 @@
 package pe.edu.upc.viasegura.desempeno.listener;
 
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -70,15 +71,24 @@ import pe.edu.upc.viasegura.reportes.event.ReporteVisibilidadCambiadaEvent;
  * {@code while (sucio.getAndSet(false)) refrescar()}:</p>
  * <ul>
  *   <li><b>coalesce:</b> los eventos que llegan mientras un refresh corre
- *       producen <b>uno</b> mas, no uno cada uno;</li>
+ *       producen <b>uno</b> mas, no uno cada uno. Hay a lo sumo un refresh
+ *       en curso y uno pendiente;</li>
  *   <li><b>siempre hay un refresco final:</b> la marca se baja antes de
  *       refrescar, asi que un evento que llega durante el refresh la vuelve a
  *       subir y la vuelta siguiente lo recoge. Si llega justo despues de la
  *       ultima vuelta, la tarea lo ve al salir y se encola de nuevo;</li>
- *   <li><b>si el executor rechaza la tarea</b> o el refresh falla, la marca
- *       queda puesta y el siguiente evento la recoge; al arrancar la
- *       aplicacion se refresca una vez, por si el apagado descarto una tarea
- *       pendiente;</li>
+ *   <li><b>si el executor rechaza la tarea</b>, la marca queda puesta y el
+ *       siguiente evento la recoge;</li>
+ *   <li><b>si el refresh falla</b> (cualquier {@code Throwable}), la marca se
+ *       vuelve a subir. Si mientras fallaba llegaron eventos, se intenta una
+ *       vez mas por ellos: es un intento por tanda de eventos, como antes de
+ *       BE-12 era uno por evento. Si no llego ninguno, <b>no se reintenta en
+ *       diferido</b>: con la base caida un reintento propio seria un bucle,
+ *       y el indice queda desactualizado hasta el proximo evento o el
+ *       proximo arranque. Un {@code Error} se relanza despues de subir la
+ *       marca;</li>
+ *   <li>al arrancar la aplicacion se refresca una vez, por si el apagado
+ *       descarto una tarea pendiente o el ultimo refresh fallo;</li>
  *   <li>la peticion vuelve sin esperar al refresh, y el indice publico tarda
  *       lo que dura un refresh (o dos) en reflejar el cambio: aceptable para
  *       una metrica agregada (propuesta del 22/10, opcion A).</li>
@@ -96,8 +106,22 @@ public class IndiceDesempenoRefreshListener {
 
     /** Hay cambios confirmados que la vista todavia no refleja. */
     private final AtomicBoolean sucio = new AtomicBoolean();
-    /** Hay una tarea de refresco encolada o corriendo (a lo sumo una). */
+    /**
+     * Hay una tarea de refresco encolada o corriendo. Por un momento puede
+     * haber dos: la que termina (ya bajo esta marca, pero todavia ocupa el
+     * hilo) y la que un evento o su propia relectura acaba de encolar. Nunca
+     * mas: por eso la cola del executor es de una ({@code AsyncConfig}).
+     */
     private final AtomicBoolean programada = new AtomicBoolean();
+    /** Cuantas veces se pidio un refresh; distingue si llegaron eventos durante un intento fallido. */
+    private final AtomicLong solicitudes = new AtomicLong();
+
+    /**
+     * Gancho de prueba, sin efecto en produccion: corre al salir del bucle,
+     * antes de bajar {@link #programada}, que es la ventana en la que un
+     * evento no puede encolar y solo lo recoge la relectura final.
+     */
+    volatile Runnable alSalirDelBucle = () -> { };
 
     public IndiceDesempenoRefreshListener(DesempenoService desempenoService,
                                           @Qualifier(AsyncConfig.EJECUTOR_INDICE) TaskExecutor ejecutor) {
@@ -157,6 +181,7 @@ public class IndiceDesempenoRefreshListener {
     }
 
     private void solicitarRefresco() {
+        solicitudes.incrementAndGet();
         sucio.set(true);
         programar();
     }
@@ -174,26 +199,42 @@ public class IndiceDesempenoRefreshListener {
         }
     }
 
-    /** Corre en el executor del indice. Nunca lanza: el hilo no tiene a quien avisarle. */
+    /**
+     * Corre en el executor del indice. Solo lanza un {@code Error}, y despues
+     * de dejar la marca puesta.
+     */
     private void refrescarMientrasSucio() {
+        boolean fallo = false;
+        long solicitudesAlFallar = 0;
         try {
             while (sucio.getAndSet(false)) {
+                long solicitudesAlEmpezar = solicitudes.get();
                 try {
                     desempenoService.refrescarIndice();
-                } catch (RuntimeException e) {
+                } catch (Throwable e) {
                     // Sin reintentar aqui: con la base caida seria un bucle.
                     sucio.set(true);
+                    fallo = true;
+                    solicitudesAlFallar = solicitudesAlEmpezar;
+                    if (e instanceof Error error) {
+                        throw error;
+                    }
                     log.error("No se pudo refrescar el indice de desempeno; queda marcado y lo "
-                            + "reintenta el siguiente evento", e);
-                    return;
+                            + "reintenta el siguiente evento o el arranque", e);
+                    break;
                 }
             }
+            alSalirDelBucle.run();
         } finally {
             programada.set(false);
         }
-        // Un evento que marco entre la ultima lectura y el set(false) no pudo
-        // encolar (esta tarea seguia programada): se encola ahora por el.
-        if (sucio.get()) {
+        // Tras un exito: un evento que marco entre la ultima lectura y el
+        // set(false) no pudo encolar (esta tarea seguia programada); se encola
+        // ahora por el. Tras un fallo: solo si llegaron eventos desde que
+        // empezo el intento fallido (un intento mas por esa tanda, nunca un
+        // bucle sin eventos).
+        boolean hayQueSeguir = fallo ? solicitudes.get() != solicitudesAlFallar : sucio.get();
+        if (hayQueSeguir) {
             programar();
         }
     }
