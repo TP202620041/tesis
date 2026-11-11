@@ -1,0 +1,1023 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-11T07:42:48Z",
+  "title": "Design System: Ciudad Viva",
+  "extensions": {
+    "colorMeta": {
+      "primario": {
+        "role": "primary",
+        "displayName": "Tinta cívica",
+        "canonical": "#1f3350",
+        "tonalRamp": [
+          "#030b1b",
+          "#122541",
+          "#2e4361",
+          "#4c6282",
+          "#6d84a6",
+          "#8ea7ca",
+          "#b8cbe5",
+          "#e9eff7"
+        ]
+      },
+      "primario-hover": {
+        "role": "primary",
+        "displayName": "Tinta profunda",
+        "canonical": "#16263d",
+        "tonalRamp": [
+          "#040b18",
+          "#15253c",
+          "#32435c",
+          "#50627d",
+          "#7084a0",
+          "#92a7c4",
+          "#bbcae0",
+          "#eaeff6"
+        ]
+      },
+      "sobre-primario": {
+        "role": "primary",
+        "displayName": "Sobre primario",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#a5a5a5",
+          "#c9c9c9",
+          "#eeeeee"
+        ]
+      },
+      "enlace": {
+        "role": "primary",
+        "displayName": "Azul de enlace",
+        "canonical": "#1d4f91",
+        "tonalRamp": [
+          "#00072c",
+          "#001f5e",
+          "#0c4081",
+          "#2f61a5",
+          "#5083ca",
+          "#72a7f0",
+          "#a5ccff",
+          "#e3f0ff"
+        ]
+      },
+      "enlace-hover": {
+        "role": "primary",
+        "displayName": "Enlace hover",
+        "canonical": "#142f57",
+        "tonalRamp": [
+          "#010a21",
+          "#09244b",
+          "#26426c",
+          "#45628e",
+          "#6584b2",
+          "#86a7d7",
+          "#b3cbef",
+          "#e7effb"
+        ]
+      },
+      "foco": {
+        "role": "secondary",
+        "displayName": "Amarillo de foco",
+        "canonical": "#ffd43b",
+        "tonalRamp": [
+          "#1b0400",
+          "#411900",
+          "#613900",
+          "#835a00",
+          "#a67c00",
+          "#caa000",
+          "#e5c768",
+          "#f7eed4"
+        ]
+      },
+      "foco-contorno": {
+        "role": "secondary",
+        "displayName": "Foco contorno",
+        "canonical": "#141b24",
+        "tonalRamp": [
+          "#070b11",
+          "#1e262f",
+          "#3b434d",
+          "#5a626d",
+          "#7a838f",
+          "#9da6b2",
+          "#c3cad3",
+          "#eceff1"
+        ]
+      },
+      "fondo": {
+        "role": "neutral",
+        "displayName": "Papel frío",
+        "canonical": "#f5f6f8",
+        "tonalRamp": [
+          "#0b0b0c",
+          "#242526",
+          "#414243",
+          "#606163",
+          "#818284",
+          "#a4a5a7",
+          "#c8c9ca",
+          "#eeeeef"
+        ]
+      },
+      "superficie": {
+        "role": "neutral",
+        "displayName": "Blanco de registro",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#a5a5a5",
+          "#c9c9c9",
+          "#eeeeee"
+        ]
+      },
+      "superficie-2": {
+        "role": "neutral",
+        "displayName": "Gris de hoja",
+        "canonical": "#edf0f3",
+        "tonalRamp": [
+          "#0a0b0d",
+          "#232527",
+          "#404245",
+          "#5f6164",
+          "#808385",
+          "#a2a5a8",
+          "#c7c9cb",
+          "#eeeeef"
+        ]
+      },
+      "linea": {
+        "role": "neutral",
+        "displayName": "Línea",
+        "canonical": "#d6dbe1",
+        "tonalRamp": [
+          "#090b0e",
+          "#22252a",
+          "#3e4247",
+          "#5d6267",
+          "#7e8388",
+          "#a1a5ab",
+          "#c6c9ce",
+          "#edeef0"
+        ]
+      },
+      "linea-campo": {
+        "role": "neutral",
+        "displayName": "Línea de control",
+        "canonical": "#7b8594",
+        "tonalRamp": [
+          "#070b12",
+          "#1d2532",
+          "#3a4350",
+          "#586270",
+          "#798392",
+          "#9ba6b5",
+          "#c2cad5",
+          "#eceff2"
+        ]
+      },
+      "texto": {
+        "role": "neutral",
+        "displayName": "Tinta de texto",
+        "canonical": "#141b24",
+        "tonalRamp": [
+          "#070b11",
+          "#1e262f",
+          "#3b434d",
+          "#5a626d",
+          "#7a838f",
+          "#9da6b2",
+          "#c3cad3",
+          "#eceff1"
+        ]
+      },
+      "texto-2": {
+        "role": "neutral",
+        "displayName": "Gris de lectura",
+        "canonical": "#4d5866",
+        "tonalRamp": [
+          "#060c13",
+          "#1c2632",
+          "#384350",
+          "#576271",
+          "#788393",
+          "#9aa6b6",
+          "#c1cad6",
+          "#eceff2"
+        ]
+      },
+      "error": {
+        "role": "tertiary",
+        "displayName": "Error",
+        "canonical": "#b42318",
+        "tonalRamp": [
+          "#2d0000",
+          "#620000",
+          "#8a0000",
+          "#b12015",
+          "#da4a3b",
+          "#ff705e",
+          "#ffa796",
+          "#ffe5df"
+        ]
+      },
+      "error-fondo": {
+        "role": "tertiary",
+        "displayName": "Error fondo",
+        "canonical": "#fde3e1",
+        "tonalRamp": [
+          "#120808",
+          "#32201e",
+          "#503c3b",
+          "#715b5a",
+          "#937c7a",
+          "#b79e9d",
+          "#d7c4c3",
+          "#f3edec"
+        ]
+      },
+      "error-texto": {
+        "role": "tertiary",
+        "displayName": "Error texto",
+        "canonical": "#9b1c14",
+        "tonalRamp": [
+          "#2a0000",
+          "#5d0000",
+          "#840000",
+          "#aa2d23",
+          "#d25345",
+          "#fa7867",
+          "#ffab9c",
+          "#ffe6e1"
+        ]
+      },
+      "error-borde": {
+        "role": "tertiary",
+        "displayName": "Error borde",
+        "canonical": "#f0b4ae",
+        "tonalRamp": [
+          "#1b0303",
+          "#411412",
+          "#62322e",
+          "#85514d",
+          "#a9726d",
+          "#ce948f",
+          "#e9bdb8",
+          "#f9ebe9"
+        ]
+      },
+      "exito-fondo": {
+        "role": "tertiary",
+        "displayName": "Exito fondo",
+        "canonical": "#d9f5e3",
+        "tonalRamp": [
+          "#030e07",
+          "#142b1e",
+          "#31483a",
+          "#506859",
+          "#708a79",
+          "#92ad9c",
+          "#bbcfc2",
+          "#eaf0ec"
+        ]
+      },
+      "exito-texto": {
+        "role": "tertiary",
+        "displayName": "Exito texto",
+        "canonical": "#0b5a33",
+        "tonalRamp": [
+          "#001201",
+          "#00310d",
+          "#00502a",
+          "#2a7148",
+          "#4e9369",
+          "#71b78b",
+          "#a5d7b6",
+          "#e4f3e8"
+        ]
+      },
+      "exito-borde": {
+        "role": "tertiary",
+        "displayName": "Exito borde",
+        "canonical": "#9fd9b6",
+        "tonalRamp": [
+          "#001104",
+          "#003015",
+          "#144e32",
+          "#376e50",
+          "#599170",
+          "#7bb492",
+          "#acd5bb",
+          "#e6f2ea"
+        ]
+      },
+      "aviso-fondo": {
+        "role": "tertiary",
+        "displayName": "Aviso fondo",
+        "canonical": "#fdefc3",
+        "tonalRamp": [
+          "#110a00",
+          "#2f2400",
+          "#4d411a",
+          "#6d6039",
+          "#8f8259",
+          "#b2a57b",
+          "#d3c9aa",
+          "#f1eee5"
+        ]
+      },
+      "aviso-texto": {
+        "role": "tertiary",
+        "displayName": "Aviso texto",
+        "canonical": "#6e4100",
+        "tonalRamp": [
+          "#1b0400",
+          "#411700",
+          "#623600",
+          "#84561e",
+          "#a87742",
+          "#cd9a64",
+          "#e8c19b",
+          "#f8ece0"
+        ]
+      },
+      "aviso-borde": {
+        "role": "tertiary",
+        "displayName": "Aviso borde",
+        "canonical": "#e8c766",
+        "tonalRamp": [
+          "#180700",
+          "#3b1e00",
+          "#5a3c00",
+          "#7b5d00",
+          "#9e7e08",
+          "#c2a23e",
+          "#dfc786",
+          "#f5eedb"
+        ]
+      },
+      "info-fondo": {
+        "role": "tertiary",
+        "displayName": "Info fondo",
+        "canonical": "#dde8fc",
+        "tonalRamp": [
+          "#070b13",
+          "#1d2534",
+          "#3a4252",
+          "#586273",
+          "#798395",
+          "#9ba5b8",
+          "#c2c9d8",
+          "#eceef3"
+        ]
+      },
+      "info-texto": {
+        "role": "tertiary",
+        "displayName": "Info texto",
+        "canonical": "#1a3f8f",
+        "tonalRamp": [
+          "#000331",
+          "#001867",
+          "#163b8b",
+          "#355daf",
+          "#547fd5",
+          "#76a3fc",
+          "#a7c9ff",
+          "#e4efff"
+        ]
+      },
+      "info-borde": {
+        "role": "tertiary",
+        "displayName": "Info borde",
+        "canonical": "#a9c2f2",
+        "tonalRamp": [
+          "#030a1f",
+          "#112348",
+          "#2d4169",
+          "#4b618b",
+          "#6b82af",
+          "#8da5d4",
+          "#b7caed",
+          "#e9effa"
+        ]
+      },
+      "pendiente": {
+        "role": "tertiary",
+        "displayName": "Rojo de pendiente",
+        "canonical": "#c8231b",
+        "tonalRamp": [
+          "#300000",
+          "#670000",
+          "#8f0000",
+          "#b80405",
+          "#e14033",
+          "#ff6857",
+          "#ffa392",
+          "#ffe4de"
+        ]
+      },
+      "pendiente-fondo": {
+        "role": "tertiary",
+        "displayName": "Pendiente fondo",
+        "canonical": "#fde3e1",
+        "tonalRamp": [
+          "#120808",
+          "#32201e",
+          "#503c3b",
+          "#715b5a",
+          "#937c7a",
+          "#b79e9d",
+          "#d7c4c3",
+          "#f3edec"
+        ]
+      },
+      "pendiente-texto": {
+        "role": "tertiary",
+        "displayName": "Pendiente texto",
+        "canonical": "#9b1c14",
+        "tonalRamp": [
+          "#2a0000",
+          "#5d0000",
+          "#840000",
+          "#aa2d23",
+          "#d25345",
+          "#fa7867",
+          "#ffab9c",
+          "#ffe6e1"
+        ]
+      },
+      "recibido": {
+        "role": "tertiary",
+        "displayName": "Azul de recibido",
+        "canonical": "#2e6be6",
+        "tonalRamp": [
+          "#000041",
+          "#000082",
+          "#002fa8",
+          "#1955cf",
+          "#3c7af6",
+          "#5e9fff",
+          "#96c8ff",
+          "#dfefff"
+        ]
+      },
+      "recibido-fondo": {
+        "role": "tertiary",
+        "displayName": "Recibido fondo",
+        "canonical": "#dde8fc",
+        "tonalRamp": [
+          "#070b13",
+          "#1d2534",
+          "#3a4252",
+          "#586273",
+          "#798395",
+          "#9ba5b8",
+          "#c2c9d8",
+          "#eceef3"
+        ]
+      },
+      "recibido-texto": {
+        "role": "tertiary",
+        "displayName": "Recibido texto",
+        "canonical": "#1a3f8f",
+        "tonalRamp": [
+          "#000331",
+          "#001867",
+          "#163b8b",
+          "#355daf",
+          "#547fd5",
+          "#76a3fc",
+          "#a7c9ff",
+          "#e4efff"
+        ]
+      },
+      "en-proceso": {
+        "role": "tertiary",
+        "displayName": "Ámbar de obra",
+        "canonical": "#f0a800",
+        "tonalRamp": [
+          "#210000",
+          "#4c0800",
+          "#6e2d00",
+          "#924f00",
+          "#b67200",
+          "#dc9500",
+          "#f3bf6c",
+          "#fcecd4"
+        ]
+      },
+      "en-proceso-fondo": {
+        "role": "tertiary",
+        "displayName": "En proceso fondo",
+        "canonical": "#fdefc3",
+        "tonalRamp": [
+          "#110a00",
+          "#2f2400",
+          "#4d411a",
+          "#6d6039",
+          "#8f8259",
+          "#b2a57b",
+          "#d3c9aa",
+          "#f1eee5"
+        ]
+      },
+      "en-proceso-texto": {
+        "role": "tertiary",
+        "displayName": "En proceso texto",
+        "canonical": "#6e4100",
+        "tonalRamp": [
+          "#1b0400",
+          "#411700",
+          "#623600",
+          "#84561e",
+          "#a87742",
+          "#cd9a64",
+          "#e8c19b",
+          "#f8ece0"
+        ]
+      },
+      "resuelto": {
+        "role": "tertiary",
+        "displayName": "Verde de resuelto",
+        "canonical": "#126b3f",
+        "tonalRamp": [
+          "#001301",
+          "#00320a",
+          "#005228",
+          "#1e7346",
+          "#459566",
+          "#69b988",
+          "#a1d9b4",
+          "#e3f4e8"
+        ]
+      },
+      "resuelto-fondo": {
+        "role": "tertiary",
+        "displayName": "Resuelto fondo",
+        "canonical": "#d9f5e3",
+        "tonalRamp": [
+          "#030e07",
+          "#142b1e",
+          "#31483a",
+          "#506859",
+          "#708a79",
+          "#92ad9c",
+          "#bbcfc2",
+          "#eaf0ec"
+        ]
+      },
+      "resuelto-texto": {
+        "role": "tertiary",
+        "displayName": "Resuelto texto",
+        "canonical": "#0b5a33",
+        "tonalRamp": [
+          "#001201",
+          "#00310d",
+          "#00502a",
+          "#2a7148",
+          "#4e9369",
+          "#71b78b",
+          "#a5d7b6",
+          "#e4f3e8"
+        ]
+      },
+      "rechazado": {
+        "role": "tertiary",
+        "displayName": "Gris de rechazado",
+        "canonical": "#4b5563",
+        "tonalRamp": [
+          "#070b12",
+          "#1d2632",
+          "#394350",
+          "#586270",
+          "#788392",
+          "#9ba6b6",
+          "#c1cad6",
+          "#eceff2"
+        ]
+      },
+      "rechazado-fondo": {
+        "role": "tertiary",
+        "displayName": "Rechazado fondo",
+        "canonical": "#e7eaee",
+        "tonalRamp": [
+          "#0a0b0d",
+          "#232528",
+          "#404245",
+          "#5f6165",
+          "#808286",
+          "#a2a5a9",
+          "#c7c9cc",
+          "#eeeeef"
+        ]
+      },
+      "rechazado-texto": {
+        "role": "tertiary",
+        "displayName": "Rechazado texto",
+        "canonical": "#3a4452",
+        "tonalRamp": [
+          "#070b13",
+          "#1c2632",
+          "#394351",
+          "#576271",
+          "#788393",
+          "#9aa6b7",
+          "#c1cad6",
+          "#eceff3"
+        ]
+      },
+      "cancelado": {
+        "role": "tertiary",
+        "displayName": "Cancelado",
+        "canonical": "#7d8794",
+        "tonalRamp": [
+          "#070b11",
+          "#1e2630",
+          "#3a434e",
+          "#59626e",
+          "#798390",
+          "#9ca6b4",
+          "#c2cad4",
+          "#eceff2"
+        ]
+      },
+      "cancelado-fondo": {
+        "role": "tertiary",
+        "displayName": "Cancelado fondo",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#a5a5a5",
+          "#c9c9c9",
+          "#eeeeee"
+        ]
+      },
+      "cancelado-texto": {
+        "role": "tertiary",
+        "displayName": "Cancelado texto",
+        "canonical": "#4a5463",
+        "tonalRamp": [
+          "#070b13",
+          "#1d2533",
+          "#394351",
+          "#586271",
+          "#788393",
+          "#9ba6b7",
+          "#c1cad7",
+          "#eceff3"
+        ]
+      },
+      "severidad": {
+        "role": "tertiary",
+        "displayName": "Severidad",
+        "canonical": "#1f3350",
+        "tonalRamp": [
+          "#030b1b",
+          "#122541",
+          "#2e4361",
+          "#4c6282",
+          "#6d84a6",
+          "#8ea7ca",
+          "#b8cbe5",
+          "#e9eff7"
+        ]
+      },
+      "severidad-pista": {
+        "role": "tertiary",
+        "displayName": "Severidad pista",
+        "canonical": "#d6dbe1",
+        "tonalRamp": [
+          "#090b0e",
+          "#22252a",
+          "#3e4247",
+          "#5d6267",
+          "#7e8388",
+          "#a1a5ab",
+          "#c6c9ce",
+          "#edeef0"
+        ]
+      },
+      "barra": {
+        "role": "tertiary",
+        "displayName": "Barra",
+        "canonical": "#1f3350",
+        "tonalRamp": [
+          "#030b1b",
+          "#122541",
+          "#2e4361",
+          "#4c6282",
+          "#6d84a6",
+          "#8ea7ca",
+          "#b8cbe5",
+          "#e9eff7"
+        ]
+      },
+      "pista": {
+        "role": "tertiary",
+        "displayName": "Pista",
+        "canonical": "#dde2e8",
+        "tonalRamp": [
+          "#090b0e",
+          "#22252a",
+          "#3e4247",
+          "#5d6267",
+          "#7e8388",
+          "#a1a5ab",
+          "#c6c9ce",
+          "#edeef0"
+        ]
+      },
+      "marca": {
+        "role": "tertiary",
+        "displayName": "Marca",
+        "canonical": "#1f3350",
+        "tonalRamp": [
+          "#030b1b",
+          "#122541",
+          "#2e4361",
+          "#4c6282",
+          "#6d84a6",
+          "#8ea7ca",
+          "#b8cbe5",
+          "#e9eff7"
+        ]
+      },
+      "marca-calle": {
+        "role": "tertiary",
+        "displayName": "Marca calle",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#a5a5a5",
+          "#c9c9c9",
+          "#eeeeee"
+        ]
+      },
+      "barra-superior": {
+        "role": "tertiary",
+        "displayName": "Barra superior",
+        "canonical": "#1f3350",
+        "tonalRamp": [
+          "#030b1b",
+          "#122541",
+          "#2e4361",
+          "#4c6282",
+          "#6d84a6",
+          "#8ea7ca",
+          "#b8cbe5",
+          "#e9eff7"
+        ]
+      },
+      "sobre-barra-superior": {
+        "role": "tertiary",
+        "displayName": "Sobre barra superior",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#a5a5a5",
+          "#c9c9c9",
+          "#eeeeee"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Título de la portada."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Título principal de cada pantalla."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Secciones grandes y diálogos de resultado."
+      },
+      "title-sm": {
+        "displayName": "Title-sm",
+        "purpose": "Subsecciones."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Lectura y controles."
+      },
+      "body-sm": {
+        "displayName": "Body-sm",
+        "purpose": "Ayuda, metadatos y avisos."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Etiquetas de campo y chips de estado."
+      },
+      "caption": {
+        "displayName": "Caption",
+        "purpose": "Filtros de la bandeja y datos muy secundarios; la barra inferior lo usa en semibold."
+      }
+    },
+    "shadows": [
+      {
+        "name": "tarjeta",
+        "value": "0 1px 2px var(--cv-sombra)",
+        "purpose": "Superficies en reposo."
+      },
+      {
+        "name": "elevada",
+        "value": "0 4px 16px var(--cv-sombra), 0 1px 3px var(--cv-sombra)",
+        "purpose": "Diálogos y menús."
+      }
+    ],
+    "motion": [
+      {
+        "name": "transicion-control",
+        "value": "150ms cubic-bezier(0.4, 0, 0.2, 1)",
+        "purpose": "Cambio de color de los botones (utilidad transition de Tailwind)."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "md",
+        "value": "768px"
+      },
+      {
+        "name": "xl",
+        "value": "1280px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Botón primario",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "La acción principal de la pantalla. Una por vista.",
+      "html": "<button class=\"ds-btn-primario\">Enviar reporte</button>",
+      "css": ".ds-btn-primario{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 16px;font:600 16px/1.5 var(--font-public-sans),system-ui,sans-serif;border-radius:8px;cursor:pointer;transition:background-color .15s,color .15s;border:0;background:var(--cv-primario);color:var(--cv-sobre-primario);}.ds-btn-primario:hover{background:var(--cv-primario-hover);}.ds-btn-primario:focus-visible{outline:3px solid var(--cv-foco);outline-offset:0;box-shadow:0 0 0 5px var(--cv-foco-contorno);}"
+    },
+    {
+      "name": "Botón secundario",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Acción alternativa, con borde de control.",
+      "html": "<button class=\"ds-btn-secundario\">Marcar en el mapa</button>",
+      "css": ".ds-btn-secundario{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 16px;font:600 16px/1.5 var(--font-public-sans),system-ui,sans-serif;border-radius:8px;cursor:pointer;transition:background-color .15s,color .15s;border:1px solid var(--cv-linea-campo);background:var(--cv-superficie);color:var(--cv-texto);}.ds-btn-secundario:hover{background:var(--cv-superficie-2);}.ds-btn-secundario:focus-visible{outline:3px solid var(--cv-foco);outline-offset:0;box-shadow:0 0 0 5px var(--cv-foco-contorno);}"
+    },
+    {
+      "name": "Botón de peligro",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Acción destructiva: descartar o retirar.",
+      "html": "<button class=\"ds-btn-peligro\">Retirar reporte</button>",
+      "css": ".ds-btn-peligro{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 16px;font:600 16px/1.5 var(--font-public-sans),system-ui,sans-serif;border-radius:8px;cursor:pointer;transition:background-color .15s,color .15s;border:1px solid var(--cv-error);background:var(--cv-superficie);color:var(--cv-error);}.ds-btn-peligro:hover{background:var(--cv-error-fondo);}.ds-btn-peligro:focus-visible{outline:3px solid var(--cv-foco);outline-offset:0;box-shadow:0 0 0 5px var(--cv-foco-contorno);}"
+    },
+    {
+      "name": "Campo de texto",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Control con etiqueta real y borde de 3:1.",
+      "html": "<div class=\"ds-campo\"><label class=\"ds-campo-etiqueta\" for=\"ds-titulo\">Título</label><input class=\"ds-campo-control\" id=\"ds-titulo\" placeholder=\"Ej.: bache en el carril derecho\"></div>",
+      "css": ".ds-campo{display:flex;flex-direction:column;gap:6px;}.ds-campo-etiqueta{font:600 14px/1.429 var(--font-public-sans),system-ui,sans-serif;color:var(--cv-texto);}.ds-campo-control{min-height:44px;padding:8px 12px;font:400 16px/1.5 var(--font-public-sans),system-ui,sans-serif;color:var(--cv-texto);background:var(--cv-superficie);border:1px solid var(--cv-linea-campo);border-radius:8px;}.ds-campo-control:focus-visible{outline:3px solid var(--cv-foco);outline-offset:0;box-shadow:0 0 0 5px var(--cv-foco-contorno);}"
+    },
+    {
+      "name": "Chip de estado: Pendiente",
+      "kind": "chip",
+      "refersTo": "chip-pendiente",
+      "description": "Indica el estado con color, icono y nombre. No es clicable.",
+      "html": "<span class=\"ds-chip-pendiente\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M12 6v6l4 2\"/></svg>Pendiente</span>",
+      "css": ".ds-chip-pendiente{display:inline-flex;align-items:center;gap:4px;padding:2px 10px;border:1px solid var(--cv-chip-borde);border-radius:9999px;background:var(--cv-pendiente-fondo);color:var(--cv-pendiente-texto);font:600 14px/1.429 var(--font-public-sans),system-ui,sans-serif;white-space:nowrap;}"
+    },
+    {
+      "name": "Chip de estado: Resuelto",
+      "kind": "chip",
+      "refersTo": "chip-resuelto",
+      "description": "Indica el estado con color, icono y nombre. No es clicable.",
+      "html": "<span class=\"ds-chip-resuelto\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M20 6 9 17l-5-5\"/></svg>Resuelto</span>",
+      "css": ".ds-chip-resuelto{display:inline-flex;align-items:center;gap:4px;padding:2px 10px;border:1px solid var(--cv-chip-borde);border-radius:9999px;background:var(--cv-resuelto-fondo);color:var(--cv-resuelto-texto);font:600 14px/1.429 var(--font-public-sans),system-ui,sans-serif;white-space:nowrap;}"
+    },
+    {
+      "name": "Tarjeta",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Superficie con borde de línea y sombra mínima.",
+      "html": "<article class=\"ds-tarjeta\"><h3 class=\"ds-tarjeta-titulo\">Bache en la bajada del puente</h3><p class=\"ds-tarjeta-texto\">Miraflores · 2 nov. 2026 · 6 vecinos lo reportaron</p></article>",
+      "css": ".ds-tarjeta{padding:16px;background:var(--cv-superficie);border:1px solid var(--cv-linea);border-radius:12px;box-shadow:0 1px 2px var(--cv-sombra);}.ds-tarjeta-titulo{margin:0 0 4px;font:600 16px/1.5 var(--font-public-sans),system-ui,sans-serif;color:var(--cv-texto);}.ds-tarjeta-texto{margin:0;font:400 14px/1.429 var(--font-public-sans),system-ui,sans-serif;color:var(--cv-texto-2);}"
+    },
+    {
+      "name": "Aviso",
+      "kind": "custom",
+      "refersTo": "aviso",
+      "description": "Mensaje en línea; el tono lo dicen el icono y el texto.",
+      "html": "<div class=\"ds-aviso\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M12 16v-4M12 8h.01\"/></svg><p class=\"ds-aviso-texto\">La sugerencia es automática: si no es correcta, cámbiala.</p></div>",
+      "css": ".ds-aviso{display:flex;align-items:flex-start;gap:8px;padding:8px 12px;border:1px solid var(--cv-info-borde);border-radius:8px;background:var(--cv-info-fondo);color:var(--cv-info-texto);}.ds-aviso-texto{margin:0;font:400 14px/1.429 var(--font-public-sans),system-ui,sans-serif;}"
+    },
+    {
+      "name": "Navegación inferior",
+      "kind": "nav",
+      "refersTo": "navegacion",
+      "description": "Destinos del rol en el móvil; Reportar se destaca sobre tinta.",
+      "html": "<nav class=\"ds-nav\" aria-label=\"Ejemplo\"><a class=\"ds-nav-item ds-nav-activo\" href=\"#\"><svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M9 4 3 6v14l6-2 6 2 6-2V4l-6 2z\"/><path d=\"M9 4v14M15 6v14\"/></svg>Mapa</a><a class=\"ds-nav-item\" href=\"#\"><span class=\"ds-nav-accion\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\" stroke-linecap=\"round\" aria-hidden=\"true\"><path d=\"M12 5v14M5 12h14\"/></svg></span>Reportar</a></nav>",
+      "css": ".ds-nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));height:64px;background:var(--cv-superficie);border-top:1px solid var(--cv-linea);}.ds-nav-item{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border-top:3px solid transparent;font:600 12px/1.25 var(--font-public-sans),system-ui,sans-serif;color:var(--cv-texto-2);text-decoration:none;}.ds-nav-activo{border-top-color:var(--cv-primario);color:var(--cv-texto);font-weight:700;}.ds-nav-item:focus-visible{outline:3px solid var(--cv-foco);outline-offset:0;box-shadow:0 0 0 5px var(--cv-foco-contorno);}.ds-nav-accion{display:flex;align-items:center;justify-content:center;width:40px;height:32px;border-radius:10px;background:var(--cv-primario);color:var(--cv-sobre-primario);}"
+    },
+    {
+      "name": "Indicador de severidad",
+      "kind": "custom",
+      "refersTo": "severidad",
+      "description": "Tres barras en tinta, siempre con el texto.",
+      "html": "<span class=\"ds-sev\"><span class=\"ds-sev-barras\" aria-hidden=\"true\"><i class=\"ds-sev-b1\"></i><i class=\"ds-sev-b2\"></i><i class=\"ds-sev-b3\"></i></span>Severidad media</span>",
+      "css": ".ds-sev{display:inline-flex;align-items:center;gap:6px;font:400 14px/1.429 var(--font-public-sans),system-ui,sans-serif;color:var(--cv-texto-2);}.ds-sev-barras{display:flex;align-items:flex-end;gap:2px;height:14px;}.ds-sev-barras i{display:block;width:4px;border-radius:1px;background:var(--cv-severidad);}.ds-sev-b1{height:6px;}.ds-sev-b2{height:10px;}.ds-sev-b3{height:14px;background:var(--cv-severidad-pista)!important;}"
+    }
+  ],
+  "narrative": {
+    "northStar": "El registro público",
+    "overview": "Ciudad Viva se ve como un registro que cualquiera puede consultar: sobrio, claro y confiable. Tinta sobre blanco, una sola familia tipográfica y poco adorno. Lo único que tiene color propio es lo que significa algo: el estado de un reporte, un error, una confirmación. Así, un índice que califica a municipalidades no parece tomar partido.\n\nLa densidad cambia según quién trabaja. El vecino en la calle recibe una columna, controles grandes y una barra inferior al alcance del pulgar. El funcionario en escritorio recibe tablas y botones compactos. Los dos leen el mismo sistema.\n\nEl sistema tiene tres temas (claro, oscuro y alto contraste) que cambian con `data-theme` en `<html>`. Los valores de abajo son los del tema claro; los de los otros dos temas y la fuente normativa están en `frontend/src/app/globals.css`. Ciudad Viva no imita a gob.pe y evita el celeste y el rojo y blanco institucional.",
+    "keyCharacteristics": [
+      "Tinta y blanco; el color se reserva para lo que tiene significado.",
+      "Public Sans en todos los niveles.",
+      "Controles firmes y sin adorno, de 44 px de alto.",
+      "Foco amarillo inconfundible en cualquier fondo.",
+      "Sombras mínimas que separan y no decoran.",
+      "Cada par de texto y fondo se mide contra AA."
+    ],
+    "rules": [
+      {
+        "name": "La regla de la marca callada",
+        "body": "El color de marca nunca se usa en un marcador ni en un chip de estado.",
+        "section": "colors"
+      },
+      {
+        "name": "La regla del amarillo único",
+        "body": "El amarillo es para el foco y la línea del logo. Ningún otro elemento lo usa.",
+        "section": "colors"
+      },
+      {
+        "name": "La regla de color, icono y nombre",
+        "body": "Un estado siempre lleva los tres; el color nunca va solo.",
+        "section": "colors"
+      },
+      {
+        "name": "La regla sin colores sueltos",
+        "body": "Solo existen los tokens del sistema. La paleta por defecto de Tailwind está desactivada y `sin-colores-sueltos.test.ts` la vigila.",
+        "section": "colors"
+      },
+      {
+        "name": "La regla de la barra única",
+        "body": "El índice de desempeño usa un solo color. La interfaz no inventa umbrales de bueno o malo.",
+        "section": "colors"
+      },
+      {
+        "name": "La regla de las cifras alineadas",
+        "body": "Las tablas usan números tabulares (`tabular-nums`), para que los distritos se comparen columna a columna.",
+        "section": "typography"
+      },
+      {
+        "name": "La regla de los 44",
+        "body": "Todo control mide al menos 44 px de alto. El tamaño compacto baja a 36 px solo con puntero fino; en una pantalla táctil vuelve a 44.",
+        "section": "layout"
+      },
+      {
+        "name": "La regla de la sombra que separa",
+        "body": "Una sombra separa una superficie de otra y no decora. En alto contraste desaparece y mandan los bordes.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** usar los tokens semánticos (`bg-superficie`, `text-texto-2`) y registrar cada par nuevo en `scripts/contraste-civica.json`.",
+      "**Do** mostrar cada estado con color, icono y nombre.",
+      "**Do** escribir «Sin datos» cuando no hay dato, con pista punteada en las barras.",
+      "**Do** diseñar primero para el móvil y mantener 44 px en todo control táctil.",
+      "**Do** comprobar cada pantalla nueva en los tres temas."
+    ],
+    "donts": [
+      "**Don't** usar celeste, ni rojo y blanco institucional, ni imitar a gob.pe.",
+      "**Don't** usar el color de marca en marcadores o chips de estado.",
+      "**Don't** usar el amarillo fuera del foco y el logo.",
+      "**Don't** convertir un chip de estado en enlace o botón.",
+      "**Don't** colorear el índice con umbrales de bueno o malo, ni mostrar cero donde no hay dato.",
+      "**Don't** usar más de una acción primaria por vista.",
+      "**Don't** usar clases `dark:` por tema; el tema se resuelve con las variables."
+    ]
+  }
+}
