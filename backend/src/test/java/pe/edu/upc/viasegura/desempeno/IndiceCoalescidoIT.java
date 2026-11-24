@@ -106,7 +106,7 @@ class IndiceCoalescidoIT extends AbstractPostgisIT {
     @Test
     void dieciseisCreacionesSeguidas_dosRefrescos_elUltimoDespuesDeTodas_yNingunaLoEspera() throws Exception {
         long categoriaId = categoriaRepository.findAll().stream()
-                .filter(CategoriaDano::isEsEstandar).findFirst().orElseThrow().getId();
+                .filter(CategoriaDano::isEsEstandar).filter(CategoriaDano::isActivo).findFirst().orElseThrow().getId();
         List<String> ciudadanos = new ArrayList<>();
         for (int i = 0; i < CREACIONES; i++) {
             ciudadanos.add(ciudadanoNuevo());

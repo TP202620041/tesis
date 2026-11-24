@@ -82,7 +82,7 @@ class DesempenoIT extends AbstractPostgisMailIT {
 
     private CategoriaDano categoria() {
         return categoriaRepository.findAll().stream()
-                .filter(CategoriaDano::isEsEstandar).findFirst().orElseThrow();
+                .filter(CategoriaDano::isEsEstandar).filter(CategoriaDano::isActivo).findFirst().orElseThrow();
     }
 
     private Usuario ciudadano() {
@@ -144,6 +144,38 @@ class DesempenoIT extends AbstractPostgisMailIT {
         assertThat(fila.path("totalReportes").asLong()).isEqualTo(4);
         assertThat(fila.path("totalResueltos").asLong()).isEqualTo(2);
         assertThat(fila.path("tasaResolucion").asDouble()).isEqualTo(50.0);
+    }
+
+    /**
+     * US-20 Esc. 2 (y US-17 Esc. 2 con {@code totalReportes}): la fila por
+     * categoria trae los conteos con los que la PWA decide el aviso de datos
+     * insuficientes (menos de 3 resueltos), sin que el servidor oculte el
+     * promedio: el umbral es de presentacion.
+     */
+    @Test
+    void filaPorCategoria_exponeLosConteosParaElAvisoDeDatosInsuficientes() throws Exception {
+        Usuario ciu = ciudadano();
+        Distrito miraflores = distrito("Miraflores");
+        reporte(miraflores, EstadoReporte.RESUELTO, ciu, Instant.now());
+        reporte(miraflores, EstadoReporte.RESUELTO, ciu, Instant.now());
+        reporte(miraflores, EstadoReporte.RECIBIDO, ciu, null);
+        desempenoService.refrescarIndice();
+
+        String json = mockMvc.perform(get("/api/desempeno/distritos")
+                        .param("categoriaId", categoria().getId().toString()))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        JsonNode fila = null;
+        for (JsonNode f : objectMapper.readTree(json)) {
+            if ("Miraflores".equals(f.path("distritoNombre").asText())) {
+                fila = f;
+            }
+        }
+        assertThat(fila).isNotNull();
+        assertThat(fila.path("categoriaId").asLong()).isEqualTo(categoria().getId());
+        assertThat(fila.path("totalReportes").asLong()).isEqualTo(3);
+        assertThat(fila.path("totalResueltos").asLong()).isEqualTo(2);
+        assertThat(fila.has("tiempoPromedioHoras")).isTrue();
     }
 
     @Test
@@ -272,7 +304,7 @@ class DesempenoIT extends AbstractPostgisMailIT {
         // US-20 agrupa por (distrito, categoria): mover el reporte resta en
         // una fila y suma en la otra. El agregado general no cambia.
         var estandar = categoriaRepository.findAll().stream()
-                .filter(CategoriaDano::isEsEstandar).limit(2).toList();
+                .filter(CategoriaDano::isEsEstandar).filter(CategoriaDano::isActivo).limit(2).toList();
         long origen = estandar.get(0).getId();
         long destino = estandar.get(1).getId();
 

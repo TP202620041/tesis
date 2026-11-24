@@ -89,7 +89,7 @@ class CancelacionSoloDelCreadorIT extends AbstractPostgisIT {
 
     private Reporte reporte(Usuario creador, EstadoReporte estado) {
         CategoriaDano categoria = categoriaRepository.findAll().stream()
-                .filter(CategoriaDano::isEsEstandar).findFirst().orElseThrow();
+                .filter(CategoriaDano::isEsEstandar).filter(CategoriaDano::isActivo).findFirst().orElseThrow();
         return reporteRepository.save(Reporte.builder()
                 .titulo("Dano de prueba").severidad(Severidad.MEDIA)
                 .ubicacion(GeometryUtils.point(LON, LAT))

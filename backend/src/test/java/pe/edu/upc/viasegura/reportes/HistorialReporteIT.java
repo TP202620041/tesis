@@ -71,7 +71,7 @@ class HistorialReporteIT extends AbstractPostgisIT {
 
     private CategoriaDano categoria() {
         return categoriaRepository.findAll().stream()
-                .filter(CategoriaDano::isEsEstandar).findFirst().orElseThrow();
+                .filter(CategoriaDano::isEsEstandar).filter(CategoriaDano::isActivo).findFirst().orElseThrow();
     }
 
     private Usuario ciudadano() {
@@ -132,15 +132,20 @@ class HistorialReporteIT extends AbstractPostgisIT {
         mockMvc.perform(get("/api/reportes/{id}/historial", reporte.getId())
                         .header("Authorization", "Bearer " + token(creador)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(3)))
-                .andExpect(jsonPath("$[0].tipoEvento", is("CAMBIO_ESTADO")))
-                .andExpect(jsonPath("$[0].estadoNuevo", is("RECIBIDO")))
-                .andExpect(jsonPath("$[1].estadoNuevo", is("EN_PROCESO")))
-                .andExpect(jsonPath("$[2].tipoEvento", is("ASIGNACION")))
-                .andExpect(jsonPath("$[2].estadoNuevo", is(nullValue())))
+                .andExpect(jsonPath("$", hasSize(4)))
+                // US-22 Esc. 2: primero, la creacion del reporte.
+                .andExpect(jsonPath("$[0].tipoEvento", is("CREACION")))
+                .andExpect(jsonPath("$[0].estadoNuevo", is("PENDIENTE")))
+                .andExpect(jsonPath("$[0].autor", is(nullValue())))
+                .andExpect(jsonPath("$[0].fecha", is(notNullValue())))
+                .andExpect(jsonPath("$[1].tipoEvento", is("CAMBIO_ESTADO")))
+                .andExpect(jsonPath("$[1].estadoNuevo", is("RECIBIDO")))
+                .andExpect(jsonPath("$[2].estadoNuevo", is("EN_PROCESO")))
+                .andExpect(jsonPath("$[3].tipoEvento", is("ASIGNACION")))
+                .andExpect(jsonPath("$[3].estadoNuevo", is(nullValue())))
                 // Asignacion redactada: sin nombre de cuadrilla ni autor.
-                .andExpect(jsonPath("$[2].comentario", is("Se asignó un responsable para la atención del reporte.")))
-                .andExpect(jsonPath("$[2].autor", is(nullValue())));
+                .andExpect(jsonPath("$[3].comentario", is("Se asignó un responsable para la atención del reporte.")))
+                .andExpect(jsonPath("$[3].autor", is(nullValue())));
     }
 
     @Test
@@ -148,7 +153,7 @@ class HistorialReporteIT extends AbstractPostgisIT {
         mockMvc.perform(get("/api/reportes/{id}/historial", reporte.getId())
                         .header("Authorization", "Bearer " + token(adherido)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(3)));
+                .andExpect(jsonPath("$", hasSize(4)));
     }
 
     @Test
@@ -163,10 +168,10 @@ class HistorialReporteIT extends AbstractPostgisIT {
         mockMvc.perform(get("/api/reportes/{id}/historial", reporte.getId())
                         .header("Authorization", "Bearer " + token(funcMiraflores)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(3)))
+                .andExpect(jsonPath("$", hasSize(4)))
                 // El funcionario si ve el nombre interno de la cuadrilla y el autor.
-                .andExpect(jsonPath("$[2].comentario", containsString("Cuadrilla Norte")))
-                .andExpect(jsonPath("$[2].autor", is(notNullValue())));
+                .andExpect(jsonPath("$[3].comentario", containsString("Cuadrilla Norte")))
+                .andExpect(jsonPath("$[3].autor", is(notNullValue())));
     }
 
     @Test

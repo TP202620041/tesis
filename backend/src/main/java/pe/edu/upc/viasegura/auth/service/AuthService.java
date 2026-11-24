@@ -3,10 +3,12 @@ package pe.edu.upc.viasegura.auth.service;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import pe.edu.upc.viasegura.auth.domain.PoliticaDeBloqueoDeLogin;
 import pe.edu.upc.viasegura.auth.domain.PreferenciaNotificacion;
 import pe.edu.upc.viasegura.auth.domain.Usuario;
 import pe.edu.upc.viasegura.auth.dto.AuthResponse;
@@ -53,6 +55,7 @@ public class AuthService {
     private final ConsentimientoService consentimientoService;
     private final ModeracionService moderacionService;
     private final ApplicationEventPublisher eventPublisher;
+    private final BloqueoDeLoginService bloqueoDeLoginService;
 
     /**
      * US-01: registra una cuenta ciudadana, sin confirmar (NC-09), y pide el
@@ -103,12 +106,27 @@ public class AuthService {
      * el enlace. Se comprueba <b>despues</b> de la contrasena: con una
      * contrasena incorrecta la respuesta sigue siendo el 401 de siempre, asi
      * que el login no revela si una cuenta existe ni si esta confirmada.</p>
+     *
+     * <p>US-02 Esc. 2: tras {@value PoliticaDeBloqueoDeLogin#INTENTOS_MAXIMOS}
+     * intentos fallidos seguidos el correo queda bloqueado 15 minutos (409
+     * {@code LOGIN_BLOQUEADO}), tambien con la contrasena correcta. El
+     * contador es por correo, exista o no la cuenta, y el bloqueo se comprueba
+     * antes que la contrasena: la respuesta es la misma para un correo sin
+     * cuenta, asi que tampoco revela cuales estan registrados
+     * ({@link BloqueoDeLoginService}).</p>
      */
     @Transactional(readOnly = true)
     public AuthResponse login(LoginRequest request) {
-        // Lanza BadCredentialsException (=> HTTP 401) si son invalidas.
-        authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.email(), request.password()));
+        bloqueoDeLoginService.exigirNoBloqueado(request.email());
+        try {
+            // Lanza BadCredentialsException (=> HTTP 401) si son invalidas.
+            authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(request.email(), request.password()));
+        } catch (BadCredentialsException e) {
+            bloqueoDeLoginService.registrarFallo(request.email());
+            throw e;
+        }
+        bloqueoDeLoginService.olvidar(request.email());
 
         Usuario usuario = usuarioRepository.findByEmail(request.email())
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
@@ -118,6 +136,19 @@ public class AuthService {
         }
 
         return construirRespuesta(usuario);
+    }
+
+    /**
+     * US-04 Esc. 2: cierra la sesion en todos los dispositivos, el actual
+     * incluido. Sube la version de sesion de la cuenta y el filtro JWT deja
+     * de aceptar todo token emitido antes (sin lista negra: el filtro ya
+     * carga la cuenta en cada peticion).
+     */
+    @Transactional
+    public void cerrarSesionesEnTodosLosDispositivos(String email) {
+        Usuario usuario = usuarioRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+        usuarioRepository.subirVersionSesion(usuario.getId());
     }
 
     /** Datos del usuario autenticado (US-02, base del perfil US-30). */
@@ -208,7 +239,8 @@ public class AuthService {
     }
 
     private AuthResponse construirRespuesta(Usuario usuario) {
-        String token = jwtService.generarToken(usuario.getEmail(), usuario.getRol().name());
+        String token = jwtService.generarToken(
+                usuario.getEmail(), usuario.getRol().name(), usuario.getVersionSesion());
         return AuthResponse.of(token, jwtService.getExpirationMinutes(), respuesta(usuario));
     }
 

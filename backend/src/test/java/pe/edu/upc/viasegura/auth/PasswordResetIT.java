@@ -1,6 +1,7 @@
 package pe.edu.upc.viasegura.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -176,6 +177,31 @@ class PasswordResetIT extends AbstractPostgisMailIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"%s\",\"password\":\"original123\"}"
                                 .formatted(usuario.getEmail())))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void restablecer_cierraLasSesionesAbiertasConLaContrasenaAnterior() throws Exception {
+        // US-04 Esc. 2: la contrasena nueva sube la version de sesion.
+        Usuario usuario = ciudadano();
+        String cuerpo = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"%s\",\"password\":\"original123\"}".formatted(usuario.getEmail())))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String sesionAnterior = objectMapper.readTree(cuerpo).get("token").asText();
+        mockMvc.perform(post("/api/auth/recuperar-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(cuerpoRecuperar(usuario.getEmail())))
+                .andExpect(status().isAccepted());
+        String token = tokenRepository.findAll().get(0).getToken();
+
+        mockMvc.perform(post("/api/auth/restablecer-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(cuerpoRestablecer(token, "nuevaClave123")))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/auth/me").header("Authorization", "Bearer " + sesionAnterior))
                 .andExpect(status().isUnauthorized());
     }
 

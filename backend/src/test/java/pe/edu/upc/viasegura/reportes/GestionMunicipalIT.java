@@ -84,7 +84,7 @@ class GestionMunicipalIT extends AbstractPostgisMailIT {
 
     private CategoriaDano categoria() {
         return categoriaRepository.findAll().stream()
-                .filter(CategoriaDano::isEsEstandar).findFirst()
+                .filter(CategoriaDano::isEsEstandar).filter(CategoriaDano::isActivo).findFirst()
                 .orElseThrow();
     }
 

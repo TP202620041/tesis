@@ -8,12 +8,14 @@ public record CategoriaDanoResponse(
         String descripcion,
         boolean esEstandar,
         Long distritoId,
-        String distritoNombre
+        String distritoNombre,
+        String icono
 ) {
     public static CategoriaDanoResponse from(CategoriaDano c) {
         return new CategoriaDanoResponse(
                 c.getId(), c.getNombre(), c.getDescripcion(), c.isEsEstandar(),
                 c.getDistrito() != null ? c.getDistrito().getId() : null,
-                c.getDistrito() != null ? c.getDistrito().getNombre() : null);
+                c.getDistrito() != null ? c.getDistrito().getNombre() : null,
+                c.getIcono() != null ? c.getIcono().name() : null);
     }
 }

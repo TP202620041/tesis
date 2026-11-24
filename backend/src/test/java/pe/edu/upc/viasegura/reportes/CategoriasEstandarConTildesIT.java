@@ -67,7 +67,10 @@ class CategoriasEstandarConTildesIT extends AbstractPostgisIT {
 
     private Map<String, String> estandarEnLaBase() {
         Map<String, String> filas = new LinkedHashMap<>();
-        jdbcTemplate.query("SELECT nombre, descripcion FROM categoria_dano WHERE es_estandar ORDER BY id",
+        // Solo las seis de V3/V18: las de V24 (US-34) no pasan por esta migracion.
+        jdbcTemplate.query("SELECT nombre, descripcion FROM categoria_dano WHERE es_estandar"
+                        + " AND nombre NOT IN ('Ciclovía dañada', 'Drenaje obstruido', 'Iluminación deficiente')"
+                        + " ORDER BY id",
                 rs -> {
                     filas.put(rs.getString("nombre"), rs.getString("descripcion"));
                 });
@@ -101,6 +104,10 @@ class CategoriasEstandarConTildesIT extends AbstractPostgisIT {
         // activas). «Hueco en calzada» se desactivó en V19 (NC-04).
         Map<String, String> activas = new LinkedHashMap<>(ESTANDAR);
         activas.remove("Hueco en calzada");
+        // Mas las tres de V24 (US-34).
+        activas.put("Ciclovía dañada", "Ciclovía con huecos, grietas, obstáculos o señalización borrada");
+        activas.put("Drenaje obstruido", "Sumidero, rejilla o cuneta tapada, rota o sin tapa");
+        activas.put("Iluminación deficiente", "Poste de alumbrado público apagado, intermitente o dañado");
         mockMvc.perform(get("/api/categorias"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[*].nombre", containsInAnyOrder(activas.keySet().toArray())))

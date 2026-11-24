@@ -83,7 +83,7 @@ abstract class AbstractModeracionIT extends AbstractPostgisIT {
 
     CategoriaDano categoria() {
         return categoriaRepository.findAll().stream()
-                .filter(CategoriaDano::isEsEstandar).findFirst().orElseThrow();
+                .filter(CategoriaDano::isEsEstandar).filter(CategoriaDano::isActivo).findFirst().orElseThrow();
     }
 
     Usuario usuario(Rol rol, Distrito distrito) {

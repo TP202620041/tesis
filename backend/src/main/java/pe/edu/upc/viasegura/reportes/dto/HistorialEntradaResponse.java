@@ -5,6 +5,11 @@ import java.time.Instant;
 /**
  * Una entrada de la linea de tiempo de un reporte (US-22).
  *
+ * <p>La primera entrada es siempre la creacion del reporte (US-22 Esc. 2):
+ * {@code tipoEvento = "CREACION"}, {@code id} nulo (no es una fila del
+ * historial), {@code estadoNuevo = "PENDIENTE"}, {@code autor} nulo y
+ * {@code fecha} la de creacion. Despues siguen, en orden, las demas.</p>
+ *
  * <p>Cubre cambios de estado (US-14), asignaciones de responsable (US-15) y,
  * desde NC-11a, las acciones de moderacion del ADMIN ({@code FOTO_OCULTA},
  * {@code REPORTE_OCULTO}, {@code FOTO_RESTABLECIDA},

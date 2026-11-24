@@ -19,6 +19,9 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * Filtro que autentica cada request a partir del token JWT del header
  * Authorization: Bearer &lt;token&gt;. Sin token valido, el request continua
  * como anonimo y la cadena de seguridad decide si lo permite.
+ *
+ * <p>US-04 Esc. 2: un token cuya version de sesion no es la vigente de la
+ * cuenta ({@link ConVersionDeSesion}) fue revocado y tampoco autentica.</p>
  */
 @Component
 @RequiredArgsConstructor
@@ -44,9 +47,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String token = header.substring(PREFIX.length());
         try {
-            String email = jwtService.extraerEmail(token);
+            JwtService.DatosDelToken datos = jwtService.leer(token);
+            String email = datos.email();
             if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                 UserDetails userDetails = userDetailsService.loadUserByUsername(email);
+                if (userDetails instanceof ConVersionDeSesion cuenta
+                        && cuenta.versionDeSesion() != datos.versionSesion()) {
+                    // Sesion cerrada en todos los dispositivos: sigue como anonimo.
+                    filterChain.doFilter(request, response);
+                    return;
+                }
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(
                                 userDetails, null, userDetails.getAuthorities());

@@ -116,7 +116,7 @@ class CorsConfigIT extends AbstractPostgisIT {
         // el navegador le oculta Content-Disposition y pierde el nombre del archivo.
         Distrito miraflores = distritoRepository.findByNombre("Miraflores").orElseThrow();
         CategoriaDano categoria = categoriaRepository.findAll().stream()
-                .filter(CategoriaDano::isEsEstandar).findFirst().orElseThrow();
+                .filter(CategoriaDano::isEsEstandar).filter(CategoriaDano::isActivo).findFirst().orElseThrow();
         Usuario ciudadano = guardarConTerminos(Usuario.builder()
                 .email("ciu-" + UUID.randomUUID() + "@lima.pe")
                 .passwordHash(passwordEncoder.encode("x"))

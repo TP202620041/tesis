@@ -130,7 +130,7 @@ class GestionCategoriasIT extends AbstractPostgisIT {
         mockMvc.perform(get("/api/categorias/gestion")
                         .header("Authorization", "Bearer " + token(func)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[?(@.esEstandar == true)]", hasSize(6)))
+                .andExpect(jsonPath("$[?(@.esEstandar == true)]", hasSize(9)))
                 .andExpect(jsonPath("$[?(@.id == " + activa.getId() + ")].activo", everyItem(is(true))))
                 .andExpect(jsonPath("$[?(@.id == " + activa.getId() + ")]", hasSize(1)))
                 .andExpect(jsonPath("$[?(@.id == " + inactiva.getId() + ")].activo", everyItem(is(false))))

@@ -88,7 +88,7 @@ class DensidadReportesIT extends AbstractPostgisIT {
 
     private List<CategoriaDano> estandar() {
         List<CategoriaDano> categorias = categoriaRepository.findAll().stream()
-                .filter(CategoriaDano::isEsEstandar).toList();
+                .filter(CategoriaDano::isEsEstandar).filter(CategoriaDano::isActivo).toList();
         assertThat(categorias).hasSizeGreaterThanOrEqualTo(2);
         return categorias;
     }
