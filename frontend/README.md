@@ -2113,3 +2113,14 @@ de la cuenta.
   central del 401 los lleva al login. No hay aviso en tiempo real.
 - Solo está en la pantalla de la cuenta, no en el menú de la cabecera: es una
   acción poco frecuente y destructiva.
+
+### Bloqueo temporal del login (US-02 Esc. 2)
+
+Tras 5 intentos fallidos seguidos el backend responde 409 `LOGIN_BLOQUEADO`
+durante 15 minutos, también con la contraseña correcta y también para un
+correo sin cuenta. El formulario lo muestra como un aviso propio («Inicio de
+sesión bloqueado temporalmente») con el mensaje del servidor tal cual
+(`model/bloqueoDeLogin.ts`; un respaldo con los 15 minutos solo si llegara
+vacío). No ofrece «Reenviar el enlace» ni nada que dependa de la cuenta: el
+aviso es el mismo exista o no el correo. No hay cuenta regresiva: la PWA no
+sabe cuándo empezó el bloqueo y el servidor no lo informa.

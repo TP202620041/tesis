@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { Aviso } from '@/components/ui/Aviso';
 import { AlertaError, Boton, Campo } from '@/components/ui/form';
 import { useIniciarSesion } from '../hooks/useIniciarSesion';
+import { TITULO_LOGIN_BLOQUEADO } from '../model/bloqueoDeLogin';
 import { destinoTrasAcceso } from '../model/rutas';
 import { ReenviarConfirmacion } from './ReenviarConfirmacion';
 
@@ -15,11 +16,15 @@ import { ReenviarConfirmacion } from './ReenviarConfirmacion';
  * se muestra el mensaje del backend y «Reenviar el enlace» al correo con el
  * que se intento entrar. Va FUERA del `<form>` del login porque tiene su
  * propio formulario (no se pueden anidar).
+ *
+ * US-02 Esc. 2: tras 5 intentos fallidos el backend bloquea el acceso 15
+ * minutos (409 `LOGIN_BLOQUEADO`). Se muestra como aviso con título propio y
+ * el mensaje del servidor, que no dice si el correo tiene cuenta.
  */
 export function FormularioLogin() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { enviando, error, correoSinConfirmar, enviar } = useIniciarSesion();
+  const { enviando, error, correoSinConfirmar, bloqueado, enviar } = useIniciarSesion();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
@@ -47,7 +52,14 @@ export function FormularioLogin() {
         </div>
       )}
       <form onSubmit={alEnviar} className="flex flex-col gap-4" noValidate>
-        {error && !correoSinConfirmar && <AlertaError mensaje={error.mensaje} detalles={error.detalles} />}
+        {error && bloqueado && (
+          <Aviso tono="advertencia" titulo={TITULO_LOGIN_BLOQUEADO} rol="alert">
+            <p>{error.mensaje}</p>
+          </Aviso>
+        )}
+        {error && !correoSinConfirmar && !bloqueado && (
+          <AlertaError mensaje={error.mensaje} detalles={error.detalles} />
+        )}
         <Campo
           id="email"
           etiqueta="Correo electrónico"
