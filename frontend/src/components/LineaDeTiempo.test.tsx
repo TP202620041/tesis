@@ -15,6 +15,32 @@ describe('LineaDeTiempo', () => {
     expect(screen.getByText('Todavía no hay movimientos registrados.')).toBeInTheDocument();
   });
 
+  it('US-22 Esc. 2: un reporte sin cambios de estado muestra solo su creación', () => {
+    render(<LineaDeTiempo entradas={[]} creadoEn={FECHA} />);
+    const eventos = screen.getAllByRole('listitem');
+    expect(eventos).toHaveLength(1);
+    expect(eventos[0]).toHaveTextContent('Reporte creado');
+    expect(eventos[0]).toHaveTextContent(new Date(FECHA).toLocaleString('es-PE'));
+    expect(screen.queryByText('Todavía no hay movimientos registrados.')).not.toBeInTheDocument();
+  });
+
+  it('US-22: la creación encabeza el historial y no se duplica si la trae el servidor', () => {
+    const { rerender } = render(
+      <LineaDeTiempo
+        entradas={[entrada({ id: 2, estadoAnterior: 'PENDIENTE', estadoNuevo: 'RECIBIDO' })]}
+        creadoEn={FECHA}
+      />,
+    );
+    const [primero, segundo] = screen.getAllByRole('listitem');
+    expect(primero).toHaveTextContent('Reporte creado');
+    expect(segundo).toHaveTextContent('Pendiente → Recibido');
+
+    rerender(
+      <LineaDeTiempo entradas={[entrada({ id: 1, tipoEvento: 'CREACION' })]} creadoEn={FECHA} />,
+    );
+    expect(screen.getAllByText('Reporte creado')).toHaveLength(1);
+  });
+
   it('US-22: describe el cambio de estado y la asignación', () => {
     render(
       <LineaDeTiempo

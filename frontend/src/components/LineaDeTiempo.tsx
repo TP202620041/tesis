@@ -2,6 +2,7 @@
 
 import { estiloDeEstado } from '@/lib/types/estados';
 import { esTipoEventoModeracion, type HistorialEntrada, type TipoEventoModeracion } from '@/lib/types/domain';
+import { conEventoDeCreacion, esEventoDeCreacion } from '@/lib/types/historial';
 
 /**
  * US-22: linea de tiempo unificada de la gestion de un reporte.
@@ -21,7 +22,19 @@ import { esTipoEventoModeracion, type HistorialEntrada, type TipoEventoModeracio
  * solo pinta lo que recibe, por eso esta en `components/` compartidos y no
  * dentro de la feature de gestion.
  */
-export function LineaDeTiempo({ entradas }: { entradas: HistorialEntrada[] }) {
+export function LineaDeTiempo({
+  entradas: delServidor,
+  creadoEn,
+}: {
+  entradas: HistorialEntrada[];
+  /**
+   * US-22 Esc. 2: fecha de creacion del reporte. Con ella la linea de tiempo
+   * empieza por «Reporte creado» (derivado, salvo que el servidor ya traiga
+   * ese evento: `lib/types/historial`).
+   */
+  creadoEn?: string | null;
+}) {
+  const entradas = conEventoDeCreacion(delServidor, creadoEn);
   if (entradas.length === 0) {
     return (
       <p className="text-sm text-texto-2">
@@ -32,8 +45,9 @@ export function LineaDeTiempo({ entradas }: { entradas: HistorialEntrada[] }) {
 
   return (
     <ol className="flex flex-col gap-3">
-      {entradas.map((entrada) => (
-        <li key={entrada.id} className="flex gap-3">
+      {entradas.map((entrada, indice) => (
+        // El evento de creacion derivado no tiene `id` (no es una fila del servidor).
+        <li key={entrada.id ?? `derivado-${indice}`} className="flex gap-3">
           <span
             aria-hidden="true"
             className="mt-1.5 size-2 shrink-0 rounded-full bg-texto-2"
@@ -73,6 +87,9 @@ export const TITULO_DE_EVENTO_DE_MODERACION: Readonly<Record<TipoEventoModeracio
  * por su tipo de evento y no por el cambio de estado.
  */
 function describir(entrada: HistorialEntrada): string {
+  if (esEventoDeCreacion(entrada)) {
+    return 'Reporte creado';
+  }
   if (entrada.tipoEvento === 'ASIGNACION') {
     return 'Asignación de responsable';
   }
