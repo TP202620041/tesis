@@ -17,6 +17,7 @@ import pe.edu.upc.viasegura.auth.dto.RegistroRequest;
 import pe.edu.upc.viasegura.auth.dto.RegistroResponse;
 import pe.edu.upc.viasegura.auth.dto.UsuarioResponse;
 import pe.edu.upc.viasegura.auth.event.FotoDePerfilReemplazadaEvent;
+import pe.edu.upc.viasegura.auth.event.SesionesCerradasEvent;
 import pe.edu.upc.viasegura.auth.port.VerificadorDeCaptcha;
 import pe.edu.upc.viasegura.auth.repository.UsuarioRepository;
 import pe.edu.upc.viasegura.common.exception.BusinessException;
@@ -150,12 +151,17 @@ public class AuthService {
      * incluido. Sube la version de sesion de la cuenta y el filtro JWT deja
      * de aceptar todo token emitido antes (sin lista negra: el filtro ya
      * carga la cuenta en cada peticion).
+     *
+     * <p>Publica {@link SesionesCerradasEvent}: despues del commit,
+     * {@code notificaciones} borra las suscripciones push del usuario para
+     * que ningun dispositivo con la sesion revocada siga recibiendo avisos.</p>
      */
     @Transactional
     public void cerrarSesionesEnTodosLosDispositivos(String email) {
         Usuario usuario = usuarioRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
         usuarioRepository.subirVersionSesion(usuario.getId());
+        eventPublisher.publishEvent(new SesionesCerradasEvent(usuario.getId()));
     }
 
     /** Datos del usuario autenticado (US-02, base del perfil US-30). */

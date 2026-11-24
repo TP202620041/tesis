@@ -21,7 +21,12 @@ import pe.edu.upc.viasegura.support.AbstractPostgisIT;
 
 /**
  * US-04 Esc. 2: cerrar la sesion en todos los dispositivos revoca todos los
- * tokens emitidos antes, sin lista negra (version de sesion en el JWT).
+ * tokens emitidos antes, sin lista negra (version de sesion en el JWT), y
+ * borra las suscripciones push del usuario.
+ *
+ * <p>{@code suscripcion_push} solo referencia a {@code usuario}: no entra en
+ * {@code limpiezaFkSafe}. Cada test usa cuentas y endpoints nuevos y solo
+ * cuenta las filas de sus propias cuentas.</p>
  */
 class CerrarSesionesIT extends AbstractPostgisIT {
 
@@ -95,6 +100,44 @@ class CerrarSesionesIT extends AbstractPostgisIT {
         assertThat(version(una.getEmail())).isEqualTo(1);
         assertThat(version(otra.getEmail())).isEqualTo(versionOtra);
         mockMvc.perform(get("/api/auth/me").header("Authorization", "Bearer " + tokenOtra)).andExpect(status().isOk());
+    }
+
+    private void suscribir(Usuario usuario, String endpoint) {
+        jdbcTemplate.update("""
+                INSERT INTO suscripcion_push
+                    (usuario_id, endpoint, p256dh, auth, user_agent, activa, created_at, updated_at)
+                VALUES (?, ?, 'p256dh', 'auth', 'IT', TRUE, now(), now())
+                """, usuario.getId(), endpoint);
+    }
+
+    private int suscripciones(Usuario usuario) {
+        return jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM suscripcion_push WHERE usuario_id = ?", Integer.class, usuario.getId());
+    }
+
+    /**
+     * Un dispositivo con la sesion revocada no debe seguir recibiendo avisos:
+     * se borran todas las suscripciones push del usuario (despues del commit,
+     * {@code SesionesCerradasListener}), y solo las suyas.
+     */
+    @Test
+    void cerrarSesiones_borraLasSuscripcionesPushDelUsuario_yNoLasDeOtro() throws Exception {
+        Usuario usuario = cuenta(Rol.CIUDADANO);
+        Usuario otro = cuenta(Rol.CIUDADANO);
+        suscribir(usuario, "https://fcm.googleapis.com/fcm/send/telefono-" + UUID.randomUUID());
+        suscribir(usuario, "https://updates.push.services.mozilla.com/wpush/v2/laptop-" + UUID.randomUUID());
+        String endpointOtro = "https://fcm.googleapis.com/fcm/send/otro-" + UUID.randomUUID();
+        suscribir(otro, endpointOtro);
+        assertThat(suscripciones(usuario)).isEqualTo(2);
+        String token = login(usuario.getEmail());
+
+        mockMvc.perform(post(RUTA).header("Authorization", "Bearer " + token)).andExpect(status().isNoContent());
+
+        assertThat(suscripciones(usuario)).isZero();
+        assertThat(suscripciones(otro)).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM suscripcion_push WHERE endpoint = ?", Integer.class, endpointOtro))
+                .isEqualTo(1);
     }
 
     @Test
