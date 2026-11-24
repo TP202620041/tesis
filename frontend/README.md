@@ -671,7 +671,11 @@ Reglas de la cola:
   siempre montada (vacía sin nada que contar), porque un lector anuncia de
   forma fiable lo que aparece dentro de una región viva existente. Va arriba,
   bajo la cabecera, para no tapar los otros avisos de la cola, y no se cierra
-  solo (WCAG 2.2.1).
+  solo (WCAG 2.2.1). Como es fijo, puede tapar el elemento con foco (WCAG
+  2.4.11): **Escape lo cierra desde cualquier parte sin mover el foco**. No
+  se pasó al flujo del documento porque se monta en el layout y, al aparecer,
+  empujaría la pantalla en la que el usuario trabaja. Un Escape que ya
+  atendió otro componente (`defaultPrevented`) no lo cierra.
 - **La foto** se guarda como `ArrayBuffer` + nombre + tipo y se rearma como
   `File` al reenviar: IndexedDB clona eso en todos los navegadores (Safari tuvo
   fallos guardando `Blob`).
