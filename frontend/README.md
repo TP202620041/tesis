@@ -2105,10 +2105,20 @@ de la cuenta.
   preguntas previas (reportes en cola, US-06), la baja de push de este
   navegador (necesita el token vivo, así que va antes de revocar), y tras el
   204 el token local, la caché `cross-origin` y el login.
-- **Si el servidor falla, la sesión local no se cierra**: el usuario creería
-  haber cerrado las demás sin que sea cierto. El error se muestra en el
-  diálogo y puede reintentar. La baja de push de este navegador ya ocurrió;
-  se reactiva desde la cuenta.
+- **Si el servidor falla (salvo 401), la sesión local no se cierra**: el
+  usuario creería haber cerrado las demás sin que sea cierto. El error se
+  muestra en el diálogo («Tu sesión sigue abierta; puedes volver a
+  intentarlo»). Un 401 no es un fallo: el token ya no vale, así que se sigue
+  con el cierre local.
+- **Push tras el fallo:** la baja de push de este navegador ya ocurrió (tenía
+  que ir antes, con el token vivo). Si había suscripción, se intenta
+  restablecer sola (`restablecerPushTrasCierreFallido`, como al iniciar
+  sesión: sin pedir permiso ni crear una suscripción nueva). Si se pudo, el
+  diálogo dice que las notificaciones siguen activas; si no (la baja había
+  cancelado la suscripción local), dice que quedaron desactivadas en este
+  dispositivo y ofrece «Volver a activar las notificaciones» (`activarPush`;
+  el permiso ya estaba concedido). Si eso también falla, remite a
+  «Notificaciones push» en el perfil.
 - **Los otros dispositivos** reciben 401 en su siguiente petición y el manejo
   central del 401 los lleva al login. No hay aviso en tiempo real.
 - Solo está en la pantalla de la cuenta, no en el menú de la cabecera: es una

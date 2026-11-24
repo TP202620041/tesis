@@ -2,24 +2,39 @@
 
 import { useRouter } from 'next/navigation';
 import { useCallback, useRef, useState } from 'react';
-import { mensajeDeError, type MensajeDeError } from '@/lib/api/errors';
+import { ApiError, mensajeDeError, type MensajeDeError } from '@/lib/api/errors';
 import {
   antesDeCerrarSesion,
   hayPasosAntesDeCerrarSesion,
 } from '@/lib/sesion/antesDeCerrarSesion';
 import { borrarCacheEntreOrigenes } from '@/pwa/cachesDeSesion';
 import { cerrarSesion, cerrarSesionesEnTodosLosDispositivos } from '../api';
-import { bajaDePushAlCerrarSesion } from './push';
+import {
+  activarPush,
+  bajaDePushAlCerrarSesion,
+  restablecerPushTrasCierreFallido,
+} from './push';
+
+/**
+ * Qué pasó con las notificaciones de este dispositivo cuando el cierre en
+ * todos los dispositivos falló (la baja de push ya había ocurrido):
+ * - `sin-push`: no había suscripción; nada que contar.
+ * - `restablecido`: se volvió a registrar sola; siguen activas.
+ * - `desactivado`: no se pudo restablecer; hay que ofrecer reactivarlas.
+ */
+export type PushTrasFallo = 'sin-push' | 'restablecido' | 'desactivado';
 
 /**
  * Flujo común de cierre de sesión. `revocarEnServidor`, si viene, corre
  * después de la baja de push (que necesita el token vivo) y antes de
- * descartar el token; si falla, el cierre se interrumpe (la sesión local
- * sigue) y el error se entrega a `alFallar`.
+ * descartar el token. Si falla, el cierre se interrumpe (la sesión local
+ * sigue), se intenta restablecer el push de este navegador y el error se
+ * entrega a `alFallar` junto con lo que pasó con el push. Un 401 no es un
+ * fallo: el token ya no vale, así que se sigue con el cierre local.
  */
 function useFlujoDeCierre(
   revocarEnServidor?: () => Promise<void>,
-  alFallar?: (e: unknown) => void,
+  alFallar?: (e: unknown, push: PushTrasFallo) => void,
 ): () => void {
   const router = useRouter();
   const cerrando = useRef(false);
@@ -30,14 +45,21 @@ function useFlujoDeCierre(
     const cerrar = async () => {
       // No lanza (ver su contrato); el `catch` es por si acaso: cerrar sesión
       // nunca puede quedar bloqueado por push.
-      await bajaDePushAlCerrarSesion().catch(() => undefined);
+      const habiaPush = await bajaDePushAlCerrarSesion().catch(() => false);
       if (revocarEnServidor) {
         try {
           await revocarEnServidor();
         } catch (e) {
-          cerrando.current = false;
-          alFallar?.(e);
-          return;
+          if (!(e instanceof ApiError && e.status === 401)) {
+            const push: PushTrasFallo = !habiaPush
+              ? 'sin-push'
+              : (await restablecerPushTrasCierreFallido())
+                ? 'restablecido'
+                : 'desactivado';
+            cerrando.current = false;
+            alFallar?.(e, push);
+            return;
+          }
         }
       }
       cerrarSesion();
@@ -86,14 +108,19 @@ export function useCerrarSesion(): () => void {
  * cierre local que `useCerrarSesion` (preguntas de la cola, baja de push,
  * caché, login).
  *
- * Si el servidor falla, la sesión local NO se cierra: el usuario creería
- * haber cerrado las demás sin que sea cierto. Se muestra el error y puede
- * reintentar. (La baja de push de este navegador ya ocurrió: se reactiva
- * desde la cuenta.)
+ * Si el servidor falla (salvo 401), la sesión local NO se cierra: el usuario
+ * creería haber cerrado las demás sin que sea cierto. Se muestra el error y
+ * puede reintentar. Como la baja de push de este navegador ya ocurrió, se
+ * intenta restablecerla sola (`pushTrasFallo`); si no se puede, `reactivarPush`
+ * la vuelve a activar a pedido del usuario.
  */
 export function useCerrarSesionEnTodosLosDispositivos() {
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<MensajeDeError | null>(null);
+  const [pushTrasFallo, setPushTrasFallo] = useState<PushTrasFallo | null>(null);
+  const [reactivando, setReactivando] = useState(false);
+  /** `true` si el usuario pidió reactivar el push y no se pudo. */
+  const [reactivacionFallida, setReactivacionFallida] = useState(false);
 
   const revocar = useCallback(async () => {
     setEnviando(true);
@@ -103,13 +130,42 @@ export function useCerrarSesionEnTodosLosDispositivos() {
       setEnviando(false);
     }
   }, []);
-  const alFallar = useCallback((e: unknown) => setError(mensajeDeError(e)), []);
+  const alFallar = useCallback((e: unknown, push: PushTrasFallo) => {
+    setError(mensajeDeError(e));
+    setPushTrasFallo(push);
+  }, []);
   const flujo = useFlujoDeCierre(revocar, alFallar);
 
   const cerrar = useCallback(() => {
     setError(null);
+    setPushTrasFallo(null);
+    setReactivacionFallida(false);
     flujo();
   }, [flujo]);
 
-  return { cerrar, enviando, error };
+  /** Vuelve a activar el push de este navegador (el permiso ya estaba concedido). */
+  const reactivarPush = useCallback(async () => {
+    setReactivando(true);
+    setReactivacionFallida(false);
+    try {
+      const activo = (await activarPush()) === 'activo';
+      setPushTrasFallo(activo ? 'restablecido' : 'desactivado');
+      setReactivacionFallida(!activo);
+    } catch {
+      setPushTrasFallo('desactivado');
+      setReactivacionFallida(true);
+    } finally {
+      setReactivando(false);
+    }
+  }, []);
+
+  return {
+    cerrar,
+    enviando,
+    error,
+    pushTrasFallo,
+    reactivarPush,
+    reactivando,
+    reactivacionFallida,
+  };
 }
