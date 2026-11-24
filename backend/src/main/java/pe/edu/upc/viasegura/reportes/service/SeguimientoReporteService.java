@@ -1,5 +1,6 @@
 package pe.edu.upc.viasegura.reportes.service;
 
+import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
@@ -9,6 +10,7 @@ import pe.edu.upc.viasegura.auth.domain.Usuario;
 import pe.edu.upc.viasegura.auth.service.UsuarioConsultaService;
 import pe.edu.upc.viasegura.common.exception.ResourceNotFoundException;
 import pe.edu.upc.viasegura.distritos.domain.Distrito;
+import pe.edu.upc.viasegura.reportes.domain.EstadoReporte;
 import pe.edu.upc.viasegura.reportes.domain.HistorialEstadoReporte;
 import pe.edu.upc.viasegura.reportes.domain.Reporte;
 import pe.edu.upc.viasegura.reportes.domain.TipoEventoHistorial;
@@ -21,7 +23,8 @@ import pe.edu.upc.viasegura.reportes.repository.ReporteRepository;
  * Seguimiento ciudadano de la linea de tiempo de un reporte (US-22).
  *
  * <p>Devuelve la trazabilidad completa (cambios de estado US-14 +
- * asignaciones US-15) unificada por la migracion V4. El acceso y el nivel de
+ * asignaciones US-15) unificada por la migracion V4, precedida por la
+ * creacion del reporte (US-22 Esc. 2, derivada, ver {@link #creacion}). El acceso y el nivel de
  * detalle dependen del rol del solicitante (ver {@link #historial}).</p>
  */
 @Service
@@ -44,6 +47,16 @@ public class SeguimientoReporteService {
     /** Texto que ve el adherido en lugar del motivo de restablecer (NC-11a). */
     static final String MODERACION_RESTABLECIDA_REDACTADA =
             "Se restableció contenido de este reporte.";
+
+    /**
+     * US-22 Esc. 2: tipo de la primera entrada, la creacion del reporte. No
+     * se guarda en {@code historial_estado_reporte} (no es un valor de
+     * {@link TipoEventoHistorial}): se arma al leer con la fecha del reporte.
+     */
+    public static final String TIPO_CREACION = "CREACION";
+
+    /** Texto de la entrada de creacion; igual para todos los que leen el historial. */
+    static final String COMENTARIO_CREACION = "Se registró el reporte.";
 
     /** Autor visible de la moderacion para todos menos el ADMIN (NC-11a). */
     static final String AUTOR_MODERACION = "Moderación de Ciudad Viva";
@@ -91,9 +104,33 @@ public class SeguimientoReporteService {
             throw new ResourceNotFoundException("Reporte no encontrado: " + reporteId);
         }
 
-        return historialRepository.findByReporteIdOrderByCreatedAtAscIdAsc(reporteId).stream()
+        List<HistorialEntradaResponse> lineaDeTiempo = new ArrayList<>();
+        lineaDeTiempo.add(creacion(reporte));
+        historialRepository.findByReporteIdOrderByCreatedAtAscIdAsc(reporteId).stream()
                 .map(entrada -> aResponse(entrada, vista))
-                .toList();
+                .forEach(lineaDeTiempo::add);
+        return lineaDeTiempo;
+    }
+
+    /**
+     * US-22 Esc. 2: la creacion del reporte, primera entrada de la linea de
+     * tiempo, con la fecha de creacion y el estado inicial. Se deriva del
+     * reporte en vez de guardarse: asi la tienen tambien los reportes
+     * anteriores, y el historial que leen las metricas (tiempo de atencion,
+     * V2/V21) sigue teniendo solo cambios de estado, asignaciones y
+     * moderacion. Sin autor para nadie: el creador no se publica a los
+     * adheridos, y el funcionario no lo necesita para la linea de tiempo.
+     */
+    private static HistorialEntradaResponse creacion(Reporte reporte) {
+        return new HistorialEntradaResponse(
+                null,
+                TIPO_CREACION,
+                null,
+                EstadoReporte.PENDIENTE.name(),
+                COMENTARIO_CREACION,
+                null,
+                reporte.getCreatedAt(),
+                null);
     }
 
     /**

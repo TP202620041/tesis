@@ -50,7 +50,7 @@ class ReporteControllerIT extends AbstractPostgisIT {
 
     private long categoriaEstandarId() {
         CategoriaDano cat = categoriaRepository.findAll().stream()
-                .filter(CategoriaDano::isEsEstandar)
+                .filter(CategoriaDano::isEsEstandar).filter(CategoriaDano::isActivo)
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("No hay categorias estandar sembradas"));
         return cat.getId();

@@ -812,20 +812,80 @@ Cada dominio se organiza en `controller/ · service/ · repository/ · dto/ · d
 
 ## Decisiones de seguridad (alcance académico)
 
-- **Cierre de sesión (US-04) es puramente client-side: no hay blacklist de
-  tokens.** La autenticación es JWT stateless (`security.jwt.expiration-minutes`,
-  default 120 min); "cerrar sesión" significa que el frontend descarta el
-  token, el backend no cambia. Esto es una **decisión deliberada, no un
-  descuido**: un blacklist (tabla o Redis consultada en cada request)
-  reintroduciría estado de servidor y un lookup por request, anulando la
-  ventaja principal de JWT stateless, solo para resolver un caso de uso de
-  higiene de sesión (no de respuesta a un compromiso de cuenta, que de
-  todas formas requeriría rotar el secreto de firma, fuera de alcance).
-  **Consecuencia aceptada y conocida:** un dispositivo comprometido con una
-  sesión activa sigue siendo válido hasta que el token expira (máx. 120
-  min), incluso si el usuario "cierra sesión" en otro dispositivo o cambia
-  su contraseña. Ver también el comentario en
-  `common/security/SecurityConfig.java`.
+- **Cerrar sesión (US-04): sin blacklist de tokens.** La autenticación es
+  JWT (`security.jwt.expiration-minutes`, default 120 min). Cerrar la sesión
+  en *este* dispositivo sigue siendo del cliente: la PWA descarta el token.
+- **Cerrar sesión en todos los dispositivos (US-04 Esc. 2): versión de
+  sesión.** `usuario.version_sesion` (V23) viaja en cada JWT (claim `ver`) y
+  `JwtAuthenticationFilter` la compara con la de la cuenta.
+  `POST /api/auth/me/cerrar-sesiones` (204, autenticado, permitido aun con
+  los términos pendientes) la sube en 1 con un `UPDATE` atómico, y desde ese
+  momento todo token emitido antes responde 401, el del propio dispositivo
+  incluido. Restablecer la contraseña (US-03) también la sube: la contraseña
+  nueva echa a quien entró con la anterior.
+  - **Por qué no rompe la decisión anterior.** El argumento contra un
+    blacklist era el estado de servidor y la consulta extra por request.
+    Pero el filtro **ya** carga la cuenta en cada request
+    (`UsuarioDetailsService#loadUserByUsername`, para el rol y `activo`), así
+    que comparar un entero de esa misma fila no agrega consultas ni tablas, y
+    una sola columna revoca todos los tokens sin guardarlos.
+  - La versión la expone el `UserDetails` por la interfaz
+    `common/security/ConVersionDeSesion`, que implementa `auth` (mismo patrón
+    que `VerificadorTerminosPendientes`): `common` no depende de `auth`. Si un
+    `UserDetails` no la implementa, el filtro **falla cerrado** y no acepta
+    el token (`JwtAuthenticationFilterTest`).
+  - Los tokens sin el claim (emitidos antes de V23) valen como versión 0, y
+    toda cuenta empieza en 0: migrar no cierra ninguna sesión.
+  - Lo que no cubre: cerrar *una* sesión concreta de otro dispositivo (haría
+    falta un id por token y una tabla), fuera del criterio.
+- **Bloqueo por intentos fallidos (US-02 Esc. 2).** Con **5 intentos
+  fallidos seguidos**, cada uno a menos de 15 min del anterior, el correo
+  queda **bloqueado 15 min**: el login responde **409 `LOGIN_BLOQUEADO`**
+  («Demasiados intentos fallidos. Por seguridad, vuelve a intentarlo en N
+  minutos.»), también con la contraseña correcta. El criterio del backlog no
+  fija las cifras (el Gherkin original no está en el repo); se eligieron 5 y
+  15 min, las de uso común (OWASP recomienda limitar los intentos sin
+  bloquear para siempre). La regla está en
+  `auth/domain/PoliticaDeBloqueoDeLogin` y el contador en `intento_login`
+  (V22).
+  - **No revela si el correo tiene cuenta.** El contador es por correo
+    (normalizado: sin espacios y en minúsculas), exista o no la cuenta, sin
+    FK a `usuario`, y el bloqueo se comprueba **antes** que la contraseña: un
+    correo sin cuenta se bloquea igual y con la misma respuesta
+    (`BloqueoLoginIT`).
+  - 409 y no 429: es la convención del proyecto para una precondición de
+    negocio, con un `codigo` estable para la PWA (como `CORREO_NO_CONFIRMADO`).
+  - **El intento se cuenta antes de comprobar la contraseña**, en la misma
+    sentencia que mira el bloqueo (`IntentoLoginRepository#reservarIntento`:
+    `INSERT … ON CONFLICT DO UPDATE … WHERE` sin bloqueo vigente
+    `… RETURNING`; si no devuelve fila, el correo está bloqueado). Las
+    peticiones simultáneas sobre un correo se serializan en el candado de su
+    fila, así que **una ráfaga en paralelo prueba como mucho 5 contraseñas**:
+    con comprobar y contar en pasos separados, todas pasaban la comprobación
+    antes de que se contara la primera (revisión de US-02). Si la contraseña
+    es correcta, la fila se borra; un intento después de un bloqueo vencido,
+    o a más de 15 min del anterior, vuelve a contar desde 1.
+  - **Una conexión por login.** `AuthService#login` no es `@Transactional`:
+    contar el intento, comprobar la contraseña, olvidar el contador y armar
+    la respuesta (`TransactionOperations`) son transacciones cortas, una
+    después de otra. La primera versión envolvía todo en una transacción de
+    solo lectura y escribía el contador en `REQUIRES_NEW`: cada login
+    retenía dos conexiones y una ráfaga mayor que el pool (10) lo agotaba,
+    con 500 en lugar de 401 y sin contar el fallo (`BloqueoLoginIT`, ráfagas
+    de 25).
+  - **Purga diaria** (`auth/service/PurgaIntentosLoginService`, patrón de
+    «Tareas programadas (BE-15)», cron `app.login.intentos.purga.cron` /
+    `LOGIN_INTENTOS_PURGA_CRON`, 03:45 de Lima): borra las filas con el
+    último intento fuera de la ventana y sin bloqueo vigente. Sin ella la
+    tabla crecería con cada correo mal escrito; borrarlas no cambia el
+    comportamiento, porque volverían a contar desde 1.
+  - `LoginRequest.email` admite hasta 150 caracteres (el largo de
+    `usuario.email` y de la clave): uno más largo es 400, no un 500 al
+    guardar el intento.
+  - Límite conocido: quien conozca un correo puede mantenerlo bloqueado
+    fallando 5 veces cada 15 min (denegación de servicio dirigida). Es el
+    costo habitual del bloqueo por cuenta; la mitigación (captcha en el
+    login, NC-08) queda fuera de esta historia.
 - **CORS** (`SecurityConfig#corsConfigurationSource`): solo los orígenes de
   `app.cors.allowed-origins`, `allowCredentials=false` (el token viaja en
   `Authorization`, no en cookie) y `maxAge` de 1 h para ahorrar preflights.
@@ -1186,6 +1246,98 @@ yendo solo al creador (`ReporteEstadoCambiadoEvent.creadorId`); avisar
 también a los adheridos es una decisión aparte. Contrato para el frontend en
 `project-context/handoffs/2026-10-22-mis-adhesiones.md`.
 
+## Cierre de brechas del MVP (noviembre de 2026)
+
+Escenarios del Product Backlog al 02/11 que estaban «En curso» o «No
+iniciada» en su parte de backend. El Gherkin original no está en el repo
+(`project-context/backlog/product_backlog.md` solo resume las historias), así
+que las cifras que el criterio no fija quedaron como decisión y se registran
+aquí. US-02 y US-04 están en «Decisiones de seguridad».
+
+### Línea de tiempo con la creación del reporte (US-22 Esc. 2)
+
+`GET /api/reportes/{id}/historial` empieza siempre con la creación del
+reporte: `tipoEvento = "CREACION"`, `id` nulo, `estadoNuevo = "PENDIENTE"`,
+`comentario` «Se registró el reporte.», `autor` nulo y `fecha` la de creación.
+Así un reporte sin cambios de estado ya muestra un movimiento.
+
+- **Se deriva al leer, no se guarda.** `SeguimientoReporteService` la arma
+  con `reporte.created_at`. Guardarla en `historial_estado_reporte` exigía
+  una migración del `CHECK` de `tipo_evento`, rellenar los reportes que ya
+  existen y revisar cada consulta que lee el historial: las métricas (tiempo
+  de atención, reportes estancados) leen esa tabla y no deben ver una
+  «transición» que no lo es. Derivada, la entrada tampoco puede desalinearse
+  de la fecha real del reporte.
+- `CREACION` no es un valor de `TipoEventoHistorial` (el enum es lo que se
+  guarda); es la constante `SeguimientoReporteService.TIPO_CREACION`.
+- **Redacción**: es igual para todas las vistas y no lleva autor: el
+  nombre del creador no se publica a los adheridos, y el funcionario no lo
+  necesita en la línea de tiempo.
+- Pruebas: `HistorialReporteIT`, `OcultamientoReporteIT` (los índices de la
+  moderación se corren en uno).
+
+### Soporte: número de seguimiento y plazo (US-25 Esc. 1)
+
+La respuesta de crear un ticket (y de `mis-tickets`) trae
+`numeroSeguimiento`, `plazoRespuestaHoras` y `respuestaEsperadaAntesDe`.
+
+- `numeroSeguimiento` es `SOP-` más el `id` con seis cifras (`SOP-000123`).
+  Se deriva de la PK, única y secuencial, en `TicketSoporte#numeroSeguimiento`:
+  no hace falta otra columna ni otra secuencia. El ADMIN ve el mismo número
+  en su bandeja (`TicketAdminResponse`), para encontrar el ticket que le citan.
+- **Plazo: 48 horas corridas** desde la creación
+  (`TicketSoporte.PLAZO_RESPUESTA`). El criterio no fija la cifra; 48 h es lo
+  que un equipo de soporte de una sola persona puede cumplir sin turnos de
+  fin de semana. Es un compromiso informado, no un SLA que el sistema haga
+  cumplir: no cambia el estado del ticket al vencer.
+- La fecha límite llega calculada para que la PWA no tenga que saber el plazo.
+
+### Iconos de categoría (US-29 Esc. 1) y catálogo ampliado (US-34)
+
+- **Icono de un conjunto cerrado.** `reportes/domain/IconoCategoria` (14
+  identificadores: `BACHE`, `GRIETA`, `VEREDA`, `SEMAFORO`, `SENALIZACION`,
+  `CICLOVIA`, `DRENAJE`, `ILUMINACION`, `BARANDA`, `PUENTE`, `ARBOL`,
+  `ESCOMBROS`, `OBRA`, `OTRO`). `POST /api/categorias` y
+  `PATCH /api/categorias/{id}` aceptan `icono` (opcional) y los DTO
+  `CategoriaDanoResponse` y `CategoriaGestionResponse` lo devuelven (nulo =
+  sin icono). Un valor fuera del conjunto es **400** (Jackson no lo
+  convierte al enum). No se acepta texto libre ni una URL: la PWA dibuja cada
+  identificador con un icono propio, y una URL traería contenido de terceros
+  a la página. Agregar un icono es una constante más, sin migración.
+- Al editar, `icono` **reemplaza** al actual como `descripcion`: omitirlo
+  deja la categoría sin icono.
+- **US-34: tres categorías estándar nuevas** (V24), las que nombra el
+  backlog: «Ciclovía dañada», «Drenaje obstruido» e «Iluminación deficiente».
+  El catálogo público pasa de 5 a **8** estándar activas (9 con «Hueco en
+  calzada», inactiva). No tienen `clase_modelo`: el modelo no las conoce y
+  nunca se sugieren (NC-04).
+  - La **deduplicación** (US-09) es por `categoria_id`, así que no cambia:
+    un reporte de «Ciclovía dañada» solo se suma a otro igual
+    (`CatalogoAmpliadoEIconosIT`).
+  - El **índice** agrupa por la categoría de los reportes que existen: una
+    categoría sin reportes no agrega filas ni mueve totales.
+  - Como V18, V24 se detiene si un distrito ya tiene una categoría con el
+    nombre de una estándar nueva (sin distinguir mayúsculas), y desde V24 el
+    servicio rechaza ese nombre con 409.
+  - V24 también da icono a las seis estándar anteriores.
+
+### Avisos de datos insuficientes (US-17 Esc. 2 y US-20 Esc. 2)
+
+No hizo falta cambiar el contrato: los conteos ya están en los DTO.
+
+- US-17 (menos de 5 reportes): `GET /api/desempeno/mi-distrito` trae
+  `resumen.totalReportes`.
+- US-20 (al menos 3 resueltos para mostrar el tiempo promedio):
+  `GET /api/desempeno/distritos?categoriaId=` trae `totalResueltos` por fila.
+
+**El umbral es de presentación y vive en la PWA**: el servidor sigue
+devolviendo el promedio aunque se haya calculado con pocos datos. Ocultarlo
+en el servidor quitaría información pública a quien la quiera leer con su
+propio criterio, y las cifras (5 y 3) son del texto del aviso, no de la
+métrica. Ninguno de esos conteos es una señal operativa: son públicos desde
+US-18. `DesempenoIT#filaPorCategoria_exponeLosConteosParaElAvisoDeDatosInsuficientes`
+fija que sigan ahí.
+
 ## Catálogos de referencia (descubribilidad)
 
 Dos endpoints **públicos** de solo lectura que existen para que un cliente
@@ -1196,7 +1348,7 @@ todas necesitan un `categoriaId` o un `distritoId` válido.
 
 | Método | Ruta | Auth | Descripción |
 |---|---|---|---|
-| GET | `/api/categorias` | No | Categorías seleccionables. Sin `?distritoId=`: solo las estándar activas (5 desde V19, que desactivó «Hueco en calzada», NC-04). Con él: estándar + personalizadas activas de ese distrito (US-29). |
+| GET | `/api/categorias` | No | Categorías seleccionables, con su `icono` (US-29). Sin `?distritoId=`: solo las estándar activas (8 desde V24, US-34; V19 desactivó «Hueco en calzada», NC-04). Con él: estándar + personalizadas activas de ese distrito (US-29). |
 | GET | `/api/distritos` | No | Los 43 distritos (id, nombre, ubigeo) en orden alfabético. |
 
 Son públicos por el mismo criterio que la búsqueda de reportes (US-10/US-12),
@@ -1218,7 +1370,7 @@ endpoint devuelve es siempre seleccionable** (también se filtran las
 | Método | Ruta | Rol | Descripción |
 |---|---|---|---|
 | GET | `/api/categorias/gestion` | FUNCIONARIO_MUNICIPAL | Estándar + personalizadas de su distrito, **incluidas las inactivas**, con `activo` (`CategoriaGestionResponse`). |
-| PATCH | `/api/categorias/{id}` | FUNCIONARIO_MUNICIPAL | Edita `nombre` y `descripcion` de una personalizada de su distrito. |
+| PATCH | `/api/categorias/{id}` | FUNCIONARIO_MUNICIPAL | Edita `nombre`, `descripcion` e `icono` de una personalizada de su distrito. |
 | PATCH | `/api/categorias/{id}/activa` | FUNCIONARIO_MUNICIPAL | `{ "activa": bool }`: desactiva o reactiva una personalizada de su distrito. |
 
 - **Desactivar solo deja de ofrecerla** (decisión del usuario, 13/10): sale
@@ -1602,6 +1754,10 @@ refresca **dirigida por eventos**, `AFTER_COMMIT`, con
 `REFRESH MATERIALIZED VIEW CONCURRENTLY`. Mantiene la lectura pública barata
 —es un endpoint sin autenticación y potencialmente de alto tráfico— sin
 renunciar al "tiempo real" que pide el backlog.
+
+Desde NC-06 el mismo refresco recalcula también los KPIs por periodo
+(`mv_kpi_gestion_distrital`): dependen de los mismos eventos de la tabla de
+abajo (ver «Dashboard público por periodo de gestión»).
 
 **Corrección (2026-08-30).** La justificación original enumeraba solo *dos*
 disparadores: resolver un reporte y calificarlo. Estaba incompleta, y el hueco
@@ -3244,10 +3400,16 @@ de V16 impide que dos periodos se solapen. Así, cada fecha cae en un solo perio
 la fecha, o vacío fuera de todo periodo. Un reporte contará en el periodo de
 su fecha de creación (NC-02).
 
-**Pendiente.** GESTION_MUNICIPAL y REQUISITO_RECEPCION no se crean todavía:
-sus columnas no están definidas. Según la propuesta
-`project-context/decisions/propuestas/2026-10-20-columnas-gestion-y-requisitos.md`
-(aceptada, opción A), se crean con NC-06 y NC-05.
+**GESTION_MUNICIPAL no se crea (decisión del 23/11).** Con D-09
+(municipalidad 1:1 distrito), el par distrito × periodo ya identifica una
+gestión municipal, y los KPIs se calculan agrupando los reportes (NC-06, más
+abajo). No se guardan autoridades ni partidos. Reemplaza a la propuesta del
+20/10 para esa tabla. REQUISITO_RECEPCION sigue pendiente de NC-05. La V25
+agrega el periodo 2027-01-01 → 2030-12-31 (sin editar V15/V16), así que
+`periodoVigente` encuentra periodo hasta el 31/12/2030.
+
+**D-10 cerrada (23/11).** La jurisdicción del funcionario sigue en
+`usuario.distrito_id`; su municipalidad sale de `MunicipalidadService#deDistrito`.
 
 ## Título, severidad y periodo del reporte (NC-02)
 
@@ -3295,6 +3457,90 @@ fallaba justamente por eso; nunca llegó a aplicarse.
 Verificado en una copia de la base de desarrollo con 15 reportes: títulos
 como «Bache en Miraflores», severidad `MEDIA` y todos con periodo. También
 verificado en una base de test vacía.
+
+## Dashboard público por periodo de gestión (NC-06, OE3-I5)
+
+**Qué agrega.** Dos endpoints públicos (solo `GET`, rutas exactas en
+`SecurityConfig`, sin `Authorization`):
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/api/desempeno/periodos` | Periodos de gestión, el más reciente primero, con `vigente` (contiene hoy en hora de Lima). |
+| GET | `/api/desempeno/gestion?periodoId=&categoriaId=` | KPIs de cada municipalidad en el periodo. Sin `periodoId`, el vigente (404 si hoy no hay ninguno o si el id no existe). `categoriaId` opcional, como en `/distritos`. |
+
+Contrato completo: `project-context/handoffs/2026-11-23-dashboard-gestion-nc06.md`.
+
+**Fórmulas (decisión del usuario del 23/11, opción A).** Las del índice de
+US-18 agrupadas por distrito (= municipalidad, D-09) y periodo:
+
+- *Válidos*: todos salvo `CANCELADO` y los ocultos por el ADMIN. Los
+  `RECHAZADO` cuentan: si no, un distrito mejoraría su tasa rechazando (SEC-01).
+- *Tasa de resolución* = resueltos ÷ válidos × 100, dos decimales; `null` sin válidos.
+- *Tiempo promedio de atención* = promedio de `resolved_at − created_at` de
+  los resueltos, en **días** con un decimal; `null` sin resueltos.
+- *Satisfacción* = suma de estrellas ÷ número de calificaciones de los
+  reportes válidos; `null` sin calificaciones.
+- El reporte cuenta en el periodo de su **creación** (`reporte.periodo_gestion_id`,
+  NC-02), aunque se resuelva en el siguiente.
+
+`null` ≠ 0: un distrito con tres reportes válidos y ninguno resuelto tiene
+tasa `0.00`; uno sin reportes, `null` («Sin datos»). Los conteos
+(`reportesValidos`, `reportesResueltos`) van en el DTO para que la PWA
+muestre «Datos insuficientes» con menos de 5 válidos o menos de 3 resueltos.
+Igual que en US-17/US-20, el umbral es de presentación: el servidor no oculta
+ninguna cifra. Ningún campo es una señal operativa; todos se derivan de lo
+que ya es público.
+
+**Por qué una vista materializada y no una consulta agregada por petición.**
+Se evaluaron las dos. Se eligió `mv_kpi_gestion_distrital` (V25) por tres
+razones:
+
+1. **Es un endpoint anónimo.** Una agregación con `GROUP BY GROUPING SETS`
+   sobre todos los reportes en cada petición deja el costo en manos de
+   cualquiera que la llame; la vista hace que la lectura sea un `SELECT` por
+   índice sobre ~43 filas por periodo, como el índice de US-18.
+2. **Depende exactamente de los mismos eventos que el índice.** Las fórmulas
+   son las mismas agrupadas por periodo, así que crear, resolver, cancelar,
+   calificar, cambiar de categoría y ocultar/restablecer mueven las dos
+   vistas, y nada más las mueve (los periodos solo cambian por migración, y
+   el refresco del arranque los recoge). Por eso no se agregó un listener:
+   `DesempenoService#refrescarIndice` refresca las dos en la misma
+   transacción, con el mismo refresco asíncrono y coalescido de BE-12. Las
+   dos vistas nunca se contradicen entre sí.
+3. **La frescura ya está justificada** (sección «Frescura del índice de
+   desempeño»): un refresco o dos de retraso es aceptable para una métrica
+   agregada.
+
+El costo es un segundo `REFRESH … CONCURRENTLY` por tanda de eventos. La
+vista tiene 43 × periodos filas generales más las de categoría con reportes,
+así que es despreciable frente a la del índice.
+
+**La vista** cruza `periodo_gestion × distrito` (`CROSS JOIN`) para que cada
+distrito tenga su fila en cada periodo aunque no tenga reportes, y pone los
+filtros del reporte en la condición del `LEFT JOIN` (no en `WHERE`) para no
+perderlos, como V21. Las calificaciones se suman por reporte en una
+subconsulta para no multiplicar las filas. El desglose por categoría solo
+trae los distritos con reportes válidos de esa categoría en el periodo, como
+el de US-20.
+
+**El índice de US-18/US-20 y US-17 v1 siguen igual.** `/api/desempeno/distritos`
+y `/api/desempeno/mi-distrito` no cambian: el nuevo dashboard es una vista
+adicional, no un reemplazo directo (el índice histórico agrega todos los
+periodos y lo consume la PWA). Sustituir US-17 por su versión por periodo
+queda para cuando la PWA migre.
+
+**Evidencia del OE3-I5.** `KpiGestionPorPeriodoIT` siembra datos fijos en los
+dos periodos y en tres distritos con reportes (más Surquillo, sin ninguno):
+cancelados, ocultos (con calificación que no debe contar), rechazados,
+un resuelto creado en diciembre de 2026 y resuelto en enero de 2027, uno
+creado el 31/12/2026 a las 22:00 de Lima (03:00 UTC del 1/1), distritos sin
+calificaciones y un periodo donde un distrito solo tiene un cancelado (tasa
+`null`, no 0). El cálculo manual está escrito en el test, cifra por cifra, y
+se compara con **cada** cifra de **cada** uno de los 43 distritos en los dos
+periodos (43 × 2 × 6 = 516 cifras, con la escala exacta: `60.00` no es `60`),
+más el desglose por categoría. Todas las peticiones van sin `Authorization`, y
+otra prueba fija que `/periodos` y `/gestion` responden 200 sin token mientras
+`/mi-distrito` sigue en 401.
 
 ## Sugerencia de categoría por la foto (NC-04, fase 0)
 

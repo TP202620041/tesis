@@ -157,6 +157,9 @@ public class PasswordResetService {
         Usuario usuario = token.getUsuario();
         usuario.setPasswordHash(passwordEncoder.encode(nuevaPassword));
         usuarioRepository.save(usuario);
+        // US-04 Esc. 2: la contrasena nueva cierra las sesiones abiertas con
+        // la anterior (quien la cambia puede estar echando a un intruso).
+        usuarioRepository.subirVersionSesion(usuario.getId());
 
         token.setUsedAt(Instant.now());
         tokenRepository.save(token);

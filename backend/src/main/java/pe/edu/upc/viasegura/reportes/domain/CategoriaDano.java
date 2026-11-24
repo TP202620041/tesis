@@ -2,6 +2,8 @@ package pe.edu.upc.viasegura.reportes.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -69,7 +71,13 @@ public class CategoriaDano {
     @Column(name = "clase_modelo", length = 40, insertable = false, updatable = false)
     private String claseModelo;
 
-    /** Icono de la categoria (ARCHITECTURE.md §8). Su contenido lo define el rediseño (S8); hoy nulo y fuera de los DTO. */
+    /**
+     * Icono de la categoria (ARCHITECTURE.md §8, US-29 Esc. 1), de un conjunto
+     * cerrado ({@link IconoCategoria}). Lo elige el funcionario en las
+     * personalizadas; las estandar lo reciben de V24. Nulo = sin icono (la
+     * PWA muestra el generico).
+     */
+    @Enumerated(EnumType.STRING)
     @Column(length = 40)
-    private String icono;
+    private IconoCategoria icono;
 }

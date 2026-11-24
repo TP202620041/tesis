@@ -1,0 +1,11 @@
+-- ---------------------------------------------------------------------
+-- V23 (US-04 Esc. 2): cerrar sesion en todos los dispositivos.
+--
+-- usuario.version_sesion viaja en cada JWT (claim "ver") y el filtro de
+-- seguridad la compara con la de la cuenta, que ya carga en cada peticion.
+-- Subirla en 1 invalida de golpe todos los tokens emitidos antes, sin lista
+-- negra: POST /api/auth/me/cerrar-sesiones y el restablecimiento de la
+-- contrasena (US-03) la suben. Las cuentas existentes empiezan en 0, igual
+-- que los tokens sin el claim, asi que nadie pierde la sesion al migrar.
+-- ---------------------------------------------------------------------
+ALTER TABLE usuario ADD COLUMN version_sesion INTEGER NOT NULL DEFAULT 0;

@@ -116,7 +116,7 @@ class CorsConfigIT extends AbstractPostgisIT {
         // el navegador le oculta Content-Disposition y pierde el nombre del archivo.
         Distrito miraflores = distritoRepository.findByNombre("Miraflores").orElseThrow();
         CategoriaDano categoria = categoriaRepository.findAll().stream()
-                .filter(CategoriaDano::isEsEstandar).findFirst().orElseThrow();
+                .filter(CategoriaDano::isEsEstandar).filter(CategoriaDano::isActivo).findFirst().orElseThrow();
         Usuario ciudadano = guardarConTerminos(Usuario.builder()
                 .email("ciu-" + UUID.randomUUID() + "@lima.pe")
                 .passwordHash(passwordEncoder.encode("x"))
@@ -131,7 +131,7 @@ class CorsConfigIT extends AbstractPostgisIT {
                 .ubicacion(GeometryUtils.point(-77.0297, -12.1215))
                 .categoria(categoria).creador(ciudadano).distrito(miraflores)
                 .estado(EstadoReporte.PENDIENTE).totalAdhesiones(1).build());
-        String token = jwtService.generarToken(funcionario.getEmail(), funcionario.getRol().name());
+        String token = jwtService.generarToken(funcionario.getEmail(), funcionario.getRol().name(), 0);
 
         mockMvc.perform(get("/api/reportes/exportar")
                         .param("formato", "CSV")

@@ -143,7 +143,7 @@ class FotoFueraDeTransaccionIT extends AbstractPostgisIT {
 
     private long categoriaEstandarId() {
         return categoriaRepository.findAll().stream()
-                .filter(CategoriaDano::isEsEstandar)
+                .filter(CategoriaDano::isEsEstandar).filter(CategoriaDano::isActivo)
                 .filter(CategoriaDano::isActivo)
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("No hay categorias estandar activas sembradas"))
@@ -163,7 +163,7 @@ class FotoFueraDeTransaccionIT extends AbstractPostgisIT {
                 .param("longitud", String.valueOf(LON))
                 .param("titulo", "Hueco frente al parque").param("severidad", "ALTA")
                 .param("categoriaId", String.valueOf(categoriaEstandarId()))
-                .header("Authorization", "Bearer " + jwtService.generarToken(u.getEmail(), u.getRol().name()));
+                .header("Authorization", "Bearer " + jwtService.generarToken(u.getEmail(), u.getRol().name(), 0));
         if (clave != null) {
             peticion.header("Idempotency-Key", clave);
         }
