@@ -56,6 +56,13 @@ import pe.edu.upc.viasegura.reportes.event.ReporteVisibilidadCambiadaEvent;
  * (US-09, no crea fila nueva) y los estados RECIBIDO / EN_PROCESO /
  * RECHAZADO, que no alteran ni el total ni los resueltos.</p>
  *
+ * <p><b>NC-06:</b> los KPIs por periodo de gestion
+ * ({@code mv_kpi_gestion_distrital}, V25) usan las mismas formulas agrupadas
+ * por periodo, asi que dependen exactamente de los mismos eventos;
+ * {@link DesempenoService#refrescarIndice()} refresca las dos vistas juntas.
+ * Los periodos solo cambian por migracion, y el refresco del arranque los
+ * recoge.</p>
+ *
  * <p>Se dispara {@code AFTER_COMMIT}: el refresh solo corre si el cambio se
  * confirmo, nunca sobre una transaccion que despues hizo rollback. Como
  * {@code REFRESH} recalcula la vista completa, cualquiera de estos eventos
