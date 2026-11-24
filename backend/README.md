@@ -1731,6 +1731,10 @@ refresca **dirigida por eventos**, `AFTER_COMMIT`, con
 —es un endpoint sin autenticación y potencialmente de alto tráfico— sin
 renunciar al "tiempo real" que pide el backlog.
 
+Desde NC-06 el mismo refresco recalcula también los KPIs por periodo
+(`mv_kpi_gestion_distrital`): dependen de los mismos eventos de la tabla de
+abajo (ver «Dashboard público por periodo de gestión»).
+
 **Corrección (2026-08-30).** La justificación original enumeraba solo *dos*
 disparadores: resolver un reporte y calificarlo. Estaba incompleta, y el hueco
 era observable: **crear un reporte incrementa `total_reportes`**, que es el
@@ -3372,10 +3376,16 @@ de V16 impide que dos periodos se solapen. Así, cada fecha cae en un solo perio
 la fecha, o vacío fuera de todo periodo. Un reporte contará en el periodo de
 su fecha de creación (NC-02).
 
-**Pendiente.** GESTION_MUNICIPAL y REQUISITO_RECEPCION no se crean todavía:
-sus columnas no están definidas. Según la propuesta
-`project-context/decisions/propuestas/2026-10-20-columnas-gestion-y-requisitos.md`
-(aceptada, opción A), se crean con NC-06 y NC-05.
+**GESTION_MUNICIPAL no se crea (decisión del 23/11).** Con D-09
+(municipalidad 1:1 distrito), el par distrito × periodo ya identifica una
+gestión municipal, y los KPIs se calculan agrupando los reportes (NC-06, más
+abajo). No se guardan autoridades ni partidos. Reemplaza a la propuesta del
+20/10 para esa tabla. REQUISITO_RECEPCION sigue pendiente de NC-05. La V25
+agrega el periodo 2027-01-01 → 2030-12-31 (sin editar V15/V16), así que
+`periodoVigente` encuentra periodo hasta el 31/12/2030.
+
+**D-10 cerrada (23/11).** La jurisdicción del funcionario sigue en
+`usuario.distrito_id`; su municipalidad sale de `MunicipalidadService#deDistrito`.
 
 ## Título, severidad y periodo del reporte (NC-02)
 
@@ -3423,6 +3433,90 @@ fallaba justamente por eso; nunca llegó a aplicarse.
 Verificado en una copia de la base de desarrollo con 15 reportes: títulos
 como «Bache en Miraflores», severidad `MEDIA` y todos con periodo. También
 verificado en una base de test vacía.
+
+## Dashboard público por periodo de gestión (NC-06, OE3-I5)
+
+**Qué agrega.** Dos endpoints públicos (solo `GET`, rutas exactas en
+`SecurityConfig`, sin `Authorization`):
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/api/desempeno/periodos` | Periodos de gestión, el más reciente primero, con `vigente` (contiene hoy en hora de Lima). |
+| GET | `/api/desempeno/gestion?periodoId=&categoriaId=` | KPIs de cada municipalidad en el periodo. Sin `periodoId`, el vigente (404 si hoy no hay ninguno o si el id no existe). `categoriaId` opcional, como en `/distritos`. |
+
+Contrato completo: `project-context/handoffs/2026-11-23-dashboard-gestion-nc06.md`.
+
+**Fórmulas (decisión del usuario del 23/11, opción A).** Las del índice de
+US-18 agrupadas por distrito (= municipalidad, D-09) y periodo:
+
+- *Válidos*: todos salvo `CANCELADO` y los ocultos por el ADMIN. Los
+  `RECHAZADO` cuentan: si no, un distrito mejoraría su tasa rechazando (SEC-01).
+- *Tasa de resolución* = resueltos ÷ válidos × 100, dos decimales; `null` sin válidos.
+- *Tiempo promedio de atención* = promedio de `resolved_at − created_at` de
+  los resueltos, en **días** con un decimal; `null` sin resueltos.
+- *Satisfacción* = suma de estrellas ÷ número de calificaciones de los
+  reportes válidos; `null` sin calificaciones.
+- El reporte cuenta en el periodo de su **creación** (`reporte.periodo_gestion_id`,
+  NC-02), aunque se resuelva en el siguiente.
+
+`null` ≠ 0: un distrito con tres reportes válidos y ninguno resuelto tiene
+tasa `0.00`; uno sin reportes, `null` («Sin datos»). Los conteos
+(`reportesValidos`, `reportesResueltos`) van en el DTO para que la PWA
+muestre «Datos insuficientes» con menos de 5 válidos o menos de 3 resueltos.
+Igual que en US-17/US-20, el umbral es de presentación: el servidor no oculta
+ninguna cifra. Ningún campo es una señal operativa; todos se derivan de lo
+que ya es público.
+
+**Por qué una vista materializada y no una consulta agregada por petición.**
+Se evaluaron las dos. Se eligió `mv_kpi_gestion_distrital` (V25) por tres
+razones:
+
+1. **Es un endpoint anónimo.** Una agregación con `GROUP BY GROUPING SETS`
+   sobre todos los reportes en cada petición deja el costo en manos de
+   cualquiera que la llame; la vista hace que la lectura sea un `SELECT` por
+   índice sobre ~43 filas por periodo, como el índice de US-18.
+2. **Depende exactamente de los mismos eventos que el índice.** Las fórmulas
+   son las mismas agrupadas por periodo, así que crear, resolver, cancelar,
+   calificar, cambiar de categoría y ocultar/restablecer mueven las dos
+   vistas, y nada más las mueve (los periodos solo cambian por migración, y
+   el refresco del arranque los recoge). Por eso no se agregó un listener:
+   `DesempenoService#refrescarIndice` refresca las dos en la misma
+   transacción, con el mismo refresco asíncrono y coalescido de BE-12. Las
+   dos vistas nunca se contradicen entre sí.
+3. **La frescura ya está justificada** (sección «Frescura del índice de
+   desempeño»): un refresco o dos de retraso es aceptable para una métrica
+   agregada.
+
+El costo es un segundo `REFRESH … CONCURRENTLY` por tanda de eventos. La
+vista tiene 43 × periodos filas generales más las de categoría con reportes,
+así que es despreciable frente a la del índice.
+
+**La vista** cruza `periodo_gestion × distrito` (`CROSS JOIN`) para que cada
+distrito tenga su fila en cada periodo aunque no tenga reportes, y pone los
+filtros del reporte en la condición del `LEFT JOIN` (no en `WHERE`) para no
+perderlos, como V21. Las calificaciones se suman por reporte en una
+subconsulta para no multiplicar las filas. El desglose por categoría solo
+trae los distritos con reportes válidos de esa categoría en el periodo, como
+el de US-20.
+
+**El índice de US-18/US-20 y US-17 v1 siguen igual.** `/api/desempeno/distritos`
+y `/api/desempeno/mi-distrito` no cambian: el nuevo dashboard es una vista
+adicional, no un reemplazo directo (el índice histórico agrega todos los
+periodos y lo consume la PWA). Sustituir US-17 por su versión por periodo
+queda para cuando la PWA migre.
+
+**Evidencia del OE3-I5.** `KpiGestionPorPeriodoIT` siembra datos fijos en los
+dos periodos y en tres distritos con reportes (más Surquillo, sin ninguno):
+cancelados, ocultos (con calificación que no debe contar), rechazados,
+un resuelto creado en diciembre de 2026 y resuelto en enero de 2027, uno
+creado el 31/12/2026 a las 22:00 de Lima (03:00 UTC del 1/1), distritos sin
+calificaciones y un periodo donde un distrito solo tiene un cancelado (tasa
+`null`, no 0). El cálculo manual está escrito en el test, cifra por cifra, y
+se compara con **cada** cifra de **cada** uno de los 43 distritos en los dos
+periodos (43 × 2 × 6 = 516 cifras, con la escala exacta: `60.00` no es `60`),
+más el desglose por categoría. Todas las peticiones van sin `Authorization`, y
+otra prueba fija que `/periodos` y `/gestion` responden 200 sin token mientras
+`/mi-distrito` sigue en 401.
 
 ## Sugerencia de categoría por la foto (NC-04, fase 0)
 

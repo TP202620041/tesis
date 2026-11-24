@@ -124,6 +124,11 @@ public class SecurityConfig {
                         // no estan expuestos (management.endpoints en
                         // application.yml).
                         .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
+                        // Dashboard publico por periodo de gestion (NC-06, OE3-I5):
+                        // transparencia, como el indice de US-18. Rutas EXACTAS y
+                        // solo GET (no /api/desempeno/**: /mi-distrito es interno).
+                        .requestMatchers(HttpMethod.GET, "/api/desempeno/periodos").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/desempeno/gestion").permitAll()
                         // Lectura publica de comentarios (US-27); publicar si requiere auth.
                         .requestMatchers(HttpMethod.GET, "/api/reportes/*/comentarios").permitAll()
                         // Busqueda publica de reportes (US-12/US-10): misma info sin PII
