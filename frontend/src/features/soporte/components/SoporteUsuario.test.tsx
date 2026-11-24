@@ -39,6 +39,9 @@ describe('SoporteUsuario', () => {
     expect(within(items[0]!).getByText('Ya quedó corregido')).toBeInTheDocument();
     expect(within(items[1]!).getByText('Abierto')).toBeInTheDocument();
     expect(within(items[1]!).getByText('Aún sin respuesta.')).toBeInTheDocument();
+    // US-25: cada consulta muestra su número de seguimiento.
+    expect(items[0]).toHaveTextContent('Número de seguimiento #1');
+    expect(items[1]).toHaveTextContent('Número de seguimiento #2');
   });
 
   it('no envía un ticket sin asunto', async () => {
@@ -67,7 +70,13 @@ describe('SoporteUsuario', () => {
       asunto: 'No puedo subir foto',
       mensaje: 'El botón no responde',
     });
-    expect(await screen.findByText(/Recibimos tu consulta/)).toBeInTheDocument();
+    expect(await screen.findByText('Recibimos tu consulta')).toBeInTheDocument();
+    // US-25 Esc. 1: número de seguimiento (el id del API) y plazo de atención.
+    expect(
+      screen.getByText(
+        'Registramos tu consulta con el número de seguimiento #1. Te responderemos en un plazo de 2 días hábiles, aquí y al correo de tu cuenta.',
+      ),
+    ).toBeInTheDocument();
     expect(screen.getByLabelText('Asunto')).toHaveValue('');
     expect(listar).toHaveBeenCalledTimes(2);
   });

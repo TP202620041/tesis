@@ -18,6 +18,33 @@ export const TAMANO_PAGINA_TICKETS = 20;
 
 export const FILTROS_TICKETS_INICIALES: FiltrosTickets = { estado: null, pagina: 0 };
 
+/**
+ * US-25 Esc. 1: plazo de atención que se confirma al registrar un ticket.
+ *
+ * PROVISIONAL: el criterio pide «confirmar el plazo de atención», pero no
+ * dice cuál, y ni el backend ni las normas lo fijan. Es un compromiso de
+ * servicio que decide el usuario; mientras tanto se usa este valor, en un
+ * solo lugar. Si el backend llega a devolver el plazo, se toma de ahí.
+ */
+export const PLAZO_DE_ATENCION = '2 días hábiles';
+
+/**
+ * Número de seguimiento de un ticket: su id, que el API ya devuelve al
+ * crearlo. `null` si no vino (`api.ts` traduce un id ausente a 0).
+ */
+export function numeroDeSeguimiento(id: number): string | null {
+  return Number.isInteger(id) && id > 0 ? `#${id}` : null;
+}
+
+/** Confirmación tras crear un ticket (US-25 Esc. 1): número de seguimiento y plazo. */
+export function confirmacionDeTicket(id: number): string {
+  const numero = numeroDeSeguimiento(id);
+  const registrado = numero
+    ? `Registramos tu consulta con el número de seguimiento ${numero}.`
+    : 'Registramos tu consulta.';
+  return `${registrado} Te responderemos en un plazo de ${PLAZO_DE_ATENCION}, aquí y al correo de tu cuenta.`;
+}
+
 /** Errores del formulario de ticket; vacío = se puede enviar. */
 export function erroresDeTicket({ asunto, mensaje }: NuevoTicket): string[] {
   const errores: string[] = [];

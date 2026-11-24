@@ -4,7 +4,7 @@ import { AlertaError } from '@/components/ui/form';
 import { useMisTickets } from '../hooks/useMisTickets';
 import { EtiquetaEstadoTicket } from './EtiquetaEstadoTicket';
 import { FormularioTicket } from './FormularioTicket';
-import { fechaDeTicket } from '../model/tickets';
+import { fechaDeTicket, numeroDeSeguimiento } from '../model/tickets';
 import type { TicketPropio } from '../model/tipos';
 
 /**
@@ -51,10 +51,18 @@ export function SoporteUsuario() {
 }
 
 function TicketDeUsuario({ ticket }: { ticket: TicketPropio }) {
+  // US-25: el mismo número de seguimiento que se confirmó al crearlo.
+  const numero = numeroDeSeguimiento(ticket.id);
   return (
     <li className="flex flex-col gap-2 rounded-control border border-linea bg-superficie p-3">
       <div className="flex flex-wrap items-center gap-2">
         <strong className="text-texto">{ticket.asunto}</strong>
+        {numero && (
+          <span className="text-xs text-texto-2">
+            <span className="sr-only">Número de seguimiento </span>
+            {numero}
+          </span>
+        )}
         <EtiquetaEstadoTicket estado={ticket.estado} />
         <span className="text-xs text-texto-2">
           {fechaDeTicket(ticket.createdAt)}

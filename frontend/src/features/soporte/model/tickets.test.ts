@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   conEstado,
+  confirmacionDeTicket,
   erroresDeRespuesta,
   erroresDeTicket,
   fechaDeTicket,
@@ -8,7 +9,9 @@ import {
   MAX_ASUNTO,
   MAX_MENSAJE,
   navegacionDe,
+  numeroDeSeguimiento,
   parametrosDeTickets,
+  PLAZO_DE_ATENCION,
 } from './tickets';
 import type { EstadoTicket } from '@/lib/types/domain';
 
@@ -94,5 +97,26 @@ describe('fechaDeTicket', () => {
   it('muestra un guion si no hay fecha válida', () => {
     expect(fechaDeTicket('')).toBe('—');
     expect(fechaDeTicket('no-es-fecha')).toBe('—');
+  });
+});
+
+describe('número de seguimiento y plazo (US-25 Esc. 1)', () => {
+  it('el número de seguimiento es el id del ticket', () => {
+    expect(numeroDeSeguimiento(123)).toBe('#123');
+  });
+
+  it('sin id válido no inventa un número', () => {
+    expect(numeroDeSeguimiento(0)).toBeNull();
+    expect(numeroDeSeguimiento(-1)).toBeNull();
+    expect(numeroDeSeguimiento(1.5)).toBeNull();
+  });
+
+  it('la confirmación dice el número y el plazo; sin id, solo el plazo', () => {
+    expect(confirmacionDeTicket(7)).toBe(
+      `Registramos tu consulta con el número de seguimiento #7. Te responderemos en un plazo de ${PLAZO_DE_ATENCION}, aquí y al correo de tu cuenta.`,
+    );
+    expect(confirmacionDeTicket(0)).toBe(
+      `Registramos tu consulta. Te responderemos en un plazo de ${PLAZO_DE_ATENCION}, aquí y al correo de tu cuenta.`,
+    );
   });
 });
