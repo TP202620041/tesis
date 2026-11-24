@@ -103,6 +103,21 @@ describe('datos insuficientes (US-17 Esc. 2)', () => {
     expect(datosInsuficientes(con(5))).toBe(false);
   });
 
+  it('un total null no es «menos de 5»: sin aviso, y la métrica null dice «Sin datos»', () => {
+    // springdoc lo tipa `number | undefined`; el API enviaría `null`. Ninguno es 0.
+    const sinTotal: DesempenoDistrital = {
+      ...CON_DATOS,
+      totalReportes: null as unknown as number,
+      tasaResolucion: null,
+    };
+    expect(datosInsuficientes(sinTotal)).toBe(false);
+    expect(datosInsuficientes({ ...CON_DATOS, totalReportes: undefined })).toBe(false);
+    expect(valores(indicadoresDeDesempeno(sinTotal))).toMatchObject({
+      total: 'Sin datos',
+      tasa: 'Sin datos',
+    });
+  });
+
   it('con datos insuficientes, tasa, tiempo y satisfacción no se muestran; los conteos sí', () => {
     expect(valores(indicadoresDeDesempeno({ ...CON_DATOS, totalReportes: 4, totalResueltos: 2 }))).toMatchObject({
       total: '4',
