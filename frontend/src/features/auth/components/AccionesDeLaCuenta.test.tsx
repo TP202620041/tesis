@@ -31,10 +31,13 @@ const LUIS = {
 const seccion = () => screen.getByRole('region', { name: 'Otras opciones' });
 
 describe('AccionesDeLaCuenta: el final de la pantalla de «Cuenta»', () => {
-  it('ciudadano: Soporte y «Cerrar sesión» (Mi perfil ya es esta pantalla)', () => {
+  it('ciudadano: Soporte, la guía (US-24) y «Cerrar sesión» (Mi perfil ya es esta pantalla)', () => {
     render(<AccionesDeLaCuenta rol="CIUDADANO" />);
     const enlaces = within(seccion()).getAllByRole('link');
-    expect(enlaces.map((a) => [a.textContent, a.getAttribute('href')])).toEqual([['Soporte', '/soporte']]);
+    expect(enlaces.map((a) => [a.textContent, a.getAttribute('href')])).toEqual([
+      ['Soporte', '/soporte'],
+      ['¿Cómo funciona?', '/como-funciona'],
+    ]);
     expect(within(seccion()).getByRole('button', { name: 'Cerrar sesión' })).toBeInTheDocument();
   });
 

@@ -29,6 +29,7 @@ import type { ReporteCreado } from '../model/tipos';
 import { CampoSeveridad, CampoTitulo } from './CamposTituloYSeveridad';
 import { CampoFoto } from './CampoFoto';
 import { CampoUbicacion, type UbicacionElegida } from './CampoUbicacion';
+import { AyudaDeCategorias } from './AyudaDeCategorias';
 import { SugerenciaDeCategoria } from './SugerenciaDeCategoria';
 
 const ID_SUGERENCIA = 'categoriaId-sugerencia';
@@ -203,12 +204,16 @@ export function FormularioReporte({
       />
 
       <div className="flex flex-col gap-1.5">
-        <label
-          htmlFor="categoriaId"
-          className="text-sm font-medium text-texto"
-        >
-          Tipo de daño
-        </label>
+        {/* US-24 Esc. 2: el «?» junto a la etiqueta explica cada tipo de daño. */}
+        <div className="flex flex-wrap items-center gap-x-1">
+          <label
+            htmlFor="categoriaId"
+            className="text-sm font-medium text-texto"
+          >
+            Tipo de daño
+          </label>
+          <AyudaDeCategorias categorias={categorias} />
+        </div>
         <select
           ref={selectorDeCategoria}
           id="categoriaId"

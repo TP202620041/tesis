@@ -9,8 +9,8 @@ import { RUTA_ACEPTAR_TERMINOS, RUTA_MODERACION_ADMIN, RUTA_SOPORTE_ADMIN, RUTAS
  *
  * | Rol         | Móvil (barra inferior)                                  | Escritorio (cabecera)                                       |
  * |-------------|---------------------------------------------------------|-------------------------------------------------------------|
- * | Visitante   | Mapa · Desempeño · Reportar · Entrar                    | Mapa · Desempeño · Iniciar sesión · Crear cuenta            |
- * | Ciudadano   | Mapa · Mis reportes · Reportar · Desempeño · Cuenta     | lo mismo + menú de cuenta (Perfil, Soporte, Apariencia…)    |
+ * | Visitante   | Mapa · Desempeño · Reportar · Entrar (+ «?» arriba)     | Mapa · Desempeño · ¿Cómo funciona? · Iniciar sesión · Crear cuenta |
+ * | Ciudadano   | Mapa · Mis reportes · Reportar · Desempeño · Cuenta     | lo mismo + menú de cuenta (Perfil, Soporte, Guía, Apariencia…) |
  * | Funcionario | Bandeja · Panel · Categorías · Cuenta                   | Municipalidad de X · Bandeja · Panel · Categorías · Soporte |
  * | Admin       | Soporte · Moderación · Cuenta                           | Tickets de soporte · Moderación + menú de cuenta             |
  *
@@ -33,7 +33,8 @@ export type IconoNavegacion =
   | 'perfil'
   | 'cuenta'
   | 'entrar'
-  | 'registrarse';
+  | 'registrarse'
+  | 'guia';
 
 export interface ItemNavegacion {
   href: string;
@@ -85,6 +86,18 @@ const MODERACION_ADMIN: ItemNavegacion = {
   etiqueta: 'Moderación',
   icono: 'moderacion',
 };
+/**
+ * US-24: guía «¿Cómo funciona?». En el menú principal del visitante (quien
+ * llega por primera vez) y en la cuenta del ciudadano. La ruta la define la
+ * feature `guia` (`RUTA_GUIA`); se repite aquí porque `auth/model` no
+ * depende de otra feature.
+ */
+export const GUIA: ItemNavegacion = {
+  href: '/como-funciona',
+  etiqueta: '¿Cómo funciona?',
+  etiquetaCorta: 'Ayuda',
+  icono: 'guia',
+};
 const INICIAR_SESION: ItemNavegacion = { href: '/login', etiqueta: 'Iniciar sesión', etiquetaCorta: 'Entrar', icono: 'entrar' };
 const CREAR_CUENTA: ItemNavegacion = { href: '/registro', etiqueta: 'Crear cuenta', icono: 'registrarse' };
 
@@ -105,7 +118,7 @@ export function navegacionDe(rol: Rol | 'desconocido' | null): Navegacion {
   switch (rol) {
     case null:
       return {
-        principal: [MAPA, DESEMPENO],
+        principal: [MAPA, DESEMPENO, GUIA],
         // Reportar sin sesión: la guardia de /reportar lleva al login y vuelve.
         inferior: [MAPA, DESEMPENO, REPORTAR, INICIAR_SESION],
         cuenta: [],
@@ -115,7 +128,7 @@ export function navegacionDe(rol: Rol | 'desconocido' | null): Navegacion {
       return {
         principal: [MAPA, MIS_REPORTES, DESEMPENO, REPORTAR],
         inferior: [MAPA, MIS_REPORTES, REPORTAR, DESEMPENO],
-        cuenta: [PERFIL, SOPORTE],
+        cuenta: [PERFIL, SOPORTE, GUIA],
         acceso: [],
       };
     case 'FUNCIONARIO_MUNICIPAL':
@@ -150,6 +163,7 @@ const DESTINOS: readonly ItemNavegacion[] = [
   CATEGORIAS,
   SOPORTE_ADMIN,
   MODERACION_ADMIN,
+  GUIA,
   CUENTA,
 ];
 
