@@ -2124,3 +2124,28 @@ sesión bloqueado temporalmente») con el mensaje del servidor tal cual
 vacío). No ofrece «Reenviar el enlace» ni nada que dependa de la cuenta: el
 aviso es el mismo exista o no el correo. No hay cuenta regresiva: la PWA no
 sabe cuándo empezó el bloqueo y el servidor no lo informa.
+
+### Íconos de las categorías (US-29 Esc. 1, US-34)
+
+Cada categoría trae `icono` (enum cerrado `IconoCategoria` de 14 valores, o
+`null`), y el catálogo estándar suma «Ciclovía dañada», «Drenaje obstruido» e
+«Iluminación deficiente» (handoff `2026-11-23-cierre-mvp-backend.md`).
+
+- **Dónde vive:** el enum y sus nombres en `lib/types/iconoCategoria.ts`
+  (puro; lo usan `reportes` y `gestion`), y el pictograma en
+  `components/ui/IconoDeCategoria.tsx` (Lucide, empaquetado: la CSP no
+  cambia). Sin ícono, o con uno que esta versión no conoce, se ve uno genérico
+  (etiqueta): un valor nuevo del backend no rompe la PWA.
+- **Lucide no tiene semáforo:** se usa el cono de tránsito, que no se confunde
+  con la valla de «Obra».
+- **Decorativos:** el ícono siempre acompaña al nombre (`aria-hidden`).
+- **Formulario del reporte y filtros del mapa:** son `<select>` nativos, que no
+  admiten íconos en sus opciones. El ícono de la categoría elegida va a la
+  izquierda del selector (genérico con «Selecciona…»/«Todos»), y la ayuda «?»
+  del formulario lista todas con su ícono. Un desplegable propio con íconos
+  por opción perdería el selector nativo del móvil y su accesibilidad; queda
+  como posible mejora si el usuario lo pide.
+- **Gestión del funcionario:** el formulario de crear y editar tiene «Ícono
+  (opcional)» con «Sin ícono» y los 14 valores, y una vista previa al lado.
+  El PATCH reemplaza el ícono (omitirlo lo quita), así que al editar se envía
+  siempre el actual, como la descripción.

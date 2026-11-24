@@ -29,6 +29,7 @@ import type { ReporteCreado } from '../model/tipos';
 import { CampoSeveridad, CampoTitulo } from './CamposTituloYSeveridad';
 import { CampoFoto } from './CampoFoto';
 import { CampoUbicacion, type UbicacionElegida } from './CampoUbicacion';
+import { IconoDeCategoria } from '@/components/ui/IconoDeCategoria';
 import { AyudaDeCategorias } from './AyudaDeCategorias';
 import { SugerenciaDeCategoria } from './SugerenciaDeCategoria';
 
@@ -214,23 +215,31 @@ export function FormularioReporte({
           </label>
           <AyudaDeCategorias categorias={categorias} />
         </div>
-        <select
-          ref={selectorDeCategoria}
-          id="categoriaId"
-          required
-          aria-describedby={distritoId ? ID_SUGERENCIA : `${ID_SUGERENCIA} ${ID_AYUDA_CATEGORIA}`}
-          value={categoriaId ?? ''}
-          onChange={(e) => setCategoriaElegida(e.target.value ? Number(e.target.value) : null)}
-          className="min-h-objetivo rounded-control border border-linea-campo bg-superficie px-3 py-2 text-texto focus:border-primario"
-        >
-          <option value="">Selecciona…</option>
-          {categorias.map((categoria) => (
-            <option key={categoria.id} value={categoria.id}>
-              {categoria.nombre}
-              {!categoria.esEstandar ? ' (propia del distrito)' : ''}
-            </option>
-          ))}
-        </select>
+        {/* US-29/US-34: un <select> nativo no admite íconos en sus opciones;
+            el de la categoría elegida va a su lado (decorativo: el nombre
+            está en el selector) y la ayuda «?» los muestra todos. */}
+        <div className="flex items-center gap-2">
+          <span className="flex size-objetivo shrink-0 items-center justify-center rounded-control border border-linea bg-superficie-2 text-texto-2">
+            <IconoDeCategoria icono={categorias.find((c) => c.id === categoriaId)?.icono} />
+          </span>
+          <select
+            ref={selectorDeCategoria}
+            id="categoriaId"
+            required
+            aria-describedby={distritoId ? ID_SUGERENCIA : `${ID_SUGERENCIA} ${ID_AYUDA_CATEGORIA}`}
+            value={categoriaId ?? ''}
+            onChange={(e) => setCategoriaElegida(e.target.value ? Number(e.target.value) : null)}
+            className="min-h-objetivo min-w-0 flex-1 rounded-control border border-linea-campo bg-superficie px-3 py-2 text-texto focus:border-primario"
+          >
+            <option value="">Selecciona…</option>
+            {categorias.map((categoria) => (
+              <option key={categoria.id} value={categoria.id}>
+                {categoria.nombre}
+                {!categoria.esEstandar ? ' (propia del distrito)' : ''}
+              </option>
+            ))}
+          </select>
+        </div>
         <SugerenciaDeCategoria
           id={ID_SUGERENCIA}
           vista={sugerencia}

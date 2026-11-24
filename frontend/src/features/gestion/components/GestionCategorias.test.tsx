@@ -31,6 +31,7 @@ const BACHE: CategoriaGestion = {
   activo: true,
   distritoId: null,
   distritoNombre: null,
+  icono: 'BACHE',
 };
 const CICLOVIA: CategoriaGestion = {
   id: 58,
@@ -40,6 +41,7 @@ const CICLOVIA: CategoriaGestion = {
   activo: false,
   distritoId: 15,
   distritoNombre: 'Miraflores',
+  icono: null,
 };
 const MALECON: CategoriaGestion = {
   ...CICLOVIA,
@@ -47,6 +49,7 @@ const MALECON: CategoriaGestion = {
   nombre: 'Malecon erosionado',
   descripcion: 'Borde del acantilado',
   activo: true,
+  icono: 'BARANDA',
 };
 
 function seccion(nombre: string) {
@@ -129,6 +132,8 @@ describe('GestionCategorias', () => {
     expect(editar).toHaveBeenCalledWith(57, {
       nombre: 'Malecon con erosion',
       descripcion: 'Borde del acantilado',
+      // US-29: conserva el ícono que tenía.
+      icono: 'BARANDA',
     });
   });
 
@@ -141,7 +146,23 @@ describe('GestionCategorias', () => {
     await usuario.type(screen.getByLabelText('Nombre'), 'Bache');
     await usuario.click(screen.getByRole('button', { name: 'Crear categoría' }));
 
-    expect(crear).toHaveBeenCalledWith({ nombre: 'Bache', descripcion: '' });
+    expect(crear).toHaveBeenCalledWith({ nombre: 'Bache', descripcion: '', icono: null });
     expect(await screen.findByText('Ya existe una categoria con ese nombre')).toBeInTheDocument();
+  });
+
+  it('US-29 Esc. 1: el funcionario elige el ícono de su categoría al crearla', async () => {
+    crear.mockResolvedValue(undefined);
+    render(<GestionCategorias />);
+    const usuario = userEvent.setup();
+    await screen.findByText('Malecon erosionado');
+
+    await usuario.type(screen.getByLabelText('Nombre'), 'Baranda rota');
+    const selector = screen.getByLabelText('Ícono (opcional)');
+    // «Sin ícono» y los 14 del conjunto cerrado.
+    expect(within(selector).getAllByRole('option')).toHaveLength(15);
+    await usuario.selectOptions(selector, 'BARANDA');
+    await usuario.click(screen.getByRole('button', { name: 'Crear categoría' }));
+
+    expect(crear).toHaveBeenCalledWith({ nombre: 'Baranda rota', descripcion: '', icono: 'BARANDA' });
   });
 });

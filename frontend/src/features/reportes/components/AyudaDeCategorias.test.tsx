@@ -10,7 +10,7 @@ vi.mock('next/link', () => ({
 }));
 
 const CATEGORIAS: CategoriaDano[] = [
-  { id: 1, nombre: 'Bache', descripcion: 'Bache o hueco en la calzada', esEstandar: true },
+  { id: 1, nombre: 'Bache', descripcion: 'Bache o hueco en la calzada', esEstandar: true, icono: 'BACHE' },
   { id: 9, nombre: 'Buzón sin tapa', esEstandar: false },
 ];
 
@@ -31,6 +31,9 @@ describe('AyudaDeCategorias (US-24 Esc. 2)', () => {
     expect(screen.getByText('Bache o hueco en la calzada')).toBeInTheDocument();
     // Una categoría sin descripción no queda en blanco.
     expect(screen.getByText('Sin descripción.')).toBeInTheDocument();
+    // US-29: cada tipo con su ícono; sin ícono, el genérico.
+    expect(screen.getByText('Bache').querySelector('svg')).toHaveClass('lucide-circle-dot');
+    expect(screen.getByText('Buzón sin tapa').querySelector('svg')).toHaveClass('lucide-tag');
     expect(screen.getByRole('link', { name: 'Ver la guía' })).toHaveAttribute('href', '/como-funciona');
   });
 

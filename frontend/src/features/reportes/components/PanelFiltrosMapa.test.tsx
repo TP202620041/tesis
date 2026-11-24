@@ -12,8 +12,10 @@ const DISTRITOS: Distrito[] = [
 ];
 
 const CATEGORIAS: CategoriaDano[] = [
-  { id: 1, nombre: 'Bache', esEstandar: true },
+  { id: 1, nombre: 'Bache', esEstandar: true, icono: 'BACHE' },
   { id: 7, nombre: 'Malecón erosionado', esEstandar: false, distritoId: 21 },
+  // US-34: una de las estándar nuevas, con su ícono.
+  { id: 6, nombre: 'Ciclovía dañada', esEstandar: true, icono: 'CICLOVIA' },
 ];
 
 function renderizar(props: Partial<Parameters<typeof PanelFiltrosMapa>[0]> = {}) {
@@ -33,6 +35,26 @@ function renderizar(props: Partial<Parameters<typeof PanelFiltrosMapa>[0]> = {})
 }
 
 describe('PanelFiltrosMapa', () => {
+  it('US-29/US-34: junto al tipo de daño, el ícono del tipo elegido (genérico con «Todos»)', () => {
+    const { unmount } = render(
+      <PanelFiltrosMapa
+        filtros={FILTROS_VACIOS}
+        onCambiar={vi.fn()}
+        distritos={DISTRITOS}
+        categorias={CATEGORIAS}
+        total={0}
+        cargando={false}
+      />,
+    );
+    const contenedor = () => screen.getByLabelText('Tipo de daño').parentElement!;
+    expect(contenedor().querySelector('svg')).toHaveClass('lucide-tag');
+    unmount();
+
+    renderizar({ filtros: { ...FILTROS_VACIOS, categoriaId: 6 } });
+    expect(contenedor().querySelector('svg')).toHaveClass('lucide-bike');
+    expect(screen.getByRole('option', { name: 'Ciclovía dañada' })).toBeInTheDocument();
+  });
+
   it('muestra el conteo de resultados', () => {
     renderizar({ total: 12 });
     expect(screen.getByText('12 reportes en esta zona')).toBeInTheDocument();

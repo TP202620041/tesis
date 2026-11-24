@@ -19,6 +19,7 @@ function categoria(extra: Partial<CategoriaGestion>): CategoriaGestion {
     activo: true,
     distritoId: null,
     distritoNombre: null,
+    icono: null,
     ...extra,
   };
 }
@@ -37,32 +38,49 @@ describe('separarCategorias', () => {
 
 describe('erroresDeCategoria', () => {
   it('exige nombre y respeta los límites del backend', () => {
-    expect(erroresDeCategoria({ nombre: '  ', descripcion: '' })).toEqual([
+    expect(erroresDeCategoria({ nombre: '  ', descripcion: '', icono: null })).toEqual([
       'Escribe el nombre de la categoría.',
     ]);
     expect(
       erroresDeCategoria({
         nombre: 'n'.repeat(MAX_NOMBRE_CATEGORIA + 1),
         descripcion: 'd'.repeat(MAX_DESCRIPCION_CATEGORIA + 1),
+        icono: null,
       }),
     ).toHaveLength(2);
-    expect(erroresDeCategoria({ nombre: 'Malecon', descripcion: '' })).toEqual([]);
+    expect(erroresDeCategoria({ nombre: 'Malecon', descripcion: '', icono: null })).toEqual([]);
+  });
+
+  it('US-29: el ícono es opcional pero, si viene, debe ser del conjunto cerrado', () => {
+    expect(erroresDeCategoria({ nombre: 'Malecon', descripcion: '', icono: 'BARANDA' })).toEqual([]);
+    expect(
+      erroresDeCategoria({
+        nombre: 'Malecon',
+        descripcion: '',
+        icono: 'COHETE' as unknown as 'OTRO',
+      }),
+    ).toEqual(['Elige un ícono de la lista.']);
   });
 });
 
 describe('cuerpoDeCategoria (el PATCH reemplaza)', () => {
   it('envía siempre los dos campos; la descripción vacía viaja como null', () => {
-    expect(cuerpoDeCategoria({ nombre: ' Malecon ', descripcion: '   ' })).toEqual({
+    expect(cuerpoDeCategoria({ nombre: ' Malecon ', descripcion: '   ', icono: null })).toEqual({
       nombre: 'Malecon',
       descripcion: null,
+      icono: null,
     });
   });
 
   it('al editar parte de la descripción actual para no borrarla sin querer', () => {
-    const datos = datosDe(categoria({ nombre: 'Malecon', descripcion: 'Borde del acantilado' }));
+    const datos = datosDe(
+      categoria({ nombre: 'Malecon', descripcion: 'Borde del acantilado', icono: 'BARANDA' }),
+    );
+    // US-29: también el ícono actual, que el PATCH quitaría si faltara.
     expect(cuerpoDeCategoria(datos)).toEqual({
       nombre: 'Malecon',
       descripcion: 'Borde del acantilado',
+      icono: 'BARANDA',
     });
   });
 });

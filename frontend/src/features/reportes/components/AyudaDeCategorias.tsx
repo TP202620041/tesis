@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useId, useRef, useState } from 'react';
 import { CircleHelp, X } from 'lucide-react';
 import { BotonIcono, Icono } from '@/components/ui/Icono';
+import { IconoDeCategoria } from '@/components/ui/IconoDeCategoria';
 import type { CategoriaDano } from '@/lib/types/domain';
 
 /**
@@ -76,7 +77,10 @@ export function AyudaDeCategorias({ categorias }: { categorias: readonly Categor
               <dl className="flex flex-col gap-1.5">
                 {categorias.map((c) => (
                   <div key={c.id}>
-                    <dt className="font-medium">{c.nombre}</dt>
+                    <dt className="flex items-center gap-1.5 font-medium">
+                      <IconoDeCategoria icono={c.icono} tamano={16} />
+                      {c.nombre}
+                    </dt>
                     <dd>{c.descripcion?.trim() || 'Sin descripción.'}</dd>
                   </div>
                 ))}
