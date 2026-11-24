@@ -17,6 +17,7 @@ import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.SocketTimeoutException;
 import java.time.Duration;
+import java.util.concurrent.CancellationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -161,6 +162,23 @@ class ResendCorreoAdapterTest {
         assertThat(error).isNotNull();
         assertThat(error.status()).isEmpty();
         assertThat(error.getMessage()).contains("no respondio", "SocketTimeoutException");
+        sinDatosSensibles(error);
+    }
+
+    @Test
+    void unaLecturaCanceladaPorElTimeoutDeSpring_esCorreoNoEnviado() {
+        // Spring 6.2 corta la lectura cancelando el futuro del cliente del JDK, y
+        // a veces la cancelacion llega tal cual en vez de envuelta.
+        servidor.expect(once(), requestTo(ResendCorreoAdapter.URL_API)).andRespond(pedido -> {
+            throw new CancellationException();
+        });
+
+        CorreoNoEnviadoException error = catchThrowableOfType(CorreoNoEnviadoException.class,
+                () -> adaptador.enviar(MENSAJE));
+
+        assertThat(error).isNotNull();
+        assertThat(error.status()).isEmpty();
+        assertThat(error.getMessage()).contains("no respondio a tiempo", "Timeout");
         sinDatosSensibles(error);
     }
 

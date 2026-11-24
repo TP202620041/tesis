@@ -6,6 +6,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.CancellationException;
 import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,7 +44,10 @@ import pe.edu.upc.viasegura.common.port.MensajeCorreo;
  * <p><b>Timeouts</b>: 3 s de conexion y 10 s de lectura por defecto, los de la
  * propuesta aceptada. El envio corre en el executor asincrono acotado, fuera
  * de la peticion: el timeout acota cuanto ocupa uno de sus pocos hilos un
- * proveedor que no responde. <b>Sin reintentos</b> en esta version: llegan con
+ * proveedor que no responde. El timeout de lectura puede llegar como
+ * {@code ResourceAccessException} o como {@code CancellationException} sin
+ * envolver (Spring cancela el futuro del cliente del JDK): las dos son
+ * {@link CorreoNoEnviadoException}. <b>Sin reintentos</b> en esta version: llegan con
  * ENVIO_CORREO (NC-05), que registrara los intentos.</p>
  *
  * <p><b>Errores:</b> una respuesta 4xx/5xx o la falta de respuesta se traducen
@@ -147,6 +151,12 @@ public class ResendCorreoAdapter implements CorreoSaliente {
             String causa = NestedExceptionUtils.getMostSpecificCause(e).getClass().getSimpleName();
             throw new CorreoNoEnviadoException("Resend no respondio a tiempo o no se pudo conectar ["
                     + mensaje.etiqueta() + "] (" + causa + ")");
+        } catch (CancellationException e) {
+            // Spring 6.2 corta la lectura cancelando el futuro del HttpClient del
+            // JDK; segun el momento, llega asi y no envuelta en
+            // ResourceAccessException. Es el mismo timeout.
+            throw new CorreoNoEnviadoException("Resend no respondio a tiempo [" + mensaje.etiqueta()
+                    + "] (Timeout de lectura, pedido cancelado)");
         } catch (RestClientException e) {
             throw new CorreoNoEnviadoException("Error al llamar a Resend [" + mensaje.etiqueta() + "] ("
                     + e.getClass().getSimpleName() + ")");
