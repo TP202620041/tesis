@@ -8,22 +8,27 @@ import {
   queryDeComparacion,
   quitarDistrito,
 } from './comparacion';
-import type { DesempenoDistrital } from './formato';
+import type { KpiGestion } from './gestion';
 
 const leer = (query: string) => leerComparacion(new URLSearchParams(query));
 
 describe('leerComparacion (US-19)', () => {
-  it('lee los distritos en orden y el tipo de daño', () => {
-    expect(leer('comparar=21,41&categoria=3')).toEqual({ distritos: [21, 41], categoriaId: 3 });
+  it('lee los distritos en orden, el periodo y el tipo de daño', () => {
+    expect(leer('comparar=21,41&periodo=2&categoria=3')).toEqual({
+      distritos: [21, 41],
+      periodoId: 2,
+      categoriaId: 3,
+    });
   });
 
-  it('sin parámetros no hay comparación ni filtro', () => {
-    expect(leer('')).toEqual({ distritos: [], categoriaId: null });
+  it('sin parámetros no hay comparación ni filtro, y el periodo es el vigente (null)', () => {
+    expect(leer('')).toEqual({ distritos: [], periodoId: null, categoriaId: null });
   });
 
   it('tolera una URL editada a mano: descarta basura y repetidos', () => {
-    expect(leer('comparar=21,abc,21,-4,0,41,&categoria=x')).toEqual({
+    expect(leer('comparar=21,abc,21,-4,0,41,&periodo=-1&categoria=x')).toEqual({
       distritos: [21, 41],
+      periodoId: null,
       categoriaId: null,
     });
   });
@@ -35,15 +40,17 @@ describe('leerComparacion (US-19)', () => {
 
 describe('queryDeComparacion', () => {
   it('es legible y se puede volver a leer', () => {
-    const query = queryDeComparacion({ distritos: [21, 41], categoriaId: 3 });
-    expect(query).toBe('comparar=21,41&categoria=3');
-    expect(leer(query)).toEqual({ distritos: [21, 41], categoriaId: 3 });
+    const estado = { distritos: [21, 41], periodoId: 1, categoriaId: 3 };
+    const query = queryDeComparacion(estado);
+    expect(query).toBe('comparar=21,41&periodo=1&categoria=3');
+    expect(leer(query)).toEqual(estado);
   });
 
   it('omite lo que no está elegido', () => {
-    expect(queryDeComparacion({ distritos: [], categoriaId: null })).toBe('');
-    expect(queryDeComparacion({ distritos: [], categoriaId: 5 })).toBe('categoria=5');
-    expect(queryDeComparacion({ distritos: [7], categoriaId: null })).toBe('comparar=7');
+    expect(queryDeComparacion({ distritos: [], periodoId: null, categoriaId: null })).toBe('');
+    expect(queryDeComparacion({ distritos: [], periodoId: null, categoriaId: 5 })).toBe('categoria=5');
+    expect(queryDeComparacion({ distritos: [], periodoId: 2, categoriaId: null })).toBe('periodo=2');
+    expect(queryDeComparacion({ distritos: [7], periodoId: null, categoriaId: null })).toBe('comparar=7');
   });
 });
 
@@ -72,27 +79,38 @@ describe('depurarComparacion', () => {
     [41, 'San Juan de Lurigancho'],
   ]);
 
-  it('descarta distritos y tipos de daño que el catálogo no conoce', () => {
-    expect(depurarComparacion({ distritos: [21, 999, 41], categoriaId: 77 }, conocidos, [1, 3])).toEqual({
+  it('descarta distritos, tipos de daño y periodos que el catálogo no conoce', () => {
+    expect(
+      depurarComparacion({ distritos: [21, 999, 41], periodoId: 9, categoriaId: 77 }, conocidos, [1, 3], [1, 2]),
+    ).toEqual({
       distritos: [21, 41],
+      periodoId: null,
       categoriaId: null,
     });
   });
 
+  it('conserva un periodo conocido', () => {
+    expect(depurarComparacion({ distritos: [], periodoId: 2, categoriaId: null }, null, null, [1, 2]).periodoId).toBe(2);
+  });
+
   it('mientras un catálogo no cargó, no descarta nada de esa parte', () => {
-    const estado = { distritos: [21, 999], categoriaId: 77 };
-    expect(depurarComparacion(estado, null, null)).toEqual(estado);
+    const estado = { distritos: [21, 999], periodoId: 9, categoriaId: 77 };
+    expect(depurarComparacion(estado, null, null, null)).toEqual(estado);
   });
 });
 
 describe('distritosComparados', () => {
-  const miraflores: DesempenoDistrital = {
+  const miraflores: KpiGestion = {
     distritoId: 21,
     distritoNombre: 'Miraflores',
-    totalReportes: 18,
-    totalResueltos: 12,
+    municipalidadNombre: 'Municipalidad de Miraflores',
+    categoriaId: null,
+    reportesValidos: 18,
+    reportesResueltos: 12,
     tasaResolucion: 66.67,
-    tiempoPromedioHoras: 57.5,
+    tiempoPromedioDias: 2.4,
+    satisfaccionPromedio: null,
+    totalCalificaciones: 0,
   };
   const nombres = new Map([
     [21, 'Miraflores'],

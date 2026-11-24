@@ -2,27 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
   alternarOrden,
   anchoBarra,
-  DATOS_INSUFICIENTES,
   formatearSatisfaccion,
   formatearTasa,
   formatearTiempo,
-  formatearTiempoDeFila,
-  ordenar,
   ORDEN_INICIAL,
   SIN_DATOS,
-  tiempoConDatosInsuficientes,
-  type DesempenoDistrital,
 } from './formato';
-
-function fila(over: Partial<DesempenoDistrital>): DesempenoDistrital {
-  return {
-    distritoId: 1,
-    distritoNombre: 'Distrito',
-    totalReportes: 0,
-    totalResueltos: 0,
-    ...over,
-  };
-}
 
 // Nota de localización: `es-PE` usa PUNTO como separador decimal y coma
 // para miles (1,234.56), a diferencia de `es-ES` (1.234,56). Es la
@@ -103,57 +88,6 @@ describe('anchoBarra', () => {
   });
 });
 
-describe('ordenar', () => {
-  const filas = [
-    fila({ distritoNombre: 'Ate', tasaResolucion: 20, tiempoPromedioHoras: 100, totalReportes: 5 }),
-    fila({ distritoNombre: 'Barranco', tasaResolucion: 80, tiempoPromedioHoras: 10, totalReportes: 2 }),
-    fila({ distritoNombre: 'Comas', tasaResolucion: null, tiempoPromedioHoras: null, totalReportes: 0 }),
-    fila({ distritoNombre: 'Lince', tasaResolucion: 50, tiempoPromedioHoras: 40, totalReportes: 9 }),
-  ];
-
-  const nombres = (fs: DesempenoDistrital[]) => fs.map((f) => f.distritoNombre);
-
-  it('ordena por tasa de mayor a menor', () => {
-    expect(nombres(ordenar(filas, ORDEN_INICIAL))).toEqual(['Barranco', 'Lince', 'Ate', 'Comas']);
-  });
-
-  it('deja los "sin datos" al final también al invertir el orden', () => {
-    // Lo importante: al ordenar ascendente, Comas NO debe encabezar como si
-    // fuera el peor. No tiene tasa, no es el peor.
-    const asc = ordenar(filas, { columna: 'tasa', descendente: false });
-    expect(nombres(asc)).toEqual(['Ate', 'Lince', 'Barranco', 'Comas']);
-  });
-
-  it('ordena por tiempo de atención de menor a mayor', () => {
-    const porTiempo = ordenar(filas, { columna: 'tiempo', descendente: false });
-    expect(nombres(porTiempo)).toEqual(['Barranco', 'Lince', 'Ate', 'Comas']);
-  });
-
-  it('ordena por volumen de reportes', () => {
-    const porVolumen = ordenar(filas, { columna: 'reportes', descendente: true });
-    expect(nombres(porVolumen)).toEqual(['Lince', 'Ate', 'Barranco', 'Comas']);
-  });
-
-  it('ordena alfabéticamente por distrito', () => {
-    const porNombre = ordenar(filas, { columna: 'distrito', descendente: false });
-    expect(nombres(porNombre)).toEqual(['Ate', 'Barranco', 'Comas', 'Lince']);
-  });
-
-  it('desempata por nombre, para que el orden sea estable', () => {
-    const empatados = [
-      fila({ distritoNombre: 'Surco', tasaResolucion: 50 }),
-      fila({ distritoNombre: 'Lince', tasaResolucion: 50 }),
-    ];
-    expect(nombres(ordenar(empatados, ORDEN_INICIAL))).toEqual(['Lince', 'Surco']);
-  });
-
-  it('no muta la lista recibida', () => {
-    const original = [...filas];
-    ordenar(filas, { columna: 'distrito', descendente: true });
-    expect(filas).toEqual(original);
-  });
-});
-
 describe('alternarOrden', () => {
   it('invierte la dirección al pulsar la misma columna', () => {
     expect(alternarOrden({ columna: 'tasa', descendente: true }, 'tasa')).toEqual({
@@ -170,41 +104,3 @@ describe('alternarOrden', () => {
     expect(alternarOrden(ORDEN_INICIAL, 'distrito').descendente).toBe(false);
   });
 });
-
-describe('tiempo promedio con datos insuficientes (US-20 Esc. 2)', () => {
-  const porCategoria = (totalResueltos: number, tiempoPromedioHoras: number | null) =>
-    fila({ categoriaId: 3, totalReportes: 10, totalResueltos, tiempoPromedioHoras });
-
-  it('con menos de 3 resueltos en la categoría muestra «Datos insuficientes»', () => {
-    expect(formatearTiempoDeFila(porCategoria(1, 5))).toBe(DATOS_INSUFICIENTES);
-    expect(formatearTiempoDeFila(porCategoria(2, 30))).toBe(DATOS_INSUFICIENTES);
-  });
-
-  it('con 3 resueltos o más muestra el promedio', () => {
-    expect(formatearTiempoDeFila(porCategoria(3, 5.5))).toBe('5.5 h');
-  });
-
-  it('sin resueltos (promedio null) sigue siendo «Sin datos»', () => {
-    expect(formatearTiempoDeFila(porCategoria(0, null))).toBe(SIN_DATOS);
-    expect(formatearTiempoDeFila(null)).toBe(SIN_DATOS);
-  });
-
-  it('el agregado general (sin categoría) no aplica el mínimo', () => {
-    const general = fila({ categoriaId: null, totalResueltos: 1, tiempoPromedioHoras: 5 });
-    expect(tiempoConDatosInsuficientes(general)).toBe(false);
-    expect(formatearTiempoDeFila(general)).toBe('5 h');
-  });
-
-  it('al ordenar por tiempo, un promedio no representativo va al final como «Sin datos»', () => {
-    const rapido = { ...porCategoria(1, 1), distritoNombre: 'A' };
-    const lento = { ...porCategoria(5, 50), distritoNombre: 'B' };
-    const medio = { ...porCategoria(4, 10), distritoNombre: 'C' };
-    expect(
-      ordenar([rapido, lento, medio], { columna: 'tiempo', descendente: false }).map((f) => f.distritoNombre),
-    ).toEqual(['C', 'B', 'A']);
-    expect(
-      ordenar([rapido, lento, medio], { columna: 'tiempo', descendente: true }).map((f) => f.distritoNombre),
-    ).toEqual(['B', 'C', 'A']);
-  });
-});
-

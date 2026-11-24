@@ -69,38 +69,15 @@ export function formatearTiempo(horas: number | null | undefined): string {
 }
 
 /**
- * US-20 Esc. 2: con menos de {@link MIN_RESUELTOS_PARA_PROMEDIO} reportes
- * resueltos de una categoría en un distrito, su tiempo promedio no es
- * representativo y se muestra «Datos insuficientes» en vez del número.
- *
- * Distinto de «Sin datos»: con 0 resueltos el backend no tiene promedio
- * (`null`); con 1 o 2 sí lo tiene, pero la UI no lo presenta como si dijera
- * algo del distrito. Solo aplica al desglose por categoría (la fila trae
- * `categoriaId`), que es lo que pide el criterio; el agregado general sigue
- * mostrando el promedio que haya.
+ * «Datos insuficientes» (US-17 Esc. 2, US-20 Esc. 2): la métrica existe pero
+ * sale de tan pocos reportes que no dice nada del distrito. Distinto de «Sin
+ * datos» (`null`: no hay métrica). Con menos de
+ * {@link MIN_RESUELTOS_PARA_PROMEDIO} resueltos, el tiempo promedio no es
+ * representativo; las reglas del índice por periodo están en `gestion.ts`
+ * (NC-06) y las del dashboard del funcionario, en `dashboard.ts`.
  */
 export const DATOS_INSUFICIENTES = 'Datos insuficientes';
 export const MIN_RESUELTOS_PARA_PROMEDIO = 3;
-
-/** `true` si el tiempo promedio de la fila no es representativo (US-20 Esc. 2). */
-export function tiempoConDatosInsuficientes(fila: DesempenoDistrital): boolean {
-  return (
-    fila.categoriaId != null &&
-    fila.tiempoPromedioHoras != null &&
-    (fila.totalResueltos ?? 0) < MIN_RESUELTOS_PARA_PROMEDIO
-  );
-}
-
-/** El tiempo promedio que se puede mostrar y comparar: `null` si no hay o no es representativo. */
-export function tiempoRepresentativo(fila: DesempenoDistrital): number | null {
-  return tiempoConDatosInsuficientes(fila) ? null : (fila.tiempoPromedioHoras ?? null);
-}
-
-/** Tiempo promedio de una fila del índice, con la regla de US-20 Esc. 2. */
-export function formatearTiempoDeFila(fila: DesempenoDistrital | null | undefined): string {
-  if (fila && tiempoConDatosInsuficientes(fila)) return DATOS_INSUFICIENTES;
-  return formatearTiempo(fila?.tiempoPromedioHoras);
-}
 
 /** `4.25` -> `"4,3 / 5"`; `null` -> `"Sin datos"`. */
 export function formatearSatisfaccion(valor: number | null | undefined): string {
@@ -121,66 +98,18 @@ export interface Orden {
   descendente: boolean;
 }
 
-/** Orden por defecto: el mismo ranking que ya devuelve el backend. */
-export const ORDEN_INICIAL: Orden = { columna: 'tasa', descendente: true };
-
-function valorDe(fila: DesempenoDistrital, columna: ColumnaOrden): number | string | null {
-  switch (columna) {
-    case 'tasa':
-      return fila.tasaResolucion ?? null;
-    case 'tiempo':
-      // US-20 Esc. 2: un promedio no representativo va al final, como «Sin datos».
-      return tiempoRepresentativo(fila);
-    case 'satisfaccion':
-      return fila.satisfaccionPromedio ?? null;
-    case 'reportes':
-      return fila.totalReportes ?? 0;
-    case 'distrito':
-      return fila.distritoNombre ?? '';
-  }
-}
-
 /**
- * Ordena una copia por la columna indicada.
- *
- * <b>Los `null` van SIEMPRE al final</b>, se ordene ascendente o
- * descendentemente. Es deliberado: "sin datos" no es un valor extremo que
- * deba encabezar el ranking al invertir el orden — un distrito sin reportes
- * no es ni el mejor ni el peor, simplemente no participa de esa metrica.
- * Es el mismo criterio del `NULLS LAST` del backend.
+ * Orden por defecto: el mismo ranking que ya devuelve el backend. El orden
+ * en si (`ordenarGestion`, con los `null` siempre al final) esta en `gestion.ts`.
  */
-export function ordenar(filas: DesempenoDistrital[], orden: Orden): DesempenoDistrital[] {
-  const copia = [...filas];
-  return copia.sort((a, b) => {
-    const va = valorDe(a, orden.columna);
-    const vb = valorDe(b, orden.columna);
-
-    if (va == null && vb == null) return comparaNombre(a, b);
-    if (va == null) return 1;
-    if (vb == null) return -1;
-
-    let cmp: number;
-    if (typeof va === 'string' || typeof vb === 'string') {
-      cmp = String(va).localeCompare(String(vb), 'es-PE');
-    } else {
-      cmp = va - vb;
-    }
-    if (cmp === 0) return comparaNombre(a, b);
-    return orden.descendente ? -cmp : cmp;
-  });
-}
-
-/** Desempate estable y predecible entre filas equivalentes. */
-function comparaNombre(a: DesempenoDistrital, b: DesempenoDistrital): number {
-  return (a.distritoNombre ?? '').localeCompare(b.distritoNombre ?? '', 'es-PE');
-}
+export const ORDEN_INICIAL: Orden = { columna: 'tasa', descendente: true };
 
 /**
  * Alterna el orden al pulsar una columna.
  *
  * Cada columna arranca en la direccion que su significado hace mas util:
  * tasa, satisfaccion y volumen de mayor a menor; tiempo de atencion de menor
- * a mayor (menos horas es mejor) y distrito alfabetico.
+ * a mayor (menos tiempo es mejor) y distrito alfabetico.
  */
 export function alternarOrden(actual: Orden, columna: ColumnaOrden): Orden {
   if (actual.columna === columna) {
