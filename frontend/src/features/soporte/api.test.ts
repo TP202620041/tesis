@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from '@/lib/api/client';
-import { aPaginaTickets, aTicketAdmin, listarTickets, responderTicket } from './api';
+import { aPaginaTickets, aTicketAdmin, aTicketPropio, listarTickets, responderTicket } from './api';
 
 vi.mock('@/lib/api/client', () => ({
   api: { get: vi.fn(), post: vi.fn(), patch: vi.fn() },
@@ -28,6 +28,36 @@ describe('aTicketAdmin', () => {
     expect(t.respuesta).toBeNull();
     expect(t.nombreAutor).toBeNull();
     expect(t.estado).toBe('ABIERTO');
+    // Backend anterior: sin número de seguimiento.
+    expect(t.numeroSeguimiento).toBeNull();
+  });
+
+  it('toma el número de seguimiento del servidor; el ADMIN no recibe plazo', () => {
+    const t = aTicketAdmin({ id: 42, numeroSeguimiento: 'SOP-000042', estado: 'ABIERTO' });
+    expect(t.numeroSeguimiento).toBe('SOP-000042');
+    expect(t.plazoRespuestaHoras).toBeNull();
+    expect(t.respuestaEsperadaAntesDe).toBeNull();
+  });
+});
+
+describe('aTicketPropio', () => {
+  it('trae el número, el plazo y la fecha límite (US-25 Esc. 1)', () => {
+    const t = aTicketPropio({
+      id: 123,
+      numeroSeguimiento: 'SOP-000123',
+      asunto: 'No puedo subir foto',
+      mensaje: 'El botón no responde',
+      estado: 'ABIERTO',
+      createdAt: '2026-11-23T15:00:00Z',
+      plazoRespuestaHoras: 48,
+      respuestaEsperadaAntesDe: '2026-11-25T15:00:00Z',
+    });
+    expect(t).toMatchObject({
+      numeroSeguimiento: 'SOP-000123',
+      plazoRespuestaHoras: 48,
+      respuestaEsperadaAntesDe: '2026-11-25T15:00:00Z',
+      respuesta: null,
+    });
   });
 });
 

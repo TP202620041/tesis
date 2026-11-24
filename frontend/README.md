@@ -2067,9 +2067,20 @@ reporte en Pendiente tenía la línea de tiempo vacía. `LineaDeTiempo` recibe
 
 ### Soporte: número de seguimiento y plazo (US-25 Esc. 1)
 
-Al registrar un ticket se confirma su número de seguimiento (el id que ya
-devuelve el API, `#123`, que también aparece en «Mis consultas») y el plazo
-de atención. El plazo (`PLAZO_DE_ATENCION`, hoy «2 días hábiles») es
-**provisional**: el criterio no lo fija y es un compromiso de servicio que
-decide el usuario; está en un solo lugar.
+Al registrar un ticket se confirma su número de seguimiento y el plazo de
+respuesta, **tal como los devuelve el servidor** (handoff
+`2026-11-23-cierre-mvp-backend.md`): `numeroSeguimiento` (`SOP-000123`),
+`plazoRespuestaHoras` (48) y `respuestaEsperadaAntesDe`, que se muestra en
+hora de Lima («antes del 25/11/2026, 10:00»). El número aparece también en
+«Mis consultas» (con la fecha límite mientras no hay respuesta) y en la
+bandeja del ADMIN, para ubicar el ticket si el autor escribe por otra vía.
+
+- **Respaldo para un backend anterior:** sin `numeroSeguimiento` se muestra el
+  `#id`; sin plazo, `PLAZO_RESPUESTA_HORAS_POR_DEFECTO` (48, el mismo valor del
+  backend), y sin fecha límite se omite el «antes del …».
+- **El texto previo al envío** («Te responderemos en un plazo de 48 horas»)
+  usa ese valor por defecto, porque todavía no hay respuesta del servidor: si
+  el backend cambia el plazo, hay que cambiarlo también aquí.
+- Se dejó de decir «2 días hábiles» (el valor provisional anterior): el
+  compromiso que fija el backend son 48 horas corridas.
 

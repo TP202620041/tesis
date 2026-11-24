@@ -26,6 +26,11 @@ function estado(valor: string | undefined): EstadoTicket {
   return esEstadoTicket(valor) ? valor : 'ABIERTO';
 }
 
+/** Cadena vacía o ausente → `null`. */
+function texto(valor: string | undefined | null): string | null {
+  return valor && valor.trim() ? valor : null;
+}
+
 export function aTicketPropio(t: TicketSoporteResponse): TicketPropio {
   return {
     id: t.id ?? 0,
@@ -34,12 +39,21 @@ export function aTicketPropio(t: TicketSoporteResponse): TicketPropio {
     estado: estado(t.estado),
     respuesta: t.respuesta ?? null,
     createdAt: t.createdAt ?? '',
+    numeroSeguimiento: texto(t.numeroSeguimiento),
+    plazoRespuestaHoras:
+      typeof t.plazoRespuestaHoras === 'number' && t.plazoRespuestaHoras > 0
+        ? t.plazoRespuestaHoras
+        : null,
+    respuestaEsperadaAntesDe: texto(t.respuestaEsperadaAntesDe),
   };
 }
 
 export function aTicketAdmin(t: TicketAdminResponse): TicketAdmin {
   return {
     ...aTicketPropio(t),
+    // El ADMIN recibe el número, no el plazo (TicketAdminResponse no lo trae).
+    plazoRespuestaHoras: null,
+    respuestaEsperadaAntesDe: null,
     emailContacto: t.emailContacto ?? '',
     nombreAutor: t.nombreAutor ?? null,
     updatedAt: t.updatedAt ?? t.createdAt ?? '',

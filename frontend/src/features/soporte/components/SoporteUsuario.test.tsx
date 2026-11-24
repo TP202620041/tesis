@@ -18,6 +18,9 @@ const RESPONDIDO: TicketPropio = {
   estado: 'CERRADO',
   respuesta: 'Ya quedó corregido',
   createdAt: '2026-10-10T12:00:00Z',
+  numeroSeguimiento: 'SOP-000001',
+  plazoRespuestaHoras: 48,
+  respuestaEsperadaAntesDe: '2026-10-12T12:00:00Z',
 };
 
 describe('SoporteUsuario', () => {
@@ -29,19 +32,34 @@ describe('SoporteUsuario', () => {
   it('lista mis tickets con su estado y la respuesta de soporte', async () => {
     listar.mockResolvedValue([
       RESPONDIDO,
-      { ...RESPONDIDO, id: 2, asunto: 'Otra duda', estado: 'ABIERTO', respuesta: null },
+      // Backend anterior: sin número del servidor ni plazo → `#id` y sin fecha límite.
+      {
+        ...RESPONDIDO,
+        id: 2,
+        asunto: 'Otra duda',
+        estado: 'ABIERTO',
+        respuesta: null,
+        numeroSeguimiento: null,
+        plazoRespuestaHoras: null,
+        respuestaEsperadaAntesDe: null,
+      },
+      { ...RESPONDIDO, id: 3, numeroSeguimiento: 'SOP-000003', asunto: 'Tercera', respuesta: null },
     ]);
     render(<SoporteUsuario />);
 
     const items = await screen.findAllByRole('listitem');
-    expect(items).toHaveLength(2);
+    expect(items).toHaveLength(3);
     expect(within(items[0]!).getByText('Cerrado')).toBeInTheDocument();
     expect(within(items[0]!).getByText('Ya quedó corregido')).toBeInTheDocument();
     expect(within(items[1]!).getByText('Abierto')).toBeInTheDocument();
     expect(within(items[1]!).getByText('Aún sin respuesta.')).toBeInTheDocument();
-    // US-25: cada consulta muestra su número de seguimiento.
-    expect(items[0]).toHaveTextContent('Número de seguimiento #1');
+    // US-25: cada consulta muestra el número que asignó el servidor (respaldo: `#id`).
+    expect(items[0]).toHaveTextContent('Número de seguimiento SOP-000001');
     expect(items[1]).toHaveTextContent('Número de seguimiento #2');
+    // Sin respuesta y con plazo del servidor: la fecha límite en hora de Lima.
+    expect(
+      within(items[2]!).getByText('Aún sin respuesta. Respuesta esperada antes del 12/10/2026, 07:00.'),
+    ).toBeInTheDocument();
   });
 
   it('no envía un ticket sin asunto', async () => {
@@ -71,10 +89,10 @@ describe('SoporteUsuario', () => {
       mensaje: 'El botón no responde',
     });
     expect(await screen.findByText('Recibimos tu consulta')).toBeInTheDocument();
-    // US-25 Esc. 1: número de seguimiento (el id del API) y plazo de atención.
+    // US-25 Esc. 1: número de seguimiento y plazo que devuelve el servidor.
     expect(
       screen.getByText(
-        'Registramos tu consulta con el número de seguimiento #1. Te responderemos en un plazo de 2 días hábiles, aquí y al correo de tu cuenta.',
+        'Registramos tu consulta con el número de seguimiento SOP-000001. Te responderemos en un plazo de 48 horas (antes del 12/10/2026, 07:00), aquí y al correo de tu cuenta.',
       ),
     ).toBeInTheDocument();
     expect(screen.getByLabelText('Asunto')).toHaveValue('');

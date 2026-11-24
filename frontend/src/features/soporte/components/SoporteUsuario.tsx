@@ -4,7 +4,7 @@ import { AlertaError } from '@/components/ui/form';
 import { useMisTickets } from '../hooks/useMisTickets';
 import { EtiquetaEstadoTicket } from './EtiquetaEstadoTicket';
 import { FormularioTicket } from './FormularioTicket';
-import { fechaDeTicket, numeroDeSeguimiento } from '../model/tickets';
+import { fechaDeTicket, fechaLimiteDeRespuesta, numeroDeSeguimiento } from '../model/tickets';
 import type { TicketPropio } from '../model/tipos';
 
 /**
@@ -52,7 +52,8 @@ export function SoporteUsuario() {
 
 function TicketDeUsuario({ ticket }: { ticket: TicketPropio }) {
   // US-25: el mismo número de seguimiento que se confirmó al crearlo.
-  const numero = numeroDeSeguimiento(ticket.id);
+  const numero = numeroDeSeguimiento(ticket);
+  const limite = fechaLimiteDeRespuesta(ticket.respuestaEsperadaAntesDe);
   return (
     <li className="flex flex-col gap-2 rounded-control border border-linea bg-superficie p-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -77,7 +78,9 @@ function TicketDeUsuario({ ticket }: { ticket: TicketPropio }) {
           <p className="whitespace-pre-line text-info-texto">{ticket.respuesta}</p>
         </div>
       ) : (
-        <p className="text-xs text-texto-2">Aún sin respuesta.</p>
+        <p className="text-xs text-texto-2">
+          {limite ? `Aún sin respuesta. Respuesta esperada antes del ${limite}.` : 'Aún sin respuesta.'}
+        </p>
       )}
     </li>
   );

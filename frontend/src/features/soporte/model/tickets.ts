@@ -7,7 +7,13 @@
  * 400); validar aquí solo evita un viaje que va a fallar.
  */
 import { esEstadoTicket, type EstadoTicket } from '@/lib/types/domain';
-import type { FiltrosTickets, NuevoTicket, PaginaTickets, RespuestaTicket } from './tipos';
+import type {
+  FiltrosTickets,
+  NuevoTicket,
+  PaginaTickets,
+  RespuestaTicket,
+  TicketPropio,
+} from './tipos';
 
 export const MAX_ASUNTO = 200;
 export const MAX_MENSAJE = 2000;
@@ -19,30 +25,69 @@ export const TAMANO_PAGINA_TICKETS = 20;
 export const FILTROS_TICKETS_INICIALES: FiltrosTickets = { estado: null, pagina: 0 };
 
 /**
- * US-25 Esc. 1: plazo de atención que se confirma al registrar un ticket.
- *
- * PROVISIONAL: el criterio pide «confirmar el plazo de atención», pero no
- * dice cuál, y ni el backend ni las normas lo fijan. Es un compromiso de
- * servicio que decide el usuario; mientras tanto se usa este valor, en un
- * solo lugar. Si el backend llega a devolver el plazo, se toma de ahí.
+ * US-25 Esc. 1: plazo de respuesta, en horas, que se anuncia antes de crear
+ * un ticket. El backend lo fija (`plazoRespuestaHoras = 48`, handoff
+ * `2026-11-23-cierre-mvp-backend.md`) y lo devuelve en cada ticket; este
+ * valor es solo el respaldo para el texto previo al envío y para un backend
+ * anterior que no lo traiga.
  */
-export const PLAZO_DE_ATENCION = '2 días hábiles';
+export const PLAZO_RESPUESTA_HORAS_POR_DEFECTO = 48;
+
+/** «48 horas», «1 hora». */
+export function plazoDeAtencion(horas: number | null | undefined): string {
+  const h =
+    typeof horas === 'number' && Number.isInteger(horas) && horas > 0
+      ? horas
+      : PLAZO_RESPUESTA_HORAS_POR_DEFECTO;
+  return h === 1 ? '1 hora' : `${h} horas`;
+}
+
+/** Texto del plazo antes de enviar (todavía no hay respuesta del servidor). */
+export const PLAZO_DE_ATENCION = plazoDeAtencion(PLAZO_RESPUESTA_HORAS_POR_DEFECTO);
+
+type Seguimiento = Pick<TicketPropio, 'id' | 'numeroSeguimiento'>;
 
 /**
- * Número de seguimiento de un ticket: su id, que el API ya devuelve al
- * crearlo. `null` si no vino (`api.ts` traduce un id ausente a 0).
+ * Número de seguimiento de un ticket: el que asigna el servidor
+ * (`SOP-000123`). Respaldo para un backend anterior: `#id`. `null` si no hay
+ * ninguno de los dos (`api.ts` traduce un id ausente a 0).
  */
-export function numeroDeSeguimiento(id: number): string | null {
-  return Number.isInteger(id) && id > 0 ? `#${id}` : null;
+export function numeroDeSeguimiento(ticket: Seguimiento): string | null {
+  if (ticket.numeroSeguimiento) return ticket.numeroSeguimiento;
+  return Number.isInteger(ticket.id) && ticket.id > 0 ? `#${ticket.id}` : null;
+}
+
+/**
+ * Fecha y hora límite de la respuesta, en hora de Lima y formato `es-PE`
+ * (`25/11/2026, 10:00`). `null` si no vino o no es una fecha válida.
+ */
+export function fechaLimiteDeRespuesta(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const fecha = new Date(iso);
+  if (Number.isNaN(fecha.getTime())) return null;
+  return fecha.toLocaleString('es-PE', {
+    timeZone: 'America/Lima',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  });
 }
 
 /** Confirmación tras crear un ticket (US-25 Esc. 1): número de seguimiento y plazo. */
-export function confirmacionDeTicket(id: number): string {
-  const numero = numeroDeSeguimiento(id);
+export function confirmacionDeTicket(
+  ticket: Seguimiento & Pick<TicketPropio, 'plazoRespuestaHoras' | 'respuestaEsperadaAntesDe'>,
+): string {
+  const numero = numeroDeSeguimiento(ticket);
   const registrado = numero
     ? `Registramos tu consulta con el número de seguimiento ${numero}.`
     : 'Registramos tu consulta.';
-  return `${registrado} Te responderemos en un plazo de ${PLAZO_DE_ATENCION}, aquí y al correo de tu cuenta.`;
+  const limite = fechaLimiteDeRespuesta(ticket.respuestaEsperadaAntesDe);
+  const plazo = `un plazo de ${plazoDeAtencion(ticket.plazoRespuestaHoras)}`;
+  const cuando = limite ? `${plazo} (antes del ${limite})` : plazo;
+  return `${registrado} Te responderemos en ${cuando}, aquí y al correo de tu cuenta.`;
 }
 
 /** Errores del formulario de ticket; vacío = se puede enviar. */

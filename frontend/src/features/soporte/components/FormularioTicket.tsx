@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
+import type { TicketPropio } from '../model/tipos';
 import { Aviso } from '@/components/ui/Aviso';
 import { AlertaError, Boton, Campo } from '@/components/ui/form';
 import { useCrearTicket } from '../hooks/useCrearTicket';
@@ -8,24 +9,24 @@ import { confirmacionDeTicket, MAX_ASUNTO, MAX_MENSAJE, PLAZO_DE_ATENCION } from
 
 /**
  * US-25 Esc. 1: formulario para abrir un ticket de soporte. Al registrarlo
- * confirma el número de seguimiento (el id que devuelve el API) y el plazo
- * de atención.
+ * confirma el número de seguimiento y el plazo de respuesta que devuelve el
+ * servidor (con respaldo si un backend anterior no los trae).
  */
 export function FormularioTicket({ onCreado }: { onCreado: () => void }) {
   const { crear, enviando, error } = useCrearTicket();
   const [asunto, setAsunto] = useState('');
   const [mensaje, setMensaje] = useState('');
-  /** Id del ticket recién creado (US-25 Esc. 1), o `null` si no hay confirmación que mostrar. */
-  const [creadoId, setCreadoId] = useState<number | null>(null);
+  /** Ticket recién creado (US-25 Esc. 1), o `null` si no hay confirmación que mostrar. */
+  const [creado, setCreado] = useState<TicketPropio | null>(null);
 
   async function enviar(e: FormEvent) {
     e.preventDefault();
-    setCreadoId(null);
-    const creado = await crear({ asunto, mensaje });
-    if (creado) {
+    setCreado(null);
+    const ticket = await crear({ asunto, mensaje });
+    if (ticket) {
       setAsunto('');
       setMensaje('');
-      setCreadoId(creado.id);
+      setCreado(ticket);
       onCreado();
     }
   }
@@ -75,9 +76,9 @@ export function FormularioTicket({ onCreado }: { onCreado: () => void }) {
       {error && <AlertaError mensaje={error.mensaje} detalles={error.detalles} />}
       {/* Region viva siempre montada: el lector anuncia el texto que aparece dentro. */}
       <div role="status">
-        {creadoId !== null && (
+        {creado !== null && (
           <Aviso tono="exito" titulo="Recibimos tu consulta">
-            <p>{confirmacionDeTicket(creadoId)}</p>
+            <p>{confirmacionDeTicket(creado)}</p>
             <p>Puedes seguir su estado en «Mis consultas», más abajo.</p>
           </Aviso>
         )}
