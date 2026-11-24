@@ -657,6 +657,19 @@ Reglas de la cola:
   pasen esos plazos; otra persona con acceso al dispositivo podría leerlos con
   las herramientas del navegador. No se envían con la sesión de otro (ver
   arriba), y el aviso sin sesión solo muestra la cantidad, no el contenido.
+- **Aviso de envío exitoso (US-06 Esc. 2)**: cuando la cola envía sola
+  reportes, `sincronizarCola` avisa a sus oyentes (`alEnviarDesdeLaCola`) y
+  `useEnviosDesdeLaCola` los acumula hasta que el ciudadano cierra el aviso
+  («Se envió el reporte que guardaste sin conexión. Ver el reporte»; en una
+  adhesión, US-09, dice que se sumó su apoyo). Tres decisiones: (1) solo se
+  avisa si sigue la sesión en que se identificó al usuario, nunca a otra
+  persona; (2) el aviso está **fuera** de la condición «cola no vacía» de
+  `SincronizadorDeReportes`, porque al enviarse el último reporte la cola
+  queda vacía y el aviso tiene que seguir; (3) la región `status` está
+  siempre montada (vacía sin nada que contar), porque un lector anuncia de
+  forma fiable lo que aparece dentro de una región viva existente. Va arriba,
+  bajo la cabecera, para no tapar los otros avisos de la cola, y no se cierra
+  solo (WCAG 2.2.1).
 - **La foto** se guarda como `ArrayBuffer` + nombre + tipo y se rearma como
   `File` al reenviar: IndexedDB clona eso en todos los navegadores (Safari tuvo
   fallos guardando `Blob`).
@@ -1892,6 +1905,23 @@ colorear por umbrales obligaría a inventar qué tasa cuenta como "mala", un
 juicio que ni el backlog ni el backend definen. El ranking y el número ya
 comunican la comparación sin que la interfaz emita su propia calificación.
 
+**Datos insuficientes (US-17 Esc. 2, US-20 Esc. 2)** es otro caso, distinto
+de «Sin datos»: la métrica existe pero se calculó con tan pocos reportes que
+no dice nada del distrito. La regla vive en el modelo, con los conteos que ya
+trae el DTO (sin cambio de API):
+
+- Dashboard del funcionario (`model/dashboard.ts`): con menos de **5
+  reportes** (`MIN_REPORTES_DASHBOARD`) aparece un aviso y la tasa, el tiempo
+  y la satisfacción dicen «Datos insuficientes». Los conteos (recibidos,
+  resueltos, sin responsable, estancados) se muestran igual: son hechos, no
+  promedios. Una métrica `null` sigue diciendo «Sin datos».
+- Índice público por tipo de daño (`model/formato.ts`): con menos de **3
+  resueltos** de esa categoría en el distrito (`MIN_RESUELTOS_PARA_PROMEDIO`)
+  el tiempo promedio dice «Datos insuficientes», en la tabla y en la
+  comparación, y al ordenar por tiempo va al final como un `null`. Solo en el
+  desglose por categoría (la fila trae `categoriaId`), que es lo que pide el
+  criterio; el agregado general muestra el promedio que haya.
+
 ### Comparar distritos (US-19)
 
 - **El estado vive en la URL** (`?comparar=21,41&categoria=3`), no en estado
@@ -2000,3 +2030,46 @@ solo al volver la señal (ver "Cola offline" en Decisiones técnicas).
 
 Siguiente slice: **US-10** (mapa interactivo), que reutiliza el componente de
 mapa en modo lectura sobre `GET /api/reportes` con bounding box.
+
+### Guía de uso (US-24) y ayuda del tipo de daño
+
+`/como-funciona` (pública) es una guía de seis pasos: ver el mapa, crear la
+cuenta, reportar, reportar sin señal, seguir el reporte y calificar. Se
+enlaza desde el menú principal del visitante (en el móvil, un «?» en la
+cabecera, porque la barra inferior ya tiene sus cuatro ítems), desde la
+cuenta del ciudadano y desde la portada. El contenido y la navegación son
+puros (`features/guia/model/pasos.ts`); el componente solo los pinta.
+
+- **Ilustraciones, no capturas en PNG.** Cada paso lleva un esquema SVG de la
+  pantalla dibujado con los tokens del tema: se ve bien en claro, oscuro y
+  alto contraste, no pide nada a otro origen (la CSP no cambia) y no queda
+  desactualizado con cada ajuste visual. Para el lector es una imagen con su
+  descripción.
+- **Accesibilidad:** botones y enlaces nativos; la lista de pasos marca el
+  actual con `aria-current="step"` y permite saltar a cualquiera; al cambiar
+  de paso el foco va al título del paso nuevo («Paso N de M»), y al cargar no
+  se mueve; se puede omitir en todo momento y nada avanza solo.
+- **Ayuda del tipo de daño (Esc. 2):** un «?» junto a «Tipo de daño» en
+  `/reportar` despliega cada categoría del catálogo con su descripción
+  (también las propias del distrito, US-29). Es un desplegable con
+  `aria-expanded`, no un tooltip al pasar el ratón: se abre con teclado y
+  dedo, no se va mientras se lee (WCAG 1.4.13) y se cierra con Escape. Las
+  imágenes de ejemplo que pide el criterio quedan pendientes: no hay fotos
+  con licencia ni un campo para ellas en el catálogo.
+
+### Historial: el evento de creación (US-22 Esc. 2)
+
+El backend no guarda un evento de creación en el historial, así que un
+reporte en Pendiente tenía la línea de tiempo vacía. `LineaDeTiempo` recibe
+`creadoEn` y antepone «Reporte creado» con esa fecha
+(`lib/types/historial.ts`). Si el servidor llega a entregar ese evento (tipo
+`CREACION`, provisional), no se deriva nada y no aparece dos veces.
+
+### Soporte: número de seguimiento y plazo (US-25 Esc. 1)
+
+Al registrar un ticket se confirma su número de seguimiento (el id que ya
+devuelve el API, `#123`, que también aparece en «Mis consultas») y el plazo
+de atención. El plazo (`PLAZO_DE_ATENCION`, hoy «2 días hábiles») es
+**provisional**: el criterio no lo fija y es un compromiso de servicio que
+decide el usuario; está en un solo lugar.
+
