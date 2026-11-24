@@ -11,6 +11,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
 import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -47,7 +48,10 @@ import pe.edu.upc.viasegura.common.exception.ServicioNoDisponibleException;
  *
  * <p><b>Timeouts</b>: 3 s de conexion y 5 s de lectura. La verificacion corre
  * en el hilo de la peticion (el ciudadano espera la respuesta del registro),
- * pero fuera de la transaccion. <b>Sin reintentos ni redirecciones.</b> Un
+ * pero fuera de la transaccion. El timeout de lectura de Spring cancela el
+ * futuro del cliente del JDK y, segun la carrera, llega como
+ * {@link ResourceAccessException} o como {@link CancellationException} sin
+ * envolver: las dos son 503. <b>Sin reintentos ni redirecciones.</b> Un
  * token sirve una sola vez: reintentar un pedido que si llego daria
  * {@code timeout-or-duplicate}.</p>
  *
@@ -247,6 +251,13 @@ public class TurnstileAdapter implements VerificadorDeCaptcha {
         } catch (ResourceAccessException e) {
             log.warn("Turnstile no respondio a tiempo o no se pudo conectar ({})",
                     NestedExceptionUtils.getMostSpecificCause(e).getClass().getSimpleName());
+            throw new ServicioNoDisponibleException(MENSAJE_NO_DISPONIBLE);
+        } catch (CancellationException e) {
+            // Spring 6.2 corta la lectura cancelando el futuro del HttpClient del
+            // JDK; segun el momento en que lo corta, llega asi y no envuelta en
+            // ResourceAccessException. Es el mismo timeout: sin esta rama seria
+            // un 500 (fallo intermitente de la CI del 24/11).
+            log.warn("Turnstile no respondio a tiempo (Timeout de lectura: el pedido se cancelo)");
             throw new ServicioNoDisponibleException(MENSAJE_NO_DISPONIBLE);
         } catch (RestClientException e) {
             log.warn("Error al llamar a Turnstile ({})", e.getClass().getSimpleName());

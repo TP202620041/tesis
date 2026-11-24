@@ -2608,7 +2608,9 @@ propuesta aceptada: el envío corre fuera de la petición, así que esperar más
 Resend no demora a nadie, y el timeout acota cuánto ocupa uno de los pocos
 hilos del executor asíncrono un proveedor que no responde. Sin reintentos: llegarán
 con NC-05 (ENVIO_CORREO, con registro de intentos). Una respuesta 4xx o 5xx, o
-la falta de respuesta, se traduce a `CorreoNoEnviadoException` con el status y
+la falta de respuesta (también el timeout de lectura que llega como
+`CancellationException` sin envolver, ver «Captcha en el registro»), se traduce
+a `CorreoNoEnviadoException` con el status y
 el código de error de Resend (`validation_error`, `rate_limit_exceeded`…).
 Nunca lleva el `message` de Resend (puede repetir el destinatario), el texto ni
 la clave, y por eso tampoco encadena la excepción original.
@@ -2788,6 +2790,19 @@ llamada. **Sin reintentos ni redirecciones:** el token es de un solo uso, y
 reintentar un pedido que sí llegó daría `timeout-or-duplicate`. Por eso
 tampoco se envía `idempotency_key`, que Cloudflare ofrece solo para
 reintentar.
+
+**El timeout de lectura siempre es 503.** Con `JdkClientHttpRequestFactory`,
+Spring 6.2 corta la lectura cancelando el futuro del `HttpClient` del JDK, y
+según quién gane la carrera la excepción llega envuelta en
+`ResourceAccessException` o como `CancellationException` sin envolver, que no
+es una `RestClientException`. Sin capturarla, un Turnstile lento daba 500 en
+lugar de 503; así falló de forma intermitente
+`timeoutDeLecturaReal_cortaLaEsperaYEsServicioNoDisponible` en la CI del push
+de la v0.9.0 a `main` (24/11). El adaptador traduce las dos al mismo
+`ServicioNoDisponibleException`, con el mensaje fijo (sin token ni secreto), y
+`unaLecturaCanceladaPorElTimeoutDeSpring_esServicioNoDisponible` lo fija sin
+depender de la carrera. Los adaptadores de inferencia y moderación ya lo
+hacían (NC-04); el de Resend recibió la misma corrección.
 
 **El hostname, sí; la acción, no.** Cloudflare devuelve el `hostname` donde se
 resolvió el widget y recomienda compararlo. Es una comparación exacta contra
