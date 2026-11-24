@@ -534,9 +534,11 @@ cross-origin, que es justo donde las políticas son más restrictivas.
 **Lo que se pierde, sin adornos:** `localStorage` es legible por cualquier
 script de la página. Ante un XSS (por ejemplo una dependencia comprometida) el
 token puede exfiltrarse y usarse desde fuera del navegador de la víctima. Se
-agrava con la decisión de US-04: el backend no tiene blacklist, así que un
-token robado sigue siendo válido hasta expirar (120 min), incluso si el
-usuario cambia su contraseña.
+agrava con la decisión de US-04: cerrar sesión en este dispositivo solo
+descarta el token local, que sigue siendo válido hasta expirar (120 min). Desde
+el cierre del MVP el backend sí puede revocarlo: «Cerrar sesión en todos los
+dispositivos» y el restablecimiento de contraseña invalidan todos los tokens
+emitidos antes (ver «Cerrar sesión en todos los dispositivos» más abajo).
 
 **Matiz para no sobrevender la alternativa:** una cookie `httpOnly` *no* evita
 que un XSS abuse de la sesión — el navegador adjunta la cookie igual y el
@@ -2091,3 +2093,23 @@ bandeja del ADMIN, para ubicar el ticket si el autor escribe por otra vía.
 - Se dejó de decir «2 días hábiles» (el valor provisional anterior): el
   compromiso que fija el backend son 48 horas corridas.
 
+### Cerrar sesión en todos los dispositivos (US-04 Esc. 2)
+
+En la pantalla de la cuenta (`AccionesDeLaCuenta`), debajo de «Cerrar
+sesión», está «Cerrar sesión en todos los dispositivos». Pide confirmación en
+un diálogo (no se deshace y también cierra la sesión de este dispositivo) y
+llama a `POST /api/auth/me/cerrar-sesiones` (204), que revoca todos los tokens
+de la cuenta.
+
+- **Mismo flujo que el cierre normal** (`hooks/useCerrarSesion.ts`): las
+  preguntas previas (reportes en cola, US-06), la baja de push de este
+  navegador (necesita el token vivo, así que va antes de revocar), y tras el
+  204 el token local, la caché `cross-origin` y el login.
+- **Si el servidor falla, la sesión local no se cierra**: el usuario creería
+  haber cerrado las demás sin que sea cierto. El error se muestra en el
+  diálogo y puede reintentar. La baja de push de este navegador ya ocurrió;
+  se reactiva desde la cuenta.
+- **Los otros dispositivos** reciben 401 en su siguiente petición y el manejo
+  central del 401 los lleva al login. No hay aviso en tiempo real.
+- Solo está en la pantalla de la cuenta, no en el menú de la cabecera: es una
+  acción poco frecuente y destructiva.

@@ -16,6 +16,10 @@ vi.mock('next/link', () => ({
 vi.mock('./BotonCerrarSesion', () => ({
   BotonCerrarSesion: () => <button type="button">Cerrar sesión</button>,
 }));
+// La confirmación y el flujo de US-04 Esc. 2 los cubre CerrarSesionEnTodos.test.
+vi.mock('./CerrarSesionEnTodos', () => ({
+  CerrarSesionEnTodos: () => <button type="button">Cerrar sesión en todos los dispositivos</button>,
+}));
 
 const LUIS = {
   id: 9,
@@ -39,6 +43,10 @@ describe('AccionesDeLaCuenta: el final de la pantalla de «Cuenta»', () => {
       ['¿Cómo funciona?', '/como-funciona'],
     ]);
     expect(within(seccion()).getByRole('button', { name: 'Cerrar sesión' })).toBeInTheDocument();
+    // US-04 Esc. 2: la opción de cerrar todas las sesiones, aparte.
+    expect(
+      within(seccion()).getByRole('button', { name: 'Cerrar sesión en todos los dispositivos' }),
+    ).toBeInTheDocument();
   });
 
   it('funcionario: Soporte e Índice público; admin: solo «Cerrar sesión»', () => {
