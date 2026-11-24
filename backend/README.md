@@ -821,8 +821,9 @@ Cada dominio se organiza en `controller/ · service/ · repository/ · dto/ · d
   `POST /api/auth/me/cerrar-sesiones` (204, autenticado, permitido aun con
   los términos pendientes) la sube en 1 con un `UPDATE` atómico, y desde ese
   momento todo token emitido antes responde 401, el del propio dispositivo
-  incluido. Restablecer la contraseña (US-03) también la sube: la contraseña
-  nueva echa a quien entró con la anterior.
+  incluido. Restablecer la contraseña (US-03) también la sube y además borra
+  las suscripciones push (ver abajo): la contraseña nueva echa a quien entró
+  con la anterior y le corta los avisos.
   - **Por qué no rompe la decisión anterior.** El argumento contra un
     blacklist era el estado de servidor y la consulta extra por request.
     Pero el filtro **ya** carga la cuenta en cada request
@@ -836,6 +837,37 @@ Cada dominio se organiza en `controller/ · service/ · repository/ · dto/ · d
     el token (`JwtAuthenticationFilterTest`).
   - Los tokens sin el claim (emitidos antes de V23) valen como versión 0, y
     toda cuenta empieza en 0: migrar no cierra ninguna sesión.
+  - **También borra las suscripciones push del usuario** (decisión del
+    24/11). Revocar los tokens no basta: un dispositivo con la sesión
+    revocada seguiría recibiendo los avisos de los reportes de la cuenta
+    en la pantalla de bloqueo. La PWA vuelve a registrar la
+    suscripción del dispositivo cuando el usuario inicia sesión de nuevo
+    (`useIniciarSesion` → `reRegistrarPushAlIniciarSesion`, si el
+    navegador conserva su suscripción y el permiso `NOTIFICACIONES_PUSH`
+    sigue vigente), así que en el dispositivo desde el que se vuelve a
+    entrar los avisos regresan solos.
+    - **Por evento y después del commit, no en la misma transacción.**
+      `notificaciones` ya depende de `auth` (§4.3), así que `AuthService`
+      no puede llamar a `SuscripcionPushService` sin crear un ciclo.
+      `AuthService` publica `auth/event/SesionesCerradasEvent` y
+      `notificaciones/listener/SesionesCerradasListener` (`AFTER_COMMIT`)
+      llama a `SuscripcionPushService#eliminarTodasDelUsuario`
+      (`REQUIRES_NEW`), el mismo camino que la revocación del permiso push
+      (D-12, `ConsentimientoRevocadoListener`).
+    - **Si el borrado falla, el cierre de sesiones vale igual.** Lo que
+      protege la cuenta es revocar los tokens; el listener registra el
+      fallo (`WARN`) y la respuesta sigue siendo 204. La ventana es la de
+      un error de base de datos justo después del commit.
+    - **Restablecer la contraseña (US-03) hace lo mismo** (decisión del
+      24/11): `PasswordResetService#restablecer`, después de subir la
+      versión de sesión, publica el mismo `SesionesCerradasEvent`. Quien
+      cambia la contraseña puede estar echando a un intruso, y ese intruso
+      no debe seguir recibiendo los avisos de la cuenta en su navegador.
+      Un único evento y un único listener para los dos casos: «se cerraron
+      todas las sesiones» es el hecho, venga de donde venga.
+    - `CerrarSesionesIT` y `PasswordResetIT` crean suscripciones en dos
+      «dispositivos» del usuario y una de otra cuenta, y comprueban que
+      solo quedan las ajenas.
   - Lo que no cubre: cerrar *una* sesión concreta de otro dispositivo (haría
     falta un id por token y una tabla), fuera del criterio.
 - **Bloqueo por intentos fallidos (US-02 Esc. 2).** Con **5 intentos
