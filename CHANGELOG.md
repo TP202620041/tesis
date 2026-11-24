@@ -2,6 +2,45 @@
 
 Versiones de Ciudad Viva (antes ViaSegura) según GitFlow (`WORKFLOW.md` §8): cada sprint cierra con una versión minor en `main`. Plan: `project-context/decisions/plan-sprints.md`.
 
+## v0.9.0 — Sprint 6 y cierre del MVP: dashboard por periodo de gestión (2026-11-23)
+
+Cierra el S6, desbloqueado por las decisiones del usuario del 23/11 (`project-context/decisions/propuestas/2026-11-23-nc-06-kpis-gestion-y-d10.md`), y completa los escenarios que la auditoría del Product Backlog del 02/11 encontró pendientes. Reúne los PR #146 a #150.
+
+### Antes de publicar
+- **Sin variables obligatorias nuevas.** Opcional: `LOGIN_INTENTOS_PURGA_CRON` (por defecto, todos los días a las 03:45 de Lima), la purga de los intentos de inicio de sesión vencidos.
+- **Migraciones V22 a V25** (las aplica Flyway al arrancar):
+  - V22 `intento_login` (US-02).
+  - V23 `usuario.version_sesion` (US-04).
+  - V24 tres categorías estándar nuevas e íconos de las estándar (US-34, US-29). Se detiene si algún distrito ya tiene una categoría con el nombre de una de las nuevas. En producción, el 23/11 solo existían las cinco estándar.
+  - V25 periodo 2027-2030 y la vista materializada `mv_kpi_gestion_distrital` (NC-06).
+- **Compatibilidad durante el despliegue:**
+  - Los JWT emitidos antes de V23 valen como versión de sesión 0, así que publicar no cierra ninguna sesión.
+  - El API mantiene `/api/desempeno/distritos`, que la PWA anterior sigue usando.
+  - Mientras la PWA anterior siga abierta, el historial de un reporte puede traer al inicio el evento nuevo `CREACION`.
+
+### Nuevo
+- **Dashboard público por periodo de gestión (NC-06, evidencia del OE3-I5):**
+  - **Indicadores por municipalidad y periodo:** tasa de resolución, tiempo promedio de atención en días, satisfacción y conteos.
+  - **Endpoints:** `GET /api/desempeno/periodos` y `GET /api/desempeno/gestion?periodoId=&categoriaId=`, públicos.
+  - **En la PWA:** `/desempeno` tiene selector de periodo, filtro por tipo de daño, comparación de 2 a 4 distritos y la explicación de cada fórmula.
+  - **Evidencia del OE3-I5:** `KpiGestionPorPeriodoIT` compara 516 cifras con un cálculo manual.
+- **US-02:** bloqueo de 15 minutos tras 5 intentos fallidos por correo, con 409 `LOGIN_BLOQUEADO`. La respuesta no revela si la cuenta existe. Hay una purga diaria de los intentos vencidos.
+- **US-04:** `POST /api/auth/me/cerrar-sesiones` cierra la sesión en todos los dispositivos (versión de sesión en el JWT). Restablecer la contraseña también la revoca. En los dos casos se eliminan las suscripciones push del usuario (#148).
+- **US-06:** aviso de envío exitoso al sincronizar la cola sin conexión.
+- **US-17 y US-20:** «Datos insuficientes» con menos de 5 reportes o menos de 3 resueltos.
+- **US-22:** el historial empieza con «Reporte creado».
+- **US-24:** guía pública `/como-funciona` y ayuda «?» del tipo de daño. Las imágenes de ejemplo de su Esc. 2 siguen pendientes.
+- **US-25:** número de seguimiento (`SOP-…`), plazo de respuesta de 48 horas y fecha límite en los tickets.
+- **US-29 y US-34:** íconos de un conjunto cerrado para las categorías. Se agregan «Ciclovía dañada», «Drenaje obstruido» e «Iluminación deficiente».
+
+### Cifras (CI de los PR #148 y #150)
+- **Failsafe:** 651 `completed` (637 ejecutados y 14 omitidos), antes 612.
+- **Surefire:** 840, antes 830.
+- **Cobertura del backend:** 95,7 % de líneas y 87,3 % de ramas.
+- **PWA:** 1521 tests en 163 archivos.
+- **Inferencia:** sin cambios (264).
+- **Mínimos de la CI:** `MIN_IT_FAILSAFE` sube a 637 y `MIN_SUREFIRE` a 840.
+
 ## v0.8.0 — Sprint 7: ML real, registro verificado y moderación (2026-10-31)
 
 Cierra el S7, que salió antes que el S6 por decisión del usuario del 25/10 (`project-context/decisions/plan-sprints.md`). Reúne los PR #108, #109, #112, #115 y #117 a #141, fusionados en `develop` después de v0.7.2:
