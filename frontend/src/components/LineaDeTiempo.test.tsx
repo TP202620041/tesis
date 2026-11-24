@@ -35,10 +35,31 @@ describe('LineaDeTiempo', () => {
     expect(primero).toHaveTextContent('Reporte creado');
     expect(segundo).toHaveTextContent('Pendiente → Recibido');
 
+    // Contrato nuevo: el servidor trae la creación primero, sin id ni autor.
+    const creacionDelServidor: HistorialEntrada = {
+      id: null,
+      tipoEvento: 'CREACION',
+      estadoAnterior: null,
+      estadoNuevo: 'PENDIENTE',
+      comentario: 'Se registró el reporte.',
+      autor: null,
+      fecha: FECHA,
+      avisoIndice: null,
+    };
     rerender(
-      <LineaDeTiempo entradas={[entrada({ id: 1, tipoEvento: 'CREACION' })]} creadoEn={FECHA} />,
+      <LineaDeTiempo
+        entradas={[
+          creacionDelServidor,
+          entrada({ id: 2, estadoAnterior: 'PENDIENTE', estadoNuevo: 'RECIBIDO' }),
+        ]}
+        creadoEn={FECHA}
+      />,
     );
     expect(screen.getAllByText('Reporte creado')).toHaveLength(1);
+    const eventos = screen.getAllByRole('listitem');
+    expect(eventos).toHaveLength(2);
+    expect(eventos[0]).toHaveTextContent('Se registró el reporte.');
+    expect(eventos[1]).toHaveTextContent('Pendiente → Recibido');
   });
 
   it('US-22: describe el cambio de estado y la asignación', () => {

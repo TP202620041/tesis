@@ -28,9 +28,9 @@ export function LineaDeTiempo({
 }: {
   entradas: HistorialEntrada[];
   /**
-   * US-22 Esc. 2: fecha de creacion del reporte. Con ella la linea de tiempo
-   * empieza por «Reporte creado» (derivado, salvo que el servidor ya traiga
-   * ese evento: `lib/types/historial`).
+   * US-22 Esc. 2: fecha de creacion del reporte. Respaldo para un backend
+   * anterior: si el servidor no trae el evento `CREACION`, la linea de tiempo
+   * empieza por «Reporte creado» con esta fecha (`lib/types/historial`).
    */
   creadoEn?: string | null;
 }) {
@@ -46,8 +46,8 @@ export function LineaDeTiempo({
   return (
     <ol className="flex flex-col gap-3">
       {entradas.map((entrada, indice) => (
-        // El evento de creacion derivado no tiene `id` (no es una fila del servidor).
-        <li key={entrada.id ?? `derivado-${indice}`} className="flex gap-3">
+        // La creacion no tiene `id`, ni la del servidor ni la derivada: no es una fila de la tabla.
+        <li key={entrada.id ?? `sin-id-${entrada.tipoEvento ?? ''}-${indice}`} className="flex gap-3">
           <span
             aria-hidden="true"
             className="mt-1.5 size-2 shrink-0 rounded-full bg-texto-2"

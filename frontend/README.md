@@ -2059,11 +2059,18 @@ puros (`features/guia/model/pasos.ts`); el componente solo los pinta.
 
 ### Historial: el evento de creación (US-22 Esc. 2)
 
-El backend no guarda un evento de creación en el historial, así que un
-reporte en Pendiente tenía la línea de tiempo vacía. `LineaDeTiempo` recibe
-`creadoEn` y antepone «Reporte creado» con esa fecha
-(`lib/types/historial.ts`). Si el servidor llega a entregar ese evento (tipo
-`CREACION`, provisional), no se deriva nada y no aparece dos veces.
+El backend entrega la creación como primera entrada del historial
+(`tipoEvento = 'CREACION'`, con `id` y `autor` nulos; handoff
+`2026-11-23-cierre-mvp-backend.md`), y `LineaDeTiempo` la pinta como
+«Reporte creado» con el comentario del servidor. La clave de la lista no
+puede ser el `id` en esa fila (se usa el tipo y la posición).
+
+**Respaldo para un backend anterior**, que no la enviaba y dejaba vacía la
+línea de tiempo de un reporte en Pendiente: `LineaDeTiempo` recibe
+`creadoEn` y, solo si ninguna entrada es `CREACION`, antepone «Reporte
+creado» con esa fecha (`lib/types/historial.ts`). Así nunca aparece dos
+veces. Lo mismo para «Todavía no hay movimientos registrados.»: con el
+backend nuevo el historial nunca llega vacío, pero el texto se conserva.
 
 ### Soporte: número de seguimiento y plazo (US-25 Esc. 1)
 

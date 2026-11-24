@@ -3,16 +3,15 @@ import type { HistorialEntrada } from './domain';
 /**
  * US-22 Esc. 2: el historial de un reporte empieza con su creación.
  *
- * El backend no guarda un evento de creación en `historial_estado_reporte`
- * (solo cambios de estado, asignaciones y moderación), así que un reporte que
- * sigue en Pendiente tenía la línea de tiempo vacía. Aquí se deriva ese
- * primer evento de la fecha de creación del reporte (`createdAt`), que todos
- * los detalles ya reciben.
+ * El backend entrega ese evento como primera entrada del historial
+ * (`tipoEvento = 'CREACION'`, `id` y `autor` nulos; handoff
+ * `2026-11-23-cierre-mvp-backend.md`). Si alguna entrada lo trae
+ * ({@link TIPOS_EVENTO_CREACION}), no se deriva nada: manda el del servidor y
+ * no aparece dos veces.
  *
- * **Preparado para cuando el backend lo entregue.** Si alguna entrada trae un
- * tipo de evento de creación ({@link TIPOS_EVENTO_CREACION}), no se deriva
- * nada: manda el del servidor y no aparece dos veces. El nombre `CREACION` es
- * provisional: si el backend elige otro, se agrega a la lista.
+ * **Respaldo para un backend anterior**, que no lo enviaba y dejaba vacía la
+ * línea de tiempo de un reporte en Pendiente: se deriva de la fecha de
+ * creación del reporte (`createdAt`), que todos los detalles ya reciben.
  *
  * Puro: sin React ni I/O.
  */

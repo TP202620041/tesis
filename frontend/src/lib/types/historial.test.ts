@@ -22,8 +22,20 @@ describe('conEventoDeCreacion (US-22 Esc. 2)', () => {
   });
 
   it('si el servidor ya trae el evento de creación, no se duplica', () => {
-    const delServidor: HistorialEntrada = { id: 1, tipoEvento: 'CREACION', fecha: CREADO, autor: 'Ana' };
+    // Forma del contrato (handoff 2026-11-23): id, estadoAnterior y autor nulos.
+    const delServidor: HistorialEntrada = {
+      id: null,
+      tipoEvento: 'CREACION',
+      estadoAnterior: null,
+      estadoNuevo: 'PENDIENTE',
+      comentario: 'Se registró el reporte.',
+      autor: null,
+      fecha: CREADO,
+      avisoIndice: null,
+    };
     expect(conEventoDeCreacion([delServidor, cambio], CREADO)).toEqual([delServidor, cambio]);
+    // Aunque la fecha del reporte no coincida al segundo, no se deriva otra.
+    expect(conEventoDeCreacion([delServidor], '2026-10-29T15:10:01Z')).toHaveLength(1);
   });
 
   it('sin fecha de creación válida no inventa nada', () => {
