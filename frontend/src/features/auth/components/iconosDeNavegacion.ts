@@ -1,5 +1,6 @@
 import {
   ChartColumn,
+  CircleHelp,
   CircleUser,
   ClipboardList,
   Inbox,
@@ -40,4 +41,5 @@ export const ICONOS_DE_NAVEGACION: Record<IconoNavegacion, LucideIcon> = {
   cuenta: CircleUser,
   entrar: LogIn,
   registrarse: UserRoundPlus,
+  guia: CircleHelp,
 };

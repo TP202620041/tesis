@@ -1,4 +1,5 @@
 import { api, apiDescargar, conFotoAbsoluta } from '@/lib/api/client';
+import { iconoDeCategoria } from '@/lib/types/iconoCategoria';
 import { ApiError } from '@/lib/api/errors';
 import type { HistorialEntrada } from '@/lib/types/domain';
 import {
@@ -157,6 +158,7 @@ export function aCategoriaGestion(c: CategoriaGestionResponse): CategoriaGestion
     activo: c.activo ?? false,
     distritoId: c.distritoId ?? null,
     distritoNombre: c.distritoNombre ?? null,
+    icono: iconoDeCategoria(c.icono),
   };
 }
 

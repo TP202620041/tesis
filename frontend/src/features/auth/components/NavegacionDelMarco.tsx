@@ -6,7 +6,7 @@ import { clasesDeBoton } from '@/components/ui/Boton';
 import { Icono } from '@/components/ui/Icono';
 import { Logo } from '@/components/ui/Logo';
 import type { Usuario } from '@/lib/types/domain';
-import { CUENTA, esRutaActual, navegacionDe, type ItemNavegacion } from '../model/navegacion';
+import { CUENTA, esRutaActual, GUIA, navegacionDe, type ItemNavegacion } from '../model/navegacion';
 import { useTituloAlDesplazar } from '../hooks/useTituloAlDesplazar';
 import type { UsuarioDelMarco } from '../hooks/useUsuarioDelMarco';
 import { ETIQUETA_INFERIOR, ICONOS_DE_NAVEGACION } from './iconosDeNavegacion';
@@ -144,6 +144,19 @@ export function CabeceraDeLaApp({ usuario, ruta, conNavegacion, extrasDeCuenta, 
         )}
 
         <div className="ml-auto flex shrink-0 items-center gap-2">
+          {/* US-24: en el móvil la barra inferior del visitante ya está llena;
+              la guía queda a mano como un «?» en la cabecera. */}
+          {nav && nav.acceso.length > 0 && (
+            <Link
+              href={GUIA.href}
+              aria-label={GUIA.etiqueta}
+              title={GUIA.etiqueta}
+              aria-current={esRutaActual(ruta, GUIA) ? 'page' : undefined}
+              className="inline-flex size-objetivo items-center justify-center rounded-control text-texto md:hidden"
+            >
+              <Icono icono={ICONOS_DE_NAVEGACION.guia} tamano={22} />
+            </Link>
+          )}
           {nav && nav.acceso.length > 0 && (
             <div className="hidden items-center gap-2 md:flex">
               {nav.acceso.map((item, i) => (

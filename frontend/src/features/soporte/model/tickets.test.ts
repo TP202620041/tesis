@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   conEstado,
+  confirmacionDeTicket,
   erroresDeRespuesta,
   erroresDeTicket,
   fechaDeTicket,
@@ -8,7 +9,11 @@ import {
   MAX_ASUNTO,
   MAX_MENSAJE,
   navegacionDe,
+  fechaLimiteDeRespuesta,
+  numeroDeSeguimiento,
   parametrosDeTickets,
+  PLAZO_DE_ATENCION,
+  plazoDeAtencion,
 } from './tickets';
 import type { EstadoTicket } from '@/lib/types/domain';
 
@@ -94,5 +99,59 @@ describe('fechaDeTicket', () => {
   it('muestra un guion si no hay fecha válida', () => {
     expect(fechaDeTicket('')).toBe('—');
     expect(fechaDeTicket('no-es-fecha')).toBe('—');
+  });
+});
+
+describe('número de seguimiento y plazo (US-25 Esc. 1)', () => {
+  const SIN_SERVIDOR = { numeroSeguimiento: null, plazoRespuestaHoras: null, respuestaEsperadaAntesDe: null };
+
+  it('el número de seguimiento es el que asigna el servidor', () => {
+    expect(numeroDeSeguimiento({ id: 123, numeroSeguimiento: 'SOP-000123' })).toBe('SOP-000123');
+  });
+
+  it('con un backend anterior cae al id', () => {
+    expect(numeroDeSeguimiento({ id: 123, numeroSeguimiento: null })).toBe('#123');
+  });
+
+  it('sin número ni id válido no inventa uno', () => {
+    expect(numeroDeSeguimiento({ id: 0, numeroSeguimiento: null })).toBeNull();
+    expect(numeroDeSeguimiento({ id: -1, numeroSeguimiento: null })).toBeNull();
+    expect(numeroDeSeguimiento({ id: 1.5, numeroSeguimiento: null })).toBeNull();
+  });
+
+  it('el plazo viene en horas; sin valor válido usa el del backend (48)', () => {
+    expect(plazoDeAtencion(72)).toBe('72 horas');
+    expect(plazoDeAtencion(1)).toBe('1 hora');
+    expect(plazoDeAtencion(null)).toBe('48 horas');
+    expect(plazoDeAtencion(0)).toBe('48 horas');
+    expect(PLAZO_DE_ATENCION).toBe('48 horas');
+  });
+
+  it('la fecha límite se muestra en hora de Lima (es-PE)', () => {
+    expect(fechaLimiteDeRespuesta('2026-11-25T15:00:00Z')).toBe('25/11/2026, 10:00');
+    expect(fechaLimiteDeRespuesta(null)).toBeNull();
+    expect(fechaLimiteDeRespuesta('no-es-fecha')).toBeNull();
+  });
+
+  it('la confirmación dice el número, el plazo y la fecha límite del servidor', () => {
+    expect(
+      confirmacionDeTicket({
+        id: 123,
+        numeroSeguimiento: 'SOP-000123',
+        plazoRespuestaHoras: 48,
+        respuestaEsperadaAntesDe: '2026-11-25T15:00:00Z',
+      }),
+    ).toBe(
+      'Registramos tu consulta con el número de seguimiento SOP-000123. Te responderemos en un plazo de 48 horas (antes del 25/11/2026, 10:00), aquí y al correo de tu cuenta.',
+    );
+  });
+
+  it('con un backend anterior: #id y el plazo por defecto; sin id, solo el plazo', () => {
+    expect(confirmacionDeTicket({ id: 7, ...SIN_SERVIDOR })).toBe(
+      `Registramos tu consulta con el número de seguimiento #7. Te responderemos en un plazo de ${PLAZO_DE_ATENCION}, aquí y al correo de tu cuenta.`,
+    );
+    expect(confirmacionDeTicket({ id: 0, ...SIN_SERVIDOR })).toBe(
+      `Registramos tu consulta. Te responderemos en un plazo de ${PLAZO_DE_ATENCION}, aquí y al correo de tu cuenta.`,
+    );
   });
 });

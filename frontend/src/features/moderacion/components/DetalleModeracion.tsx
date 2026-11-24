@@ -180,7 +180,7 @@ function DetalleCargado({ reporteId }: { reporteId: number }) {
 
       <section className="rounded-control border border-linea bg-superficie p-4">
         <h2 className="mb-3 text-sm font-semibold text-texto">Seguimiento</h2>
-        <LineaDeTiempo entradas={historial} />
+        <LineaDeTiempo entradas={historial} creadoEn={reporte.createdAt} />
       </section>
 
       {pedido && (

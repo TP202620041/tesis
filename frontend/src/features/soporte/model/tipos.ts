@@ -25,6 +25,16 @@ export interface TicketPropio {
   /** `null` hasta que soporte responde. */
   respuesta: string | null;
   createdAt: string;
+  /**
+   * Número de seguimiento que asigna el servidor (`SOP-000123`, handoff
+   * `2026-11-23-cierre-mvp-backend.md`). `null` con un backend anterior: la
+   * PWA cae al `#id`.
+   */
+  numeroSeguimiento: string | null;
+  /** Plazo de respuesta comprometido, en horas (48). `null` si no vino (ADMIN o backend anterior). */
+  plazoRespuestaHoras: number | null;
+  /** Instante ISO-8601 antes del cual se espera la respuesta. `null` si no vino. */
+  respuestaEsperadaAntesDe: string | null;
 }
 
 /**

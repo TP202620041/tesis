@@ -134,7 +134,7 @@ function DetalleCargado({ reporteId }: { reporteId: number }) {
         <h2 className="mb-3 text-sm font-semibold text-texto">
           Historial de gestión
         </h2>
-        <LineaDeTiempo entradas={entradas} />
+        <LineaDeTiempo entradas={entradas} creadoEn={reporte.createdAt} />
       </section>
     </main>
   );

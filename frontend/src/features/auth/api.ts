@@ -260,10 +260,22 @@ export async function descargarFotoDePerfil(fotoUrl: string): Promise<string> {
 }
 
 /**
- * US-04: cerrar sesion es puramente del lado del cliente — se descarta el
- * token. El backend no tiene blacklist a proposito (decision documentada en
- * su README); el token sigue siendo valido hasta que expira.
+ * US-04: cerrar sesion EN ESTE DISPOSITIVO es del lado del cliente — se
+ * descarta el token, que sigue siendo valido hasta que expira (decision del
+ * README del backend). Para invalidarlo de verdad esta
+ * {@link cerrarSesionesEnTodosLosDispositivos}.
  */
 export function cerrarSesion(): void {
   borrarToken();
+}
+
+/**
+ * US-04 Esc. 2: el servidor revoca todos los tokens de la cuenta, el actual
+ * incluido (`POST /api/auth/me/cerrar-sesiones`, 204 sin cuerpo). No borra el
+ * token local: eso lo hace el flujo de cierre (`hooks/useCerrarSesion`)
+ * despues, como en el cierre normal. Los otros dispositivos reciben 401 en su
+ * siguiente peticion y van al login.
+ */
+export async function cerrarSesionesEnTodosLosDispositivos(): Promise<void> {
+  await api.post<void>('/api/auth/me/cerrar-sesiones');
 }

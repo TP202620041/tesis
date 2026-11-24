@@ -228,6 +228,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/me/cerrar-sesiones": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["cerrarSesiones"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/login": {
         parameters: {
             query?: never;
@@ -612,6 +628,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/desempeno/periodos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["periodos"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/desempeno/mi-distrito": {
         parameters: {
             query?: never;
@@ -620,6 +652,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["miDistrito"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/desempeno/gestion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["gestion"];
         put?: never;
         post?: never;
         delete?: never;
@@ -735,12 +783,17 @@ export interface components {
         TicketSoporteResponse: {
             /** Format: int64 */
             id?: number;
+            numeroSeguimiento?: string;
             asunto?: string;
             mensaje?: string;
             estado?: string;
             respuesta?: string;
             /** Format: date-time */
             createdAt?: string;
+            /** Format: int64 */
+            plazoRespuestaHoras?: number;
+            /** Format: date-time */
+            respuestaEsperadaAntesDe?: string;
         };
         ReporteResponse: {
             /** Format: int64 */
@@ -853,6 +906,8 @@ export interface components {
         CrearCategoriaRequest: {
             nombre: string;
             descripcion?: string;
+            /** @enum {string} */
+            icono?: "BACHE" | "GRIETA" | "VEREDA" | "SEMAFORO" | "SENALIZACION" | "CICLOVIA" | "DRENAJE" | "ILUMINACION" | "BARANDA" | "PUENTE" | "ARBOL" | "ESCOMBROS" | "OBRA" | "OTRO";
         };
         CategoriaDanoResponse: {
             /** Format: int64 */
@@ -863,6 +918,7 @@ export interface components {
             /** Format: int64 */
             distritoId?: number;
             distritoNombre?: string;
+            icono?: string;
         };
         RestablecerPasswordRequest: {
             token: string;
@@ -1052,6 +1108,8 @@ export interface components {
         EditarCategoriaRequest: {
             nombre: string;
             descripcion?: string;
+            /** @enum {string} */
+            icono?: "BACHE" | "GRIETA" | "VEREDA" | "SEMAFORO" | "SENALIZACION" | "CICLOVIA" | "DRENAJE" | "ILUMINACION" | "BARANDA" | "PUENTE" | "ARBOL" | "ESCOMBROS" | "OBRA" | "OTRO";
         };
         CategoriaGestionResponse: {
             /** Format: int64 */
@@ -1063,6 +1121,7 @@ export interface components {
             /** Format: int64 */
             distritoId?: number;
             distritoNombre?: string;
+            icono?: string;
         };
         CambiarActivaCategoriaRequest: {
             activa: boolean;
@@ -1076,14 +1135,14 @@ export interface components {
             totalElements?: number;
             /** Format: int32 */
             totalPages?: number;
-            first?: boolean;
-            last?: boolean;
             /** Format: int32 */
             size?: number;
             content?: components["schemas"]["TicketAdminResponse"][];
             /** Format: int32 */
             number?: number;
             sort?: components["schemas"]["SortObject"];
+            first?: boolean;
+            last?: boolean;
             /** Format: int32 */
             numberOfElements?: number;
             pageable?: components["schemas"]["PageableObject"];
@@ -1108,6 +1167,7 @@ export interface components {
         TicketAdminResponse: {
             /** Format: int64 */
             id?: number;
+            numeroSeguimiento?: string;
             asunto?: string;
             mensaje?: string;
             estado?: string;
@@ -1131,14 +1191,14 @@ export interface components {
             totalElements?: number;
             /** Format: int32 */
             totalPages?: number;
-            first?: boolean;
-            last?: boolean;
             /** Format: int32 */
             size?: number;
             content?: components["schemas"]["ReporteResumenResponse"][];
             /** Format: int32 */
             number?: number;
             sort?: components["schemas"]["SortObject"];
+            first?: boolean;
+            last?: boolean;
             /** Format: int32 */
             numberOfElements?: number;
             pageable?: components["schemas"]["PageableObject"];
@@ -1180,6 +1240,15 @@ export interface components {
             nombre?: string;
             ubigeo?: string;
         };
+        PeriodoGestionResponse: {
+            /** Format: int64 */
+            id?: number;
+            /** Format: date */
+            fechaInicio?: string;
+            /** Format: date */
+            fechaFin?: string;
+            vigente?: boolean;
+        };
         DashboardDistritoResponse: {
             resumen?: components["schemas"]["DesempenoDistritalResponse"];
             /** Format: int64 */
@@ -1205,6 +1274,31 @@ export interface components {
             /** Format: date-time */
             calculatedAt?: string;
         };
+        DashboardGestionResponse: {
+            periodo?: components["schemas"]["PeriodoGestionResponse"];
+            /** Format: int64 */
+            categoriaId?: number;
+            /** Format: date-time */
+            calculatedAt?: string;
+            distritos?: components["schemas"]["KpiGestionDistritalResponse"][];
+        };
+        KpiGestionDistritalResponse: {
+            /** Format: int64 */
+            distritoId?: number;
+            distritoNombre?: string;
+            municipalidadNombre?: string;
+            /** Format: int64 */
+            categoriaId?: number;
+            /** Format: int64 */
+            reportesValidos?: number;
+            /** Format: int64 */
+            reportesResueltos?: number;
+            tasaResolucion?: number;
+            tiempoPromedioDias?: number;
+            satisfaccionPromedio?: number;
+            /** Format: int64 */
+            totalCalificaciones?: number;
+        };
         ConsentimientosResponse: {
             versionTerminosVigente?: string;
             debeAceptarTerminos?: boolean;
@@ -1216,14 +1310,14 @@ export interface components {
             totalElements?: number;
             /** Format: int32 */
             totalPages?: number;
-            first?: boolean;
-            last?: boolean;
             /** Format: int32 */
             size?: number;
             content?: components["schemas"]["ReporteModeracionResumenResponse"][];
             /** Format: int32 */
             number?: number;
             sort?: components["schemas"]["SortObject"];
+            first?: boolean;
+            last?: boolean;
             /** Format: int32 */
             numberOfElements?: number;
             pageable?: components["schemas"]["PageableObject"];
@@ -1798,6 +1892,24 @@ export interface operations {
                 content: {
                     "*/*": components["schemas"]["ConsentimientoResponse"];
                 };
+            };
+        };
+    };
+    cerrarSesiones: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -2436,6 +2548,26 @@ export interface operations {
             };
         };
     };
+    periodos: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PeriodoGestionResponse"][];
+                };
+            };
+        };
+    };
     miDistrito: {
         parameters: {
             query?: never;
@@ -2452,6 +2584,29 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["DashboardDistritoResponse"];
+                };
+            };
+        };
+    };
+    gestion: {
+        parameters: {
+            query?: {
+                periodoId?: number;
+                categoriaId?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["DashboardGestionResponse"];
                 };
             };
         };
@@ -2502,6 +2657,7 @@ export interface operations {
         parameters: {
             query: {
                 estado?: "PENDIENTE" | "ATENDIDA" | "DESESTIMADA";
+                ocultos?: boolean;
                 pageable: components["schemas"]["Pageable"];
             };
             header?: never;

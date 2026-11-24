@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { IconoDeCategoria } from '@/components/ui/IconoDeCategoria';
 import { AlertaError } from '@/components/ui/form';
 import { useCambiarActivaCategoria } from '../hooks/useCambiarActivaCategoria';
 import { useCategoriasGestion } from '../hooks/useCategoriasGestion';
@@ -75,7 +76,8 @@ export function GestionCategorias() {
         </p>
         <ul className="flex flex-col gap-1">
           {estandar.map((c) => (
-            <li key={c.id} className="text-sm text-texto">
+            <li key={c.id} className="flex items-baseline gap-1.5 text-sm text-texto">
+              <IconoDeCategoria icono={c.icono} tamano={16} className="self-center text-texto-2" />
               <strong>{c.nombre}</strong>
               {c.descripcion && (
                 <span className="text-texto-2"> — {c.descripcion}</span>
@@ -116,6 +118,7 @@ function CategoriaPropia({
       ) : (
         <>
           <div className="flex flex-wrap items-center gap-2">
+            <IconoDeCategoria icono={categoria.icono} tamano={18} className="text-texto-2" />
             <strong className="text-texto">{categoria.nombre}</strong>
             <span
               className={`rounded-full px-2 py-0.5 text-xs font-medium ${

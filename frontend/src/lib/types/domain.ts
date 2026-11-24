@@ -71,8 +71,12 @@ export type CanalNotificacion = (typeof CANALES_NOTIFICACION)[number];
  * NC-11a suma los cuatro de la moderacion (D-15): ocultar y restablecer el
  * reporte o solo su foto. Esos no llevan estados (`estadoAnterior` y
  * `estadoNuevo` son `null`) y traen el motivo del ADMIN en `comentario`.
+ * `CREACION` (US-22 Esc. 2, handoff `2026-11-23-cierre-mvp-backend.md`) es
+ * siempre la primera entrada: no es una fila de la tabla (llega con `id` y
+ * `autor` nulos) y la PWA solo la deriva si un backend anterior no la trae.
  */
 export const TIPOS_EVENTO_HISTORIAL = [
+  'CREACION',
   'CAMBIO_ESTADO',
   'ASIGNACION',
   'FOTO_OCULTA',
@@ -276,8 +280,19 @@ export type ClasificacionResponse = {
  * este reporte no cuenta en el índice de desempeño.») y en
  * `REPORTE_RESTABLECIDO` («Vuelve a contar en el índice de desempeño.»);
  * `null` en el resto. Se muestra tal cual, aparte del comentario.
+ *
+ * El API envia `null` (springdoc los marca solo como opcionales): `id` y
+ * `autor` son nulos en la entrada `CREACION` (US-22), y `estadoAnterior` y
+ * `comentario` en las que no los tienen.
  */
-export type HistorialEntrada = Omit<Schemas['HistorialEntradaResponse'], 'avisoIndice'> & {
+export type HistorialEntrada = Omit<
+  Schemas['HistorialEntradaResponse'],
+  'id' | 'estadoAnterior' | 'comentario' | 'autor' | 'avisoIndice'
+> & {
+  id?: number | null;
+  estadoAnterior?: string | null;
+  comentario?: string | null;
+  autor?: string | null;
   avisoIndice?: string | null;
 };
 

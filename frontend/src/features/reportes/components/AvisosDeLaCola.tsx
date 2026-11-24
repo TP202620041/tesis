@@ -2,10 +2,12 @@
 
 import Link from 'next/link';
 import { useEffect, useRef } from 'react';
-import { X } from 'lucide-react';
-import { BotonIcono } from '@/components/ui/Icono';
+import { CircleCheck, X } from 'lucide-react';
+import { BotonIcono, Icono } from '@/components/ui/Icono';
 import { RUTAS_DE_ACCESO } from '@/features/auth/model/rutas';
 import { useCierreDelAvisoDeIncompletos } from '../hooks/useCierreDelAvisoDeIncompletos';
+import { avisoDeEnvioExitoso } from '../model/envioExitoso';
+import type { ReporteCreado } from '../model/tipos';
 import { clasesDeBoton } from '@/components/ui/Boton';
 
 function plural(n: number): string {
@@ -83,6 +85,66 @@ export function AvisoReportesIncompletos({
         .
       </p>
       <BotonIcono icono={X} etiqueta="Cerrar aviso" onClick={cerrar} className="-my-2.5 -mr-3" />
+    </div>
+  );
+}
+
+/**
+ * US-06 Esc. 2: aviso NO modal de que la cola envio sola los reportes
+ * guardados sin conexion. La region `status` esta siempre montada (vacia
+ * mientras no hay nada que contar): un lector de pantalla anuncia de forma
+ * fiable el texto que aparece DENTRO de una region viva que ya existia, no
+ * una region que se monta con el texto puesto.
+ *
+ * Va arriba, bajo la cabecera, y no junto a los otros avisos de la cola (que
+ * van sobre la barra inferior): pueden coincidir con el de incompletos y no
+ * deben taparse. No se cierra solo (WCAG 2.2.1): se cierra con la X, al
+ * seguir el enlace o con Escape.
+ *
+ * WCAG 2.4.11 (foco no tapado): es fijo y puede quedar encima del elemento
+ * que tiene el foco. Escape lo cierra desde cualquier parte SIN mover el
+ * foco, que es la técnica que admite el criterio. No se pasó al flujo del
+ * documento porque se monta en el layout, fuera de la pantalla actual: al
+ * aparecer empujaría todo el contenido mientras el usuario trabaja. Un
+ * Escape que ya atendió otro (un diálogo, `defaultPrevented`) no lo cierra.
+ */
+export function AvisoDeEnvioExitoso({
+  enviados,
+  onCerrar,
+}: {
+  enviados: readonly ReporteCreado[];
+  onCerrar: () => void;
+}) {
+  const aviso = avisoDeEnvioExitoso(enviados);
+  const visible = aviso !== null;
+
+  useEffect(() => {
+    if (!visible) return;
+    const alPulsar = (evento: KeyboardEvent) => {
+      if (evento.key !== 'Escape' || evento.defaultPrevented) return;
+      onCerrar();
+    };
+    document.addEventListener('keydown', alPulsar);
+    return () => document.removeEventListener('keydown', alPulsar);
+  }, [visible, onCerrar]);
+
+  return (
+    <div
+      role="status"
+      className="pointer-events-none fixed inset-x-4 top-[calc(var(--cv-alto-encabezado,0px)+0.75rem)] z-[1100] mx-auto max-w-lg"
+    >
+      {aviso && (
+        <div className="pointer-events-auto flex items-start gap-3 rounded-control border border-exito-borde bg-exito-fondo px-4 py-3 text-sm text-exito-texto shadow-elevada">
+          <Icono icono={CircleCheck} tamano={18} className="mt-0.5" />
+          <p className="flex-1">
+            {aviso.texto}{' '}
+            <Link href={aviso.enlace.href} onClick={onCerrar} className="font-medium underline">
+              {aviso.enlace.texto}
+            </Link>
+          </p>
+          <BotonIcono icono={X} etiqueta="Cerrar aviso de envío" onClick={onCerrar} className="-my-2.5 -mr-3 text-exito-texto" />
+        </div>
+      )}
     </div>
   );
 }

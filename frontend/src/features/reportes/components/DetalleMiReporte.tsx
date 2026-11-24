@@ -168,7 +168,7 @@ function DetalleCargado({ reporteId }: { reporteId: number }) {
         <h2 className="mb-3 text-sm font-semibold text-texto">
           Seguimiento
         </h2>
-        <LineaDeTiempo entradas={entradas} />
+        <LineaDeTiempo entradas={entradas} creadoEn={reporte.createdAt} />
       </section>
 
       {/* US-27: lo que opinaron los vecinos sobre la reparacion de MI

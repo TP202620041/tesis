@@ -5,7 +5,7 @@ import {
   anchoBarra,
   formatearSatisfaccion,
   formatearTasa,
-  formatearTiempo,
+  formatearTiempoDeFila,
   ordenar,
   SIN_DATOS,
   type ColumnaOrden,
@@ -116,7 +116,7 @@ export function TablaDesempeno({ filas, orden, onOrdenar, comparados, onAlternar
                   {fila.totalResueltos ?? 0} / {fila.totalReportes ?? 0}
                 </td>
                 <td className="px-2 py-2 tabular-nums text-texto">
-                  {formatearTiempo(fila.tiempoPromedioHoras)}
+                  {formatearTiempoDeFila(fila)}
                 </td>
                 <td className="px-2 py-2 tabular-nums text-texto">
                   {formatearSatisfaccion(fila.satisfaccionPromedio)}

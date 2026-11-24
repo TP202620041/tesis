@@ -171,17 +171,23 @@ let reRegistroEnCurso: Promise<void> | null = null;
  *   puede estar por terminar bien.
  *
  * Todo dentro de `topeMs`. Nunca lanza: si falla, el cierre sigue.
+ *
+ * Devuelve `true` si este navegador tenía una suscripción que se dio de
+ * baja (o se intentó): US-04 Esc. 2 lo usa para saber si, ante un fallo
+ * posterior, hay notificaciones que restablecer.
  */
 export async function bajaDePushAlCerrarSesion(
   topeMs: number = TOPE_BAJA_AL_CERRAR_MS,
   nav: NavegadorPush = navegadorPush,
   servidor: ServidorPush = servidorEnSegundoPlano,
-): Promise<void> {
-  if (!nav.soportado()) return;
+): Promise<boolean> {
+  if (!nav.soportado()) return false;
+  let habia = false;
   const baja = (async () => {
     if (reRegistroEnCurso) await reRegistroEnCurso;
     const suscripcion = await nav.suscripcionActual();
     if (!suscripcion) return;
+    habia = true;
     try {
       await servidor.darDeBaja(suscripcion.endpoint);
     } catch (e) {
@@ -196,5 +202,31 @@ export async function bajaDePushAlCerrarSesion(
     await Promise.race([baja, tope]);
   } finally {
     clearTimeout(temporizador);
+  }
+  return habia;
+}
+
+/**
+ * US-04 Esc. 2: la baja de push ya ocurrió y el cierre en todos los
+ * dispositivos falló, así que la sesión sigue. Vuelve a registrar este
+ * navegador para el usuario, igual que al iniciar sesión: solo si la
+ * suscripción del navegador sigue viva y el permiso está concedido; nunca
+ * pide permiso ni crea una suscripción nueva. `true` si quedó activo.
+ * Nunca lanza.
+ */
+export async function restablecerPushTrasCierreFallido(
+  nav: NavegadorPush = navegadorPush,
+  servidor: ServidorPush = servidorEnSegundoPlano,
+): Promise<boolean> {
+  try {
+    if (!nav.soportado() || nav.permiso() !== 'granted') return false;
+    if (!(await nav.suscripcionActual())) return false;
+    const clave = await servidor.clavePublica();
+    if (clave === null) return false;
+    const suscripcion = await suscripcionConClave(nav, clave);
+    await servidor.registrar(suscripcion.toJSON(), nav.userAgent());
+    return true;
+  } catch {
+    return false;
   }
 }
