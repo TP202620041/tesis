@@ -68,6 +68,40 @@ export function formatearTiempo(horas: number | null | undefined): string {
   return resto === 0 ? `${dias} d` : `${dias} d ${resto} h`;
 }
 
+/**
+ * US-20 Esc. 2: con menos de {@link MIN_RESUELTOS_PARA_PROMEDIO} reportes
+ * resueltos de una categoría en un distrito, su tiempo promedio no es
+ * representativo y se muestra «Datos insuficientes» en vez del número.
+ *
+ * Distinto de «Sin datos»: con 0 resueltos el backend no tiene promedio
+ * (`null`); con 1 o 2 sí lo tiene, pero la UI no lo presenta como si dijera
+ * algo del distrito. Solo aplica al desglose por categoría (la fila trae
+ * `categoriaId`), que es lo que pide el criterio; el agregado general sigue
+ * mostrando el promedio que haya.
+ */
+export const DATOS_INSUFICIENTES = 'Datos insuficientes';
+export const MIN_RESUELTOS_PARA_PROMEDIO = 3;
+
+/** `true` si el tiempo promedio de la fila no es representativo (US-20 Esc. 2). */
+export function tiempoConDatosInsuficientes(fila: DesempenoDistrital): boolean {
+  return (
+    fila.categoriaId != null &&
+    fila.tiempoPromedioHoras != null &&
+    (fila.totalResueltos ?? 0) < MIN_RESUELTOS_PARA_PROMEDIO
+  );
+}
+
+/** El tiempo promedio que se puede mostrar y comparar: `null` si no hay o no es representativo. */
+export function tiempoRepresentativo(fila: DesempenoDistrital): number | null {
+  return tiempoConDatosInsuficientes(fila) ? null : (fila.tiempoPromedioHoras ?? null);
+}
+
+/** Tiempo promedio de una fila del índice, con la regla de US-20 Esc. 2. */
+export function formatearTiempoDeFila(fila: DesempenoDistrital | null | undefined): string {
+  if (fila && tiempoConDatosInsuficientes(fila)) return DATOS_INSUFICIENTES;
+  return formatearTiempo(fila?.tiempoPromedioHoras);
+}
+
 /** `4.25` -> `"4,3 / 5"`; `null` -> `"Sin datos"`. */
 export function formatearSatisfaccion(valor: number | null | undefined): string {
   if (valor == null) return SIN_DATOS;
@@ -95,7 +129,8 @@ function valorDe(fila: DesempenoDistrital, columna: ColumnaOrden): number | stri
     case 'tasa':
       return fila.tasaResolucion ?? null;
     case 'tiempo':
-      return fila.tiempoPromedioHoras ?? null;
+      // US-20 Esc. 2: un promedio no representativo va al final, como «Sin datos».
+      return tiempoRepresentativo(fila);
     case 'satisfaccion':
       return fila.satisfaccionPromedio ?? null;
     case 'reportes':

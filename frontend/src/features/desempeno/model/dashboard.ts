@@ -1,5 +1,6 @@
 import type { components } from '@/lib/api/generated/schema';
 import {
+  DATOS_INSUFICIENTES,
   SIN_DATOS,
   formatearSatisfaccion,
   formatearTasa,
@@ -47,11 +48,38 @@ function entero(n: number | null | undefined): string {
 }
 
 /**
+ * US-17 Esc. 2: por debajo de este número de reportes registrados, el
+ * dashboard avisa que los datos son insuficientes en lugar de presentar
+ * tasas y promedios poco significativos.
+ */
+export const MIN_REPORTES_DASHBOARD = 5;
+
+/** `true` si el distrito tiene menos de {@link MIN_REPORTES_DASHBOARD} reportes (US-17 Esc. 2). */
+export function datosInsuficientes(resumen: DesempenoDistrital): boolean {
+  return (resumen.totalReportes ?? 0) < MIN_REPORTES_DASHBOARD;
+}
+
+/**
+ * Una métrica derivada (tasa, tiempo, satisfacción) con datos insuficientes:
+ * si existe se reemplaza por «Datos insuficientes»; si es `null` sigue siendo
+ * «Sin datos» (no hay métrica, que es otra cosa).
+ */
+function derivada(valor: number | null | undefined, formatear: (v: number) => string, insuficiente: boolean): string {
+  if (valor == null) return SIN_DATOS;
+  return insuficiente ? DATOS_INSUFICIENTES : formatear(valor);
+}
+
+/**
  * Indicadores del índice público para el distrito, ya formateados. Las
  * métricas en `null` se muestran "Sin datos", nunca como 0: un distrito sin
  * resueltos no tiene un tiempo promedio de 0 h, no tiene tiempo promedio.
+ *
+ * US-17 Esc. 2: con menos de {@link MIN_REPORTES_DASHBOARD} reportes, la
+ * tasa, el tiempo y la satisfacción dicen «Datos insuficientes»; los conteos
+ * (recibidos, resueltos) se muestran igual, porque son hechos y no promedios.
  */
 export function indicadoresDeDesempeno(resumen: DesempenoDistrital): Indicador[] {
+  const insuficiente = datosInsuficientes(resumen);
   return [
     {
       id: 'total',
@@ -68,19 +96,19 @@ export function indicadoresDeDesempeno(resumen: DesempenoDistrital): Indicador[]
     {
       id: 'tasa',
       etiqueta: 'Tasa de resolución',
-      valor: formatearTasa(resumen.tasaResolucion),
+      valor: derivada(resumen.tasaResolucion, formatearTasa, insuficiente),
       descripcion: 'Resueltos sobre el total de reportes del distrito.',
     },
     {
       id: 'tiempo',
       etiqueta: 'Tiempo promedio de atención',
-      valor: formatearTiempo(resumen.tiempoPromedioHoras),
+      valor: derivada(resumen.tiempoPromedioHoras, formatearTiempo, insuficiente),
       descripcion: 'Desde que se reporta hasta que se resuelve.',
     },
     {
       id: 'satisfaccion',
       etiqueta: 'Satisfacción ciudadana',
-      valor: formatearSatisfaccion(resumen.satisfaccionPromedio),
+      valor: derivada(resumen.satisfaccionPromedio, formatearSatisfaccion, insuficiente),
       descripcion: `Promedio de ${entero(resumen.totalCalificaciones)} ${
         resumen.totalCalificaciones === 1 ? 'calificación' : 'calificaciones'
       } de los vecinos.`,

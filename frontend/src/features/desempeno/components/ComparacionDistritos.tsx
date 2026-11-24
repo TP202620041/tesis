@@ -2,7 +2,7 @@
 
 import type { DistritoComparado } from '../model/comparacion';
 import { MIN_COMPARAR } from '../model/comparacion';
-import { formatearTasa, formatearTiempo, SIN_DATOS } from '../model/formato';
+import { formatearTasa, formatearTiempoDeFila, SIN_DATOS } from '../model/formato';
 import { GraficaTasas } from './GraficaTasas';
 import { clasesDeBoton } from '@/components/ui/Boton';
 
@@ -86,7 +86,7 @@ export function ComparacionDistritos({ distritos, categoriaNombre, onQuitar, onL
                   }
                 </Fila>
                 <Fila titulo="Tiempo promedio de atención" distritos={distritos}>
-                  {(d) => formatearTiempo(d.fila?.tiempoPromedioHoras)}
+                  {(d) => formatearTiempoDeFila(d.fila)}
                 </Fila>
               </tbody>
             </table>

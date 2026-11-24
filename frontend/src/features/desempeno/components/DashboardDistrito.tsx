@@ -1,9 +1,12 @@
 'use client';
 
+import { Aviso } from '@/components/ui/Aviso';
 import { AlertaError } from '@/components/ui/form';
 import { useDashboardDistrito } from '../hooks/useDashboardDistrito';
 import {
+  datosInsuficientes,
   formatearActualizacion,
+  MIN_REPORTES_DASHBOARD,
   indicadoresDeDesempeno,
   indicadoresOperativos,
   type Indicador,
@@ -51,6 +54,17 @@ export function DashboardDistrito() {
         {resumen.distritoNombre ?? 'Tu distrito'}
         {actualizado && ` · Índice actualizado el ${actualizado}`}
       </p>
+
+      {/* US-17 Esc. 2: con pocos reportes, tasas y promedios no dicen nada. */}
+      {datosInsuficientes(resumen) && (
+        <Aviso tono="info" titulo="Datos insuficientes">
+          <p>
+            Tu distrito tiene menos de {MIN_REPORTES_DASHBOARD} reportes registrados. La tasa de
+            resolución, el tiempo promedio y la satisfacción todavía no son representativos: se
+            mostrarán cuando haya más reportes.
+          </p>
+        </Aviso>
+      )}
 
       <Seccion
         titulo="Índice de desempeño"

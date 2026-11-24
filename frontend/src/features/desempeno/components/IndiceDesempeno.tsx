@@ -8,7 +8,12 @@ import {
   useRankingDistrital,
 } from '../hooks/useIndiceDesempeno';
 import { distritosComparados, MAX_COMPARAR, MIN_COMPARAR } from '../model/comparacion';
-import { ORDEN_INICIAL, type Orden } from '../model/formato';
+import {
+  DATOS_INSUFICIENTES,
+  MIN_RESUELTOS_PARA_PROMEDIO,
+  ORDEN_INICIAL,
+  type Orden,
+} from '../model/formato';
 import { ComparacionDistritos } from './ComparacionDistritos';
 import { TablaDesempeno } from './TablaDesempeno';
 
@@ -95,6 +100,8 @@ export function IndiceDesempeno() {
       {categoriaId != null && !cargando && (
         <p className="rounded-control bg-superficie-2 px-3 py-2 text-sm text-texto">
           Al filtrar por tipo de daño solo aparecen los distritos que tienen reportes de ese tipo.
+          Con menos de {MIN_RESUELTOS_PARA_PROMEDIO} reportes resueltos, el tiempo promedio se
+          muestra como «{DATOS_INSUFICIENTES}»: no sería representativo.
         </p>
       )}
 
