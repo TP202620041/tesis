@@ -48,6 +48,36 @@ describe('AyudaDeCategorias (US-24 Esc. 2)', () => {
     expect(boton()).toHaveFocus();
   });
 
+  it('Escape con el foco fuera del «?» y del panel no la cierra ni mueve el foco', async () => {
+    const usuario = userEvent.setup();
+    render(
+      <>
+        <AyudaDeCategorias categorias={CATEGORIAS} />
+        <input aria-label="Título" />
+      </>,
+    );
+    await usuario.click(boton());
+    const titulo = screen.getByLabelText('Título');
+    titulo.focus();
+
+    await usuario.keyboard('{Escape}');
+
+    expect(boton()).toHaveAttribute('aria-expanded', 'true');
+    expect(titulo).toHaveFocus();
+  });
+
+  it('Escape con el foco dentro del panel la cierra y vuelve al «?»', async () => {
+    const usuario = userEvent.setup();
+    render(<AyudaDeCategorias categorias={CATEGORIAS} />);
+    await usuario.click(boton());
+    screen.getByRole('link', { name: 'Ver la guía' }).focus();
+
+    await usuario.keyboard('{Escape}');
+
+    expect(boton()).toHaveAttribute('aria-expanded', 'false');
+    expect(boton()).toHaveFocus();
+  });
+
   it('su X la cierra', async () => {
     const usuario = userEvent.setup();
     render(<AyudaDeCategorias categorias={CATEGORIAS} />);

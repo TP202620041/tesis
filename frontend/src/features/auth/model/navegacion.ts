@@ -1,3 +1,4 @@
+import { RUTA_GUIA } from '@/features/guia/model/pasos';
 import type { Rol } from '@/lib/types/domain';
 import { RUTA_ACEPTAR_TERMINOS, RUTA_MODERACION_ADMIN, RUTA_SOPORTE_ADMIN, RUTAS_DE_ACCESO } from './rutas';
 
@@ -89,11 +90,11 @@ const MODERACION_ADMIN: ItemNavegacion = {
 /**
  * US-24: guía «¿Cómo funciona?». En el menú principal del visitante (quien
  * llega por primera vez) y en la cuenta del ciudadano. La ruta la define la
- * feature `guia` (`RUTA_GUIA`); se repite aquí porque `auth/model` no
- * depende de otra feature.
+ * feature `guia` (`RUTA_GUIA`, en su `model/`, que es lo único que una
+ * feature puede importar de otra: ARCHITECTURE.md §5).
  */
 export const GUIA: ItemNavegacion = {
-  href: '/como-funciona',
+  href: RUTA_GUIA,
   etiqueta: '¿Cómo funciona?',
   etiquetaCorta: 'Ayuda',
   icono: 'guia',

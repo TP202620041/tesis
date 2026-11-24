@@ -2059,7 +2059,9 @@ puros (`features/guia/model/pasos.ts`); el componente solo los pinta.
   `/reportar` despliega cada categoría del catálogo con su descripción
   (también las propias del distrito, US-29). Es un desplegable con
   `aria-expanded`, no un tooltip al pasar el ratón: se abre con teclado y
-  dedo, no se va mientras se lee (WCAG 1.4.13) y se cierra con Escape. Las
+  dedo, no se va mientras se lee (WCAG 1.4.13) y se cierra con Escape solo
+  si el foco está en el «?» o dentro del panel (entonces vuelve al «?»): un
+  Escape en otro campo no la cierra ni mueve el foco. Las
   imágenes de ejemplo que pide el criterio quedan pendientes: no hay fotos
   con licencia ni un campo para ellas en el catálogo.
 
