@@ -75,7 +75,7 @@ class SenalInternaFueraDeDtosPublicosIT extends AbstractPostgisIT {
 
     private CategoriaDano categoria() {
         return categoriaRepository.findAll().stream()
-                .filter(CategoriaDano::isEsEstandar).findFirst().orElseThrow();
+                .filter(CategoriaDano::isEsEstandar).filter(CategoriaDano::isActivo).findFirst().orElseThrow();
     }
 
     private Usuario ciudadano() {
@@ -108,7 +108,7 @@ class SenalInternaFueraDeDtosPublicosIT extends AbstractPostgisIT {
     }
 
     private String bearer(Usuario u) {
-        return "Bearer " + jwtService.generarToken(u.getEmail(), u.getRol().name());
+        return "Bearer " + jwtService.generarToken(u.getEmail(), u.getRol().name(), 0);
     }
 
     private static String porId(Reporte r) {

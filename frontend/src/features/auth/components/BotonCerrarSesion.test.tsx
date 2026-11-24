@@ -20,7 +20,7 @@ afterEach(() => {
 
 describe('BotonCerrarSesion', () => {
   it('descarta el token, borra la caché del API y reemplaza la ruta por el login', async () => {
-    vi.mocked(bajaDePushAlCerrarSesion).mockResolvedValue();
+    vi.mocked(bajaDePushAlCerrarSesion).mockResolvedValue(false);
     const borrarCache = vi.fn(() => Promise.resolve(true));
     vi.stubGlobal('caches', { delete: borrarCache });
     render(<BotonCerrarSesion />);
@@ -38,7 +38,9 @@ describe('BotonCerrarSesion', () => {
 
   it('US-21: da de baja el push de este navegador ANTES de descartar el token', async () => {
     let terminarBaja!: () => void;
-    vi.mocked(bajaDePushAlCerrarSesion).mockReturnValue(new Promise((r) => (terminarBaja = r)));
+    vi.mocked(bajaDePushAlCerrarSesion).mockReturnValue(
+      new Promise<boolean>((r) => (terminarBaja = () => r(true))),
+    );
     render(<BotonCerrarSesion />);
     const usuario = userEvent.setup();
 
@@ -56,7 +58,7 @@ describe('BotonCerrarSesion', () => {
   });
 
   it('DIS-1: avisa a quien lo contiene (el menú) antes de empezar el cierre', async () => {
-    vi.mocked(bajaDePushAlCerrarSesion).mockResolvedValue();
+    vi.mocked(bajaDePushAlCerrarSesion).mockResolvedValue(false);
     const alActivar = vi.fn();
     render(<BotonCerrarSesion variante="menu" alActivar={alActivar} />);
 

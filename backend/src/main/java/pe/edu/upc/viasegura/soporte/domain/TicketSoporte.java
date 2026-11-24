@@ -11,6 +11,8 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import java.time.Duration;
+import java.time.Instant;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -57,4 +59,28 @@ public class TicketSoporte extends BaseAuditableEntity {
     /** Respuesta del equipo de soporte (US-25 Esc.2); null hasta que responden. */
     @Column(length = 2000)
     private String respuesta;
+
+    /**
+     * US-25 Esc. 1: plazo de atencion que se le informa a quien escribe. El
+     * criterio no fija la cifra; se eligieron 48 horas corridas (ver
+     * backend/README.md, «Soporte: número de seguimiento y plazo (US-25)»).
+     */
+    public static final Duration PLAZO_RESPUESTA = Duration.ofHours(48);
+
+    /** Prefijo del numero de seguimiento. */
+    public static final String PREFIJO_SEGUIMIENTO = "SOP-";
+
+    /**
+     * US-25 Esc. 1: numero de seguimiento que se muestra al usuario, derivado
+     * de la PK (unica y secuencial): {@code SOP-000123}. No se guarda aparte.
+     */
+    public String numeroSeguimiento() {
+        return id == null ? null : PREFIJO_SEGUIMIENTO + String.format("%06d", id);
+    }
+
+    /** Hasta cuando se espera la respuesta: la creacion mas {@link #PLAZO_RESPUESTA}. */
+    public Instant respuestaEsperadaAntesDe() {
+        Instant creado = getCreatedAt();
+        return creado == null ? null : creado.plus(PLAZO_RESPUESTA);
+    }
 }

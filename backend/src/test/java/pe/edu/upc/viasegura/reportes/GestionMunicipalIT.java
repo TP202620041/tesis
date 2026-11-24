@@ -84,7 +84,7 @@ class GestionMunicipalIT extends AbstractPostgisMailIT {
 
     private CategoriaDano categoria() {
         return categoriaRepository.findAll().stream()
-                .filter(CategoriaDano::isEsEstandar).findFirst()
+                .filter(CategoriaDano::isEsEstandar).filter(CategoriaDano::isActivo).findFirst()
                 .orElseThrow();
     }
 
@@ -120,7 +120,7 @@ class GestionMunicipalIT extends AbstractPostgisMailIT {
     }
 
     private String token(Usuario u) {
-        return jwtService.generarToken(u.getEmail(), u.getRol().name());
+        return jwtService.generarToken(u.getEmail(), u.getRol().name(), 0);
     }
 
     private String cuerpo(EstadoReporte estado, String comentario) {

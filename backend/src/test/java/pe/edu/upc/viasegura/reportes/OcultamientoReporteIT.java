@@ -179,18 +179,18 @@ class OcultamientoReporteIT extends AbstractModeracionIT {
 
         historial(creador)
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(1)))
-                .andExpect(jsonPath("$[0].tipoEvento", is("REPORTE_OCULTO")))
-                .andExpect(jsonPath("$[0].estadoAnterior", nullValue()))
-                .andExpect(jsonPath("$[0].estadoNuevo", nullValue()))
-                .andExpect(jsonPath("$[0].comentario", is(MOTIVO)))
-                .andExpect(jsonPath("$[0].avisoIndice", is(AVISO_OCULTO)))
-                .andExpect(jsonPath("$[0].autor", is(AUTOR_MODERACION)));
+                .andExpect(jsonPath("$", hasSize(2)))
+                .andExpect(jsonPath("$[1].tipoEvento", is("REPORTE_OCULTO")))
+                .andExpect(jsonPath("$[1].estadoAnterior", nullValue()))
+                .andExpect(jsonPath("$[1].estadoNuevo", nullValue()))
+                .andExpect(jsonPath("$[1].comentario", is(MOTIVO)))
+                .andExpect(jsonPath("$[1].avisoIndice", is(AVISO_OCULTO)))
+                .andExpect(jsonPath("$[1].autor", is(AUTOR_MODERACION)));
         historial(admin)
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].comentario", is(MOTIVO)))
-                .andExpect(jsonPath("$[0].avisoIndice", is(AVISO_OCULTO)))
-                .andExpect(jsonPath("$[0].autor", is("Nombre admin")));
+                .andExpect(jsonPath("$[1].comentario", is(MOTIVO)))
+                .andExpect(jsonPath("$[1].avisoIndice", is(AVISO_OCULTO)))
+                .andExpect(jsonPath("$[1].autor", is("Nombre admin")));
 
         historial(funcionario).andExpect(status().isNotFound());
         historial(adherido).andExpect(status().isNotFound());
@@ -223,23 +223,23 @@ class OcultamientoReporteIT extends AbstractModeracionIT {
         // La linea de tiempo muestra el par, segun quien la pide.
         historial(funcionario)
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].tipoEvento", is("REPORTE_OCULTO")))
-                .andExpect(jsonPath("$[0].comentario", is(MOTIVO)))
-                .andExpect(jsonPath("$[0].autor", is(AUTOR_MODERACION)))
-                .andExpect(jsonPath("$[0].avisoIndice", is(AVISO_OCULTO)))
-                .andExpect(jsonPath("$[1].tipoEvento", is("REPORTE_RESTABLECIDO")))
-                .andExpect(jsonPath("$[1].comentario", is("Revisado: el contenido cumple las reglas")))
-                .andExpect(jsonPath("$[1].avisoIndice", is(AVISO_RESTABLECIDO)));
+                .andExpect(jsonPath("$[1].tipoEvento", is("REPORTE_OCULTO")))
+                .andExpect(jsonPath("$[1].comentario", is(MOTIVO)))
+                .andExpect(jsonPath("$[1].autor", is(AUTOR_MODERACION)))
+                .andExpect(jsonPath("$[1].avisoIndice", is(AVISO_OCULTO)))
+                .andExpect(jsonPath("$[2].tipoEvento", is("REPORTE_RESTABLECIDO")))
+                .andExpect(jsonPath("$[2].comentario", is("Revisado: el contenido cumple las reglas")))
+                .andExpect(jsonPath("$[2].avisoIndice", is(AVISO_RESTABLECIDO)));
         historial(adherido)
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].comentario", is(ADHERIDO_OCULTA)))
-                .andExpect(jsonPath("$[0].autor", is(AUTOR_MODERACION)))
-                .andExpect(jsonPath("$[0].avisoIndice", is(AVISO_OCULTO)))
-                .andExpect(jsonPath("$[1].comentario", is(ADHERIDO_RESTABLECIDA)))
-                .andExpect(jsonPath("$[1].avisoIndice", is(AVISO_RESTABLECIDO)));
+                .andExpect(jsonPath("$[1].comentario", is(ADHERIDO_OCULTA)))
+                .andExpect(jsonPath("$[1].autor", is(AUTOR_MODERACION)))
+                .andExpect(jsonPath("$[1].avisoIndice", is(AVISO_OCULTO)))
+                .andExpect(jsonPath("$[2].comentario", is(ADHERIDO_RESTABLECIDA)))
+                .andExpect(jsonPath("$[2].avisoIndice", is(AVISO_RESTABLECIDO)));
         historial(creador)
-                .andExpect(jsonPath("$[0].comentario", is(MOTIVO)))
-                .andExpect(jsonPath("$[1].comentario", is("Revisado: el contenido cumple las reglas")));
+                .andExpect(jsonPath("$[1].comentario", is(MOTIVO)))
+                .andExpect(jsonPath("$[2].comentario", is("Revisado: el contenido cumple las reglas")));
     }
 
     // ------------------------------------------------------------------
@@ -286,19 +286,19 @@ class OcultamientoReporteIT extends AbstractModeracionIT {
 
         historial(creador)
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].tipoEvento", is("FOTO_OCULTA")))
-                .andExpect(jsonPath("$[0].comentario", is(MOTIVO)))
-                .andExpect(jsonPath("$[0].autor", is(AUTOR_MODERACION)))
-                .andExpect(jsonPath("$[0].avisoIndice", nullValue()));
+                .andExpect(jsonPath("$[1].tipoEvento", is("FOTO_OCULTA")))
+                .andExpect(jsonPath("$[1].comentario", is(MOTIVO)))
+                .andExpect(jsonPath("$[1].autor", is(AUTOR_MODERACION)))
+                .andExpect(jsonPath("$[1].avisoIndice", nullValue()));
         historial(funcionario)
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].comentario", is(MOTIVO)))
-                .andExpect(jsonPath("$[0].autor", is(AUTOR_MODERACION)));
+                .andExpect(jsonPath("$[1].comentario", is(MOTIVO)))
+                .andExpect(jsonPath("$[1].autor", is(AUTOR_MODERACION)));
         historial(adherido)
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].comentario", is(ADHERIDO_OCULTA)))
-                .andExpect(jsonPath("$[0].avisoIndice", nullValue()));
-        historial(admin).andExpect(jsonPath("$[0].autor", is("Nombre admin")));
+                .andExpect(jsonPath("$[1].comentario", is(ADHERIDO_OCULTA)))
+                .andExpect(jsonPath("$[1].avisoIndice", nullValue()));
+        historial(admin).andExpect(jsonPath("$[1].autor", is("Nombre admin")));
         historial(ajeno).andExpect(status().isForbidden());
         // Y la gestion sigue como siempre.
         cambiarEstado(funcionario).andExpect(status().isOk());
@@ -610,7 +610,7 @@ class OcultamientoReporteIT extends AbstractModeracionIT {
     @Test
     void elMotivoSeGuardaSinLosEspaciosDelBorde() throws Exception {
         moderar(admin, reporte.getId(), "ocultamiento", "FOTO", "   " + MOTIVO + "   ").andExpect(status().isOk());
-        historial(creador).andExpect(jsonPath("$[0].comentario", is(MOTIVO)))
-                .andExpect(jsonPath("$[0].comentario", containsString("placa")));
+        historial(creador).andExpect(jsonPath("$[1].comentario", is(MOTIVO)))
+                .andExpect(jsonPath("$[1].comentario", containsString("placa")));
     }
 }

@@ -671,7 +671,11 @@ Reglas de la cola:
   siempre montada (vacía sin nada que contar), porque un lector anuncia de
   forma fiable lo que aparece dentro de una región viva existente. Va arriba,
   bajo la cabecera, para no tapar los otros avisos de la cola, y no se cierra
-  solo (WCAG 2.2.1).
+  solo (WCAG 2.2.1). Como es fijo, puede tapar el elemento con foco (WCAG
+  2.4.11): **Escape lo cierra desde cualquier parte sin mover el foco**. No
+  se pasó al flujo del documento porque se monta en el layout y, al aparecer,
+  empujaría la pantalla en la que el usuario trabaja. Un Escape que ya
+  atendió otro componente (`defaultPrevented`) no lo cierra.
 - **La foto** se guarda como `ArrayBuffer` + nombre + tipo y se rearma como
   `File` al reenviar: IndexedDB clona eso en todos los navegadores (Safari tuvo
   fallos guardando `Blob`).
@@ -2133,7 +2137,9 @@ puros (`features/guia/model/pasos.ts`); el componente solo los pinta.
   `/reportar` despliega cada categoría del catálogo con su descripción
   (también las propias del distrito, US-29). Es un desplegable con
   `aria-expanded`, no un tooltip al pasar el ratón: se abre con teclado y
-  dedo, no se va mientras se lee (WCAG 1.4.13) y se cierra con Escape. Las
+  dedo, no se va mientras se lee (WCAG 1.4.13) y se cierra con Escape solo
+  si el foco está en el «?» o dentro del panel (entonces vuelve al «?»): un
+  Escape en otro campo no la cierra ni mueve el foco. Las
   imágenes de ejemplo que pide el criterio quedan pendientes: no hay fotos
   con licencia ni un campo para ellas en el catálogo.
 
@@ -2183,10 +2189,20 @@ de la cuenta.
   preguntas previas (reportes en cola, US-06), la baja de push de este
   navegador (necesita el token vivo, así que va antes de revocar), y tras el
   204 el token local, la caché `cross-origin` y el login.
-- **Si el servidor falla, la sesión local no se cierra**: el usuario creería
-  haber cerrado las demás sin que sea cierto. El error se muestra en el
-  diálogo y puede reintentar. La baja de push de este navegador ya ocurrió;
-  se reactiva desde la cuenta.
+- **Si el servidor falla (salvo 401), la sesión local no se cierra**: el
+  usuario creería haber cerrado las demás sin que sea cierto. El error se
+  muestra en el diálogo («Tu sesión sigue abierta; puedes volver a
+  intentarlo»). Un 401 no es un fallo: el token ya no vale, así que se sigue
+  con el cierre local.
+- **Push tras el fallo:** la baja de push de este navegador ya ocurrió (tenía
+  que ir antes, con el token vivo). Si había suscripción, se intenta
+  restablecer sola (`restablecerPushTrasCierreFallido`, como al iniciar
+  sesión: sin pedir permiso ni crear una suscripción nueva). Si se pudo, el
+  diálogo dice que las notificaciones siguen activas; si no (la baja había
+  cancelado la suscripción local), dice que quedaron desactivadas en este
+  dispositivo y ofrece «Volver a activar las notificaciones» (`activarPush`;
+  el permiso ya estaba concedido). Si eso también falla, remite a
+  «Notificaciones push» en el perfil.
 - **Los otros dispositivos** reciben 401 en su siguiente petición y el manejo
   central del 401 los lleva al login. No hay aviso en tiempo real.
 - Solo está en la pantalla de la cuenta, no en el menú de la cabecera: es una

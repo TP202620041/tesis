@@ -77,7 +77,7 @@ class TicketSoporteIT extends AbstractPostgisMailIT {
     }
 
     private String token(Usuario u) {
-        return jwtService.generarToken(u.getEmail(), u.getRol().name());
+        return jwtService.generarToken(u.getEmail(), u.getRol().name(), 0);
     }
 
     private String cuerpoCrear(String asunto, String mensaje) {
@@ -105,6 +105,34 @@ class TicketSoporteIT extends AbstractPostgisMailIT {
                         .content(cuerpoCrear("Duda sobre bandeja", "No veo reportes RECHAZADOS"))
                         .header("Authorization", "Bearer " + token(funcionario())))
                 .andExpect(status().isCreated());
+    }
+
+    @Test
+    void crearTicket_devuelveNumeroDeSeguimientoYPlazoDeAtencion() throws Exception {
+        // US-25 Esc. 1.
+        Usuario ciu = ciudadano();
+
+        String cuerpo = mockMvc.perform(post("/api/soporte/tickets")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(cuerpoCrear("Consulta", "Necesito ayuda"))
+                        .header("Authorization", "Bearer " + token(ciu)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.plazoRespuestaHoras", is(48)))
+                .andExpect(jsonPath("$.respuestaEsperadaAntesDe", notNullValue()))
+                .andReturn().getResponse().getContentAsString();
+
+        com.fasterxml.jackson.databind.JsonNode ticket = objectMapper.readTree(cuerpo);
+        String numero = "SOP-%06d".formatted(ticket.get("id").asLong());
+        org.assertj.core.api.Assertions.assertThat(ticket.get("numeroSeguimiento").asText()).isEqualTo(numero);
+        java.time.Instant creado = java.time.Instant.parse(ticket.get("createdAt").asText());
+        java.time.Instant limite = java.time.Instant.parse(ticket.get("respuestaEsperadaAntesDe").asText());
+        org.assertj.core.api.Assertions.assertThat(java.time.Duration.between(creado, limite).toHours()).isEqualTo(48);
+
+        // El mismo numero en sus tickets y en la bandeja de soporte.
+        mockMvc.perform(get("/api/soporte/tickets/mis-tickets").header("Authorization", "Bearer " + token(ciu)))
+                .andExpect(jsonPath("$[0].numeroSeguimiento", is(numero)));
+        mockMvc.perform(get("/api/soporte/tickets").header("Authorization", "Bearer " + token(admin())))
+                .andExpect(jsonPath("$.content[0].numeroSeguimiento", is(numero)));
     }
 
     @Test

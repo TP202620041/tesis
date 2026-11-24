@@ -1,6 +1,7 @@
 package pe.edu.upc.viasegura.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -177,6 +178,75 @@ class PasswordResetIT extends AbstractPostgisMailIT {
                         .content("{\"email\":\"%s\",\"password\":\"original123\"}"
                                 .formatted(usuario.getEmail())))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void restablecer_cierraLasSesionesAbiertasConLaContrasenaAnterior() throws Exception {
+        // US-04 Esc. 2: la contrasena nueva sube la version de sesion.
+        Usuario usuario = ciudadano();
+        String cuerpo = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"%s\",\"password\":\"original123\"}".formatted(usuario.getEmail())))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String sesionAnterior = objectMapper.readTree(cuerpo).get("token").asText();
+        mockMvc.perform(post("/api/auth/recuperar-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(cuerpoRecuperar(usuario.getEmail())))
+                .andExpect(status().isAccepted());
+        String token = tokenRepository.findAll().get(0).getToken();
+
+        mockMvc.perform(post("/api/auth/restablecer-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(cuerpoRestablecer(token, "nuevaClave123")))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/auth/me").header("Authorization", "Bearer " + sesionAnterior))
+                .andExpect(status().isUnauthorized());
+    }
+
+    private void suscribir(Usuario usuario, String endpoint) {
+        jdbcTemplate.update("""
+                INSERT INTO suscripcion_push
+                    (usuario_id, endpoint, p256dh, auth, user_agent, activa, created_at, updated_at)
+                VALUES (?, ?, 'p256dh', 'auth', 'IT', TRUE, now(), now())
+                """, usuario.getId(), endpoint);
+    }
+
+    private int suscripciones(Usuario usuario) {
+        return jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM suscripcion_push WHERE usuario_id = ?", Integer.class, usuario.getId());
+    }
+
+    /**
+     * Como al cerrar las sesiones a mano (US-04 Esc. 2), la contrasena nueva
+     * borra las suscripciones push del usuario ({@code SesionesCerradasEvent},
+     * despues del commit): quien entro con la anterior deja de recibir avisos.
+     * Las de otra cuenta siguen.
+     */
+    @Test
+    void restablecer_borraLasSuscripcionesPushDelUsuario_yNoLasDeOtro() throws Exception {
+        Usuario usuario = ciudadano();
+        Usuario otro = ciudadano();
+        suscribir(usuario, "https://fcm.googleapis.com/fcm/send/telefono-" + UUID.randomUUID());
+        suscribir(usuario, "https://updates.push.services.mozilla.com/wpush/v2/laptop-" + UUID.randomUUID());
+        String endpointOtro = "https://fcm.googleapis.com/fcm/send/otro-" + UUID.randomUUID();
+        suscribir(otro, endpointOtro);
+        assertThat(suscripciones(usuario)).isEqualTo(2);
+        PasswordResetToken token = tokenRepository.save(PasswordResetToken.builder()
+                .token(UUID.randomUUID().toString()).usuario(usuario)
+                .expiresAt(Instant.now().plus(30, ChronoUnit.MINUTES)).build());
+
+        mockMvc.perform(post("/api/auth/restablecer-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(cuerpoRestablecer(token.getToken(), "nuevaClave123")))
+                .andExpect(status().isNoContent());
+
+        assertThat(suscripciones(usuario)).isZero();
+        assertThat(suscripciones(otro)).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM suscripcion_push WHERE endpoint = ?", Integer.class, endpointOtro))
+                .isEqualTo(1);
     }
 
     @Test

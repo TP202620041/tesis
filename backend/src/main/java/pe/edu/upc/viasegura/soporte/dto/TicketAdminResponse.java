@@ -11,12 +11,16 @@ import pe.edu.upc.viasegura.soporte.domain.TicketSoporte;
  * necesita saber a quien responde. Solo lo devuelve un endpoint con
  * {@code hasRole('ADMIN')}.
  *
+ * <p>{@code numeroSeguimiento} es el mismo que ve el autor (US-25 Esc. 1),
+ * para que soporte encuentre el ticket por el numero que le citan.</p>
+ *
  * <p>{@code nombreAutor} es {@code null} si el ticket no tiene usuario (el
  * esquema admite tickets de visitante, aunque hoy no se exponen) y
  * {@code respuesta} es {@code null} hasta que soporte responde.</p>
  */
 public record TicketAdminResponse(
         Long id,
+        String numeroSeguimiento,
         String asunto,
         String mensaje,
         String estado,
@@ -30,7 +34,7 @@ public record TicketAdminResponse(
         Usuario autor = t.getUsuario();
         String nombreAutor = autor == null ? null : autor.getNombre() + " " + autor.getApellido();
         return new TicketAdminResponse(
-                t.getId(), t.getAsunto(), t.getMensaje(), t.getEstado().name(), t.getRespuesta(),
+                t.getId(), t.numeroSeguimiento(), t.getAsunto(), t.getMensaje(), t.getEstado().name(), t.getRespuesta(),
                 t.getEmailContacto(), nombreAutor, t.getCreatedAt(), t.getUpdatedAt());
     }
 }

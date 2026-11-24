@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { clasesDeBoton } from '@/components/ui/Boton';
+import { RUTA_GUIA } from '@/features/guia/model/pasos';
 
 /**
  * Portada publica. En esta fase es solo la puerta al slice de acceso; el mapa
@@ -38,7 +39,7 @@ export default function Home() {
       {/* US-24: la guía, para quien entra por primera vez. */}
       <p className="text-sm text-texto-2">
         ¿Primera vez aquí?{' '}
-        <Link href="/como-funciona" className="font-medium text-enlace hover:underline">
+        <Link href={RUTA_GUIA} className="font-medium text-enlace hover:underline">
           Mira cómo funciona
         </Link>
         .

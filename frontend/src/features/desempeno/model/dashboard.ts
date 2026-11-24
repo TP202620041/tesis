@@ -54,9 +54,13 @@ function entero(n: number | null | undefined): string {
  */
 export const MIN_REPORTES_DASHBOARD = 5;
 
-/** `true` si el distrito tiene menos de {@link MIN_REPORTES_DASHBOARD} reportes (US-17 Esc. 2). */
+/**
+ * `true` si el distrito tiene menos de {@link MIN_REPORTES_DASHBOARD} reportes
+ * (US-17 Esc. 2). Un total `null` no es «menos de 5»: es que no se sabe
+ * (`null` ≠ 0), así que no hay aviso y cada métrica dice «Sin datos».
+ */
 export function datosInsuficientes(resumen: DesempenoDistrital): boolean {
-  return (resumen.totalReportes ?? 0) < MIN_REPORTES_DASHBOARD;
+  return resumen.totalReportes != null && resumen.totalReportes < MIN_REPORTES_DASHBOARD;
 }
 
 /**

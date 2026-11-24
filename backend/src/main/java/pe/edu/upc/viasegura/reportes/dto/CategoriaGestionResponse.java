@@ -16,12 +16,14 @@ public record CategoriaGestionResponse(
         boolean esEstandar,
         boolean activo,
         Long distritoId,
-        String distritoNombre
+        String distritoNombre,
+        String icono
 ) {
     public static CategoriaGestionResponse from(CategoriaDano c) {
         return new CategoriaGestionResponse(
                 c.getId(), c.getNombre(), c.getDescripcion(), c.isEsEstandar(), c.isActivo(),
                 c.getDistrito() != null ? c.getDistrito().getId() : null,
-                c.getDistrito() != null ? c.getDistrito().getNombre() : null);
+                c.getDistrito() != null ? c.getDistrito().getNombre() : null,
+                c.getIcono() != null ? c.getIcono().name() : null);
     }
 }

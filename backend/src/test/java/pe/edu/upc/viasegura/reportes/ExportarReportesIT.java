@@ -78,7 +78,7 @@ class ExportarReportesIT extends AbstractPostgisIT {
 
     private CategoriaDano categoria() {
         return categoriaRepository.findAll().stream()
-                .filter(CategoriaDano::isEsEstandar).findFirst().orElseThrow();
+                .filter(CategoriaDano::isEsEstandar).filter(CategoriaDano::isActivo).findFirst().orElseThrow();
     }
 
     private Usuario ciudadano() {
@@ -105,7 +105,7 @@ class ExportarReportesIT extends AbstractPostgisIT {
     }
 
     private String token(Usuario u) {
-        return jwtService.generarToken(u.getEmail(), u.getRol().name());
+        return jwtService.generarToken(u.getEmail(), u.getRol().name(), 0);
     }
 
     /** Reporte con todos los datos que exporta la fila, y la fecha de creación fijada. */

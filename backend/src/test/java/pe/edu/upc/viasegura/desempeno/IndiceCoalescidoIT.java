@@ -87,7 +87,7 @@ class IndiceCoalescidoIT extends AbstractPostgisIT {
                 .email("coalescido-" + UUID.randomUUID() + "@lima.pe")
                 .passwordHash(passwordEncoder.encode("x"))
                 .nombre("Ana").apellido("Vecina").rol(Rol.CIUDADANO).build());
-        return jwtService.generarToken(u.getEmail(), u.getRol().name());
+        return jwtService.generarToken(u.getEmail(), u.getRol().name(), 0);
     }
 
     /** Cada uno en otro punto de Pueblo Libre, a ~55 m: reportes nuevos, no adhesiones (US-09). */
@@ -106,7 +106,7 @@ class IndiceCoalescidoIT extends AbstractPostgisIT {
     @Test
     void dieciseisCreacionesSeguidas_dosRefrescos_elUltimoDespuesDeTodas_yNingunaLoEspera() throws Exception {
         long categoriaId = categoriaRepository.findAll().stream()
-                .filter(CategoriaDano::isEsEstandar).findFirst().orElseThrow().getId();
+                .filter(CategoriaDano::isEsEstandar).filter(CategoriaDano::isActivo).findFirst().orElseThrow().getId();
         List<String> ciudadanos = new ArrayList<>();
         for (int i = 0; i < CREACIONES; i++) {
             ciudadanos.add(ciudadanoNuevo());

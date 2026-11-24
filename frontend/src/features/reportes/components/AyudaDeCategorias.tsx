@@ -1,10 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useId, useRef, useState, type KeyboardEvent } from 'react';
 import { CircleHelp, X } from 'lucide-react';
 import { BotonIcono, Icono } from '@/components/ui/Icono';
 import { IconoDeCategoria } from '@/components/ui/IconoDeCategoria';
+import { RUTA_GUIA } from '@/features/guia/model/pasos';
 import type { CategoriaDano } from '@/lib/types/domain';
 
 /**
@@ -28,20 +29,22 @@ export function AyudaDeCategorias({ categorias }: { categorias: readonly Categor
   const idTitulo = useId();
   const boton = useRef<HTMLButtonElement>(null);
 
-  useEffect(() => {
-    if (!abierta) return;
-    const alPulsar = (evento: KeyboardEvent) => {
-      if (evento.key !== 'Escape') return;
-      setAbierta(false);
-      boton.current?.focus();
-    };
-    document.addEventListener('keydown', alPulsar);
-    return () => document.removeEventListener('keydown', alPulsar);
-  }, [abierta]);
-
   function cerrar() {
     setAbierta(false);
     boton.current?.focus();
+  }
+
+  /**
+   * Escape solo cuenta con el foco en el «?» o dentro del panel: el manejador
+   * está en esos dos elementos, no en `document`, así que un Escape pulsado en
+   * otro campo del formulario no cierra la ayuda ni le roba el foco.
+   * `preventDefault` avisa a otros oyentes (el aviso de envío) que ya se
+   * atendió.
+   */
+  function alPulsarTecla(evento: KeyboardEvent<HTMLElement>) {
+    if (evento.key !== 'Escape' || !abierta) return;
+    evento.preventDefault();
+    cerrar();
   }
 
   return (
@@ -54,12 +57,13 @@ export function AyudaDeCategorias({ categorias }: { categorias: readonly Categor
         aria-label="Ayuda: qué tipo de daño elegir"
         title="Ayuda: qué tipo de daño elegir"
         onClick={() => setAbierta(!abierta)}
+        onKeyDown={alPulsarTecla}
         className="inline-flex size-objetivo shrink-0 items-center justify-center rounded-control text-enlace hover:bg-superficie-2 hover:text-enlace-hover -my-2.5"
       >
         <Icono icono={CircleHelp} />
       </button>
       {/* `w-full`: en la fila flexible de la etiqueta, el panel baja a su propia línea. */}
-      <div id={idPanel} hidden={!abierta} className="w-full">
+      <div id={idPanel} hidden={!abierta} className="w-full" onKeyDown={alPulsarTecla}>
         {abierta && (
           <section
             aria-labelledby={idTitulo}
@@ -88,7 +92,7 @@ export function AyudaDeCategorias({ categorias }: { categorias: readonly Categor
             )}
             <p>
               Si dudas, elige el más parecido y cuenta en el título qué ves.{' '}
-              <Link href="/como-funciona" className="font-medium underline">
+              <Link href={RUTA_GUIA} className="font-medium underline">
                 Ver la guía
               </Link>
             </p>

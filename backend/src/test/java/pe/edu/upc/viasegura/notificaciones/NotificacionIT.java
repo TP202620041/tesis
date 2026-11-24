@@ -80,7 +80,7 @@ class NotificacionIT extends AbstractPostgisMailIT {
 
     private CategoriaDano categoria() {
         return categoriaRepository.findAll().stream()
-                .filter(CategoriaDano::isEsEstandar).findFirst().orElseThrow();
+                .filter(CategoriaDano::isEsEstandar).filter(CategoriaDano::isActivo).findFirst().orElseThrow();
     }
 
     private Usuario funcionario(Distrito distritoGestion) {
@@ -129,7 +129,7 @@ class NotificacionIT extends AbstractPostgisMailIT {
     }
 
     private String token(Usuario u) {
-        return jwtService.generarToken(u.getEmail(), u.getRol().name());
+        return jwtService.generarToken(u.getEmail(), u.getRol().name(), 0);
     }
 
     /** PATCH del funcionario que lleva el reporte a EN_PROCESO. */

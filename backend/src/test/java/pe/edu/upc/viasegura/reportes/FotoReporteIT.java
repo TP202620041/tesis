@@ -47,7 +47,7 @@ class FotoReporteIT extends AbstractPostgisIT {
 
     private long categoriaEstandarId() {
         return categoriaRepository.findAll().stream()
-                .filter(CategoriaDano::isEsEstandar)
+                .filter(CategoriaDano::isEsEstandar).filter(CategoriaDano::isActivo)
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("No hay categorias estandar sembradas"))
                 .getId();

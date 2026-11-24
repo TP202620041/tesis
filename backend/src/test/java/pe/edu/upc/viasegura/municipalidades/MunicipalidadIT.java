@@ -105,8 +105,19 @@ class MunicipalidadIT extends AbstractPostgisIT {
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
+    /** NC-06 (V25): el periodo siguiente empieza el dia despues del primero. */
+    @ParameterizedTest(name = "{0} cae en 2027-2030")
+    @ValueSource(strings = {"2027-01-01", "2030-12-31"})
+    void periodoVigente_dentroDe2027a2030(String fecha) {
+        Optional<PeriodoGestion> periodo = municipalidadService.periodoVigente(LocalDate.parse(fecha));
+
+        assertThat(periodo).isPresent();
+        assertThat(periodo.get().getFechaInicio()).isEqualTo(LocalDate.of(2027, 1, 1));
+        assertThat(periodo.get().getFechaFin()).isEqualTo(LocalDate.of(2030, 12, 31));
+    }
+
     @ParameterizedTest(name = "{0} no cae en ningun periodo")
-    @ValueSource(strings = {"2022-12-31", "2027-01-01"})
+    @ValueSource(strings = {"2022-12-31", "2031-01-01"})
     void periodoVigente_fueraDelPeriodo_vacio(String fecha) {
         assertThat(municipalidadService.periodoVigente(LocalDate.parse(fecha))).isEmpty();
     }

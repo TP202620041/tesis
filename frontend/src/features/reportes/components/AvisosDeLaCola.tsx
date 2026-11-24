@@ -98,8 +98,15 @@ export function AvisoReportesIncompletos({
  *
  * Va arriba, bajo la cabecera, y no junto a los otros avisos de la cola (que
  * van sobre la barra inferior): pueden coincidir con el de incompletos y no
- * deben taparse. No se cierra solo (WCAG 2.2.1): se cierra con la X o al
- * seguir el enlace.
+ * deben taparse. No se cierra solo (WCAG 2.2.1): se cierra con la X, al
+ * seguir el enlace o con Escape.
+ *
+ * WCAG 2.4.11 (foco no tapado): es fijo y puede quedar encima del elemento
+ * que tiene el foco. Escape lo cierra desde cualquier parte SIN mover el
+ * foco, que es la técnica que admite el criterio. No se pasó al flujo del
+ * documento porque se monta en el layout, fuera de la pantalla actual: al
+ * aparecer empujaría todo el contenido mientras el usuario trabaja. Un
+ * Escape que ya atendió otro (un diálogo, `defaultPrevented`) no lo cierra.
  */
 export function AvisoDeEnvioExitoso({
   enviados,
@@ -109,6 +116,18 @@ export function AvisoDeEnvioExitoso({
   onCerrar: () => void;
 }) {
   const aviso = avisoDeEnvioExitoso(enviados);
+  const visible = aviso !== null;
+
+  useEffect(() => {
+    if (!visible) return;
+    const alPulsar = (evento: KeyboardEvent) => {
+      if (evento.key !== 'Escape' || evento.defaultPrevented) return;
+      onCerrar();
+    };
+    document.addEventListener('keydown', alPulsar);
+    return () => document.removeEventListener('keydown', alPulsar);
+  }, [visible, onCerrar]);
+
   return (
     <div
       role="status"
