@@ -163,7 +163,7 @@ class FotoFueraDeTransaccionIT extends AbstractPostgisIT {
                 .param("longitud", String.valueOf(LON))
                 .param("titulo", "Hueco frente al parque").param("severidad", "ALTA")
                 .param("categoriaId", String.valueOf(categoriaEstandarId()))
-                .header("Authorization", "Bearer " + jwtService.generarToken(u.getEmail(), u.getRol().name()));
+                .header("Authorization", "Bearer " + jwtService.generarToken(u.getEmail(), u.getRol().name(), 0));
         if (clave != null) {
             peticion.header("Idempotency-Key", clave);
         }

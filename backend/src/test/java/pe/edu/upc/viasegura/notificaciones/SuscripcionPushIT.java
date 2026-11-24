@@ -77,7 +77,7 @@ class SuscripcionPushIT extends AbstractPostgisIT {
     }
 
     private String token(Usuario u) {
-        return "Bearer " + jwtService.generarToken(u.getEmail(), u.getRol().name());
+        return "Bearer " + jwtService.generarToken(u.getEmail(), u.getRol().name(), 0);
     }
 
     private static String endpointNuevo() {

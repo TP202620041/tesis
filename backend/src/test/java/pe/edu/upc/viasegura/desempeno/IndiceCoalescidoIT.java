@@ -87,7 +87,7 @@ class IndiceCoalescidoIT extends AbstractPostgisIT {
                 .email("coalescido-" + UUID.randomUUID() + "@lima.pe")
                 .passwordHash(passwordEncoder.encode("x"))
                 .nombre("Ana").apellido("Vecina").rol(Rol.CIUDADANO).build());
-        return jwtService.generarToken(u.getEmail(), u.getRol().name());
+        return jwtService.generarToken(u.getEmail(), u.getRol().name(), 0);
     }
 
     /** Cada uno en otro punto de Pueblo Libre, a ~55 m: reportes nuevos, no adhesiones (US-09). */

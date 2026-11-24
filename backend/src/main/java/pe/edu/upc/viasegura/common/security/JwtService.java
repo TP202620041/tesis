@@ -136,10 +136,10 @@ public class JwtService {
     }
 
     /**
-     * Token sin version de sesion (vale como la 0). Solo para los tests: el
-     * login usa {@link #generarToken(String, String, int)}.
+     * Token sin el claim de version, como los emitidos antes de V23 (vale como
+     * la 0). Solo lo usan los tests de este paquete.
      */
-    public String generarToken(String email, String rol) {
+    String generarTokenSinVersion(String email, String rol) {
         return firmar(email, Map.of(CLAIM_ROL, rol));
     }
 

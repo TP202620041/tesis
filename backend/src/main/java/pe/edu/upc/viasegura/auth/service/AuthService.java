@@ -3,10 +3,10 @@ package pe.edu.upc.viasegura.auth.service;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.util.StringUtils;
 import pe.edu.upc.viasegura.auth.domain.PoliticaDeBloqueoDeLogin;
 import pe.edu.upc.viasegura.auth.domain.PreferenciaNotificacion;
@@ -56,6 +56,8 @@ public class AuthService {
     private final ModeracionService moderacionService;
     private final ApplicationEventPublisher eventPublisher;
     private final BloqueoDeLoginService bloqueoDeLoginService;
+    /** Transaccion programatica de {@link #login}, que no es {@code @Transactional}. */
+    private final TransactionOperations transaccion;
 
     /**
      * US-01: registra una cuenta ciudadana, sin confirmar (NC-09), y pide el
@@ -110,32 +112,37 @@ public class AuthService {
      * <p>US-02 Esc. 2: tras {@value PoliticaDeBloqueoDeLogin#INTENTOS_MAXIMOS}
      * intentos fallidos seguidos el correo queda bloqueado 15 minutos (409
      * {@code LOGIN_BLOQUEADO}), tambien con la contrasena correcta. El
-     * contador es por correo, exista o no la cuenta, y el bloqueo se comprueba
-     * antes que la contrasena: la respuesta es la misma para un correo sin
-     * cuenta, asi que tampoco revela cuales estan registrados
-     * ({@link BloqueoDeLoginService}).</p>
+     * intento se cuenta <b>antes</b> de comprobar la contrasena, en la misma
+     * sentencia que mira el bloqueo, y se olvida si la contrasena es correcta:
+     * una rafaga en paralelo no prueba mas de 5. El contador es por correo,
+     * exista o no la cuenta, asi que la respuesta es la misma para un correo
+     * sin cuenta ({@link BloqueoDeLoginService}).</p>
+     *
+     * <p><b>No es {@code @Transactional}.</b> Cada paso usa su propia
+     * transaccion corta, una despues de otra: contar el intento, comprobar la
+     * contrasena (el {@code UserDetailsService}) y olvidar el contador, y al
+     * final armar la respuesta ({@link #transaccion}). Asi un login retiene a
+     * lo sumo una conexion del pool; con una transaccion externa y escrituras
+     * {@code REQUIRES_NEW} adentro retenia dos, y una rafaga de logins mayor
+     * que el pool lo agotaba (revision de US-02).</p>
      */
-    @Transactional(readOnly = true)
     public AuthResponse login(LoginRequest request) {
-        bloqueoDeLoginService.exigirNoBloqueado(request.email());
-        try {
-            // Lanza BadCredentialsException (=> HTTP 401) si son invalidas.
-            authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(request.email(), request.password()));
-        } catch (BadCredentialsException e) {
-            bloqueoDeLoginService.registrarFallo(request.email());
-            throw e;
-        }
+        bloqueoDeLoginService.reservarIntento(request.email());
+        // Lanza BadCredentialsException (=> HTTP 401) si son invalidas; el
+        // intento ya quedo contado.
+        authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(request.email(), request.password()));
         bloqueoDeLoginService.olvidar(request.email());
 
-        Usuario usuario = usuarioRepository.findByEmail(request.email())
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
-        if (!usuario.isCorreoConfirmado()) {
-            throw new BusinessException(ConfirmacionCorreoService.MENSAJE_CORREO_NO_CONFIRMADO,
-                    ConfirmacionCorreoService.CODIGO_CORREO_NO_CONFIRMADO);
-        }
-
-        return construirRespuesta(usuario);
+        return transaccion.execute(estado -> {
+            Usuario usuario = usuarioRepository.findByEmail(request.email())
+                    .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+            if (!usuario.isCorreoConfirmado()) {
+                throw new BusinessException(ConfirmacionCorreoService.MENSAJE_CORREO_NO_CONFIRMADO,
+                        ConfirmacionCorreoService.CODIGO_CORREO_NO_CONFIRMADO);
+            }
+            return construirRespuesta(usuario);
+        });
     }
 
     /**

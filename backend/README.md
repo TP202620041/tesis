@@ -831,7 +831,9 @@ Cada dominio se organiza en `controller/ · service/ · repository/ · dto/ · d
     una sola columna revoca todos los tokens sin guardarlos.
   - La versión la expone el `UserDetails` por la interfaz
     `common/security/ConVersionDeSesion`, que implementa `auth` (mismo patrón
-    que `VerificadorTerminosPendientes`): `common` no depende de `auth`.
+    que `VerificadorTerminosPendientes`): `common` no depende de `auth`. Si un
+    `UserDetails` no la implementa, el filtro **falla cerrado** y no acepta
+    el token (`JwtAuthenticationFilterTest`).
   - Los tokens sin el claim (emitidos antes de V23) valen como versión 0, y
     toda cuenta empieza en 0: migrar no cierra ninguna sesión.
   - Lo que no cubre: cerrar *una* sesión concreta de otro dispositivo (haría
@@ -853,11 +855,33 @@ Cada dominio se organiza en `controller/ · service/ · repository/ · dto/ · d
     (`BloqueoLoginIT`).
   - 409 y no 429: es la convención del proyecto para una precondición de
     negocio, con un `codigo` estable para la PWA (como `CORREO_NO_CONFIRMADO`).
-  - El fallo se suma con un `INSERT … ON CONFLICT DO UPDATE` atómico (dos
-    intentos simultáneos no se pisan) en una transacción `REQUIRES_NEW`,
-    porque la del login es de solo lectura y se revierte con el 401. Un
-    login correcto borra la fila; un fallo después de un bloqueo vencido, o a
-    más de 15 min del anterior, vuelve a contar desde 1.
+  - **El intento se cuenta antes de comprobar la contraseña**, en la misma
+    sentencia que mira el bloqueo (`IntentoLoginRepository#reservarIntento`:
+    `INSERT … ON CONFLICT DO UPDATE … WHERE` sin bloqueo vigente
+    `… RETURNING`; si no devuelve fila, el correo está bloqueado). Las
+    peticiones simultáneas sobre un correo se serializan en el candado de su
+    fila, así que **una ráfaga en paralelo prueba como mucho 5 contraseñas**:
+    con comprobar y contar en pasos separados, todas pasaban la comprobación
+    antes de que se contara la primera (revisión de US-02). Si la contraseña
+    es correcta, la fila se borra; un intento después de un bloqueo vencido,
+    o a más de 15 min del anterior, vuelve a contar desde 1.
+  - **Una conexión por login.** `AuthService#login` no es `@Transactional`:
+    contar el intento, comprobar la contraseña, olvidar el contador y armar
+    la respuesta (`TransactionOperations`) son transacciones cortas, una
+    después de otra. La primera versión envolvía todo en una transacción de
+    solo lectura y escribía el contador en `REQUIRES_NEW`: cada login
+    retenía dos conexiones y una ráfaga mayor que el pool (10) lo agotaba,
+    con 500 en lugar de 401 y sin contar el fallo (`BloqueoLoginIT`, ráfagas
+    de 25).
+  - **Purga diaria** (`auth/service/PurgaIntentosLoginService`, patrón de
+    «Tareas programadas (BE-15)», cron `app.login.intentos.purga.cron` /
+    `LOGIN_INTENTOS_PURGA_CRON`, 03:45 de Lima): borra las filas con el
+    último intento fuera de la ventana y sin bloqueo vigente. Sin ella la
+    tabla crecería con cada correo mal escrito; borrarlas no cambia el
+    comportamiento, porque volverían a contar desde 1.
+  - `LoginRequest.email` admite hasta 150 caracteres (el largo de
+    `usuario.email` y de la clave): uno más largo es 400, no un 500 al
+    guardar el intento.
   - Límite conocido: quien conozca un correo puede mantenerlo bloqueado
     fallando 5 veces cada 15 min (denegación de servicio dirigida). Es el
     costo habitual del bloqueo por cuenta; la mitigación (captcha en el

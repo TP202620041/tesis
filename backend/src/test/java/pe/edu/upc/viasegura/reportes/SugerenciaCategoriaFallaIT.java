@@ -56,7 +56,7 @@ class SugerenciaCategoriaFallaIT extends AbstractPostgisIT {
                 .email("ciu-" + UUID.randomUUID() + "@lima.pe")
                 .passwordHash(passwordEncoder.encode("x"))
                 .nombre("Ana").apellido("Vecina").rol(Rol.CIUDADANO).build());
-        return "Bearer " + jwtService.generarToken(u.getEmail(), u.getRol().name());
+        return "Bearer " + jwtService.generarToken(u.getEmail(), u.getRol().name(), 0);
     }
 
     private long bache() {

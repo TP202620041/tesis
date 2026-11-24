@@ -77,7 +77,7 @@ class TicketSoporteIT extends AbstractPostgisMailIT {
     }
 
     private String token(Usuario u) {
-        return jwtService.generarToken(u.getEmail(), u.getRol().name());
+        return jwtService.generarToken(u.getEmail(), u.getRol().name(), 0);
     }
 
     private String cuerpoCrear(String asunto, String mensaje) {

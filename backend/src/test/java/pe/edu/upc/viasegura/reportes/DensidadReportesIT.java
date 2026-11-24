@@ -283,7 +283,7 @@ class DensidadReportesIT extends AbstractPostgisIT {
     void conToken_mismaRespuestaQueAnonimo() throws Exception {
         reporte(LAT_A, LON_A, "Miraflores", EstadoReporte.PENDIENTE);
         Usuario funcionario = usuario(Rol.FUNCIONARIO_MUNICIPAL);
-        String token = jwtService.generarToken(funcionario.getEmail(), funcionario.getRol().name());
+        String token = jwtService.generarToken(funcionario.getEmail(), funcionario.getRol().name(), 0);
 
         String anonimo = mockMvc.perform(get(URL)).andReturn().getResponse().getContentAsString();
         mockMvc.perform(get(URL).header("Authorization", "Bearer " + token))
