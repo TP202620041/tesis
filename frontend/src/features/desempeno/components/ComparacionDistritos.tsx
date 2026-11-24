@@ -2,7 +2,8 @@
 
 import type { DistritoComparado } from '../model/comparacion';
 import { MIN_COMPARAR } from '../model/comparacion';
-import { formatearTasa, formatearTiempoDeFila, SIN_DATOS } from '../model/formato';
+import { DATOS_INSUFICIENTES, SIN_DATOS } from '../model/formato';
+import { textoConteo, textoSatisfaccion, textoTasa, textoTiempo } from '../model/gestion';
 import { GraficaTasas } from './GraficaTasas';
 import { clasesDeBoton } from '@/components/ui/Boton';
 
@@ -10,6 +11,8 @@ interface Props {
   distritos: DistritoComparado[];
   /** Nombre del tipo de dano filtrado, o `null` con todos los tipos. */
   categoriaNombre: string | null;
+  /** NC-06: periodo de gestion comparado («2023–2026»). */
+  periodo: string;
   onQuitar: (distritoId: number) => void;
   onLimpiar: () => void;
 }
@@ -20,10 +23,10 @@ interface Props {
  * La tabla (una columna por distrito) es la comparacion y, a la vez, el
  * equivalente en texto de la grafica para lectores de pantalla.
  */
-export function ComparacionDistritos({ distritos, categoriaNombre, onQuitar, onLimpiar }: Props) {
+export function ComparacionDistritos({ distritos, categoriaNombre, periodo, onQuitar, onLimpiar }: Props) {
   if (distritos.length === 0) return null;
 
-  const titulo = `Comparación de distritos${categoriaNombre ? ` · ${categoriaNombre}` : ''}`;
+  const titulo = `Comparación de distritos · ${periodo}${categoriaNombre ? ` · ${categoriaNombre}` : ''}`;
 
   return (
     <section
@@ -59,8 +62,8 @@ export function ComparacionDistritos({ distritos, categoriaNombre, onQuitar, onL
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-sm">
               <caption className="sr-only">
-                {titulo}: tasa de resolución, reportes resueltos sobre el total y tiempo promedio
-                de atención de cada distrito.
+                {titulo}: tasa de resolución, reportes resueltos sobre válidos, tiempo promedio de
+                atención y satisfacción de cada distrito.
               </caption>
               <thead>
                 <tr className="border-b border-linea-campo">
@@ -77,16 +80,17 @@ export function ComparacionDistritos({ distritos, categoriaNombre, onQuitar, onL
               </thead>
               <tbody>
                 <Fila titulo="Tasa de resolución" distritos={distritos}>
-                  {(d) => formatearTasa(d.fila?.tasaResolucion)}
+                  {(d) => textoTasa(d.fila)}
                 </Fila>
-                <Fila titulo="Resueltos / total" distritos={distritos}>
+                <Fila titulo="Resueltos / válidos" distritos={distritos}>
                   {/* Sin fila no se sabe el total: «Sin datos», no un 0 / 0 afirmado. */}
-                  {(d) =>
-                    d.fila ? `${d.fila.totalResueltos ?? 0} / ${d.fila.totalReportes ?? 0}` : SIN_DATOS
-                  }
+                  {(d) => textoConteo(d.fila)}
                 </Fila>
                 <Fila titulo="Tiempo promedio de atención" distritos={distritos}>
-                  {(d) => formatearTiempoDeFila(d.fila)}
+                  {(d) => textoTiempo(d.fila)}
+                </Fila>
+                <Fila titulo="Satisfacción" distritos={distritos}>
+                  {(d) => textoSatisfaccion(d.fila)}
                 </Fila>
               </tbody>
             </table>
@@ -126,7 +130,7 @@ function Fila({
           <td
             key={d.distritoId}
             className={`px-2 py-2 tabular-nums ${
-              valor === SIN_DATOS
+              valor === SIN_DATOS || valor === DATOS_INSUFICIENTES
                 ? 'text-texto-2'
                 : 'text-texto'
             }`}

@@ -3,39 +3,62 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { listarCategorias } from '@/lib/api/catalogos';
 import { ApiError } from '@/lib/api/errors';
 import type { CategoriaDano } from '@/lib/types/domain';
-import { rankingDistrital } from '../api';
-import type { DesempenoDistrital } from '../model/formato';
-import { useCategoriasDelIndice, useRankingDistrital } from './useIndiceDesempeno';
+import { dashboardDeGestion, listarPeriodosDeGestion } from '../api';
+import type { DashboardGestion } from '../model/gestion';
+import { useCategoriasDelIndice, useDashboardDeGestion, usePeriodosDeGestion } from './useIndiceDesempeno';
 
-vi.mock('../api', () => ({ rankingDistrital: vi.fn() }));
+vi.mock('../api', () => ({ dashboardDeGestion: vi.fn(), listarPeriodosDeGestion: vi.fn() }));
 vi.mock('@/lib/api/catalogos', () => ({ listarCategorias: vi.fn() }));
 
-const FILA = { distritoId: 1, distritoNombre: 'Miraflores', totalReportes: 3 } as DesempenoDistrital;
+const DASHBOARD: DashboardGestion = {
+  periodo: { id: 1, fechaInicio: '2023-01-01', fechaFin: '2026-12-31', vigente: true },
+  categoriaId: null,
+  calculatedAt: null,
+  distritos: [],
+};
 
 afterEach(() => {
-  vi.mocked(rankingDistrital).mockReset();
+  vi.mocked(dashboardDeGestion).mockReset();
+  vi.mocked(listarPeriodosDeGestion).mockReset();
   vi.mocked(listarCategorias).mockReset();
 });
 
-describe('useRankingDistrital', () => {
-  it('pide el ranking de la categoria y lo vuelve a pedir al cambiarla', async () => {
-    vi.mocked(rankingDistrital).mockResolvedValue([FILA]);
-    const { result, rerender } = renderHook(({ c }) => useRankingDistrital(c), {
-      initialProps: { c: null as number | null },
+describe('useDashboardDeGestion (NC-06)', () => {
+  it('pide el periodo y la categoría, y vuelve a pedir al cambiarlos', async () => {
+    vi.mocked(dashboardDeGestion).mockResolvedValue(DASHBOARD);
+    const { result, rerender } = renderHook(({ p, c }) => useDashboardDeGestion(p, c), {
+      initialProps: { p: 1 as number | null, c: null as number | null },
     });
-    await waitFor(() => expect(result.current.datos).toEqual([FILA]));
-    expect(rankingDistrital).toHaveBeenCalledWith(null);
+    await waitFor(() => expect(result.current.datos).toEqual(DASHBOARD));
+    expect(dashboardDeGestion).toHaveBeenCalledWith(1, null);
 
-    rerender({ c: 3 });
+    rerender({ p: 2, c: 3 });
 
-    await waitFor(() => expect(rankingDistrital).toHaveBeenLastCalledWith(3));
+    await waitFor(() => expect(dashboardDeGestion).toHaveBeenLastCalledWith(2, 3));
+  });
+
+  it('sin periodo no consulta: no pide «el vigente» a ciegas', async () => {
+    const { result } = renderHook(() => useDashboardDeGestion(null, null));
+
+    await waitFor(() => expect(result.current.estado).toBe('listo'));
+    expect(result.current.datos).toBeNull();
+    expect(dashboardDeGestion).not.toHaveBeenCalled();
   });
 
   it('un fallo deja la carga en error', async () => {
-    vi.mocked(rankingDistrital).mockRejectedValue(new ApiError(500, 'Fallo'));
-    const { result } = renderHook(() => useRankingDistrital(null));
+    vi.mocked(dashboardDeGestion).mockRejectedValue(new ApiError(500, 'Fallo'));
+    const { result } = renderHook(() => useDashboardDeGestion(1, null));
 
     await waitFor(() => expect(result.current.estado).toBe('error'));
+  });
+});
+
+describe('usePeriodosDeGestion', () => {
+  it('trae los periodos', async () => {
+    vi.mocked(listarPeriodosDeGestion).mockResolvedValue([DASHBOARD.periodo]);
+    const { result } = renderHook(() => usePeriodosDeGestion());
+
+    await waitFor(() => expect(result.current.datos).toEqual([DASHBOARD.periodo]));
   });
 });
 

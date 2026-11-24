@@ -1729,13 +1729,20 @@ Verificado end-to-end contra el backend real:
     ciudadano eligió otra (`reportes/model/edicion.ts`).
 - **US-18/20** índice de desempeño (`/desempeno`), **público**: ranking de los
   43 distritos con tasa de resolución, tiempo promedio y satisfacción,
-  ordenable por columna y filtrable por tipo de daño.
+  ordenable por columna y filtrable por tipo de daño. Desde **NC-06** la
+  tabla es la del periodo de gestión elegido (ver abajo).
 - **US-19** comparar distritos en `/desempeno`: de 2 a 4 distritos (columna
-  «Comparar») lado a lado, con tasa, resueltos/total y tiempo promedio, más
-  una gráfica de barras de la tasa. El tipo de daño se aplica también a la
-  comparación (ver «Comparar distritos» en Decisiones técnicas). Verificado
-  el 20/10 con los datos seed (Miraflores 66.7 % frente a San Juan de
-  Lurigancho 10.7 %).
+  «Comparar») lado a lado, con tasa, resueltos/válidos, tiempo promedio y
+  (desde NC-06) satisfacción, más una gráfica de barras de la tasa. El
+  periodo y el tipo de daño se aplican también a la comparación (ver
+  «Comparar distritos» en Decisiones técnicas). Verificado el 20/10 con los
+  datos seed (Miraflores 66.7 % frente a San Juan de Lurigancho 10.7 %).
+- **NC-06** (indicador OE3-I5) desempeño **por periodo de gestión** en
+  `/desempeno`, público y sin sesión: selector de periodo (por defecto el
+  vigente), y por municipalidad la tasa de resolución, el tiempo promedio de
+  atención **en días**, la satisfacción y los conteos, con filtro por tipo de
+  daño y la explicación de cada fórmula en la misma página (ver «Desempeño
+  por periodo de gestión (NC-06)» en Decisiones técnicas).
 - **NC-07b** consentimiento: aceptación de términos en el registro,
   `/privacidad`, pantalla `/aceptar-terminos` y «Privacidad y
   consentimientos» en el perfil (ver «Consentimiento» en Decisiones técnicas).
@@ -1917,17 +1924,88 @@ trae el DTO (sin cambio de API):
   y la satisfacción dicen «Datos insuficientes». Los conteos (recibidos,
   resueltos, sin responsable, estancados) se muestran igual: son hechos, no
   promedios. Una métrica `null` sigue diciendo «Sin datos».
-- Índice público por tipo de daño (`model/formato.ts`): con menos de **3
-  resueltos** de esa categoría en el distrito (`MIN_RESUELTOS_PARA_PROMEDIO`)
-  el tiempo promedio dice «Datos insuficientes», en la tabla y en la
-  comparación, y al ordenar por tiempo va al final como un `null`. Solo en el
-  desglose por categoría (la fila trae `categoriaId`), que es lo que pide el
-  criterio; el agregado general muestra el promedio que haya.
+- Desempeño público por periodo (`model/gestion.ts`, NC-06): con menos de
+  **5 válidos** (`MIN_VALIDOS`, el mismo `MIN_REPORTES_DASHBOARD`) la tasa y
+  la satisfacción dicen «Datos insuficientes»; con menos de **3 resueltos**
+  (`MIN_RESUELTOS`, el mismo `MIN_RESUELTOS_PARA_PROMEDIO`), el tiempo
+  promedio. Aplica al agregado general y al desglose por tipo de daño (la
+  decisión del 23/11 no los distingue; hasta NC-06 el índice solo lo aplicaba
+  al tiempo por categoría). En la tabla y en la comparación, y al ordenar esa
+  métrica va al final como un `null`, sin número de puesto (ver abajo).
+
+### Desempeño por periodo de gestión (NC-06)
+
+Es la evidencia del indicador OE3-I5 en la PWA: tasa de resolución y tiempo
+promedio de atención de cada municipalidad, desagregados por periodo de
+gestión, consultables sin iniciar sesión. Consume
+`GET /api/desempeno/periodos` y `GET /api/desempeno/gestion` (handoff
+`2026-11-23-dashboard-gestion-nc06.md`), ambos con `conAuth: false`.
+
+- **Reemplaza la tabla del índice acumulado, no se agrega como otra vista.**
+  `GET /api/desempeno/distritos` (US-18/US-20) suma todos los periodos y da
+  el tiempo en **horas**; `/gestion` da lo mismo por periodo, en **días**, y
+  además cuenta los reportes como pide la decisión (válidos = todo salvo
+  cancelados y ocultos). Dos tablas casi iguales en la misma página, con
+  unidades distintas y cifras que no coinciden, obligarían al ciudadano a
+  adivinar cuál vale; con un solo periodo con reportes (2023–2026) el
+  acumulado además repite al vigente. La comparación de 2 a 4 distritos
+  (US-19) no se pierde: compara las filas del periodo elegido, con la misma
+  URL compartible (ahora con `periodo=`). El backend mantiene `/distritos`
+  sin cambios; la PWA ya no lo llama (`rankingDistrital` y
+  `useRankingDistrital` se quitaron, y con ellos el orden y el formato en
+  horas de `formato.ts` que solo usaba esa tabla).
+- **El periodo vive en la URL** (`?periodo=1`), como el tipo de daño y la
+  comparación. Sin `periodo` se elige el `vigente: true` de `/periodos` (si
+  ninguno lo es, el más reciente) y se envía su `id` explícito: no se pide
+  «el vigente» al backend a ciegas, que responde 404 si hoy no cae en ningún
+  periodo. Un `periodo` que no existe en la URL se descarta como el vigente.
+- **Tasa y satisfacción con dos decimales** (`66.67 %`, `4.25 / 5`), tal como
+  los calcula el servidor, para que coincidan con el cálculo manual del
+  OE3-I5; el índice anterior redondeaba a uno. **Tiempo en días con un
+  decimal** (`1.9 días`, `1 día`); un promedio que el servidor redondeó a
+  `0.0` dice «< 0.1 días», no «0 días» (mismo criterio que el «< 1 h» de
+  QA-1 M-12).
+- **El ranking no lo encabeza un distrito con datos insuficientes.** Al
+  ordenar, la tasa (o el tiempo, o la satisfacción) con datos insuficientes
+  vale `null` y va al final en las dos direcciones, como «Sin datos»: un
+  distrito con 1 reporte resuelto de 1 no aparece primero con 100 %. Las
+  filas sin valor en la columna de orden no llevan número de puesto («—»,
+  «Sin puesto» para el lector): «#43» le atribuiría el último lugar a quien
+  no participa de la métrica.
+- **Un periodo sin reportes es «Sin datos», no una tabla de ceros.** Si
+  ningún distrito tiene reportes válidos en el periodo (2027–2030 hasta que
+  empiece, o un tipo de daño que nadie reportó) se muestra un aviso «Sin
+  datos» en lugar de la tabla y la comparación; la selección de distritos se
+  conserva en la URL para cuando se elija otro periodo.
+- **La explicación de cada fórmula está en la misma página**
+  (`ComoSeCalcula`): periodo, reportes válidos (los rechazados cuentan:
+  SEC-01), tasa, tiempo, satisfacción, «Datos insuficientes» y «Sin datos».
+  Quien mira el ranking puede rehacer cualquier tasa con los conteos de la
+  tabla.
+- **Municipalidad y distrito.** Con D-09 (una municipalidad por distrito) la
+  fila es el distrito; el nombre de la municipalidad va debajo, en pequeño,
+  solo si dice algo más que el del distrito. No hay nombres de autoridades
+  ni partidos: el backend no los guarda (decisión del 23/11).
+- **Accesibilidad.** Los dos selectores tienen `<label>`; la tabla, `caption`
+  con el periodo, encabezados de columna con `aria-sort` y de fila con el
+  distrito; «Sin datos» y «Datos insuficientes» van en el texto secundario
+  (`text-texto-2`, contraste AA en los tres temas), nunca solo con color, y
+  la barra de una tasa sin cifra es la pista punteada.
+- **US-17 v1 (`/dashboard`, `GET /api/desempeno/mi-distrito`) no cambia**
+  con esta tarea: sigue mostrando el acumulado en horas con sus señales
+  operativas. Cómo migrará: cuando el backend exponga el periodo en
+  `mi-distrito` (o el funcionario consulte `/gestion` filtrando su distrito),
+  `DashboardDistrito` pasará a leer una `KpiGestion` del periodo vigente y a
+  formatear con `gestion.ts` (`textoTasa`, `textoTiempo` en días, los mismos
+  umbrales), dejando en `dashboard.ts` solo las señales operativas
+  (sin responsable, estancados). Entonces `DesempenoDistrital`,
+  `formatearTiempo` (horas) y `formatearTasa` de un decimal se podrán quitar.
 
 ### Comparar distritos (US-19)
 
-- **El estado vive en la URL** (`?comparar=21,41&categoria=3`), no en estado
-  local: compartir la dirección comparte la comparación y el filtro. Se
+- **El estado vive en la URL** (`?comparar=21,41&periodo=1&categoria=3`), no
+  en estado local: compartir la dirección comparte la comparación, el periodo
+  y el filtro. Se
   escribe con `router.replace`, no `push`, para no llenar el historial con
   cada casilla. `useSearchParams` obliga a envolver el índice en `Suspense`
   (sin eso falla `next build`). El orden de la tabla sí es local: es de quien
