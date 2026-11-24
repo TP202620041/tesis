@@ -112,11 +112,11 @@ class CerrarSesionesIT extends AbstractPostgisIT {
     }
 
     @Test
-    void tokenSinVersion_valeComoLaCero_hastaQueSeCierranLasSesiones() throws Exception {
-        // Los tokens emitidos antes de V23 no traen el claim: siguen validos
-        // mientras la cuenta este en la version 0.
+    void tokenDeVersionCero_valeHastaQueSeCierranLasSesiones() throws Exception {
+        // Toda cuenta empieza en la version 0 (V23). Que un token sin el claim
+        // valga como la 0 lo fija JwtServiceTest.
         Usuario usuario = cuenta(Rol.CIUDADANO);
-        String antiguo = jwtService.generarToken(usuario.getEmail(), usuario.getRol().name());
+        String antiguo = jwtService.generarToken(usuario.getEmail(), usuario.getRol().name(), 0);
         mockMvc.perform(get("/api/auth/me").header("Authorization", "Bearer " + antiguo)).andExpect(status().isOk());
 
         mockMvc.perform(post(RUTA).header("Authorization", "Bearer " + antiguo)).andExpect(status().isNoContent());

@@ -90,7 +90,7 @@ class DashboardDistritoIT extends AbstractPostgisIT {
     }
 
     private String token(Usuario u) {
-        return jwtService.generarToken(u.getEmail(), u.getRol().name());
+        return jwtService.generarToken(u.getEmail(), u.getRol().name(), 0);
     }
 
     /** Fuerza updated_at directo en BD (el auditing de JPA lo sobreescribe en cada save). */

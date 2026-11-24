@@ -109,7 +109,7 @@ class DesempenoIT extends AbstractPostgisMailIT {
     }
 
     private String token(Usuario u) {
-        return jwtService.generarToken(u.getEmail(), u.getRol().name());
+        return jwtService.generarToken(u.getEmail(), u.getRol().name(), 0);
     }
 
     /** GET del ranking general y devuelve la fila del distrito pedido. */

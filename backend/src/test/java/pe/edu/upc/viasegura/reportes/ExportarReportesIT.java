@@ -105,7 +105,7 @@ class ExportarReportesIT extends AbstractPostgisIT {
     }
 
     private String token(Usuario u) {
-        return jwtService.generarToken(u.getEmail(), u.getRol().name());
+        return jwtService.generarToken(u.getEmail(), u.getRol().name(), 0);
     }
 
     /** Reporte con todos los datos que exporta la fila, y la fecha de creación fijada. */

@@ -73,7 +73,7 @@ class CatalogoAmpliadoEIconosIT extends AbstractPostgisIT {
                 .email("cat-" + UUID.randomUUID() + "@lima.pe")
                 .passwordHash(passwordEncoder.encode("x"))
                 .nombre("Ana").apellido("Ruiz").rol(rol).distrito(distrito).build());
-        return "Bearer " + jwtService.generarToken(u.getEmail(), u.getRol().name());
+        return "Bearer " + jwtService.generarToken(u.getEmail(), u.getRol().name(), 0);
     }
 
     private String json(String nombre, String icono) throws Exception {

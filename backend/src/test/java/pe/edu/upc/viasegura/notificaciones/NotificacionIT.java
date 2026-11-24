@@ -129,7 +129,7 @@ class NotificacionIT extends AbstractPostgisMailIT {
     }
 
     private String token(Usuario u) {
-        return jwtService.generarToken(u.getEmail(), u.getRol().name());
+        return jwtService.generarToken(u.getEmail(), u.getRol().name(), 0);
     }
 
     /** PATCH del funcionario que lleva el reporte a EN_PROCESO. */

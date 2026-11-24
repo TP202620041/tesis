@@ -85,7 +85,7 @@ class CalificacionIT extends AbstractPostgisIT {
     }
 
     private String token(Usuario u) {
-        return jwtService.generarToken(u.getEmail(), u.getRol().name());
+        return jwtService.generarToken(u.getEmail(), u.getRol().name(), 0);
     }
 
     private String cuerpo(int estrellas, String comentario) {

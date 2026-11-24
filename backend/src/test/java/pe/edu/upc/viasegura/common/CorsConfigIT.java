@@ -131,7 +131,7 @@ class CorsConfigIT extends AbstractPostgisIT {
                 .ubicacion(GeometryUtils.point(-77.0297, -12.1215))
                 .categoria(categoria).creador(ciudadano).distrito(miraflores)
                 .estado(EstadoReporte.PENDIENTE).totalAdhesiones(1).build());
-        String token = jwtService.generarToken(funcionario.getEmail(), funcionario.getRol().name());
+        String token = jwtService.generarToken(funcionario.getEmail(), funcionario.getRol().name(), 0);
 
         mockMvc.perform(get("/api/reportes/exportar")
                         .param("formato", "CSV")
