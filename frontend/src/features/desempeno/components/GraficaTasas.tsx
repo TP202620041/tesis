@@ -1,8 +1,9 @@
-import { anchoBarra, formatearTasa } from '../model/formato';
+import { anchoBarra } from '../model/formato';
+import { tasaRepresentativa, textoTasa } from '../model/gestion';
 import type { DistritoComparado } from '../model/comparacion';
 
 /** Nombre | barra | valor: la misma rejilla para las barras y la escala. */
-const FILA = 'grid grid-cols-[minmax(6rem,10rem)_1fr_4.5rem] items-center gap-2';
+const FILA = 'grid grid-cols-[minmax(6rem,10rem)_1fr_5.5rem] items-center gap-2';
 
 /**
  * US-19: barras horizontales de la tasa de resolucion de los distritos
@@ -12,14 +13,15 @@ const FILA = 'grid grid-cols-[minmax(6rem,10rem)_1fr_4.5rem] items-center gap-2'
  * barras de una sola magnitud basta CSS, y se adapta solo al ancho del
  * telefono. Un solo color (no una escala rojo-verde): la interfaz no inventa
  * que tasa es "mala". Cada barra lleva su valor escrito; un distrito sin
- * datos no tiene barra y dice «Sin datos», nunca 0 %.
+ * datos no tiene barra y dice «Sin datos», nunca 0 %; uno con menos de 5
+ * reportes validos tampoco la tiene y dice «Datos insuficientes» (NC-06).
  *
  * Para lectores de pantalla la grafica es una sola imagen con un resumen en
  * `aria-label`; el detalle completo esta en la tabla de la comparacion.
  */
 export function GraficaTasas({ distritos }: { distritos: DistritoComparado[] }) {
   const resumen = distritos
-    .map((d) => `${d.nombre}: ${formatearTasa(d.fila?.tasaResolucion)}`)
+    .map((d) => `${d.nombre}: ${textoTasa(d.fila)}`)
     .join('; ');
 
   return (
@@ -33,8 +35,8 @@ export function GraficaTasas({ distritos }: { distritos: DistritoComparado[] }) 
         className="flex flex-col gap-3"
       >
         {distritos.map((d) => {
-          const tasa = d.fila?.tasaResolucion;
-          const etiqueta = formatearTasa(tasa);
+          const tasa = tasaRepresentativa(d.fila);
+          const etiqueta = textoTasa(d.fila);
           return (
             <div
               key={d.distritoId}

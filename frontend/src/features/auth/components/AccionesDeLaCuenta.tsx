@@ -7,13 +7,16 @@ import { Icono } from '@/components/ui/Icono';
 import type { Rol } from '@/lib/types/domain';
 import { enlacesDeLaPantallaDeCuenta } from '../model/navegacion';
 import { BotonCerrarSesion } from './BotonCerrarSesion';
+import { CerrarSesionEnTodos } from './CerrarSesionEnTodos';
 import { ICONOS_DE_NAVEGACION } from './iconosDeNavegacion';
 
 /**
  * El final de la pantalla de la cuenta (`/perfil`, «Cuenta» en el móvil): los
- * enlaces de la cuenta del rol (Soporte…) y «Cerrar sesión». En el móvil no
- * hay menú de cuenta, así que es lo que lo reemplaza (prueba en iPhone del
- * 23/10); en escritorio repite el menú de la cabecera, a propósito.
+ * enlaces de la cuenta del rol (Soporte…), «Cerrar sesión» y, aparte,
+ * «Cerrar sesión en todos los dispositivos» (US-04 Esc. 2, con confirmación).
+ * En el móvil no hay menú de cuenta, así que es lo que lo reemplaza (prueba
+ * en iPhone del 23/10); en escritorio repite el menú de la cabecera, a
+ * propósito, salvo el cierre en todos los dispositivos, que solo está aquí.
  */
 export function AccionesDeLaCuenta({ rol }: { rol: Rol }) {
   const titulo = useId();
@@ -40,6 +43,7 @@ export function AccionesDeLaCuenta({ rol }: { rol: Rol }) {
         </ul>
       )}
       <BotonCerrarSesion variante="menu" />
+      <CerrarSesionEnTodos />
     </section>
   );
 }

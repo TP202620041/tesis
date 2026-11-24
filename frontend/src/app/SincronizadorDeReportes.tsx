@@ -6,6 +6,7 @@ import {
   useIdentidadEnSegundoPlano,
 } from '@/features/auth/hooks/useSesionEnSegundoPlano';
 import {
+  AvisoDeEnvioExitoso,
   AvisoPendientesSinSesion,
   AvisoReportesIncompletos,
   DialogoCierreConPendientes,
@@ -13,6 +14,7 @@ import {
 import { useConfirmacionAlCerrarSesion } from '@/features/reportes/hooks/useConfirmacionAlCerrarSesion';
 import {
   useCantidadDeIncompletos,
+  useEnviosDesdeLaCola,
   useResumenDeLaCola,
   useSincronizacionAutomatica,
 } from '@/features/reportes/hooks/useColaOffline';
@@ -21,7 +23,8 @@ import {
  * US-06: cola offline en cualquier pantalla. Solo compone (por eso vive en
  * `app/`): junta la sesion de `auth` con la cola de `reportes`.
  *
- * - Cola vacia: no hace nada, ni siquiera consulta la sesion.
+ * - Cola vacia: no consulta la sesion (solo queda, con sesion, la region
+ *   vacia del aviso de envio exitoso).
  * - Hay reenviables y no hay token: aviso no modal con enlace al login.
  * - Hay token: averigua el usuario con `/me` UNA vez por sesion y sin
  *   redirigir nunca (`useIdentidadEnSegundoPlano`). El reenvio automatico
@@ -33,15 +36,32 @@ import {
  *   conservan o se descartan (dispositivo compartido).
  * - Con sesion y reportes propios incompletos (NC-02): aviso no modal con
  *   enlace a «Pendiente de envío» para completarlos.
+ * - Con sesion, cuando la cola envia sola reportes (US-06 Esc. 2): aviso de
+ *   envio exitoso, aunque la cola haya quedado vacia.
  */
 export function SincronizadorDeReportes() {
   const cola = useResumenDeLaCola();
   const haySesion = useHaySesion();
   const ruta = usePathname();
 
-  if (cola.total === 0) return null;
-  if (!haySesion) return <AvisoPendientesSinSesion cantidad={cola.reenviables} ruta={ruta} />;
-  return <ConSesion ruta={ruta} />;
+  return (
+    <>
+      {/* US-06 Esc. 2: fuera de la condicion de la cola, porque al enviarse
+          el ultimo reporte la cola queda vacia y el aviso tiene que seguir. */}
+      {haySesion && <EnvioExitoso />}
+      {cola.total > 0 &&
+        (haySesion ? (
+          <ConSesion ruta={ruta} />
+        ) : (
+          <AvisoPendientesSinSesion cantidad={cola.reenviables} ruta={ruta} />
+        ))}
+    </>
+  );
+}
+
+function EnvioExitoso() {
+  const { enviados, cerrar } = useEnviosDesdeLaCola();
+  return <AvisoDeEnvioExitoso enviados={enviados} onCerrar={cerrar} />;
 }
 
 function ConSesion({ ruta }: { ruta: string }) {

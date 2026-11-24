@@ -48,6 +48,42 @@ describe('DashboardDistrito', () => {
     expect(valorDe('Estancados')).toBe('0');
   });
 
+  it('US-17 Esc. 2: con menos de 5 reportes avisa de datos insuficientes', async () => {
+    cargar.mockResolvedValue({
+      ...SIN_REPORTES,
+      resumen: {
+        ...SIN_REPORTES.resumen,
+        totalReportes: 4,
+        totalResueltos: 1,
+        tasaResolucion: 25,
+        tiempoPromedioHoras: 30,
+        satisfaccionPromedio: null,
+      },
+    });
+    render(<DashboardDistrito />);
+
+    expect(await screen.findByText(/menos de 5 reportes registrados/)).toBeInTheDocument();
+    // El titulo del aviso y las dos metricas reemplazadas.
+    expect(screen.getAllByText('Datos insuficientes')).toHaveLength(3);
+    expect(valorDe('Tasa de resolución')).toBe('Datos insuficientes');
+    expect(valorDe('Tiempo promedio de atención')).toBe('Datos insuficientes');
+    // null sigue siendo «Sin datos»; los conteos se muestran igual.
+    expect(valorDe('Satisfacción ciudadana')).toBe('Sin datos');
+    expect(valorDe('Reportes recibidos')).toBe('4');
+  });
+
+  it('US-17: con 5 reportes o más no hay aviso y se ven las métricas', async () => {
+    cargar.mockResolvedValue({
+      ...SIN_REPORTES,
+      resumen: { ...SIN_REPORTES.resumen, totalReportes: 5, totalResueltos: 2, tasaResolucion: 40 },
+    });
+    render(<DashboardDistrito />);
+
+    expect(await screen.findByText(/Barranco/)).toBeInTheDocument();
+    expect(screen.queryByText('Datos insuficientes')).toBeNull();
+    expect(valorDe('Tasa de resolución')).toBe('40 %');
+  });
+
   it('separa el índice público de las señales internas', async () => {
     cargar.mockResolvedValue({ ...SIN_REPORTES, reportesEstancados: 5 });
     render(<DashboardDistrito />);

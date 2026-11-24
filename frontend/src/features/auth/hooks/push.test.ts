@@ -8,6 +8,7 @@ import {
   desactivarPush,
   estadoDePush,
   reRegistrarPushAlIniciarSesion,
+  restablecerPushTrasCierreFallido,
   type ServidorPush,
 } from './push';
 
@@ -203,6 +204,37 @@ describe('reRegistrarPushAlIniciarSesion', () => {
   });
 });
 
+describe('restablecerPushTrasCierreFallido (US-04 Esc. 2)', () => {
+  it('con la suscripción del navegador viva, la vuelve a registrar sin pedir permiso', async () => {
+    const actual = suscripcion('https://fcm.googleapis.com/fcm/send/a', CLAVE);
+    const nav = navegador({ permiso: 'granted', actual });
+    const api = servidor();
+
+    await expect(restablecerPushTrasCierreFallido(nav, api)).resolves.toBe(true);
+
+    expect(api.registrar).toHaveBeenCalledTimes(1);
+    expect(nav.pedirPermiso).not.toHaveBeenCalled();
+    expect(nav.suscribir).not.toHaveBeenCalled();
+  });
+
+  it('si la baja canceló la suscripción local, no crea otra: queda desactivado', async () => {
+    const nav = navegador({ permiso: 'granted' });
+    const api = servidor();
+    await expect(restablecerPushTrasCierreFallido(nav, api)).resolves.toBe(false);
+    expect(api.registrar).not.toHaveBeenCalled();
+    expect(nav.suscribir).not.toHaveBeenCalled();
+  });
+
+  it('un fallo del registro no lanza: queda desactivado', async () => {
+    const actual = suscripcion('https://fcm.googleapis.com/fcm/send/a', CLAVE);
+    const api = servidor();
+    api.registrar.mockRejectedValue(new NetworkError());
+    await expect(
+      restablecerPushTrasCierreFallido(navegador({ permiso: 'granted', actual }), api),
+    ).resolves.toBe(false);
+  });
+});
+
 describe('bajaDePushAlCerrarSesion', () => {
   it('da de baja el endpoint de este navegador y conserva la suscripción', async () => {
     const actual = suscripcion('https://fcm.googleapis.com/fcm/send/a', CLAVE);
@@ -214,9 +246,9 @@ describe('bajaDePushAlCerrarSesion', () => {
     expect(actual.unsubscribe).not.toHaveBeenCalled();
   });
 
-  it('sin suscripción no llama al servidor', async () => {
+  it('sin suscripción no llama al servidor y dice que no había push', async () => {
     const api = servidor();
-    await bajaDePushAlCerrarSesion(1_000, navegador(), api);
+    await expect(bajaDePushAlCerrarSesion(1_000, navegador(), api)).resolves.toBe(false);
     expect(api.darDeBaja).not.toHaveBeenCalled();
   });
 
@@ -231,7 +263,8 @@ describe('bajaDePushAlCerrarSesion', () => {
     api.darDeBaja.mockRejectedValue(error);
     const actual = suscripcion('https://fcm.googleapis.com/fcm/send/a', CLAVE);
 
-    await expect(bajaDePushAlCerrarSesion(1_000, navegador({ actual }), api)).resolves.toBeUndefined();
+    // `true`: había una suscripción (US-04 Esc. 2 la intenta restablecer si el cierre falla).
+    await expect(bajaDePushAlCerrarSesion(1_000, navegador({ actual }), api)).resolves.toBe(true);
 
     // El dispositivo deja de recibir los avisos de quien salió.
     expect(actual.unsubscribe).toHaveBeenCalledTimes(1);

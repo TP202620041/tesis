@@ -10,6 +10,7 @@ import {
 } from '../model/bbox';
 import type { CategoriaDano, Distrito } from '@/lib/types/domain';
 import { clasesDeBoton } from '@/components/ui/Boton';
+import { IconoDeCategoria } from '@/components/ui/IconoDeCategoria';
 
 /**
  * Filtros y leyenda del mapa publico (US-10, escenario 2; fechas de US-12).
@@ -122,6 +123,12 @@ export function PanelFiltrosMapa({
           valor={filtros.categoriaId}
           onCambiar={(v) => onCambiar({ ...filtros, categoriaId: v })}
           opciones={categorias.map((c) => ({ valor: c.id, texto: c.nombre }))}
+          // US-29/US-34: el ícono del tipo elegido (genérico con «Todos»).
+          adorno={
+            <IconoDeCategoria
+              icono={categorias.find((c) => c.id === filtros.categoriaId)?.icono}
+            />
+          }
         />
 
         <div className="flex flex-col gap-1.5">
@@ -254,31 +261,46 @@ function Selector({
   valor,
   onCambiar,
   opciones,
+  adorno,
 }: {
   id: string;
   etiqueta: string;
   valor: number | null;
   onCambiar: (valor: number | null) => void;
   opciones: { valor: number; texto: string }[];
+  /** Ícono decorativo a la izquierda del selector (el sentido lo lleva el texto). */
+  adorno?: ReactNode;
 }) {
+  const selector = (
+    <select
+      id={id}
+      value={valor ?? ''}
+      onChange={(e) => onCambiar(e.target.value ? Number(e.target.value) : null)}
+      className="min-h-objetivo min-w-0 flex-1 text-texto rounded-control border border-linea-campo bg-superficie px-3 py-2 text-sm"
+    >
+      <option value="">Todos</option>
+      {opciones.map((o) => (
+        <option key={o.valor} value={o.valor}>
+          {o.texto}
+        </option>
+      ))}
+    </select>
+  );
   return (
     <div className="flex flex-col gap-1.5">
       <label htmlFor={id} className="text-sm font-medium text-texto">
         {etiqueta}
       </label>
-      <select
-        id={id}
-        value={valor ?? ''}
-        onChange={(e) => onCambiar(e.target.value ? Number(e.target.value) : null)}
-        className="min-h-objetivo text-texto rounded-control border border-linea-campo bg-superficie px-3 py-2 text-sm"
-      >
-        <option value="">Todos</option>
-        {opciones.map((o) => (
-          <option key={o.valor} value={o.valor}>
-            {o.texto}
-          </option>
-        ))}
-      </select>
+      {adorno ? (
+        <div className="flex items-center gap-2">
+          <span className="flex size-objetivo shrink-0 items-center justify-center rounded-control border border-linea bg-superficie-2 text-texto-2">
+            {adorno}
+          </span>
+          {selector}
+        </div>
+      ) : (
+        <div className="flex">{selector}</div>
+      )}
     </div>
   );
 }

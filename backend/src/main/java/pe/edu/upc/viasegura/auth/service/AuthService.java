@@ -6,7 +6,9 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.util.StringUtils;
+import pe.edu.upc.viasegura.auth.domain.PoliticaDeBloqueoDeLogin;
 import pe.edu.upc.viasegura.auth.domain.PreferenciaNotificacion;
 import pe.edu.upc.viasegura.auth.domain.Usuario;
 import pe.edu.upc.viasegura.auth.dto.AuthResponse;
@@ -15,6 +17,7 @@ import pe.edu.upc.viasegura.auth.dto.RegistroRequest;
 import pe.edu.upc.viasegura.auth.dto.RegistroResponse;
 import pe.edu.upc.viasegura.auth.dto.UsuarioResponse;
 import pe.edu.upc.viasegura.auth.event.FotoDePerfilReemplazadaEvent;
+import pe.edu.upc.viasegura.auth.event.SesionesCerradasEvent;
 import pe.edu.upc.viasegura.auth.port.VerificadorDeCaptcha;
 import pe.edu.upc.viasegura.auth.repository.UsuarioRepository;
 import pe.edu.upc.viasegura.common.exception.BusinessException;
@@ -53,6 +56,9 @@ public class AuthService {
     private final ConsentimientoService consentimientoService;
     private final ModeracionService moderacionService;
     private final ApplicationEventPublisher eventPublisher;
+    private final BloqueoDeLoginService bloqueoDeLoginService;
+    /** Transaccion programatica de {@link #login}, que no es {@code @Transactional}. */
+    private final TransactionOperations transaccion;
 
     /**
      * US-01: registra una cuenta ciudadana, sin confirmar (NC-09), y pide el
@@ -103,21 +109,59 @@ public class AuthService {
      * el enlace. Se comprueba <b>despues</b> de la contrasena: con una
      * contrasena incorrecta la respuesta sigue siendo el 401 de siempre, asi
      * que el login no revela si una cuenta existe ni si esta confirmada.</p>
+     *
+     * <p>US-02 Esc. 2: tras {@value PoliticaDeBloqueoDeLogin#INTENTOS_MAXIMOS}
+     * intentos fallidos seguidos el correo queda bloqueado 15 minutos (409
+     * {@code LOGIN_BLOQUEADO}), tambien con la contrasena correcta. El
+     * intento se cuenta <b>antes</b> de comprobar la contrasena, en la misma
+     * sentencia que mira el bloqueo, y se olvida si la contrasena es correcta:
+     * una rafaga en paralelo no prueba mas de 5. El contador es por correo,
+     * exista o no la cuenta, asi que la respuesta es la misma para un correo
+     * sin cuenta ({@link BloqueoDeLoginService}).</p>
+     *
+     * <p><b>No es {@code @Transactional}.</b> Cada paso usa su propia
+     * transaccion corta, una despues de otra: contar el intento, comprobar la
+     * contrasena (el {@code UserDetailsService}) y olvidar el contador, y al
+     * final armar la respuesta ({@link #transaccion}). Asi un login retiene a
+     * lo sumo una conexion del pool; con una transaccion externa y escrituras
+     * {@code REQUIRES_NEW} adentro retenia dos, y una rafaga de logins mayor
+     * que el pool lo agotaba (revision de US-02).</p>
      */
-    @Transactional(readOnly = true)
     public AuthResponse login(LoginRequest request) {
-        // Lanza BadCredentialsException (=> HTTP 401) si son invalidas.
+        bloqueoDeLoginService.reservarIntento(request.email());
+        // Lanza BadCredentialsException (=> HTTP 401) si son invalidas; el
+        // intento ya quedo contado.
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.email(), request.password()));
+        bloqueoDeLoginService.olvidar(request.email());
 
-        Usuario usuario = usuarioRepository.findByEmail(request.email())
+        return transaccion.execute(estado -> {
+            Usuario usuario = usuarioRepository.findByEmail(request.email())
+                    .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+            if (!usuario.isCorreoConfirmado()) {
+                throw new BusinessException(ConfirmacionCorreoService.MENSAJE_CORREO_NO_CONFIRMADO,
+                        ConfirmacionCorreoService.CODIGO_CORREO_NO_CONFIRMADO);
+            }
+            return construirRespuesta(usuario);
+        });
+    }
+
+    /**
+     * US-04 Esc. 2: cierra la sesion en todos los dispositivos, el actual
+     * incluido. Sube la version de sesion de la cuenta y el filtro JWT deja
+     * de aceptar todo token emitido antes (sin lista negra: el filtro ya
+     * carga la cuenta en cada peticion).
+     *
+     * <p>Publica {@link SesionesCerradasEvent}: despues del commit,
+     * {@code notificaciones} borra las suscripciones push del usuario para
+     * que ningun dispositivo con la sesion revocada siga recibiendo avisos.</p>
+     */
+    @Transactional
+    public void cerrarSesionesEnTodosLosDispositivos(String email) {
+        Usuario usuario = usuarioRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
-        if (!usuario.isCorreoConfirmado()) {
-            throw new BusinessException(ConfirmacionCorreoService.MENSAJE_CORREO_NO_CONFIRMADO,
-                    ConfirmacionCorreoService.CODIGO_CORREO_NO_CONFIRMADO);
-        }
-
-        return construirRespuesta(usuario);
+        usuarioRepository.subirVersionSesion(usuario.getId());
+        eventPublisher.publishEvent(new SesionesCerradasEvent(usuario.getId()));
     }
 
     /** Datos del usuario autenticado (US-02, base del perfil US-30). */
@@ -208,7 +252,8 @@ public class AuthService {
     }
 
     private AuthResponse construirRespuesta(Usuario usuario) {
-        String token = jwtService.generarToken(usuario.getEmail(), usuario.getRol().name());
+        String token = jwtService.generarToken(
+                usuario.getEmail(), usuario.getRol().name(), usuario.getVersionSesion());
         return AuthResponse.of(token, jwtService.getExpirationMinutes(), respuesta(usuario));
     }
 

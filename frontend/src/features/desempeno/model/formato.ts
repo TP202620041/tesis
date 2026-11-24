@@ -68,6 +68,17 @@ export function formatearTiempo(horas: number | null | undefined): string {
   return resto === 0 ? `${dias} d` : `${dias} d ${resto} h`;
 }
 
+/**
+ * «Datos insuficientes» (US-17 Esc. 2, US-20 Esc. 2): la métrica existe pero
+ * sale de tan pocos reportes que no dice nada del distrito. Distinto de «Sin
+ * datos» (`null`: no hay métrica). Con menos de
+ * {@link MIN_RESUELTOS_PARA_PROMEDIO} resueltos, el tiempo promedio no es
+ * representativo; las reglas del índice por periodo están en `gestion.ts`
+ * (NC-06) y las del dashboard del funcionario, en `dashboard.ts`.
+ */
+export const DATOS_INSUFICIENTES = 'Datos insuficientes';
+export const MIN_RESUELTOS_PARA_PROMEDIO = 3;
+
 /** `4.25` -> `"4,3 / 5"`; `null` -> `"Sin datos"`. */
 export function formatearSatisfaccion(valor: number | null | undefined): string {
   if (valor == null) return SIN_DATOS;
@@ -87,65 +98,18 @@ export interface Orden {
   descendente: boolean;
 }
 
-/** Orden por defecto: el mismo ranking que ya devuelve el backend. */
-export const ORDEN_INICIAL: Orden = { columna: 'tasa', descendente: true };
-
-function valorDe(fila: DesempenoDistrital, columna: ColumnaOrden): number | string | null {
-  switch (columna) {
-    case 'tasa':
-      return fila.tasaResolucion ?? null;
-    case 'tiempo':
-      return fila.tiempoPromedioHoras ?? null;
-    case 'satisfaccion':
-      return fila.satisfaccionPromedio ?? null;
-    case 'reportes':
-      return fila.totalReportes ?? 0;
-    case 'distrito':
-      return fila.distritoNombre ?? '';
-  }
-}
-
 /**
- * Ordena una copia por la columna indicada.
- *
- * <b>Los `null` van SIEMPRE al final</b>, se ordene ascendente o
- * descendentemente. Es deliberado: "sin datos" no es un valor extremo que
- * deba encabezar el ranking al invertir el orden — un distrito sin reportes
- * no es ni el mejor ni el peor, simplemente no participa de esa metrica.
- * Es el mismo criterio del `NULLS LAST` del backend.
+ * Orden por defecto: el mismo ranking que ya devuelve el backend. El orden
+ * en si (`ordenarGestion`, con los `null` siempre al final) esta en `gestion.ts`.
  */
-export function ordenar(filas: DesempenoDistrital[], orden: Orden): DesempenoDistrital[] {
-  const copia = [...filas];
-  return copia.sort((a, b) => {
-    const va = valorDe(a, orden.columna);
-    const vb = valorDe(b, orden.columna);
-
-    if (va == null && vb == null) return comparaNombre(a, b);
-    if (va == null) return 1;
-    if (vb == null) return -1;
-
-    let cmp: number;
-    if (typeof va === 'string' || typeof vb === 'string') {
-      cmp = String(va).localeCompare(String(vb), 'es-PE');
-    } else {
-      cmp = va - vb;
-    }
-    if (cmp === 0) return comparaNombre(a, b);
-    return orden.descendente ? -cmp : cmp;
-  });
-}
-
-/** Desempate estable y predecible entre filas equivalentes. */
-function comparaNombre(a: DesempenoDistrital, b: DesempenoDistrital): number {
-  return (a.distritoNombre ?? '').localeCompare(b.distritoNombre ?? '', 'es-PE');
-}
+export const ORDEN_INICIAL: Orden = { columna: 'tasa', descendente: true };
 
 /**
  * Alterna el orden al pulsar una columna.
  *
  * Cada columna arranca en la direccion que su significado hace mas util:
  * tasa, satisfaccion y volumen de mayor a menor; tiempo de atencion de menor
- * a mayor (menos horas es mejor) y distrito alfabetico.
+ * a mayor (menos tiempo es mejor) y distrito alfabetico.
  */
 export function alternarOrden(actual: Orden, columna: ColumnaOrden): Orden {
   if (actual.columna === columna) {

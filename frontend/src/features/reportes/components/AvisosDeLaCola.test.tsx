@@ -4,6 +4,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { claveDelCierre } from '../hooks/useCierreDelAvisoDeIncompletos';
 import {
+  AvisoDeEnvioExitoso,
   AvisoPendientesSinSesion,
   AvisoReportesIncompletos,
   DialogoCierreConPendientes,
@@ -13,6 +14,44 @@ import {
 vi.mock('next/link', () => ({
   default: ({ href, children }: { href: string; children: ReactNode }) => <a href={href}>{children}</a>,
 }));
+
+describe('AvisoDeEnvioExitoso (US-06 Esc. 2)', () => {
+  const ENVIADO = {
+    id: 12,
+    esAdhesion: false,
+    totalAdhesiones: 1,
+    distritoNombre: 'Miraflores',
+    categoriaNombre: 'Bache',
+    fotoUrl: null,
+    titulo: 'Bache en Larco',
+    severidad: 'MEDIA' as const,
+  };
+
+  it('WCAG 2.4.11: Escape lo cierra sin mover el foco', async () => {
+    const onCerrar = vi.fn();
+    render(
+      <>
+        <input aria-label="Campo de la pantalla" />
+        <AvisoDeEnvioExitoso enviados={[ENVIADO]} onCerrar={onCerrar} />
+      </>,
+    );
+    const usuario = userEvent.setup();
+    const campo = screen.getByLabelText('Campo de la pantalla');
+    campo.focus();
+
+    await usuario.keyboard('{Escape}');
+
+    expect(onCerrar).toHaveBeenCalledTimes(1);
+    expect(campo).toHaveFocus();
+  });
+
+  it('sin aviso visible, Escape no hace nada', async () => {
+    const onCerrar = vi.fn();
+    render(<AvisoDeEnvioExitoso enviados={[]} onCerrar={onCerrar} />);
+    await userEvent.setup().keyboard('{Escape}');
+    expect(onCerrar).not.toHaveBeenCalled();
+  });
+});
 
 describe('AvisoPendientesSinSesion', () => {
   it('avisa sin bloquear y enlaza al login con la ruta actual de vuelta', () => {

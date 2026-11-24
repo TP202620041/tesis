@@ -64,7 +64,7 @@ class CalificacionIT extends AbstractPostgisIT {
 
     private CategoriaDano categoria() {
         return categoriaRepository.findAll().stream()
-                .filter(CategoriaDano::isEsEstandar).findFirst().orElseThrow();
+                .filter(CategoriaDano::isEsEstandar).filter(CategoriaDano::isActivo).findFirst().orElseThrow();
     }
 
     private Usuario ciudadano() {
@@ -85,7 +85,7 @@ class CalificacionIT extends AbstractPostgisIT {
     }
 
     private String token(Usuario u) {
-        return jwtService.generarToken(u.getEmail(), u.getRol().name());
+        return jwtService.generarToken(u.getEmail(), u.getRol().name(), 0);
     }
 
     private String cuerpo(int estrellas, String comentario) {

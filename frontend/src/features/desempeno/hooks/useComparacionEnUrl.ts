@@ -13,8 +13,9 @@ import {
 } from '../model/comparacion';
 
 /**
- * US-19/US-20: distritos a comparar y tipo de dano, guardados en la URL
- * (`?comparar=21,41&categoria=3`) para que la comparacion se pueda compartir.
+ * US-19/US-20/NC-06: distritos a comparar, periodo de gestion y tipo de dano,
+ * guardados en la URL (`?comparar=21,41&periodo=1&categoria=3`) para que la
+ * comparacion se pueda compartir.
  *
  * Usa `router.replace`, no `push`: elegir distritos no deberia llenar el
  * historial de entradas que el boton Atras recorre una por una. `useSearchParams`
@@ -24,19 +25,22 @@ import {
  * rapidos que la actualizacion de la URL parten del mismo estado y gana el
  * segundo. Con `replace` la ventana es de milisegundos; se acepta.
  *
- * `distritosConocidos` y `categoriasConocidas` (`null` mientras no cargan)
+ * `distritosConocidos`, `categoriasConocidas` y `periodosConocidos` (`null`
+ * mientras no cargan)
  * depuran lo que una URL editada a mano trae y el catalogo no conoce.
  */
 export function useComparacionEnUrl(
   distritosConocidos: ReadonlyMap<number, string> | null,
   categoriasConocidas: readonly number[] | null,
+  periodosConocidos: readonly number[] | null,
 ) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
   const estado = useMemo(
-    () => depurarComparacion(leerComparacion(params), distritosConocidos, categoriasConocidas),
-    [params, distritosConocidos, categoriasConocidas],
+    () =>
+      depurarComparacion(leerComparacion(params), distritosConocidos, categoriasConocidas, periodosConocidos),
+    [params, distritosConocidos, categoriasConocidas, periodosConocidos],
   );
   const [aviso, setAviso] = useState<string | null>(null);
 
@@ -88,5 +92,14 @@ export function useComparacionEnUrl(
     [estado, escribir],
   );
 
-  return { ...estado, aviso, alternarDistrito, quitar, limpiar, cambiarCategoria };
+  /** NC-06: el periodo de gestion tambien va en la URL, para compartirlo. */
+  const cambiarPeriodo = useCallback(
+    (periodoId: number | null) => {
+      setAviso(null);
+      escribir({ ...estado, periodoId });
+    },
+    [estado, escribir],
+  );
+
+  return { ...estado, aviso, alternarDistrito, quitar, limpiar, cambiarCategoria, cambiarPeriodo };
 }

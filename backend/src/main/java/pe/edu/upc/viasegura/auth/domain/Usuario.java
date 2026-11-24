@@ -87,6 +87,15 @@ public class Usuario extends BaseAuditableEntity {
     @Column(name = "correo_confirmado_en")
     private Instant correoConfirmadoEn;
 
+    /**
+     * US-04 Esc. 2 (V23): version de las sesiones de la cuenta. Viaja en cada
+     * JWT y el filtro la compara con esta; subirla revoca todos los tokens
+     * emitidos antes. La sube un {@code UPDATE} atomico de
+     * {@code UsuarioRepository}, nunca un {@code save} de la entidad.
+     */
+    @Column(name = "version_sesion", nullable = false, insertable = false, updatable = false)
+    private int versionSesion;
+
     /** NC-09: la persona abrio el enlace de confirmacion. */
     public void confirmarCorreo(Instant ahora) {
         this.correoConfirmado = true;

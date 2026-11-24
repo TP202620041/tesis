@@ -86,6 +86,7 @@ public class CategoriaDanoService {
         CategoriaDano categoria = categoriaRepository.save(CategoriaDano.builder()
                 .nombre(req.nombre())
                 .descripcion(req.descripcion())
+                .icono(req.icono())
                 .esEstandar(false)
                 .distrito(distrito)
                 .activo(true)
@@ -94,7 +95,7 @@ public class CategoriaDanoService {
         return CategoriaDanoResponse.from(categoria);
     }
 
-    /** US-29: edita nombre y descripcion de una personalizada de su distrito. */
+    /** US-29: edita nombre, descripcion e icono de una personalizada de su distrito. */
     @Transactional
     public CategoriaGestionResponse editar(String emailFuncionario, Long categoriaId, EditarCategoriaRequest req) {
         Distrito distrito = distritoDeGestion(emailFuncionario);
@@ -108,6 +109,7 @@ public class CategoriaDanoService {
 
         categoria.setNombre(req.nombre());
         categoria.setDescripcion(req.descripcion());
+        categoria.setIcono(req.icono());
         return CategoriaGestionResponse.from(categoriaRepository.save(categoria));
     }
 

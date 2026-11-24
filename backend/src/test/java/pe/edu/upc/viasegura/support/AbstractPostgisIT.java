@@ -213,6 +213,10 @@ public abstract class AbstractPostgisIT {
         if (reporteRepositoryBase != null) {
             reporteRepositoryBase.deleteAll();
         }
+        // US-02 Esc. 2: el contador de intentos fallidos no tiene FK, pero un
+        // test con contrasenas incorrectas sobre un correo fijo bloquearia el
+        // login de la corrida siguiente si se acumulara.
+        jdbcTemplateBase.update("DELETE FROM intento_login");
     }
 
     private static String env(String clave, String porDefecto) {

@@ -178,6 +178,13 @@ app:
     plazo: ${CUENTAS_SIN_CONFIRMAR_PLAZO:30d}
     purga:
       cron: "${CUENTAS_SIN_CONFIRMAR_PURGA_CRON:0 30 3 * * *}"
+  # Intentos de inicio de sesion (US-02 Esc. 2): PurgaIntentosLoginService
+  # borra una vez al dia las filas de intento_login fuera de la ventana de 15
+  # min y sin bloqueo vigente. Hora de Lima; "-" la apaga (asi corren los tests).
+  login:
+    intentos:
+      purga:
+        cron: "${LOGIN_INTENTOS_PURGA_CRON:0 45 3 * * *}"
   # Primer ADMIN de un entorno (DEP-04, AdministradorInicialSeeder). Sin
   # valores por defecto: sin ADMIN_INICIAL_EMAIL no hace nada, y con algun
   # ADMIN en la base tampoco. En una base sin ADMIN crea la cuenta con

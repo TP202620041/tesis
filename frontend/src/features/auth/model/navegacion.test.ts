@@ -21,7 +21,8 @@ describe('navegacionDe (DIS-1)', () => {
     expect(nav.inferior.map((i) => i.etiqueta)).toEqual(['Mapa', 'Mis reportes', 'Reportar', 'Desempeño']);
     // Reportar es la acción principal y va al centro.
     expect(nav.inferior[2]?.destacado).toBe(true);
-    expect(hrefs(nav.cuenta)).toEqual(['/perfil', '/soporte']);
+    // US-24: la guía «¿Cómo funciona?» queda en la cuenta.
+    expect(hrefs(nav.cuenta)).toEqual(['/perfil', '/soporte', '/como-funciona']);
   });
 
   it('QA-1 E-3: desde /reportar siempre hay salida a «Mis reportes» y al mapa', () => {
@@ -55,6 +56,8 @@ describe('navegacionDe (DIS-1)', () => {
     expect(hrefs(nav.inferior)).toEqual(['/mapa', '/desempeno', '/reportar', '/login']);
     expect(hrefs(nav.acceso)).toEqual(['/login', '/registro']);
     expect(nav.cuenta).toHaveLength(0);
+    // US-24: quien llega por primera vez tiene la guía en el menú principal.
+    expect(hrefs(nav.principal)).toEqual(['/mapa', '/desempeno', '/como-funciona']);
   });
 
   it('sesión de rol aún desconocido (sin red): solo lo público', () => {
@@ -84,7 +87,7 @@ describe('«Cuenta» en el móvil: una pantalla, no un menú (prueba en iPhone d
   });
 
   it('la pantalla de la cuenta ofrece los enlaces de la cuenta del rol, menos ella misma', () => {
-    expect(hrefs(enlacesDeLaPantallaDeCuenta('CIUDADANO'))).toEqual(['/soporte']);
+    expect(hrefs(enlacesDeLaPantallaDeCuenta('CIUDADANO'))).toEqual(['/soporte', '/como-funciona']);
     expect(hrefs(enlacesDeLaPantallaDeCuenta('FUNCIONARIO_MUNICIPAL'))).toEqual(['/soporte', '/desempeno']);
     expect(enlacesDeLaPantallaDeCuenta('ADMIN')).toEqual([]);
   });

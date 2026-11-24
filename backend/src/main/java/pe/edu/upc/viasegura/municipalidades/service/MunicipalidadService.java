@@ -1,6 +1,7 @@
 package pe.edu.upc.viasegura.municipalidades.service;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -15,7 +16,8 @@ import pe.edu.upc.viasegura.municipalidades.repository.PeriodoGestionRepository;
  * API publica del modulo {@code municipalidades} para otros modulos (NC-01).
  *
  * <p>Las municipalidades las siembra {@code infra.MunicipalidadSeeder} y el
- * periodo 2023-2026 la migracion V15; aqui solo se leen.</p>
+ * periodo 2023-2026 la migracion V15 (y 2027-2030 la V25, NC-06); aqui solo
+ * se leen.</p>
  */
 @Service
 @RequiredArgsConstructor
@@ -44,5 +46,19 @@ public class MunicipalidadService {
     public Optional<PeriodoGestion> periodoVigente(LocalDate fecha) {
         return periodoGestionRepository
                 .findFirstByFechaInicioLessThanEqualAndFechaFinGreaterThanEqualOrderByFechaInicioDesc(fecha, fecha);
+    }
+
+    /** Todos los periodos de gestion, el mas reciente primero (NC-06). */
+    @Transactional(readOnly = true)
+    public List<PeriodoGestion> periodos() {
+        return periodoGestionRepository.findAllByOrderByFechaInicioDesc();
+    }
+
+    /** Periodo por id; inexistente: 404. */
+    @Transactional(readOnly = true)
+    public PeriodoGestion periodo(Long periodoId) {
+        return periodoGestionRepository.findById(periodoId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Periodo de gestión no encontrado: " + periodoId));
     }
 }

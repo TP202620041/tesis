@@ -15,6 +15,53 @@ describe('LineaDeTiempo', () => {
     expect(screen.getByText('Todavía no hay movimientos registrados.')).toBeInTheDocument();
   });
 
+  it('US-22 Esc. 2: un reporte sin cambios de estado muestra solo su creación', () => {
+    render(<LineaDeTiempo entradas={[]} creadoEn={FECHA} />);
+    const eventos = screen.getAllByRole('listitem');
+    expect(eventos).toHaveLength(1);
+    expect(eventos[0]).toHaveTextContent('Reporte creado');
+    expect(eventos[0]).toHaveTextContent(new Date(FECHA).toLocaleString('es-PE'));
+    expect(screen.queryByText('Todavía no hay movimientos registrados.')).not.toBeInTheDocument();
+  });
+
+  it('US-22: la creación encabeza el historial y no se duplica si la trae el servidor', () => {
+    const { rerender } = render(
+      <LineaDeTiempo
+        entradas={[entrada({ id: 2, estadoAnterior: 'PENDIENTE', estadoNuevo: 'RECIBIDO' })]}
+        creadoEn={FECHA}
+      />,
+    );
+    const [primero, segundo] = screen.getAllByRole('listitem');
+    expect(primero).toHaveTextContent('Reporte creado');
+    expect(segundo).toHaveTextContent('Pendiente → Recibido');
+
+    // Contrato nuevo: el servidor trae la creación primero, sin id ni autor.
+    const creacionDelServidor: HistorialEntrada = {
+      id: null,
+      tipoEvento: 'CREACION',
+      estadoAnterior: null,
+      estadoNuevo: 'PENDIENTE',
+      comentario: 'Se registró el reporte.',
+      autor: null,
+      fecha: FECHA,
+      avisoIndice: null,
+    };
+    rerender(
+      <LineaDeTiempo
+        entradas={[
+          creacionDelServidor,
+          entrada({ id: 2, estadoAnterior: 'PENDIENTE', estadoNuevo: 'RECIBIDO' }),
+        ]}
+        creadoEn={FECHA}
+      />,
+    );
+    expect(screen.getAllByText('Reporte creado')).toHaveLength(1);
+    const eventos = screen.getAllByRole('listitem');
+    expect(eventos).toHaveLength(2);
+    expect(eventos[0]).toHaveTextContent('Se registró el reporte.');
+    expect(eventos[1]).toHaveTextContent('Pendiente → Recibido');
+  });
+
   it('US-22: describe el cambio de estado y la asignación', () => {
     render(
       <LineaDeTiempo

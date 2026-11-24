@@ -20,6 +20,9 @@ const TICKET: TicketAdmin = {
   nombreAutor: null,
   createdAt: '2026-10-13T23:10:05Z',
   updatedAt: '2026-10-13T23:10:05Z',
+  numeroSeguimiento: 'SOP-000042',
+  plazoRespuestaHoras: null,
+  respuestaEsperadaAntesDe: null,
 };
 
 function pagina(extra: Partial<PaginaTickets> = {}): PaginaTickets {
@@ -39,6 +42,8 @@ describe('BandejaSoporte', () => {
     const item = await screen.findByRole('listitem');
     expect(within(item).getByText('ana@lima.pe')).toBeInTheDocument();
     expect(within(item).getByText('Sin cuenta asociada')).toBeInTheDocument();
+    // US-25: el ADMIN ve el mismo número de seguimiento que recibió el autor.
+    expect(item).toHaveTextContent('Número de seguimiento SOP-000042');
     expect(listar).toHaveBeenCalledWith({ estado: null, pagina: 0 });
   });
 

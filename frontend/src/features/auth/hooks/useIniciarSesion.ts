@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react';
 import { ApiError, mensajeDeError, type MensajeDeError } from '@/lib/api/errors';
 import type { LoginRequest, SesionIniciada } from '@/lib/types/domain';
 import { iniciarSesion } from '../api';
+import { esLoginBloqueado, mensajeDeLoginBloqueado } from '../model/bloqueoDeLogin';
 import { esCorreoSinConfirmar } from '../model/confirmacion';
 import { reRegistrarPushAlIniciarSesion } from './push';
 
@@ -20,15 +21,22 @@ import { reRegistrarPushAlIniciarSesion } from './push';
  * se envio (no el que haya en el campo despues), para ofrecer «Reenviar el
  * enlace» a esa direccion. El backend solo llega a ese 409 si la contrasena
  * es correcta, asi que mostrarlo no revela nada a quien no la sabe.
+ *
+ * US-02 Esc. 2: tras 5 intentos fallidos, 409 `LOGIN_BLOQUEADO` durante 15
+ * minutos (tambien con la contrasena correcta y para un correo sin cuenta:
+ * no revela si existe). `bloqueado` lo marca para que el formulario lo
+ * muestre como aviso propio, con el mensaje del servidor.
  */
 export function useIniciarSesion() {
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<MensajeDeError | null>(null);
   const [correoSinConfirmar, setCorreoSinConfirmar] = useState<string | null>(null);
+  const [bloqueado, setBloqueado] = useState(false);
 
   const enviar = useCallback(async (datos: LoginRequest): Promise<SesionIniciada | null> => {
     setError(null);
     setCorreoSinConfirmar(null);
+    setBloqueado(false);
     setEnviando(true);
     try {
       const sesion = await iniciarSesion(datos);
@@ -39,6 +47,11 @@ export function useIniciarSesion() {
       if (!sesion.usuario.debeAceptarTerminos) void reRegistrarPushAlIniciarSesion();
       return sesion;
     } catch (e) {
+      if (e instanceof ApiError && esLoginBloqueado(e.status, e.codigo)) {
+        setBloqueado(true);
+        setError({ mensaje: mensajeDeLoginBloqueado(e.message), detalles: [] });
+        return null;
+      }
       setError(mensajeDeError(e));
       if (e instanceof ApiError && esCorreoSinConfirmar(e.status, e.codigo)) {
         setCorreoSinConfirmar(datos.email.trim());
@@ -49,5 +62,5 @@ export function useIniciarSesion() {
     }
   }, []);
 
-  return { enviando, error, correoSinConfirmar, enviar };
+  return { enviando, error, correoSinConfirmar, bloqueado, enviar };
 }

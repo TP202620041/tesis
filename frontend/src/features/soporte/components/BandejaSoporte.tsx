@@ -10,6 +10,7 @@ import {
   fechaDeTicket,
   FILTROS_TICKETS_INICIALES,
   navegacionDe,
+  numeroDeSeguimiento,
 } from '../model/tickets';
 import type { FiltrosTickets, PaginaTickets, TicketAdmin } from '../model/tipos';
 import { EtiquetaEstadoTicket } from './EtiquetaEstadoTicket';
@@ -141,10 +142,18 @@ function TicketDeBandeja({
   ticket: TicketAdmin;
   onRespondido: () => void;
 }) {
+  // US-25: el mismo número que recibió quien abrió el ticket, para ubicarlo si escribe.
+  const numero = numeroDeSeguimiento(ticket);
   return (
     <li className="flex flex-col gap-3 rounded-control border border-linea bg-superficie p-4">
       <div className="flex flex-wrap items-center gap-2">
         <strong className="text-texto">{ticket.asunto}</strong>
+        {numero && (
+          <span className="text-xs text-texto-2">
+            <span className="sr-only">Número de seguimiento </span>
+            {numero}
+          </span>
+        )}
         <EtiquetaEstadoTicket estado={ticket.estado} />
         <span className="text-xs text-texto-2">
           {fechaDeTicket(ticket.createdAt)}

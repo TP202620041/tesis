@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ApiError, NetworkError } from '@/lib/api/errors';
 import { generacionDeSesion } from '@/lib/auth/token-storage';
 import { useCarga } from '@/lib/hooks/useCarga';
@@ -153,6 +153,22 @@ export function olvidarEsperasDeModeracion(): void {
   esperasDeModeracion.clear();
 }
 
+/**
+ * US-06 Esc. 2: quienes quieren saber que la cola envio reportes (el aviso
+ * de envio exitoso). Vive en el modulo, como `enCurso`, porque el bucle que
+ * envia y el aviso que lo cuenta no comparten componente: cuando la cola se
+ * vacia, el sincronizador deja de montarse, y el aviso tiene que seguir.
+ */
+const oyentesDeEnvios = new Set<(enviados: readonly ReporteCreado[]) => void>();
+
+/** Suscribe a los envios de la cola; devuelve la funcion para desuscribirse. */
+export function alEnviarDesdeLaCola(oyente: (enviados: readonly ReporteCreado[]) => void): () => void {
+  oyentesDeEnvios.add(oyente);
+  return () => {
+    oyentesDeEnvios.delete(oyente);
+  };
+}
+
 /** Una sincronizacion en curso por usuario (no global: no se mezclan sesiones). */
 const enCurso = new Map<
   number,
@@ -212,6 +228,16 @@ export function sincronizarCola(
   const previa = actual?.promesa.catch(() => undefined) ?? Promise.resolve();
   const promesa = previa
     .then(() => sincronizar(usuarioId, generacionEsperada, senal, deps))
+    .then((resultado) => {
+      // US-06 Esc. 2: se avisa del envio aunque la vuelta se haya cortado
+      // despues (lo enviado, enviado esta), pero solo si sigue la sesion en
+      // que se identifico al usuario: a otra persona no se le dice «se envio
+      // tu reporte».
+      if (resultado.enviados.length > 0 && deps.generacion() === generacionEsperada) {
+        for (const oyente of oyentesDeEnvios) oyente(resultado.enviados);
+      }
+      return resultado;
+    })
     .finally(() => {
       if (enCurso.get(usuarioId)?.promesa === promesa) enCurso.delete(usuarioId);
     });
@@ -482,4 +508,19 @@ export function useSincronizacionAutomatica(
       window.clearInterval(intervalo);
     };
   }, [usuarioId, generacion, hayReenviables]);
+}
+
+/**
+ * US-06 Esc. 2: los reportes que la cola envio sola desde que se monto (o
+ * desde que el ciudadano cerro el aviso). Se acumulan entre vueltas: si en
+ * una se envian dos y en la siguiente otro, el aviso habla de los tres.
+ */
+export function useEnviosDesdeLaCola() {
+  const [enviados, setEnviados] = useState<readonly ReporteCreado[]>([]);
+  useEffect(
+    () => alEnviarDesdeLaCola((nuevos) => setEnviados((previos) => [...previos, ...nuevos])),
+    [],
+  );
+  const cerrar = useCallback(() => setEnviados([]), []);
+  return { enviados, cerrar };
 }

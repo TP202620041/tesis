@@ -21,9 +21,11 @@ import org.springframework.stereotype.Service;
 /**
  * Generacion y validacion de JSON Web Tokens (US-02).
  *
- * <p>El token porta el email como subject y el rol como claim, para que
- * el filtro de seguridad reconstruya la autenticacion sin consultar la BD
- * en cada request (stateless).</p>
+ * <p>El token porta el email como subject, el rol y, desde US-04 Esc. 2, la
+ * version de sesion de la cuenta (claim {@value #CLAIM_VERSION_SESION}). El
+ * filtro carga la cuenta en cada peticion y rechaza el token si su version
+ * ya no es la vigente: asi se cierran todas las sesiones sin lista negra. Un
+ * token sin el claim vale como version 0.</p>
  *
  * <p><b>Falla temprana con el secreto (DEP-01, SEC-03).</b> Quien conoce el
  * secreto puede firmar un token con el email de cualquier cuenta, ADMIN
@@ -44,6 +46,13 @@ import org.springframework.stereotype.Service;
 public class JwtService {
 
     private static final String CLAIM_ROL = "rol";
+
+    /** US-04 Esc. 2: version de sesion de la cuenta al emitir el token. */
+    static final String CLAIM_VERSION_SESION = "ver";
+
+    /** Lo que el filtro necesita de un token valido. */
+    public record DatosDelToken(String email, int versionSesion) {
+    }
 
     /** Perfiles que, activados explicitamente, admiten el secreto de desarrollo. */
     static final Set<String> PERFILES_DE_DESARROLLO = Set.of("local", "test");
@@ -126,13 +135,25 @@ public class JwtService {
         return clave;
     }
 
-    /** Genera un token firmado para el usuario autenticado. */
-    public String generarToken(String email, String rol) {
+    /**
+     * Token sin el claim de version, como los emitidos antes de V23 (vale como
+     * la 0). Solo lo usan los tests de este paquete.
+     */
+    String generarTokenSinVersion(String email, String rol) {
+        return firmar(email, Map.of(CLAIM_ROL, rol));
+    }
+
+    /** Genera un token firmado para el usuario autenticado, con su version de sesion (US-04). */
+    public String generarToken(String email, String rol, int versionSesion) {
+        return firmar(email, Map.of(CLAIM_ROL, rol, CLAIM_VERSION_SESION, versionSesion));
+    }
+
+    private String firmar(String email, Map<String, Object> claims) {
         Instant ahora = Instant.now();
         Instant expira = ahora.plus(expirationMinutes, ChronoUnit.MINUTES);
         return Jwts.builder()
                 .subject(email)
-                .claims(Map.of(CLAIM_ROL, rol))
+                .claims(claims)
                 .issuedAt(Date.from(ahora))
                 .expiration(Date.from(expira))
                 .signWith(signingKey)
@@ -142,6 +163,16 @@ public class JwtService {
     /** Extrae el email (subject) del token, validando firma y expiracion. */
     public String extraerEmail(String token) {
         return parse(token).getSubject();
+    }
+
+    /**
+     * Valida firma y expiracion y devuelve el email y la version de sesion
+     * (0 si el token no la trae) con un solo parseo.
+     */
+    public DatosDelToken leer(String token) {
+        Claims claims = parse(token);
+        Integer version = claims.get(CLAIM_VERSION_SESION, Integer.class);
+        return new DatosDelToken(claims.getSubject(), version == null ? 0 : version);
     }
 
     /** Extrae el rol del token. */

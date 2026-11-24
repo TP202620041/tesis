@@ -63,3 +63,26 @@ describe('FormularioLogin con la cuenta sin confirmar (NC-09)', () => {
     expect(screen.queryByRole('button', { name: 'Reenviar el enlace' })).not.toBeInTheDocument();
   });
 });
+
+describe('FormularioLogin con el acceso bloqueado (US-02 Esc. 2)', () => {
+  beforeEach(() => {
+    vi.mocked(iniciarSesion).mockReset();
+    vi.mocked(reenviarConfirmacion).mockReset();
+    push.mockReset();
+  });
+
+  it('el 409 LOGIN_BLOQUEADO muestra el aviso de bloqueo temporal con el mensaje del servidor', async () => {
+    const bloqueo = 'Demasiados intentos fallidos. Por seguridad, vuelve a intentarlo en 15 minutos.';
+    vi.mocked(iniciarSesion).mockRejectedValue(new ApiError(409, bloqueo, '', [], 'LOGIN_BLOQUEADO'));
+    render(<FormularioLogin />);
+    await entrar();
+
+    const alerta = await screen.findByRole('alert');
+    expect(alerta).toHaveTextContent('Inicio de sesión bloqueado temporalmente');
+    expect(alerta).toHaveTextContent(bloqueo);
+    // Un solo aviso, sin ofrecer reenviar (no dice nada de la cuenta).
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: 'Reenviar el enlace' })).toBeNull();
+    expect(push).not.toHaveBeenCalled();
+  });
+});

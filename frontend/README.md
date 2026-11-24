@@ -534,9 +534,11 @@ cross-origin, que es justo donde las políticas son más restrictivas.
 **Lo que se pierde, sin adornos:** `localStorage` es legible por cualquier
 script de la página. Ante un XSS (por ejemplo una dependencia comprometida) el
 token puede exfiltrarse y usarse desde fuera del navegador de la víctima. Se
-agrava con la decisión de US-04: el backend no tiene blacklist, así que un
-token robado sigue siendo válido hasta expirar (120 min), incluso si el
-usuario cambia su contraseña.
+agrava con la decisión de US-04: cerrar sesión en este dispositivo solo
+descarta el token local, que sigue siendo válido hasta expirar (120 min). Desde
+el cierre del MVP el backend sí puede revocarlo: «Cerrar sesión en todos los
+dispositivos» y el restablecimiento de contraseña invalidan todos los tokens
+emitidos antes (ver «Cerrar sesión en todos los dispositivos» más abajo).
 
 **Matiz para no sobrevender la alternativa:** una cookie `httpOnly` *no* evita
 que un XSS abuse de la sesión — el navegador adjunta la cookie igual y el
@@ -657,6 +659,23 @@ Reglas de la cola:
   pasen esos plazos; otra persona con acceso al dispositivo podría leerlos con
   las herramientas del navegador. No se envían con la sesión de otro (ver
   arriba), y el aviso sin sesión solo muestra la cantidad, no el contenido.
+- **Aviso de envío exitoso (US-06 Esc. 2)**: cuando la cola envía sola
+  reportes, `sincronizarCola` avisa a sus oyentes (`alEnviarDesdeLaCola`) y
+  `useEnviosDesdeLaCola` los acumula hasta que el ciudadano cierra el aviso
+  («Se envió el reporte que guardaste sin conexión. Ver el reporte»; en una
+  adhesión, US-09, dice que se sumó su apoyo). Tres decisiones: (1) solo se
+  avisa si sigue la sesión en que se identificó al usuario, nunca a otra
+  persona; (2) el aviso está **fuera** de la condición «cola no vacía» de
+  `SincronizadorDeReportes`, porque al enviarse el último reporte la cola
+  queda vacía y el aviso tiene que seguir; (3) la región `status` está
+  siempre montada (vacía sin nada que contar), porque un lector anuncia de
+  forma fiable lo que aparece dentro de una región viva existente. Va arriba,
+  bajo la cabecera, para no tapar los otros avisos de la cola, y no se cierra
+  solo (WCAG 2.2.1). Como es fijo, puede tapar el elemento con foco (WCAG
+  2.4.11): **Escape lo cierra desde cualquier parte sin mover el foco**. No
+  se pasó al flujo del documento porque se monta en el layout y, al aparecer,
+  empujaría la pantalla en la que el usuario trabaja. Un Escape que ya
+  atendió otro componente (`defaultPrevented`) no lo cierra.
 - **La foto** se guarda como `ArrayBuffer` + nombre + tipo y se rearma como
   `File` al reenviar: IndexedDB clona eso en todos los navegadores (Safari tuvo
   fallos guardando `Blob`).
@@ -1714,13 +1733,20 @@ Verificado end-to-end contra el backend real:
     ciudadano eligió otra (`reportes/model/edicion.ts`).
 - **US-18/20** índice de desempeño (`/desempeno`), **público**: ranking de los
   43 distritos con tasa de resolución, tiempo promedio y satisfacción,
-  ordenable por columna y filtrable por tipo de daño.
+  ordenable por columna y filtrable por tipo de daño. Desde **NC-06** la
+  tabla es la del periodo de gestión elegido (ver abajo).
 - **US-19** comparar distritos en `/desempeno`: de 2 a 4 distritos (columna
-  «Comparar») lado a lado, con tasa, resueltos/total y tiempo promedio, más
-  una gráfica de barras de la tasa. El tipo de daño se aplica también a la
-  comparación (ver «Comparar distritos» en Decisiones técnicas). Verificado
-  el 20/10 con los datos seed (Miraflores 66.7 % frente a San Juan de
-  Lurigancho 10.7 %).
+  «Comparar») lado a lado, con tasa, resueltos/válidos, tiempo promedio y
+  (desde NC-06) satisfacción, más una gráfica de barras de la tasa. El
+  periodo y el tipo de daño se aplican también a la comparación (ver
+  «Comparar distritos» en Decisiones técnicas). Verificado el 20/10 con los
+  datos seed (Miraflores 66.7 % frente a San Juan de Lurigancho 10.7 %).
+- **NC-06** (indicador OE3-I5) desempeño **por periodo de gestión** en
+  `/desempeno`, público y sin sesión: selector de periodo (por defecto el
+  vigente), y por municipalidad la tasa de resolución, el tiempo promedio de
+  atención **en días**, la satisfacción y los conteos, con filtro por tipo de
+  daño y la explicación de cada fórmula en la misma página (ver «Desempeño
+  por periodo de gestión (NC-06)» en Decisiones técnicas).
 - **NC-07b** consentimiento: aceptación de términos en el registro,
   `/privacidad`, pantalla `/aceptar-terminos` y «Privacidad y
   consentimientos» en el perfil (ver «Consentimiento» en Decisiones técnicas).
@@ -1892,10 +1918,98 @@ colorear por umbrales obligaría a inventar qué tasa cuenta como "mala", un
 juicio que ni el backlog ni el backend definen. El ranking y el número ya
 comunican la comparación sin que la interfaz emita su propia calificación.
 
+**Datos insuficientes (US-17 Esc. 2, US-20 Esc. 2)** es otro caso, distinto
+de «Sin datos»: la métrica existe pero se calculó con tan pocos reportes que
+no dice nada del distrito. La regla vive en el modelo, con los conteos que ya
+trae el DTO (sin cambio de API):
+
+- Dashboard del funcionario (`model/dashboard.ts`): con menos de **5
+  reportes** (`MIN_REPORTES_DASHBOARD`) aparece un aviso y la tasa, el tiempo
+  y la satisfacción dicen «Datos insuficientes». Los conteos (recibidos,
+  resueltos, sin responsable, estancados) se muestran igual: son hechos, no
+  promedios. Una métrica `null` sigue diciendo «Sin datos».
+- Desempeño público por periodo (`model/gestion.ts`, NC-06): con menos de
+  **5 válidos** (`MIN_VALIDOS`, el mismo `MIN_REPORTES_DASHBOARD`) la tasa y
+  la satisfacción dicen «Datos insuficientes»; con menos de **3 resueltos**
+  (`MIN_RESUELTOS`, el mismo `MIN_RESUELTOS_PARA_PROMEDIO`), el tiempo
+  promedio. Aplica al agregado general y al desglose por tipo de daño (la
+  decisión del 23/11 no los distingue; hasta NC-06 el índice solo lo aplicaba
+  al tiempo por categoría). En la tabla y en la comparación, y al ordenar esa
+  métrica va al final como un `null`, sin número de puesto (ver abajo).
+
+### Desempeño por periodo de gestión (NC-06)
+
+Es la evidencia del indicador OE3-I5 en la PWA: tasa de resolución y tiempo
+promedio de atención de cada municipalidad, desagregados por periodo de
+gestión, consultables sin iniciar sesión. Consume
+`GET /api/desempeno/periodos` y `GET /api/desempeno/gestion` (handoff
+`2026-11-23-dashboard-gestion-nc06.md`), ambos con `conAuth: false`.
+
+- **Reemplaza la tabla del índice acumulado, no se agrega como otra vista.**
+  `GET /api/desempeno/distritos` (US-18/US-20) suma todos los periodos y da
+  el tiempo en **horas**; `/gestion` da lo mismo por periodo, en **días**, y
+  además cuenta los reportes como pide la decisión (válidos = todo salvo
+  cancelados y ocultos). Dos tablas casi iguales en la misma página, con
+  unidades distintas y cifras que no coinciden, obligarían al ciudadano a
+  adivinar cuál vale; con un solo periodo con reportes (2023–2026) el
+  acumulado además repite al vigente. La comparación de 2 a 4 distritos
+  (US-19) no se pierde: compara las filas del periodo elegido, con la misma
+  URL compartible (ahora con `periodo=`). El backend mantiene `/distritos`
+  sin cambios; la PWA ya no lo llama (`rankingDistrital` y
+  `useRankingDistrital` se quitaron, y con ellos el orden y el formato en
+  horas de `formato.ts` que solo usaba esa tabla).
+- **El periodo vive en la URL** (`?periodo=1`), como el tipo de daño y la
+  comparación. Sin `periodo` se elige el `vigente: true` de `/periodos` (si
+  ninguno lo es, el más reciente) y se envía su `id` explícito: no se pide
+  «el vigente» al backend a ciegas, que responde 404 si hoy no cae en ningún
+  periodo. Un `periodo` que no existe en la URL se descarta como el vigente.
+- **Tasa y satisfacción con dos decimales** (`66.67 %`, `4.25 / 5`), tal como
+  los calcula el servidor, para que coincidan con el cálculo manual del
+  OE3-I5; el índice anterior redondeaba a uno. **Tiempo en días con un
+  decimal** (`1.9 días`, `1 día`); un promedio que el servidor redondeó a
+  `0.0` dice «< 0.1 días», no «0 días» (mismo criterio que el «< 1 h» de
+  QA-1 M-12).
+- **El ranking no lo encabeza un distrito con datos insuficientes.** Al
+  ordenar, la tasa (o el tiempo, o la satisfacción) con datos insuficientes
+  vale `null` y va al final en las dos direcciones, como «Sin datos»: un
+  distrito con 1 reporte resuelto de 1 no aparece primero con 100 %. Las
+  filas sin valor en la columna de orden no llevan número de puesto («—»,
+  «Sin puesto» para el lector): «#43» le atribuiría el último lugar a quien
+  no participa de la métrica.
+- **Un periodo sin reportes es «Sin datos», no una tabla de ceros.** Si
+  ningún distrito tiene reportes válidos en el periodo (2027–2030 hasta que
+  empiece, o un tipo de daño que nadie reportó) se muestra un aviso «Sin
+  datos» en lugar de la tabla y la comparación; la selección de distritos se
+  conserva en la URL para cuando se elija otro periodo.
+- **La explicación de cada fórmula está en la misma página**
+  (`ComoSeCalcula`): periodo, reportes válidos (los rechazados cuentan:
+  SEC-01), tasa, tiempo, satisfacción, «Datos insuficientes» y «Sin datos».
+  Quien mira el ranking puede rehacer cualquier tasa con los conteos de la
+  tabla.
+- **Municipalidad y distrito.** Con D-09 (una municipalidad por distrito) la
+  fila es el distrito; el nombre de la municipalidad va debajo, en pequeño,
+  solo si dice algo más que el del distrito. No hay nombres de autoridades
+  ni partidos: el backend no los guarda (decisión del 23/11).
+- **Accesibilidad.** Los dos selectores tienen `<label>`; la tabla, `caption`
+  con el periodo, encabezados de columna con `aria-sort` y de fila con el
+  distrito; «Sin datos» y «Datos insuficientes» van en el texto secundario
+  (`text-texto-2`, contraste AA en los tres temas), nunca solo con color, y
+  la barra de una tasa sin cifra es la pista punteada.
+- **US-17 v1 (`/dashboard`, `GET /api/desempeno/mi-distrito`) no cambia**
+  con esta tarea: sigue mostrando el acumulado en horas con sus señales
+  operativas. Cómo migrará: cuando el backend exponga el periodo en
+  `mi-distrito` (o el funcionario consulte `/gestion` filtrando su distrito),
+  `DashboardDistrito` pasará a leer una `KpiGestion` del periodo vigente y a
+  formatear con `gestion.ts` (`textoTasa`, `textoTiempo` en días, los mismos
+  umbrales), dejando en `dashboard.ts` solo las señales operativas
+  (sin responsable, estancados). Entonces `DesempenoDistrital`,
+  `formatearTiempo` (horas) y `formatearTasa` de un decimal se podrán quitar.
+
 ### Comparar distritos (US-19)
 
-- **El estado vive en la URL** (`?comparar=21,41&categoria=3`), no en estado
-  local: compartir la dirección comparte la comparación y el filtro. Se
+- **El estado vive en la URL** (`?comparar=21,41&periodo=1&categoria=3`), no
+  en estado local: compartir la dirección comparte la comparación, el periodo
+  y el filtro. Se
   escribe con `router.replace`, no `push`, para no llenar el historial con
   cada casilla. `useSearchParams` obliga a envolver el índice en `Suspense`
   (sin eso falla `next build`). El orden de la tabla sí es local: es de quien
@@ -2000,3 +2114,132 @@ solo al volver la señal (ver "Cola offline" en Decisiones técnicas).
 
 Siguiente slice: **US-10** (mapa interactivo), que reutiliza el componente de
 mapa en modo lectura sobre `GET /api/reportes` con bounding box.
+
+### Guía de uso (US-24) y ayuda del tipo de daño
+
+`/como-funciona` (pública) es una guía de seis pasos: ver el mapa, crear la
+cuenta, reportar, reportar sin señal, seguir el reporte y calificar. Se
+enlaza desde el menú principal del visitante (en el móvil, un «?» en la
+cabecera, porque la barra inferior ya tiene sus cuatro ítems), desde la
+cuenta del ciudadano y desde la portada. El contenido y la navegación son
+puros (`features/guia/model/pasos.ts`); el componente solo los pinta.
+
+- **Ilustraciones, no capturas en PNG.** Cada paso lleva un esquema SVG de la
+  pantalla dibujado con los tokens del tema: se ve bien en claro, oscuro y
+  alto contraste, no pide nada a otro origen (la CSP no cambia) y no queda
+  desactualizado con cada ajuste visual. Para el lector es una imagen con su
+  descripción.
+- **Accesibilidad:** botones y enlaces nativos; la lista de pasos marca el
+  actual con `aria-current="step"` y permite saltar a cualquiera; al cambiar
+  de paso el foco va al título del paso nuevo («Paso N de M»), y al cargar no
+  se mueve; se puede omitir en todo momento y nada avanza solo.
+- **Ayuda del tipo de daño (Esc. 2):** un «?» junto a «Tipo de daño» en
+  `/reportar` despliega cada categoría del catálogo con su descripción
+  (también las propias del distrito, US-29). Es un desplegable con
+  `aria-expanded`, no un tooltip al pasar el ratón: se abre con teclado y
+  dedo, no se va mientras se lee (WCAG 1.4.13) y se cierra con Escape solo
+  si el foco está en el «?» o dentro del panel (entonces vuelve al «?»): un
+  Escape en otro campo no la cierra ni mueve el foco. Las
+  imágenes de ejemplo que pide el criterio quedan pendientes: no hay fotos
+  con licencia ni un campo para ellas en el catálogo.
+
+### Historial: el evento de creación (US-22 Esc. 2)
+
+El backend entrega la creación como primera entrada del historial
+(`tipoEvento = 'CREACION'`, con `id` y `autor` nulos; handoff
+`2026-11-23-cierre-mvp-backend.md`), y `LineaDeTiempo` la pinta como
+«Reporte creado» con el comentario del servidor. La clave de la lista no
+puede ser el `id` en esa fila (se usa el tipo y la posición).
+
+**Respaldo para un backend anterior**, que no la enviaba y dejaba vacía la
+línea de tiempo de un reporte en Pendiente: `LineaDeTiempo` recibe
+`creadoEn` y, solo si ninguna entrada es `CREACION`, antepone «Reporte
+creado» con esa fecha (`lib/types/historial.ts`). Así nunca aparece dos
+veces. Lo mismo para «Todavía no hay movimientos registrados.»: con el
+backend nuevo el historial nunca llega vacío, pero el texto se conserva.
+
+### Soporte: número de seguimiento y plazo (US-25 Esc. 1)
+
+Al registrar un ticket se confirma su número de seguimiento y el plazo de
+respuesta, **tal como los devuelve el servidor** (handoff
+`2026-11-23-cierre-mvp-backend.md`): `numeroSeguimiento` (`SOP-000123`),
+`plazoRespuestaHoras` (48) y `respuestaEsperadaAntesDe`, que se muestra en
+hora de Lima («antes del 25/11/2026, 10:00»). El número aparece también en
+«Mis consultas» (con la fecha límite mientras no hay respuesta) y en la
+bandeja del ADMIN, para ubicar el ticket si el autor escribe por otra vía.
+
+- **Respaldo para un backend anterior:** sin `numeroSeguimiento` se muestra el
+  `#id`; sin plazo, `PLAZO_RESPUESTA_HORAS_POR_DEFECTO` (48, el mismo valor del
+  backend), y sin fecha límite se omite el «antes del …».
+- **El texto previo al envío** («Te responderemos en un plazo de 48 horas»)
+  usa ese valor por defecto, porque todavía no hay respuesta del servidor: si
+  el backend cambia el plazo, hay que cambiarlo también aquí.
+- Se dejó de decir «2 días hábiles» (el valor provisional anterior): el
+  compromiso que fija el backend son 48 horas corridas.
+
+### Cerrar sesión en todos los dispositivos (US-04 Esc. 2)
+
+En la pantalla de la cuenta (`AccionesDeLaCuenta`), debajo de «Cerrar
+sesión», está «Cerrar sesión en todos los dispositivos». Pide confirmación en
+un diálogo (no se deshace y también cierra la sesión de este dispositivo) y
+llama a `POST /api/auth/me/cerrar-sesiones` (204), que revoca todos los tokens
+de la cuenta.
+
+- **Mismo flujo que el cierre normal** (`hooks/useCerrarSesion.ts`): las
+  preguntas previas (reportes en cola, US-06), la baja de push de este
+  navegador (necesita el token vivo, así que va antes de revocar), y tras el
+  204 el token local, la caché `cross-origin` y el login.
+- **Si el servidor falla (salvo 401), la sesión local no se cierra**: el
+  usuario creería haber cerrado las demás sin que sea cierto. El error se
+  muestra en el diálogo («Tu sesión sigue abierta; puedes volver a
+  intentarlo»). Un 401 no es un fallo: el token ya no vale, así que se sigue
+  con el cierre local.
+- **Push tras el fallo:** la baja de push de este navegador ya ocurrió (tenía
+  que ir antes, con el token vivo). Si había suscripción, se intenta
+  restablecer sola (`restablecerPushTrasCierreFallido`, como al iniciar
+  sesión: sin pedir permiso ni crear una suscripción nueva). Si se pudo, el
+  diálogo dice que las notificaciones siguen activas; si no (la baja había
+  cancelado la suscripción local), dice que quedaron desactivadas en este
+  dispositivo y ofrece «Volver a activar las notificaciones» (`activarPush`;
+  el permiso ya estaba concedido). Si eso también falla, remite a
+  «Notificaciones push» en el perfil.
+- **Los otros dispositivos** reciben 401 en su siguiente petición y el manejo
+  central del 401 los lleva al login. No hay aviso en tiempo real.
+- Solo está en la pantalla de la cuenta, no en el menú de la cabecera: es una
+  acción poco frecuente y destructiva.
+
+### Bloqueo temporal del login (US-02 Esc. 2)
+
+Tras 5 intentos fallidos seguidos el backend responde 409 `LOGIN_BLOQUEADO`
+durante 15 minutos, también con la contraseña correcta y también para un
+correo sin cuenta. El formulario lo muestra como un aviso propio («Inicio de
+sesión bloqueado temporalmente») con el mensaje del servidor tal cual
+(`model/bloqueoDeLogin.ts`; un respaldo con los 15 minutos solo si llegara
+vacío). No ofrece «Reenviar el enlace» ni nada que dependa de la cuenta: el
+aviso es el mismo exista o no el correo. No hay cuenta regresiva: la PWA no
+sabe cuándo empezó el bloqueo y el servidor no lo informa.
+
+### Íconos de las categorías (US-29 Esc. 1, US-34)
+
+Cada categoría trae `icono` (enum cerrado `IconoCategoria` de 14 valores, o
+`null`), y el catálogo estándar suma «Ciclovía dañada», «Drenaje obstruido» e
+«Iluminación deficiente» (handoff `2026-11-23-cierre-mvp-backend.md`).
+
+- **Dónde vive:** el enum y sus nombres en `lib/types/iconoCategoria.ts`
+  (puro; lo usan `reportes` y `gestion`), y el pictograma en
+  `components/ui/IconoDeCategoria.tsx` (Lucide, empaquetado: la CSP no
+  cambia). Sin ícono, o con uno que esta versión no conoce, se ve uno genérico
+  (etiqueta): un valor nuevo del backend no rompe la PWA.
+- **Lucide no tiene semáforo:** se usa el cono de tránsito, que no se confunde
+  con la valla de «Obra».
+- **Decorativos:** el ícono siempre acompaña al nombre (`aria-hidden`).
+- **Formulario del reporte y filtros del mapa:** son `<select>` nativos, que no
+  admiten íconos en sus opciones. El ícono de la categoría elegida va a la
+  izquierda del selector (genérico con «Selecciona…»/«Todos»), y la ayuda «?»
+  del formulario lista todas con su ícono. Un desplegable propio con íconos
+  por opción perdería el selector nativo del móvil y su accesibilidad; queda
+  como posible mejora si el usuario lo pide.
+- **Gestión del funcionario:** el formulario de crear y editar tiene «Ícono
+  (opcional)» con «Sin ícono» y los 14 valores, y una vista previa al lado.
+  El PATCH reemplaza el ícono (omitirlo lo quita), así que al editar se envía
+  siempre el actual, como la descripción.

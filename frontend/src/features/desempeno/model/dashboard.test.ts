@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  datosInsuficientes,
   formatearActualizacion,
   indicadoresDeDesempeno,
   indicadoresOperativos,
@@ -92,3 +93,43 @@ describe('formatearActualizacion', () => {
     expect(formatearActualizacion('2026-10-13T15:00:00Z')).toMatch(/2026/);
   });
 });
+
+describe('datos insuficientes (US-17 Esc. 2)', () => {
+  const con = (totalReportes: number): DesempenoDistrital => ({ ...CON_DATOS, totalReportes });
+
+  it('menos de 5 reportes son insuficientes; 5 ya no', () => {
+    expect(datosInsuficientes(con(0))).toBe(true);
+    expect(datosInsuficientes(con(4))).toBe(true);
+    expect(datosInsuficientes(con(5))).toBe(false);
+  });
+
+  it('un total null no es «menos de 5»: sin aviso, y la métrica null dice «Sin datos»', () => {
+    // springdoc lo tipa `number | undefined`; el API enviaría `null`. Ninguno es 0.
+    const sinTotal: DesempenoDistrital = {
+      ...CON_DATOS,
+      totalReportes: null as unknown as number,
+      tasaResolucion: null,
+    };
+    expect(datosInsuficientes(sinTotal)).toBe(false);
+    expect(datosInsuficientes({ ...CON_DATOS, totalReportes: undefined })).toBe(false);
+    expect(valores(indicadoresDeDesempeno(sinTotal))).toMatchObject({
+      total: 'Sin datos',
+      tasa: 'Sin datos',
+    });
+  });
+
+  it('con datos insuficientes, tasa, tiempo y satisfacción no se muestran; los conteos sí', () => {
+    expect(valores(indicadoresDeDesempeno({ ...CON_DATOS, totalReportes: 4, totalResueltos: 2 }))).toMatchObject({
+      total: '4',
+      resueltos: '2',
+      tasa: 'Datos insuficientes',
+      tiempo: 'Datos insuficientes',
+      satisfaccion: 'Datos insuficientes',
+    });
+  });
+
+  it('una métrica null sigue siendo «Sin datos» aunque los datos sean insuficientes', () => {
+    expect(valores(indicadoresDeDesempeno(SIN_REPORTES)).tasa).toBe('Sin datos');
+  });
+});
+

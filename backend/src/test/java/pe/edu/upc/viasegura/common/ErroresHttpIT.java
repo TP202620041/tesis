@@ -110,7 +110,7 @@ class ErroresHttpIT extends AbstractPostgisIT {
                 .email("errores-" + UUID.randomUUID() + "@lima.pe")
                 .passwordHash(passwordEncoder.encode("x"))
                 .nombre("Ana").apellido("Vecina").rol(Rol.CIUDADANO).build());
-        return jwtService.generarToken(ciudadano.getEmail(), ciudadano.getRol().name());
+        return jwtService.generarToken(ciudadano.getEmail(), ciudadano.getRol().name(), 0);
     }
 
     /** Sube una foto de {@code bytesFoto} por HTTP real, en multipart, a {@code ruta}. */

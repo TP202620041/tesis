@@ -120,7 +120,7 @@ class ModeracionCreacionIT extends AbstractPostgisIT {
     }
 
     private String bearer(Usuario u) {
-        return "Bearer " + jwtService.generarToken(u.getEmail(), u.getRol().name());
+        return "Bearer " + jwtService.generarToken(u.getEmail(), u.getRol().name(), 0);
     }
 
     private long bacheId() {

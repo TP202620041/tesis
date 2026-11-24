@@ -199,7 +199,7 @@ class S3FotoStorageServiceIT extends AbstractPostgisIT {
 
     private long categoriaEstandarId() {
         return categoriaRepository.findAll().stream()
-                .filter(CategoriaDano::isEsEstandar)
+                .filter(CategoriaDano::isEsEstandar).filter(CategoriaDano::isActivo)
                 .findFirst()
                 .orElseThrow()
                 .getId();

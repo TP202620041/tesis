@@ -63,7 +63,7 @@ Lo mismo que la CI, en tu máquina (entorno de `CLAUDE.md`):
 # backend/ (Windows: base en 5433; macOS: 5432 con TEST_DB_URL)
 POSTGRES_PORT=5433 docker compose up -d --wait          # --wait espera el healthcheck (pg_isready)
 mvn -B -ntp clean verify
-MIN_IT_FAILSAFE=598 MIN_SUREFIRE=830 node ../.github/scripts/verificar-backend.mjs   # la misma guarda
+MIN_IT_FAILSAFE=637 MIN_SUREFIRE=840 node ../.github/scripts/verificar-backend.mjs   # la misma guarda
 
 # frontend/
 npm ci && npm run lint && npm run typecheck && npm test
@@ -102,7 +102,7 @@ En Git Bash de Windows, antepón `MSYS_NO_PATHCONV=1` a los `docker run` y usa u
 ## Para mantener
 
 - **Mínimos de tests**: `MIN_IT_FAILSAFE` y `MIN_SUREFIRE`, en el `env` del job `backend`.
-  - Se suben al cerrar cada versión con las cifras del CHANGELOG (hoy 598 y 830, las de v0.8.0).
+  - Se suben al cerrar cada versión con las cifras del CHANGELOG (hoy 637 y 840, las de v0.9.0).
   - Solo se bajan en el PR que quita tests, y ese PR explica por qué.
 - **Node**: cuando exista `frontend/.nvmrc` (DEP-06), el job lo usa solo. Debe cumplir `jsdom` 30 (`^22.22.2 || ^24.15.0 || >=26`) y Next 16 (`>=20.9`).
 - **Acciones**:

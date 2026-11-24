@@ -1,10 +1,11 @@
-import type { DesempenoDistrital } from './formato';
+import type { KpiGestion } from './gestion';
 
 /**
  * US-19: comparacion de 2 a 4 distritos, con su estado en la URL.
  *
- * La URL es la unica fuente del estado (`?comparar=21,41&categoria=3`): asi
- * quien copia la direccion comparte la misma comparacion y el mismo filtro,
+ * La URL es la unica fuente del estado (`?comparar=21,41&periodo=1&categoria=3`):
+ * asi quien copia la direccion comparte la misma comparacion, el mismo periodo
+ * de gestion (NC-06) y el mismo filtro,
  * y el boton Atras del navegador no se mezcla con un estado local paralelo.
  */
 
@@ -16,6 +17,8 @@ export const AVISO_MAXIMO = `Puedes comparar hasta ${MAX_COMPARAR} distritos. Qu
 export interface EstadoComparacion {
   /** Ids de distrito en el orden en que se eligieron. */
   distritos: number[];
+  /** NC-06: periodo de gestion elegido; `null` = el vigente. */
+  periodoId: number | null;
   categoriaId: number | null;
 }
 
@@ -37,25 +40,35 @@ export function leerComparacion(params: { get(nombre: string): string | null }):
     if (id != null && !distritos.includes(id)) distritos.push(id);
     if (distritos.length === MAX_COMPARAR) break;
   }
-  return { distritos, categoriaId: enteroPositivo(params.get('categoria')) };
+  return {
+    distritos,
+    periodoId: enteroPositivo(params.get('periodo')),
+    categoriaId: enteroPositivo(params.get('categoria')),
+  };
 }
 
 /**
  * Descarta lo que la URL trae y el catalogo no conoce (una URL editada a
  * mano): un distrito inexistente no debe ocupar uno de los 4 lugares ni
- * mostrarse como «Distrito N», y un tipo de dano inexistente cuenta como
- * «Todos los tipos». Mientras un catalogo no cargo (`null`), no se toca esa
- * parte: no se sabe todavia que es valido.
+ * mostrarse como «Distrito N», un tipo de dano inexistente cuenta como
+ * «Todos los tipos» y un periodo inexistente, como el vigente. Mientras un
+ * catalogo no cargo (`null`), no se toca esa parte: no se sabe todavia que
+ * es valido.
  */
 export function depurarComparacion(
   estado: EstadoComparacion,
   distritosConocidos: ReadonlyMap<number, string> | null,
   categoriasConocidas: readonly number[] | null,
+  periodosConocidos: readonly number[] | null,
 ): EstadoComparacion {
   return {
     distritos: distritosConocidos
       ? estado.distritos.filter((id) => distritosConocidos.has(id))
       : estado.distritos,
+    periodoId:
+      periodosConocidos && estado.periodoId != null && !periodosConocidos.includes(estado.periodoId)
+        ? null
+        : estado.periodoId,
     categoriaId:
       categoriasConocidas && estado.categoriaId != null && !categoriasConocidas.includes(estado.categoriaId)
         ? null
@@ -69,6 +82,7 @@ export function queryDeComparacion(estado: EstadoComparacion): string {
   // La coma se deja literal: la URL queda legible (`comparar=21,41`).
   const partes: string[] = [];
   if (estado.distritos.length > 0) partes.push(`comparar=${estado.distritos.join(',')}`);
+  if (estado.periodoId != null) params.set('periodo', String(estado.periodoId));
   if (estado.categoriaId != null) params.set('categoria', String(estado.categoriaId));
   const resto = params.toString();
   if (resto) partes.push(resto);
@@ -93,16 +107,16 @@ export function quitarDistrito(distritos: number[], id: number): number[] {
   return distritos.filter((d) => d !== id);
 }
 
-/** Una columna de la comparacion: la fila del indice, o `null` si no hay datos. */
+/** Una columna de la comparacion: la fila del periodo, o `null` si no hay datos. */
 export interface DistritoComparado {
   distritoId: number;
   nombre: string;
   /**
-   * `null` cuando el indice no trae fila para ese distrito: con un tipo de
+   * `null` cuando el periodo no trae fila para ese distrito: con un tipo de
    * dano elegido, el backend solo devuelve los distritos con reportes de ese
    * tipo. No es un cero: ese distrito no participa de la metrica.
    */
-  fila: DesempenoDistrital | null;
+  fila: KpiGestion | null;
 }
 
 /**
@@ -112,7 +126,7 @@ export interface DistritoComparado {
  */
 export function distritosComparados(
   seleccion: number[],
-  filas: DesempenoDistrital[],
+  filas: readonly KpiGestion[],
   nombres: ReadonlyMap<number, string> | null,
 ): DistritoComparado[] {
   return seleccion.map((id) => {
