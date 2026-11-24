@@ -9,8 +9,9 @@ import pe.edu.upc.viasegura.auth.event.SesionesCerradasEvent;
 import pe.edu.upc.viasegura.notificaciones.service.SuscripcionPushService;
 
 /**
- * US-04 Esc. 2: al cerrar la sesion en todos los dispositivos se borran las
- * suscripciones push del usuario. Un dispositivo con la sesion revocada no
+ * US-04 Esc. 2 y US-03: al cerrar la sesion en todos los dispositivos (a
+ * pedido o al restablecer la contrasena) se borran las suscripciones push
+ * del usuario. Un dispositivo con la sesion revocada no
  * debe seguir recibiendo avisos de esa cuenta; la PWA vuelve a registrar la
  * suscripcion del dispositivo cuando el usuario inicia sesion de nuevo.
  *

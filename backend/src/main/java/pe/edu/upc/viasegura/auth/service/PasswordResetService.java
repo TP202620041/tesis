@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import pe.edu.upc.viasegura.auth.domain.PasswordResetToken;
 import pe.edu.upc.viasegura.auth.domain.Usuario;
 import pe.edu.upc.viasegura.auth.event.RecuperacionSolicitadaEvent;
+import pe.edu.upc.viasegura.auth.event.SesionesCerradasEvent;
 import pe.edu.upc.viasegura.auth.repository.PasswordResetTokenRepository;
 import pe.edu.upc.viasegura.auth.repository.UsuarioRepository;
 import pe.edu.upc.viasegura.common.exception.BusinessException;
@@ -160,6 +161,9 @@ public class PasswordResetService {
         // US-04 Esc. 2: la contrasena nueva cierra las sesiones abiertas con
         // la anterior (quien la cambia puede estar echando a un intruso).
         usuarioRepository.subirVersionSesion(usuario.getId());
+        // Y, como al cerrar las sesiones a mano, despues del commit se borran
+        // las suscripciones push: el intruso no sigue recibiendo avisos.
+        eventPublisher.publishEvent(new SesionesCerradasEvent(usuario.getId()));
 
         token.setUsedAt(Instant.now());
         tokenRepository.save(token);
