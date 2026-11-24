@@ -186,7 +186,7 @@ class InferenciaModeracionHttpAdapterIT extends AbstractPostgisIT {
     @Test
     void crearUnReporteYLaVistaPrevia_conElServicioReal_aceptanUnaFotoSintetica() throws Exception {
         Usuario ciudadano = ciudadano();
-        String bearer = "Bearer " + jwtService.generarToken(ciudadano.getEmail(), "CIUDADANO");
+        String bearer = "Bearer " + jwtService.generarToken(ciudadano.getEmail(), "CIUDADANO", 0);
         MockMultipartFile foto = new MockMultipartFile("foto", "IMG_0002.JPG", "image/jpeg",
                 ImagenesDePrueba.jpegConExif(1600, 1200, 1));
         long bache = categoriaRepository.findByEsEstandarTrueOrderByNombreAsc().stream()

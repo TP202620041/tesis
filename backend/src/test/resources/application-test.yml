@@ -94,6 +94,10 @@ app:
     plazo: 30d
     purga:
       cron: "-"
+  login:
+    intentos:
+      purga:
+        cron: "-"
   admin-inicial:
     email: ""
     password: ""

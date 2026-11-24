@@ -81,7 +81,7 @@ class CategoriasDelModeloIT extends AbstractPostgisIT {
     }
 
     private String bearer(Usuario u) {
-        return "Bearer " + jwtService.generarToken(u.getEmail(), u.getRol().name());
+        return "Bearer " + jwtService.generarToken(u.getEmail(), u.getRol().name(), 0);
     }
 
     @Test
@@ -93,7 +93,8 @@ class CategoriasDelModeloIT extends AbstractPostgisIT {
                 });
 
         assertThat(clases).containsEntry("Bache", "bache").containsEntry("Pista deteriorada", "grieta");
-        assertThat(clases).hasSize(6);
+        // Las 6 de V3 y las 3 de V24 (US-34), que el modelo no conoce.
+        assertThat(clases).hasSize(9);
         assertThat(clases.entrySet().stream().filter(e -> e.getValue() != null)).hasSize(2);
         // Ninguna categoria de un distrito tiene clase: nunca se sugieren.
         assertThat(jdbcTemplate.queryForObject(

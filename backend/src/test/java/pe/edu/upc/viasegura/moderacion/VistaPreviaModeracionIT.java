@@ -75,7 +75,7 @@ class VistaPreviaModeracionIT extends AbstractPostgisIT {
         MockMultipartFile foto = new MockMultipartFile("foto", "IMG_0001.JPG", "image/jpeg",
                 ImagenesDePrueba.jpegConExif(640, 480, 6));
         return mockMvc.perform(multipart("/api/clasificaciones").file(foto)
-                .header("Authorization", "Bearer " + jwtService.generarToken(ciudadano.getEmail(), "CIUDADANO")));
+                .header("Authorization", "Bearer " + jwtService.generarToken(ciudadano.getEmail(), "CIUDADANO", 0)));
     }
 
     private long bacheId() {

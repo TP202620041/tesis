@@ -83,7 +83,7 @@ abstract class AbstractModeracionIT extends AbstractPostgisIT {
 
     CategoriaDano categoria() {
         return categoriaRepository.findAll().stream()
-                .filter(CategoriaDano::isEsEstandar).findFirst().orElseThrow();
+                .filter(CategoriaDano::isEsEstandar).filter(CategoriaDano::isActivo).findFirst().orElseThrow();
     }
 
     Usuario usuario(Rol rol, Distrito distrito) {
@@ -108,7 +108,7 @@ abstract class AbstractModeracionIT extends AbstractPostgisIT {
     }
 
     String bearer(Usuario u) {
-        return "Bearer " + jwtService.generarToken(u.getEmail(), u.getRol().name());
+        return "Bearer " + jwtService.generarToken(u.getEmail(), u.getRol().name(), 0);
     }
 
     /** Guarda la foto como lo haria la creacion (saneada) y devuelve su URL publica. */

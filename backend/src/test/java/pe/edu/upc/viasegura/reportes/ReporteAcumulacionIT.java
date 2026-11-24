@@ -47,7 +47,7 @@ class ReporteAcumulacionIT extends AbstractPostgisIT {
 
     private List<Long> dosCategoriasEstandar() {
         List<Long> ids = categoriaRepository.findAll().stream()
-                .filter(CategoriaDano::isEsEstandar)
+                .filter(CategoriaDano::isEsEstandar).filter(CategoriaDano::isActivo)
                 .map(CategoriaDano::getId)
                 .limit(2)
                 .toList();

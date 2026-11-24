@@ -111,6 +111,16 @@ public class AuthController {
         return ResponseEntity.ok(authService.perfilActual(principal.getName()));
     }
 
+    /**
+     * US-04 Esc. 2: cierra la sesion en todos los dispositivos (el actual
+     * incluido). 204; desde ese momento todo token emitido antes responde 401.
+     */
+    @PostMapping("/me/cerrar-sesiones")
+    public ResponseEntity<Void> cerrarSesiones(Principal principal) {
+        authService.cerrarSesionesEnTodosLosDispositivos(principal.getName());
+        return ResponseEntity.noContent().build();
+    }
+
     /** US-30 (minimo): el ciudadano cambia su canal de notificacion preferido. */
     @PatchMapping("/me/preferencia-notificacion")
     public ResponseEntity<UsuarioResponse> actualizarPreferencia(

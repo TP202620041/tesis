@@ -41,7 +41,7 @@ class ActuatorHealthIT extends AbstractPostgisIT {
                 .email("admin-health-" + UUID.randomUUID() + "@viasegura.pe")
                 .passwordHash(passwordEncoder.encode("x"))
                 .nombre("Admin").apellido("Plataforma").rol(Rol.ADMIN).build());
-        return jwtService.generarToken(admin.getEmail(), admin.getRol().name());
+        return jwtService.generarToken(admin.getEmail(), admin.getRol().name(), 0);
     }
 
     @Test

@@ -17,6 +17,14 @@ public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
 
     boolean existsByEmail(String email);
 
+    /**
+     * US-04 Esc. 2: sube la version de sesion, lo que revoca todos los tokens
+     * emitidos antes. Atomico: dos cierres simultaneos suben dos veces.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = "UPDATE usuario SET version_sesion = version_sesion + 1 WHERE id = :id", nativeQuery = true)
+    int subirVersionSesion(@Param("id") Long id);
+
     /** Si hay alguna cuenta con ese rol (DEP-04: el ADMIN inicial solo se crea en una base sin ADMIN). */
     boolean existsByRol(Rol rol);
 

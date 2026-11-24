@@ -32,17 +32,12 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  * <p>{@code @EnableMethodSecurity} habilita {@code @PreAuthorize} en los
  * servicios/controladores para el resto de historias.</p>
  *
- * <p><strong>US-04 (cerrar sesion) es una decision deliberada, no un
- * descuido:</strong> no hay blacklist de tokens. El JWT expira a los
- * {@code security.jwt.expiration-minutes} (120 min por defecto); "cerrar
- * sesion" es responsabilidad del cliente (descarta el token). Un blacklist
- * (tabla/Redis consultada en cada request) reintroduce estado de servidor y
- * un lookup por request, anulando la ventaja de JWT stateless, solo para
- * un caso de uso de higiene de sesion (no de respuesta a compromiso de
- * cuenta, que igual requeriria rotar el secreto de firma). Consecuencia
- * aceptada: un dispositivo comprometido con sesion activa sigue siendo
- * valido hasta que el token expira. Detalle en README.md, seccion
- * "Decisiones de seguridad (alcance academico)".</p>
+ * <p><strong>US-04 (cerrar sesion):</strong> no hay blacklist de tokens. Cerrar
+ * la sesion en un dispositivo es del cliente (descarta el token). Cerrarla en
+ * todos (Esc. 2) sube la version de sesion de la cuenta, que viaja en el JWT y
+ * el filtro compara con la de la cuenta que ya carga en cada request: no
+ * agrega estado ni consultas. Detalle en README.md, seccion "Decisiones de
+ * seguridad (alcance academico)".</p>
  */
 @Configuration
 @EnableMethodSecurity
@@ -172,9 +167,10 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/notificaciones/vapid-public-key").permitAll()
                         // D-12: con los terminos pendientes solo se puede ver el
                         // propio perfil, gestionar los consentimientos y dar de
-                        // baja la suscripcion push al cerrar sesion (el logout es
-                        // del cliente, no hay endpoint). Rutas exactas.
+                        // baja la suscripcion push al cerrar sesion, y cerrar la
+                        // sesion en todos los dispositivos (US-04). Rutas exactas.
                         .requestMatchers(HttpMethod.GET, "/api/auth/me").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/me/cerrar-sesiones").authenticated()
                         .requestMatchers("/api/auth/me/consentimientos",
                                 "/api/auth/me/consentimientos/*").authenticated()
                         .requestMatchers(HttpMethod.DELETE, "/api/notificaciones/suscripciones").authenticated()

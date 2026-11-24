@@ -71,7 +71,7 @@ class JwtServiceTest {
     void secretoDeExactamente32Bytes_arranca() {
         JwtService servicio = new JwtService(secretoAleatorio(32), MINUTOS, false);
 
-        assertThat(servicio.extraerEmail(servicio.generarToken("a@lima.pe", "CIUDADANO"))).isEqualTo("a@lima.pe");
+        assertThat(servicio.extraerEmail(servicio.generarToken("a@lima.pe", "CIUDADANO", 0))).isEqualTo("a@lima.pe");
     }
 
     @Test
@@ -97,7 +97,7 @@ class JwtServiceTest {
         // Perfiles local y test: firman y verifican con el secreto de desarrollo.
         JwtService servicio = new JwtService(JwtService.SECRETO_DE_DESARROLLO, MINUTOS, true);
 
-        String token = servicio.generarToken("dev@lima.pe", "ADMIN");
+        String token = servicio.generarToken("dev@lima.pe", "ADMIN", 0);
 
         assertThat(servicio.extraerEmail(token)).isEqualTo("dev@lima.pe");
         assertThat(servicio.extraerRol(token)).isEqualTo("ADMIN");
@@ -116,7 +116,7 @@ class JwtServiceTest {
 
         JwtService servicio = conEntorno(JwtService.SECRETO_DE_DESARROLLO, true, entorno);
 
-        assertThat(servicio.extraerRol(servicio.generarToken("dev@lima.pe", "CIUDADANO"))).isEqualTo("CIUDADANO");
+        assertThat(servicio.extraerRol(servicio.generarToken("dev@lima.pe", "CIUDADANO", 0))).isEqualTo("CIUDADANO");
     }
 
     @Test
@@ -158,14 +158,14 @@ class JwtServiceTest {
         // La exigencia de perfil explicito es solo para el secreto de desarrollo.
         JwtService servicio = conEntorno(secretoAleatorio(48), false, new MockEnvironment());
 
-        assertThat(servicio.extraerEmail(servicio.generarToken("a@lima.pe", "ADMIN"))).isEqualTo("a@lima.pe");
+        assertThat(servicio.extraerEmail(servicio.generarToken("a@lima.pe", "ADMIN", 0))).isEqualTo("a@lima.pe");
     }
 
     @Test
     void secretoPropio_firmaYVerifica() {
         JwtService servicio = new JwtService(secretoAleatorio(48), MINUTOS, false);
 
-        String token = servicio.generarToken("vecina@lima.pe", "CIUDADANO");
+        String token = servicio.generarToken("vecina@lima.pe", "CIUDADANO", 0);
 
         assertThat(servicio.extraerEmail(token)).isEqualTo("vecina@lima.pe");
         assertThat(servicio.extraerRol(token)).isEqualTo("CIUDADANO");
@@ -173,11 +173,22 @@ class JwtServiceTest {
     }
 
     @Test
+    void leer_devuelveLaVersionDeSesion_yUnTokenSinElClaimValeComoLaCero() {
+        // US-04 Esc. 2: los tokens emitidos antes de V23 no traen el claim.
+        JwtService servicio = new JwtService(secretoAleatorio(48), MINUTOS, false);
+
+        assertThat(servicio.leer(servicio.generarToken("a@lima.pe", "CIUDADANO", 3)))
+                .isEqualTo(new JwtService.DatosDelToken("a@lima.pe", 3));
+        assertThat(servicio.leer(servicio.generarTokenSinVersion("a@lima.pe", "CIUDADANO")))
+                .isEqualTo(new JwtService.DatosDelToken("a@lima.pe", 0));
+    }
+
+    @Test
     void tokenFirmadoConElSecretoPublicado_noValeEnUnEntornoConSecretoPropio() {
         // Por que rotar (SEC-03): un token de ADMIN forjado con el secreto
         // viejo deja de verificar en cuanto el entorno usa uno propio.
         String forjado = new JwtService(JwtService.SECRETO_DE_DESARROLLO, MINUTOS, true)
-                .generarToken("admin@viasegura.pe", "ADMIN");
+                .generarToken("admin@viasegura.pe", "ADMIN", 0);
         JwtService produccion = new JwtService(secretoAleatorio(48), MINUTOS, false);
 
         assertThatThrownBy(() -> produccion.extraerEmail(forjado)).isInstanceOf(SignatureException.class);
