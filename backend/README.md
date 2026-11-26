@@ -2428,6 +2428,16 @@ nuevo.
   porque puede ser transitorio. Si no se entregó a ninguna, el canal lanza,
   `NotificacionService` registra el push `FALLIDA` y cae a correo si hay
   permiso. El cambio de estado nunca se ve afectado.
+- **Diagnóstico de un rechazo:** con cualquier respuesta que no sea 2xx ni
+  404/410, el adaptador deja un `WARN` con el host del servicio, el código y el
+  motivo que da el cuerpo (Apple responde JSON como `{"reason":"BadJwtToken"}`;
+  FCM y Mozilla, texto): `El servicio de push web.push.apple.com rechazo el
+  envio (HTTP 400, motivo: {"reason":"BadJwtToken"})`. Sin él, un fallo en iOS
+  solo dejaba «Push no entregado». El cuerpo se lee solo en ese caso, hasta 1 KB
+  y dentro del timeout del pedido (`CuerpoAcotado`), y llega al log saneado (sin
+  saltos de línea ni caracteres de control, contra la inyección en el log) y
+  truncado a 200 caracteres. Nunca se registra el endpoint completo (es una URL
+  de capacidad), las claves `p256dh`/`auth` ni la cabecera `Authorization`.
 
 **Fuera del hilo del funcionario y fuera de la transacción.** El listener de
 notificaciones (`AFTER_COMMIT`) solo encola `NotificacionService.notificarCambioEstado`,
@@ -2567,7 +2577,9 @@ causa.
 indique (entregado, 410, error, sin claves). Ningún test llama a un servicio de
 push real. `ZerodepWebPushAdapterTest` prueba el adaptador real sin red: carga
 de claves, arranque sin claves, firma y cifrado contra un puerto local cerrado,
-y clasificación de respuestas.
+clasificación de respuestas y, contra un servidor HTTP local, el log de un
+rechazo (estado y motivo, saneado y truncado, sin el endpoint; sin `WARN` en
+2xx ni en 410).
 
 ## Correo saliente (DEP-08)
 

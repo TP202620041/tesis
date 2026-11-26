@@ -49,6 +49,12 @@ public class ZerodepWebPushAdapter implements EnviadorWebPush {
     /** El aviso pierde sentido despues de un dia; el servicio de push lo descarta. */
     static final long TTL_HORAS = 24;
 
+    /** Bytes del cuerpo de un rechazo que se leen para el log; el resto se descarta. */
+    static final int MAX_BYTES_CUERPO = 1024;
+
+    /** Caracteres del motivo de un rechazo que llegan al log. */
+    public static final int MAX_CARACTERES_MOTIVO = 200;
+
     private final VAPIDKeyPair claves;
     private final String clavePublica;
     private final String sujeto;
@@ -127,13 +133,12 @@ public class ZerodepWebPushAdapter implements EnviadorWebPush {
             return ResultadoEnvioPush.ERROR;
         }
         try {
-            int status = httpClient.send(prepararPedido(destino, payload, topico),
-                    HttpResponse.BodyHandlers.discarding()).statusCode();
+            HttpResponse<String> respuesta = httpClient.send(prepararPedido(destino, payload, topico),
+                    info -> manejarCuerpo(info.statusCode()));
+            int status = respuesta.statusCode();
             ResultadoEnvioPush resultado = clasificar(status);
-            if (status == 401 || status == 403) {
-                log.warn("El servicio de push {} rechazo la firma VAPID ({}): si se rotaron las claves, "
-                        + "esa suscripcion falla hasta que el navegador se vuelva a suscribir",
-                        host(destino.endpoint()), status);
+            if (resultado == ResultadoEnvioPush.ERROR) {
+                registrarRechazo(host(destino.endpoint()), status, respuesta.body());
             }
             return resultado;
         } catch (InterruptedException e) {
@@ -143,6 +148,72 @@ public class ZerodepWebPushAdapter implements EnviadorWebPush {
             log.warn("Fallo el envio push a {}: {}", host(destino.endpoint()), e.getClass().getSimpleName());
             return ResultadoEnvioPush.ERROR;
         }
+    }
+
+    /**
+     * El cuerpo solo se lee cuando el envio no se entrego ni caduco, y solo
+     * para el log: acotado a {@link #MAX_BYTES_CUERPO} bytes y al timeout del
+     * pedido, para que un servicio que no termina de responder no retenga el
+     * hilo. En 2xx y 404/410 se descarta sin leerlo.
+     */
+    private HttpResponse.BodySubscriber<String> manejarCuerpo(int status) {
+        if (clasificar(status) != ResultadoEnvioPush.ERROR) {
+            return HttpResponse.BodySubscribers.replacing((String) null);
+        }
+        return new CuerpoAcotado(MAX_BYTES_CUERPO, timeoutPedido);
+    }
+
+    /**
+     * Diagnostico de un rechazo (US-21): host, estado y el motivo que da el
+     * servicio (Apple responde JSON como {@code {"reason":"BadJwtToken"}},
+     * FCM y Mozilla texto). Nunca el endpoint completo (es una URL de
+     * capacidad), las claves de la suscripcion ni la cabecera
+     * {@code Authorization}.
+     */
+    private static void registrarRechazo(String host, int status, String cuerpo) {
+        String motivo = motivoParaLog(cuerpo);
+        if (status == 401 || status == 403) {
+            log.warn("El servicio de push {} rechazo la firma VAPID (HTTP {}, motivo: {}): si se rotaron las claves, "
+                    + "esa suscripcion falla hasta que el navegador se vuelva a suscribir", host, status, motivo);
+        } else {
+            log.warn("El servicio de push {} rechazo el envio (HTTP {}, motivo: {})", host, status, motivo);
+        }
+    }
+
+    /**
+     * El cuerpo de la respuesta apto para una linea de log: sin saltos de
+     * linea ni caracteres de control (contra la inyeccion en el log), con los
+     * espacios colapsados y como mucho {@link #MAX_CARACTERES_MOTIVO}
+     * caracteres.
+     */
+    public static String motivoParaLog(String cuerpo) {
+        if (cuerpo == null || cuerpo.isBlank()) {
+            return "(sin cuerpo)";
+        }
+        StringBuilder limpio = new StringBuilder(MAX_CARACTERES_MOTIVO);
+        boolean espacioPendiente = false;
+        int i = 0;
+        for (; i < cuerpo.length() && limpio.length() < MAX_CARACTERES_MOTIVO; i++) {
+            char c = cuerpo.charAt(i);
+            if (esSeparadorOControl(c)) {
+                espacioPendiente = limpio.length() > 0;
+            } else {
+                if (espacioPendiente) {
+                    limpio.append(' ');
+                    espacioPendiente = false;
+                }
+                limpio.append(c);
+            }
+        }
+        boolean truncado = cuerpo.substring(i).chars().anyMatch(c -> !esSeparadorOControl((char) c));
+        return truncado ? limpio + "..." : limpio.toString();
+    }
+
+    private static boolean esSeparadorOControl(char c) {
+        int tipo = Character.getType(c);
+        return Character.isWhitespace(c) || Character.isISOControl(c) || Character.isSpaceChar(c)
+                || tipo == Character.FORMAT || tipo == Character.LINE_SEPARATOR
+                || tipo == Character.PARAGRAPH_SEPARATOR || tipo == Character.SURROGATE;
     }
 
     /**
