@@ -2,6 +2,27 @@
 
 Versiones de Ciudad Viva (antes ViaSegura) según GitFlow (`WORKFLOW.md` §8): cada sprint cierra con una versión minor en `main`. Plan: `project-context/decisions/plan-sprints.md`.
 
+## v0.9.1 — Diagnóstico del canal push y captcha (2026-11-25)
+
+Versión de corrección. No cambia el esquema ni el contrato del API.
+
+### Antes de publicar
+- **Sin variables nuevas ni migraciones.**
+
+### Corregido
+- **NC-08b (PR #153):** un timeout de lectura al verificar el captcha siempre se trata como servicio no disponible. Estabiliza la prueba `TurnstileAdapterTest.timeoutDeLecturaReal`, que hizo fallar la CI de `main` al publicar la v0.9.0.
+
+### Nuevo
+- **US-21, diagnóstico (PR #154):** cuando el servicio de push rechaza un envío (cualquier respuesta que no sea 2xx ni 404/410), el registro deja el host del servicio, el código HTTP y el motivo del cuerpo, saneado y cortado a 200 caracteres. Nunca se registra el endpoint de la suscripción, sus claves ni la cabecera `Authorization`. El comportamiento del envío no cambia.
+  - **Motivo:** el 25/11, en producción, el push a una PWA instalada en iOS falló sin dejar la causa; en Chrome de escritorio llegó. Esta versión solo permite ver el motivo: la corrección queda para la siguiente.
+
+### Cifras (CI del PR #154)
+- **Failsafe:** 651 `completed` (637 ejecutados y 14 omitidos), sin cambios.
+- **Surefire:** 849, antes 840.
+- **Cobertura de ramas del backend:** 87,2 %.
+- **PWA e inferencia:** sin cambios (1521 y 264).
+- **Mínimos de la CI:** `MIN_SUREFIRE` sube a 849.
+
 ## v0.9.0 — Sprint 6 y cierre del MVP: dashboard por periodo de gestión (2026-11-23)
 
 Cierra el S6, desbloqueado por las decisiones del usuario del 23/11 (`project-context/decisions/propuestas/2026-11-23-nc-06-kpis-gestion-y-d10.md`), y completa los escenarios que la auditoría del Product Backlog del 02/11 encontró pendientes. Reúne los PR #146 a #150.
