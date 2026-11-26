@@ -2428,6 +2428,16 @@ nuevo.
   porque puede ser transitorio. Si no se entregó a ninguna, el canal lanza,
   `NotificacionService` registra el push `FALLIDA` y cae a correo si hay
   permiso. El cambio de estado nunca se ve afectado.
+- **Diagnóstico de un rechazo:** con cualquier respuesta que no sea 2xx ni
+  404/410, el adaptador deja un `WARN` con el host del servicio, el código y el
+  motivo que da el cuerpo (Apple responde JSON como `{"reason":"BadJwtToken"}`;
+  FCM y Mozilla, texto): `El servicio de push web.push.apple.com rechazo el
+  envio (HTTP 400, motivo: {"reason":"BadJwtToken"})`. Sin él, un fallo en iOS
+  solo dejaba «Push no entregado». El cuerpo se lee solo en ese caso, hasta 1 KB
+  y dentro del timeout del pedido (`CuerpoAcotado`), y llega al log saneado (sin
+  saltos de línea ni caracteres de control, contra la inyección en el log) y
+  truncado a 200 caracteres. Nunca se registra el endpoint completo (es una URL
+  de capacidad), las claves `p256dh`/`auth` ni la cabecera `Authorization`.
 
 **Fuera del hilo del funcionario y fuera de la transacción.** El listener de
 notificaciones (`AFTER_COMMIT`) solo encola `NotificacionService.notificarCambioEstado`,
@@ -2567,7 +2577,9 @@ causa.
 indique (entregado, 410, error, sin claves). Ningún test llama a un servicio de
 push real. `ZerodepWebPushAdapterTest` prueba el adaptador real sin red: carga
 de claves, arranque sin claves, firma y cifrado contra un puerto local cerrado,
-y clasificación de respuestas.
+clasificación de respuestas y, contra un servidor HTTP local, el log de un
+rechazo (estado y motivo, saneado y truncado, sin el endpoint; sin `WARN` en
+2xx ni en 410).
 
 ## Correo saliente (DEP-08)
 
@@ -2608,7 +2620,9 @@ propuesta aceptada: el envío corre fuera de la petición, así que esperar más
 Resend no demora a nadie, y el timeout acota cuánto ocupa uno de los pocos
 hilos del executor asíncrono un proveedor que no responde. Sin reintentos: llegarán
 con NC-05 (ENVIO_CORREO, con registro de intentos). Una respuesta 4xx o 5xx, o
-la falta de respuesta, se traduce a `CorreoNoEnviadoException` con el status y
+la falta de respuesta (también el timeout de lectura que llega como
+`CancellationException` sin envolver, ver «Captcha en el registro»), se traduce
+a `CorreoNoEnviadoException` con el status y
 el código de error de Resend (`validation_error`, `rate_limit_exceeded`…).
 Nunca lleva el `message` de Resend (puede repetir el destinatario), el texto ni
 la clave, y por eso tampoco encadena la excepción original.
@@ -2788,6 +2802,19 @@ llamada. **Sin reintentos ni redirecciones:** el token es de un solo uso, y
 reintentar un pedido que sí llegó daría `timeout-or-duplicate`. Por eso
 tampoco se envía `idempotency_key`, que Cloudflare ofrece solo para
 reintentar.
+
+**El timeout de lectura siempre es 503.** Con `JdkClientHttpRequestFactory`,
+Spring 6.2 corta la lectura cancelando el futuro del `HttpClient` del JDK, y
+según quién gane la carrera la excepción llega envuelta en
+`ResourceAccessException` o como `CancellationException` sin envolver, que no
+es una `RestClientException`. Sin capturarla, un Turnstile lento daba 500 en
+lugar de 503; así falló de forma intermitente
+`timeoutDeLecturaReal_cortaLaEsperaYEsServicioNoDisponible` en la CI del push
+de la v0.9.0 a `main` (24/11). El adaptador traduce las dos al mismo
+`ServicioNoDisponibleException`, con el mensaje fijo (sin token ni secreto), y
+`unaLecturaCanceladaPorElTimeoutDeSpring_esServicioNoDisponible` lo fija sin
+depender de la carrera. Los adaptadores de inferencia y moderación ya lo
+hacían (NC-04); el de Resend recibió la misma corrección.
 
 **El hostname, sí; la acción, no.** Cloudflare devuelve el `hostname` donde se
 resolvió el widget y recomienda compararlo. Es una comparación exacta contra

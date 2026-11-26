@@ -18,6 +18,7 @@ import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.SocketTimeoutException;
 import java.time.Duration;
+import java.util.concurrent.CancellationException;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -247,9 +248,30 @@ class TurnstileAdapterTest {
     }
 
     @Test
+    void unaLecturaCanceladaPorElTimeoutDeSpring_esServicioNoDisponible(CapturedOutput salida) {
+        // Spring 6.2 corta la lectura cancelando el futuro del cliente del JDK, y
+        // a veces la cancelacion llega tal cual (CancellationException) en vez de
+        // envuelta: hizo fallar timeoutDeLecturaReal_... en la CI del 24/11.
+        ConServidor con = crear("");
+        con.servidor().expect(once(), requestTo(TurnstileAdapter.URL_API)).andRespond(pedido -> {
+            throw new CancellationException();
+        });
+
+        ServicioNoDisponibleException error = catchThrowableOfType(ServicioNoDisponibleException.class,
+                () -> con.adaptador().verificar(TOKEN));
+
+        assertThat(error).isNotNull();
+        assertThat(error.getMessage()).isEqualTo(TurnstileAdapter.MENSAJE_NO_DISPONIBLE);
+        assertThat(salida.getOut()).contains("el pedido se cancelo");
+        sinDatosSensibles(error, salida);
+    }
+
+    @Test
     void timeoutDeLecturaReal_cortaLaEsperaYEsServicioNoDisponible(CapturedOutput salida) throws IOException {
         // Un servidor que acepta la conexion (la completa el sistema operativo,
-        // en la cola del socket) y nunca responde.
+        // en la cola del socket) y nunca responde. Segun la carrera, el timeout
+        // llega como ResourceAccessException o como CancellationException: las
+        // dos son 503, asi que el resultado no depende de cual gane.
         try (ServerSocket mudo = new ServerSocket(0, 10, InetAddress.getLoopbackAddress())) {
             TurnstileAdapter conTimeouts = new TurnstileAdapter(
                     "http://127.0.0.1:" + mudo.getLocalPort() + "/turnstile/v0/siteverify", SECRETO, "",
