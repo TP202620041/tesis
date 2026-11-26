@@ -63,7 +63,7 @@ Lo mismo que la CI, en tu máquina (entorno de `CLAUDE.md`):
 # backend/ (Windows: base en 5433; macOS: 5432 con TEST_DB_URL)
 POSTGRES_PORT=5433 docker compose up -d --wait          # --wait espera el healthcheck (pg_isready)
 mvn -B -ntp clean verify
-MIN_IT_FAILSAFE=637 MIN_SUREFIRE=840 node ../.github/scripts/verificar-backend.mjs   # la misma guarda
+MIN_IT_FAILSAFE=637 MIN_SUREFIRE=849 node ../.github/scripts/verificar-backend.mjs   # la misma guarda
 
 # frontend/
 npm ci && npm run lint && npm run typecheck && npm test
